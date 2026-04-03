@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Hemocytometer Counting Modes</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f7f7f5;
+      color: #37352f;
+      padding: 48px 24px 72px;
+    }
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+    .page-sub {
+      font-size: 0.88rem;
+      color: #9b9a97;
+      margin-bottom: 40px;
+    }
+    .modes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      max-width: 980px;
+    }
+    .mode-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .mode-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .mode-num {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #9b9a97;
+      background: #f1f1ef;
+      border-radius: 4px;
+      padding: 2px 7px;
+      white-space: nowrap;
+      margin-top: 3px;
+      flex-shrink: 0;
+    }
+    .mode-title {
+      font-size: 0.98rem;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+    .mode-diagram {
+      display: flex;
+      justify-content: center;
+    }
+    .mode-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .meta-box {
+      background: #f7f6f3;
+      border-radius: 7px;
+      padding: 8px 10px;
+    }
+    .meta-box.wide { grid-column: 1 / -1; }
+    .meta-label {
+      font-size: 0.67rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #b6b5b2;
+      margin-bottom: 3px;
+    }
+    .meta-value {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #37352f;
+    }
+    .meta-value code {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.78rem;
+      background: #ece9e4;
+      border-radius: 3px;
+      padding: 0 4px;
+    }
+    .mode-note {
+      font-size: 0.78rem;
+      color: #9b9a97;
+      line-height: 1.55;
+      border-top: 1px solid #f0efed;
+      padding-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🔬 Hemocytometer Counting Modes</h1>
+  <p class="page-sub">Neubauer improved chamber · Center square always shown with 5×5 sub-grid</p>
+
+  <div class="modes-grid" id="grid"></div>
+
+<script>
+// ── Palette ──────────────────────────────────────────────────
+const C = {
+  bg:           '#f7f6f3',
+  gridLine:     '#ccc9c2',
+  outerBorder:  '#37352f',
+  sqEmpty:      '#ffffff',
+  sqActiveLight:'#dce7ff',
+  sqActive:     '#3366cc',
+  subBg:        '#f0efed',      // unselected small square
+  subActive:    '#c8d9ff',      // selected small square fill
+  subDot:       '#3366cc',      // dot inside selected small square
+  centerBorder: '#9b9a97',      // border of center square to distinguish it
+};
+
+// ── drawGrid ─────────────────────────────────────────────────
+// largeHL   : [[r,c], ...]  large squares to highlight (blue fill + dot)
+// smallHL   : [[r,c], ...]  small squares inside center to highlight
+//             pass 'all' to highlight all 25
+function drawGrid(largeHL, smallHL) {
+  const S   = 46;   // large square size px
+  const G   = 2;    // gap between squares
+  const W   = S * 3 + G * 4;
+  const ss  = S / 5; // small square size
+
+  const isLargeHL = (r,c) => largeHL.some(([a,b]) => a===r && b===c);
+  const isSmallHL = (r,c) => {
+    if (smallHL === 'all') return true;
+    return Array.isArray(smallHL) && smallHL.some(([a,b]) => a===r && b===c);
+  };
+
+  let svg = `<svg width="${W}" height="${W}" viewBox="0 0 ${W} ${W}" xmlns="http://www.w3.org/2000/svg">`;
+  svg += `<rect width="${W}" height="${W}" rx="3" fill="${C.bg}"/>`;
+
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      const x   = G + c * (S + G);
+      const y   = G + r * (S + G);
+      const hl  = isLargeHL(r, c);
+      const isCtr = r === 1 && c === 1;
+
+      // Large square background
+      const fill = hl ? C.sqActiveLight : C.sqEmpty;
+      svg += `<rect x="${x}" y="${y}" width="${S}" height="${S}" rx="1.5"
+                fill="${fill}" stroke="${isCtr ? C.centerBorder : C.gridLine}"
+                stroke-width="${isCtr ? 1.2 : 0.8}"/>`;
+
+      // Center square: always draw 5×5 sub-grid
+      if (isCtr) {
+        for (let sr = 0; sr < 5; sr++) {
+          for (let sc = 0; sc < 5; sc++) {
+            const sx  = x + sc * ss;
+            const sy  = y + sr * ss;
+            const sHL = isSmallHL(sr, sc);
+            svg += `<rect x="${sx}" y="${sy}" width="${ss}" height="${ss}"
+                      fill="${sHL ? C.subActive : C.subBg}"
+                      stroke="${C.gridLine}" stroke-width="0.4"/>`;
+            // dot inside highlighted small square
+            if (sHL) {
+              svg += `<circle cx="${sx + ss/2}" cy="${sy + ss/2}" r="${ss * 0.22}"
+                        fill="${C.subDot}" opacity="0.85"/>`;
+            }
+          }
+        }
+      }
+
+      // Dot for highlighted large square (non-center)
+      if (hl && !isCtr) {
+        svg += `<circle cx="${x + S/2}" cy="${y + S/2}" r="7"
+                  fill="${C.sqActive}" opacity="0.9"/>`;
+      }
+    }
+  }
+
+  // Outer border
+  svg += `<rect x="1" y="1" width="${W-2}" height="${W-2}" rx="3"
+            fill="none" stroke="${C.outerBorder}" stroke-width="1.5"/>`;
+
+  svg += `</svg>`;
+  return svg;
+}
+
+// small-square patterns
+const SMALL_ALL  = 'all';                               // all 25
+const SMALL_5    = [[0,0],[0,4],[2,2],[4,0],[4,4]];    // 4 corners + center of 5×5
+
+// ── Mode definitions ─────────────────────────────────────────
+const modes = [
+  {
+    num: 'Mode 1',
+    title: 'All 25 small squares — center box',
+    largeHL:  [],
+    smallHL:  SMALL_ALL,
+    squaresN: '25 small',
+    formula:  'avg(25) × 25 × DF × 10⁴',
+    use:      'Extremely dense samples',
+    note:     'Count every small square in the center large square. Highest precision for packed samples where individual cells can still be distinguished.',
+  },
+  {
+    num: 'Mode 2',
+    title: '5 small squares — 4 corners + center',
+    largeHL:  [],
+    smallHL:  SMALL_5,
+    squaresN: '5 small',
+    formula:  'avg(5) × 25 × DF × 10⁴',
+    use:      'Dense samples (>500 cells / large sq)',
+    note:     'The classic small-square protocol. Count the 4 corner + center small squares and multiply by 25 to scale back to large-square volume.',
+  },
+  {
+    num: 'Mode 3',
+    title: '4 large corner squares',
+    largeHL:  [[0,0],[0,2],[2,0],[2,2]],
+    smallHL:  [],
+    squaresN: '4 large',
+    formula:  'avg(4) × DF × 10⁴',
+    use:      'Standard cell culture (most common)',
+    note:     'The default protocol for routine passaging and seeding. Best balance of accuracy and speed.',
+  },
+  {
+    num: 'Mode 4',
+    title: 'Single corner square',
+    largeHL:  [[0,0]],
+    smallHL:  [],
+    squaresN: '1 large',
+    formula:  'count × DF × 10⁴',
+    use:      'Quick check, adequate density',
+    note:     'Fastest but highest variance. Acceptable only when density is high and the result is a rough estimate.',
+  },
+];
+
+// ── Render ───────────────────────────────────────────────────
+const grid = document.getElementById('grid');
+
+for (const m of modes) {
+  const card = document.createElement('div');
+  card.className = 'mode-card';
+  card.innerHTML = `
+    <div class="mode-header">
+      <span class="mode-num">${m.num}</span>
+      <div class="mode-title">${m.title}</div>
+    </div>
+    <div class="mode-diagram">
+      ${drawGrid(m.largeHL, m.smallHL)}
+    </div>
+    <div class="mode-meta">
+      <div class="meta-box">
+        <div class="meta-label">Squares counted</div>
+        <div class="meta-value">${m.squaresN}</div>
+      </div>
+      <div class="meta-box">
+        <div class="meta-label">Best for</div>
+        <div class="meta-value">${m.use}</div>
+      </div>
+      <div class="meta-box wide">
+        <div class="meta-label">Formula</div>
+        <div class="meta-value"><code>${m.formula}</code></div>
+      </div>
+    </div>
+    <div class="mode-note">${m.note}</div>
+  `;
+  grid.appendChild(card);
+}
+</script>
+</body>
+</html>
