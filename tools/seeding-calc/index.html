@@ -363,6 +363,64 @@
 
     .dil-reset-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
 
+    /* ── Bypass toggle ── */
+    .bypass-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: var(--tag-bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      margin-bottom: 18px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .bypass-row:hover { background: var(--blue-bg); border-color: var(--blue); }
+    .bypass-row.active { background: var(--blue-bg); border-color: var(--blue-dark); }
+    .bypass-row input[type="checkbox"] {
+      width: 15px; height: 15px;
+      accent-color: var(--blue-dark);
+      cursor: pointer; flex-shrink: 0; margin: 0;
+    }
+    .bypass-label {
+      font-size: 0.82rem; font-weight: 600; color: var(--text-secondary);
+    }
+    .bypass-label .bypass-sub {
+      font-size: 0.72rem; color: var(--text-muted); font-weight: 400; margin-left: 4px;
+    }
+
+    /* direct-entry block shown when bypassed */
+    .bypass-conc-block {
+      background: var(--blue-bg);
+      border: 1.5px solid var(--blue-border);
+      border-radius: 10px;
+      padding: 13px 13px 12px;
+      margin-bottom: 10px;
+      display: none;
+    }
+    .bypass-conc-block.visible { display: block; }
+    .bypass-conc-block .group-header { color: var(--blue-dark); }
+    .bypass-conc-block input[type="number"] {
+      width: 100%; padding: 9px 10px;
+      border: 1.5px solid var(--blue-border); border-radius: var(--radius-md);
+      font-size: 1rem; font-family: var(--font); color: var(--blue-dark);
+      background: var(--surface); outline: none; font-weight: 600;
+      transition: border-color 0.15s;
+    }
+    .bypass-conc-block input[type="number"]:focus { border-color: var(--blue-dark); }
+    .bypass-conc-block input[type="number"]::placeholder { color: var(--text-placeholder); font-weight: 400; }
+
+    /* counting section disabled state */
+    #counting-section {
+      transition: opacity 0.2s;
+    }
+    #counting-section.disabled {
+      opacity: 0.32;
+      pointer-events: none;
+    }
+
     /* ── Export action row ── */
     .action-row {
       display: flex;
@@ -422,6 +480,25 @@
     <h1>🧮 Cell Count</h1>
     <p class="subtitle">Count your cells, then proceed to calculate the dilution.</p>
 
+    <!-- Bypass toggle -->
+    <label class="bypass-row" id="bypass-row">
+      <input type="checkbox" id="bypass-toggle" onchange="onBypassToggle()"/>
+      <span class="bypass-label">I already have my cell concentration
+        <span class="bypass-sub">— skip the counting step</span>
+      </span>
+    </label>
+
+    <!-- Direct-entry field (visible when bypassed) -->
+    <div class="bypass-conc-block" id="bypass-conc-block">
+      <div class="group-header">📐 Known Concentration</div>
+      <input type="number" id="bypass-conc"
+             placeholder="e.g. 2000000  (cells/mL)" min="0"
+             oninput="calcStep1()"/>
+    </div>
+
+    <!-- Counting section (greyed out when bypassed) -->
+    <div id="counting-section">
+
     <!-- Mode selector -->
     <div class="lt-section-label" style="margin-bottom:8px">Counting Mode</div>
     <div class="mode-selector" id="mode-selector"></div>
@@ -479,6 +556,8 @@
         <input type="number" id="vol" placeholder="e.g. 2" min="0" step="0.1" oninput="calcStep1()"/>
       </div>
     </div>
+
+    </div><!-- /counting-section -->
 
     <div class="lt-divider"></div>
 
@@ -729,6 +808,23 @@ function fmt(n, dp=1) {
   return n.toLocaleString();
 }
 
+function onBypassToggle() {
+  const bypassed = document.getElementById('bypass-toggle').checked;
+  document.getElementById('bypass-row').classList.toggle('active', bypassed);
+  document.getElementById('bypass-conc-block').classList.toggle('visible', bypassed);
+  document.getElementById('counting-section').classList.toggle('disabled', bypassed);
+
+  if (bypassed) {
+    // clear counting inputs so they don't affect the result
+    ['live1','live2','dead1','dead2'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('count-all-toggle').checked = false;
+    document.getElementById('dead-block').classList.remove('disabled');
+  } else {
+    document.getElementById('bypass-conc').value = '';
+  }
+  calcStep1();
+}
+
 function onCountAllToggle() {
   const isAll = document.getElementById('count-all-toggle').checked;
   const deadBlock = document.getElementById('dead-block');
@@ -744,6 +840,27 @@ function onCountAllToggle() {
 // Step 1 calculate
 // ─────────────────────────────────────────────────────────────
 function calcStep1() {
+  // ── Bypass mode: user enters known concentration directly ──
+  const bypassed = document.getElementById('bypass-toggle').checked;
+  if (bypassed) {
+    const bypassVal = parseFloat(document.getElementById('bypass-conc').value);
+    step1FinalDensity = (!isNaN(bypassVal) && bypassVal > 0) ? Math.round(bypassVal) : NaN;
+
+    document.getElementById('res-avg').textContent      = '—';
+    document.getElementById('res-avg-note').textContent = 'bypassed';
+    document.getElementById('res-via').textContent      = '—';
+    document.getElementById('res-via-note').textContent = 'bypassed';
+    document.getElementById('via-note').textContent     = '';
+    document.getElementById('via-note').className       = 'via-note';
+    document.getElementById('res-total-label').textContent = 'Total Cells';
+    document.getElementById('res-density').textContent      = fmt(step1FinalDensity);
+    document.getElementById('res-density-note').textContent = !isNaN(step1FinalDensity) ? 'cells / mL (entered)' : 'cells / mL';
+    document.getElementById('res-total').textContent        = '—';
+    document.getElementById('res-total-note').textContent   = '—';
+    document.getElementById('btn-next').disabled = isNaN(step1FinalDensity);
+    return;
+  }
+
   const mode  = MODES.find(m => m.id === currentModeId);
   const isAll = document.getElementById('count-all-toggle').checked;
   const df    = parseFloat(document.getElementById('df').value);
@@ -954,6 +1071,13 @@ function calcDilution() {
 // Resets
 // ─────────────────────────────────────────────────────────────
 function resetStep1() {
+  // reset bypass
+  document.getElementById('bypass-toggle').checked = false;
+  document.getElementById('bypass-row').classList.remove('active');
+  document.getElementById('bypass-conc-block').classList.remove('visible');
+  document.getElementById('bypass-conc').value = '';
+  document.getElementById('counting-section').classList.remove('disabled');
+  // reset counting inputs
   ['live1','live2','dead1','dead2','vol'].forEach(id =>
     document.getElementById(id).value = '');
   document.getElementById('df').value = '20';
@@ -979,6 +1103,15 @@ function resetStep2() {
 // Export helpers
 // ─────────────────────────────────────────────────────────────
 function getCellCountRows() {
+  const bypassed = document.getElementById('bypass-toggle').checked;
+  if (bypassed) {
+    return [
+      ['=== Cell Count ===', ''],
+      ['Mode', 'Bypass — concentration entered directly'],
+      ['Known concentration (cells/mL)', document.getElementById('bypass-conc').value || ''],
+      ['Final density (cells/mL)',       document.getElementById('res-density').textContent],
+    ];
+  }
   const mode  = MODES.find(m => m.id === currentModeId);
   const isAll = document.getElementById('count-all-toggle').checked;
   return [
