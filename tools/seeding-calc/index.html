@@ -363,10 +363,30 @@
 
     .dil-reset-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
 
+    /* ── Export action row ── */
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .action-row .btn-reset {
+      width: auto;
+      margin-top: 0;
+      padding: 8px 14px;
+    }
+    .export-note {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+      min-height: 18px;
+    }
+
     @media (max-width: 480px) {
       .mode-selector { grid-template-columns: repeat(2, 1fr); }
       .card { padding: 20px 16px; }
       .dilution-grid { grid-template-columns: 1fr; }
+      .action-row { flex-direction: column; }
     }
   </style>
 </head>
@@ -487,9 +507,16 @@
       </div>
     </div>
 
-    <!-- Nav row -->
-    <div class="nav-row">
+    <!-- Export + Nav row -->
+    <div class="action-row">
+      <button class="btn-reset" onclick="copyResults('count')">📋 Copy Results</button>
+      <button class="btn-reset" onclick="downloadCsv('count')">⬇️ Export CSV</button>
       <button class="btn-reset" onclick="resetStep1()">↺ Reset</button>
+    </div>
+    <div class="export-note" id="export-note-s1"></div>
+
+    <div class="nav-row" style="margin-top:10px">
+      <div></div>
       <button class="btn-next" id="btn-next" onclick="goToStep2()" disabled>
         Next: Dilution <span>→</span>
       </button>
@@ -575,8 +602,15 @@
     <!-- Media to add note -->
     <div class="media-note hidden" id="media-note"></div>
 
-    <!-- Nav row -->
-    <div class="dil-reset-row">
+    <!-- Export row -->
+    <div class="action-row">
+      <button class="btn-reset" onclick="copyResults('full')">📋 Copy All Results</button>
+      <button class="btn-reset" onclick="downloadCsv('full')">⬇️ Export All CSV</button>
+    </div>
+    <div class="export-note" id="export-note-s2"></div>
+
+    <!-- Back / Reset row -->
+    <div class="dil-reset-row" style="margin-top:10px">
       <button class="btn-back" onclick="goToStep1()">← Back</button>
       <button class="btn-reset" onclick="resetStep2()">↺ Reset dilution</button>
     </div>
@@ -939,6 +973,116 @@ function resetStep2() {
     document.getElementById('c1').value = '';
   }
   calcDilution();
+}
+
+// ─────────────────────────────────────────────────────────────
+// Export helpers
+// ─────────────────────────────────────────────────────────────
+function getCellCountRows() {
+  const mode  = MODES.find(m => m.id === currentModeId);
+  const isAll = document.getElementById('count-all-toggle').checked;
+  return [
+    ['=== Cell Count ===', ''],
+    ['Counting mode',              mode.tag.replace(/\n/g, ' ')],
+    ['Formula',                   mode.formulaNote],
+    ['Count all cells (no Trypan Blue)', isAll ? 'Yes' : 'No'],
+    ['Live count 1',              document.getElementById('live1').value || ''],
+    ['Live count 2',              document.getElementById('live2').value || ''],
+    ['Dead count 1',              document.getElementById('dead1').value || ''],
+    ['Dead count 2',              document.getElementById('dead2').value || ''],
+    ['Dilution factor',           document.getElementById('df').value   || ''],
+    ['Resuspension volume (mL)',  document.getElementById('vol').value  || ''],
+    ['Average live count',        document.getElementById('res-avg').textContent],
+    ['Viability',                 document.getElementById('res-via').textContent],
+    ['Final density (cells/mL)',  document.getElementById('res-density').textContent],
+    ['Total cells',               document.getElementById('res-total').textContent],
+  ];
+}
+
+function getDilutionRows() {
+  // figure out which variable was solved
+  const c1 = document.getElementById('c1').value;
+  const v1 = document.getElementById('v1').value;
+  const c2 = document.getElementById('c2').value;
+  const v2 = document.getElementById('v2').value;
+  const ansLabel = document.getElementById('ans-label').textContent;
+  const ansValue = document.getElementById('ans-value').textContent;
+  const ansUnit  = document.getElementById('ans-unit').textContent;
+  const mediaText = document.getElementById('media-note').classList.contains('hidden')
+    ? '' : document.getElementById('media-note').innerText;
+  return [
+    ['=== Dilution (C₁V₁ = C₂V₂) ===', ''],
+    ['C₁ — Stock concentration (cells/mL)', c1],
+    ['V₁ — Volume from stock (mL)',         v1],
+    ['C₂ — Target concentration (cells/mL)',c2],
+    ['V₂ — Final volume (mL)',              v2],
+    ['Solved for',   ansLabel.replace('Solving for ', '')],
+    ['Solved value', ansValue + (ansUnit ? ' ' + ansUnit : '')],
+    ['Media to add', mediaText],
+  ];
+}
+
+function makeCsv(rows) {
+  return rows.map(r => r.map(cell => {
+    const text = String(cell).replace(/"/g, '""');
+    return `"${text}"`;
+  }).join(',')).join('\n');
+}
+
+function setExportNote(msg) {
+  // update whichever step's note is visible
+  const s1 = document.getElementById('step1');
+  const noteId = s1.classList.contains('active') ? 'export-note-s1' : 'export-note-s2';
+  document.getElementById(noteId).textContent = msg;
+}
+
+function downloadCsv(scope) {
+  const rows = scope === 'full'
+    ? [...getCellCountRows(), ['', ''], ...getDilutionRows()]
+    : getCellCountRows();
+  const csv  = makeCsv([['Field', 'Value'], ...rows]);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = scope === 'full' ? 'seeding-calc-results.csv' : 'cell-count-results.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  setExportNote('CSV file generated for download.');
+}
+
+function copyResults(scope) {
+  const rows = scope === 'full'
+    ? [...getCellCountRows(), ['', ''], ...getDilutionRows()]
+    : getCellCountRows();
+  const text = ['Cell Seeding Calculator Results', '', ...rows.map(r => `${r[0]}: ${r[1]}`)].join('\n');
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => setExportNote('Results copied to clipboard.'))
+      .catch(() => fallbackCopyText(text));
+  } else {
+    fallbackCopyText(text);
+  }
+}
+
+function fallbackCopyText(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'absolute';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    setExportNote('Results copied to clipboard.');
+  } catch {
+    setExportNote('Unable to copy — use Export CSV instead.');
+  }
+  document.body.removeChild(ta);
 }
 
 // ─────────────────────────────────────────────────────────────
