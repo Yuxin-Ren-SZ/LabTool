@@ -320,6 +320,12 @@
       margin-top: 8px;
       min-height: 18px;
     }
+    .unit-legend {
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      margin-top: 5px;
+      letter-spacing: 0.01em;
+    }
 
     @media (max-width: 480px) {
       .mode-selector { grid-template-columns: repeat(2, 1fr); }
@@ -427,6 +433,7 @@
       <div class="r-unit"  id="res-total-note">density × vol</div>
     </div>
   </div>
+  <div class="unit-legend">K = 1,000 &nbsp;·&nbsp; M = 1,000,000 &nbsp;·&nbsp; B = 1,000,000,000</div>
 
   <div class="action-row">
     <button class="btn-reset" onclick="copyResults()">📋 Copy Results</button>
@@ -595,9 +602,7 @@ function avgTwo(a, b) {
 
 function fmt(n) {
   if (isNaN(n) || n == null) return '—';
-  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-  return n.toLocaleString();
+  return Math.round(n).toLocaleString('en-US');
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -314,10 +314,10 @@
     }
     .dil-field input[type="number"]:focus { border-color: var(--blue); }
     .dil-field input[type="number"]::placeholder { color: var(--text-placeholder); }
-    .dil-field input[type="number"].prefilled {
+    .dil-field input.prefilled {
       background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue-dark);
     }
-    .dil-field input[type="number"].solving {
+    .dil-field input.solving {
       background: var(--green-bg); border-color: var(--green-border);
       color: var(--green-dark); font-weight: 700;
     }
@@ -421,6 +421,14 @@
       pointer-events: none;
     }
 
+    /* ── Unit legend (K / M / B hint) ── */
+    .unit-legend {
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      margin-top: 5px;
+      letter-spacing: 0.01em;
+    }
+
     /* ── Export action row ── */
     .action-row {
       display: flex;
@@ -492,8 +500,9 @@
     <div class="bypass-conc-block" id="bypass-conc-block">
       <div class="group-header">📐 Known Concentration</div>
       <input type="number" id="bypass-conc"
-             placeholder="e.g. 2000000  (cells/mL)" min="0"
+             placeholder="e.g. 2,000,000  (cells/mL)" min="0"
              oninput="calcStep1()"/>
+      <div class="unit-legend">K = 1,000 &nbsp;·&nbsp; M = 1,000,000 &nbsp;·&nbsp; B = 1,000,000,000</div>
     </div>
 
     <!-- Counting section (greyed out when bypassed) -->
@@ -628,6 +637,7 @@
           <span class="unit">cells/mL</span>
         </div>
         <div class="prefill-note" id="c1-note">← from Step 1</div>
+        <div class="unit-legend">K = 1,000 &nbsp;·&nbsp; M = 1,000,000 &nbsp;·&nbsp; B = 1,000,000,000</div>
       </div>
 
       <!-- C2 -->
@@ -640,6 +650,7 @@
           <input type="number" id="c2" placeholder="cells/mL" min="0" oninput="calcDilution()"/>
           <span class="unit">cells/mL</span>
         </div>
+        <div class="unit-legend">K = 1,000 &nbsp;·&nbsp; M = 1,000,000 &nbsp;·&nbsp; B = 1,000,000,000</div>
       </div>
 
       <!-- V1 -->
@@ -801,11 +812,41 @@ function avgTwo(a, b) {
   return { val: (a+b)/2, n: 2 };
 }
 
-function fmt(n, dp=1) {
+function fmt(n) {
   if (isNaN(n) || n == null) return '—';
-  if (n >= 1e6) return (n/1e6).toFixed(dp) + 'M';
-  if (n >= 1e3) return (n/1e3).toFixed(dp) + 'K';
-  return n.toLocaleString();
+  return Math.round(n).toLocaleString('en-US');
+}
+
+// Read a potentially comma-formatted input by its id
+function getNumVal(id) {
+  const el = document.getElementById(id);
+  const raw = el.getAttribute('data-raw');
+  return raw !== null ? parseFloat(raw) : parseFloat(el.value);
+}
+
+// Set up focus/blur comma formatting on a number input used for large values
+function setupCommaInput(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  // On focus: restore type=number so the browser lets the user edit cleanly
+  el.addEventListener('focus', function() {
+    const raw = this.getAttribute('data-raw');
+    this.type = 'number';
+    this.value = raw !== null ? raw : '';
+    this.removeAttribute('data-raw');
+  });
+  // On blur (or Enter): switch to type=text and display comma-formatted value
+  el.addEventListener('blur', function() {
+    const n = parseFloat(this.value);
+    if (!isNaN(n) && n >= 0) {
+      this.setAttribute('data-raw', n);
+      this.type = 'text';
+      this.value = Math.round(n).toLocaleString('en-US');
+    }
+  });
+  el.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') this.blur();
+  });
 }
 
 function onBypassToggle() {
@@ -820,7 +861,11 @@ function onBypassToggle() {
     document.getElementById('count-all-toggle').checked = false;
     document.getElementById('dead-block').classList.remove('disabled');
   } else {
-    document.getElementById('bypass-conc').value = '';
+    // fully reset bypass-conc input
+    const bcEl = document.getElementById('bypass-conc');
+    bcEl.type = 'number';
+    bcEl.value = '';
+    bcEl.removeAttribute('data-raw');
   }
   calcStep1();
 }
@@ -843,7 +888,7 @@ function calcStep1() {
   // ── Bypass mode: user enters known concentration directly ──
   const bypassed = document.getElementById('bypass-toggle').checked;
   if (bypassed) {
-    const bypassVal = parseFloat(document.getElementById('bypass-conc').value);
+    const bypassVal = getNumVal('bypass-conc');
     step1FinalDensity = (!isNaN(bypassVal) && bypassVal > 0) ? Math.round(bypassVal) : NaN;
 
     document.getElementById('res-avg').textContent      = '—';
@@ -935,14 +980,18 @@ function calcStep1() {
 // Step navigation
 // ─────────────────────────────────────────────────────────────
 function goToStep2() {
-  // pre-fill C1 from Step 1 density
+  // pre-fill C1 from Step 1 density (comma-formatted)
   const c1Input = document.getElementById('c1');
   if (!isNaN(step1FinalDensity)) {
-    c1Input.value = step1FinalDensity;
+    c1Input.setAttribute('data-raw', step1FinalDensity);
+    c1Input.type = 'text';
+    c1Input.value = step1FinalDensity.toLocaleString('en-US');
     c1Input.classList.add('prefilled');
     document.getElementById('c1-note').style.display = '';
   } else {
+    c1Input.type = 'number';
     c1Input.value = '';
+    c1Input.removeAttribute('data-raw');
     c1Input.classList.remove('prefilled');
     document.getElementById('c1-note').style.display = 'none';
   }
@@ -977,10 +1026,10 @@ function goToStep1() {
 // Step 2 — Dilution solver
 // ─────────────────────────────────────────────────────────────
 function calcDilution() {
-  const c1 = parseFloat(document.getElementById('c1').value);
-  const c2 = parseFloat(document.getElementById('c2').value);
-  const v1 = parseFloat(document.getElementById('v1').value);
-  const v2 = parseFloat(document.getElementById('v2').value);
+  const c1 = getNumVal('c1');
+  const c2 = getNumVal('c2');
+  const v1 = getNumVal('v1');
+  const v2 = getNumVal('v2');
 
   const fields = { c1, c2, v1, v2 };
   const missing = Object.entries(fields).filter(([,v]) => isNaN(v)).map(([k]) => k);
@@ -998,7 +1047,7 @@ function calcDilution() {
 
   // C1 prefilled styling
   const c1El = document.getElementById('c1');
-  if (!isNaN(step1FinalDensity) && parseFloat(c1El.value) === step1FinalDensity) {
+  if (!isNaN(step1FinalDensity) && getNumVal('c1') === step1FinalDensity) {
     c1El.classList.add('prefilled');
   } else {
     c1El.classList.remove('prefilled');
@@ -1024,8 +1073,16 @@ function calcDilution() {
   }
 
   // fill solved field
-  document.getElementById(solve).value = result % 1 === 0 ? result : result.toFixed(4);
-  document.getElementById(solve).classList.add('solving');
+  const solveEl = document.getElementById(solve);
+  if (solve === 'c1' || solve === 'c2') {
+    // concentrations: display with comma formatting
+    solveEl.setAttribute('data-raw', result);
+    solveEl.type = 'text';
+    solveEl.value = Math.round(result).toLocaleString('en-US');
+  } else {
+    solveEl.value = result % 1 === 0 ? result : result.toFixed(4);
+  }
+  solveEl.classList.add('solving');
   const solveTag = document.getElementById(solve + '-tag');
   if (solveTag) solveTag.classList.add('solving');
 
@@ -1036,7 +1093,7 @@ function calcDilution() {
 
   document.getElementById('ans-label').textContent = 'Solving for ' + labels[solve];
   document.getElementById('ans-value').textContent =
-    (units[solve] === 'cells/mL') ? fmt(result, 2) : result.toFixed(4).replace(/\.?0+$/, '');
+    (units[solve] === 'cells/mL') ? fmt(result) : result.toFixed(4).replace(/\.?0+$/, '');
   document.getElementById('ans-unit').textContent  = units[solve];
 
   // sub-note
@@ -1075,7 +1132,10 @@ function resetStep1() {
   document.getElementById('bypass-toggle').checked = false;
   document.getElementById('bypass-row').classList.remove('active');
   document.getElementById('bypass-conc-block').classList.remove('visible');
-  document.getElementById('bypass-conc').value = '';
+  const bcEl = document.getElementById('bypass-conc');
+  bcEl.type = 'number';
+  bcEl.value = '';
+  bcEl.removeAttribute('data-raw');
   document.getElementById('counting-section').classList.remove('disabled');
   // reset counting inputs
   ['live1','live2','dead1','dead2','vol'].forEach(id =>
@@ -1087,14 +1147,31 @@ function resetStep1() {
 }
 
 function resetStep2() {
-  // clear all except C1 (keep prefill)
-  ['c2','v1','v2'].forEach(id => document.getElementById(id).value = '');
-  // restore C1 prefill
+  // clear C2 (reset type to number in case it was formatted or solved)
+  const c2El = document.getElementById('c2');
+  c2El.type = 'number';
+  c2El.value = '';
+  c2El.removeAttribute('data-raw');
+  c2El.classList.remove('solving');
+  // clear volumes
+  ['v1','v2'].forEach(id => {
+    const el = document.getElementById(id);
+    el.value = '';
+    el.classList.remove('solving');
+  });
+  // restore C1 prefill (comma-formatted)
+  const c1El = document.getElementById('c1');
   if (!isNaN(step1FinalDensity)) {
-    document.getElementById('c1').value = step1FinalDensity;
-    document.getElementById('c1').classList.add('prefilled');
+    c1El.setAttribute('data-raw', step1FinalDensity);
+    c1El.type = 'text';
+    c1El.value = step1FinalDensity.toLocaleString('en-US');
+    c1El.classList.add('prefilled');
+    c1El.classList.remove('solving');
   } else {
-    document.getElementById('c1').value = '';
+    c1El.type = 'number';
+    c1El.value = '';
+    c1El.removeAttribute('data-raw');
+    c1El.classList.remove('prefilled');
   }
   calcDilution();
 }
@@ -1224,6 +1301,10 @@ function fallbackCopyText(text) {
 buildModeSelector();
 selectMode(currentModeId);
 document.getElementById('c1-note').style.display = 'none';
+// Enable comma-formatting on blur for large-number inputs
+setupCommaInput('bypass-conc');
+setupCommaInput('c1');
+setupCommaInput('c2');
 </script>
 </body>
 </html>
