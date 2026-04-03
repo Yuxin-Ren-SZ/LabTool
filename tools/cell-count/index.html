@@ -308,9 +308,23 @@
     }
     .btn-reset:hover { background: var(--surface-hover); color: var(--text); }
 
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .export-note {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+      min-height: 18px;
+    }
+
     @media (max-width: 480px) {
       .mode-selector { grid-template-columns: repeat(2, 1fr); }
       .card { padding: 20px 16px; }
+      .action-row { flex-direction: column; }
     }
   </style>
 </head>
@@ -414,7 +428,12 @@
     </div>
   </div>
 
-  <button class="btn-reset" onclick="resetAll()">↺ Reset</button>
+  <div class="action-row">
+    <button class="btn-reset" onclick="copyResults()">📋 Copy Results</button>
+    <button class="btn-reset" onclick="downloadCsv()">⬇️ Export CSV</button>
+    <button class="btn-reset" onclick="resetAll()">↺ Reset</button>
+  </div>
+  <div class="export-note" id="export-note">Save or copy results after calculation.</div>
 </div>
 </div>
 
@@ -697,7 +716,93 @@ function resetAll() {
   document.getElementById('df').value = '20';
   document.getElementById('count-all-toggle').checked = false;
   document.getElementById('dead-block').classList.remove('disabled');
+  document.getElementById('export-note').textContent = 'Save or copy results after calculation.';
   calculate();
+}
+
+function getExportRows() {
+  const mode = MODES.find(m => m.id === currentModeId);
+  const isAll = document.getElementById('count-all-toggle').checked;
+  const rows = [
+    ['Field', 'Value'],
+    ['Counting mode', mode.tag.replace(/\n/g, ' ')],
+    ['Formula', mode.formulaNote],
+    ['Count all cells', isAll ? 'Yes' : 'No'],
+    ['Live count 1', document.getElementById('live1').value || ''],
+    ['Live count 2', document.getElementById('live2').value || ''],
+    ['Dead count 1', document.getElementById('dead1').value || ''],
+    ['Dead count 2', document.getElementById('dead2').value || ''],
+    ['Dilution factor', document.getElementById('df').value || ''],
+    ['Resuspension volume (mL)', document.getElementById('vol').value || ''],
+    ['Average live count', document.getElementById('res-avg').textContent],
+    ['Viability', document.getElementById('res-via').textContent],
+    ['Final density (cells/mL)', document.getElementById('res-density').textContent],
+    ['Total cells', document.getElementById('res-total').textContent],
+  ];
+  return rows;
+}
+
+function makeCsv(rows) {
+  return rows.map(r => r.map(cell => {
+    const text = String(cell).replace(/"/g, '""');
+    return `"${text}"`;
+  }).join(',')).join('\n');
+}
+
+function downloadCsv() {
+  const csv = makeCsv(getExportRows());
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'cell-count-results.csv';
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+  document.getElementById('export-note').textContent = 'CSV file generated for download.';
+}
+
+function copyResults() {
+  const csv = makeCsv(getExportRows());
+  const text = getExportRows().map(r => `${r[0]}: ${r[1]}`).join('\n');
+  const clipboardText = [
+    'Cell Count Calculator Results',
+    '',
+    text,
+    '',
+    'CSV copy (tabular):',
+    csv,
+  ].join('\n');
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(clipboardText)
+      .then(() => {
+        document.getElementById('export-note').textContent = 'Results copied to clipboard.';
+      })
+      .catch(() => {
+        fallbackCopyText(clipboardText);
+      });
+  } else {
+    fallbackCopyText(clipboardText);
+  }
+}
+
+function fallbackCopyText(text) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'absolute';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    document.execCommand('copy');
+    document.getElementById('export-note').textContent = 'Results copied to clipboard.';
+  } catch (err) {
+    document.getElementById('export-note').textContent = 'Unable to copy to clipboard. Please use Export CSV.';
+  }
+  document.body.removeChild(textarea);
 }
 
 // ─────────────────────────────────────────────────────────────
