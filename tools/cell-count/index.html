@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cell Count Calculator · LabTools</title>
+  <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    /* ── Page layout ── */
+    .page-body {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 32px 16px 64px;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card);
+      padding: 32px;
+      width: 100%;
+      max-width: 580px;
+    }
+
+    h1 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .subtitle {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    /* ── Mode toggle ── */
+    .mode-toggle {
+      display: flex;
+      background: var(--tag-bg);
+      border-radius: var(--radius-md);
+      padding: 4px;
+      margin-bottom: 24px;
+      gap: 4px;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 7px 12px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem;
+      font-weight: 500;
+      font-family: var(--font);
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-muted);
+      transition: all 0.15s;
+    }
+    .mode-btn.active {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* ── Sections ── */
+    .section       { display: none; }
+    .section.active{ display: block; }
+
+    /* ── Group blocks ── */
+    .group-header {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .group-header .badge {
+      font-size: 0.66rem;
+      background: var(--tag-bg);
+      color: var(--text-dim);
+      border-radius: var(--radius-xs);
+      padding: 1px 5px;
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .group-block {
+      background: var(--surface-subtle);
+      border: 1.5px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 14px 14px 10px;
+      margin-bottom: 12px;
+    }
+    .group-block.dead-block {
+      border-color: var(--red-border);
+      background: var(--red-bg);
+    }
+
+    /* ── Field grids ── */
+    .field-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .field-group:last-child { margin-bottom: 0; }
+
+    label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 5px;
+    }
+    label .opt {
+      font-size: 0.66rem;
+      color: var(--text-dim);
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 0.95rem;
+      font-family: var(--font);
+      color: var(--text);
+      background: var(--surface);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="number"]:focus        { border-color: var(--blue); }
+    input[type="number"]::placeholder { color: var(--text-placeholder); }
+
+    .dead-block input[type="number"]        { border-color: var(--red-border-input); }
+    .dead-block input[type="number"]:focus  { border-color: var(--red); }
+
+    textarea {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 0.88rem;
+      font-family: var(--font-mono);
+      color: var(--text);
+      background: var(--surface);
+      outline: none;
+      transition: border-color 0.15s;
+      resize: vertical;
+      min-height: 60px;
+    }
+    textarea:focus { border-color: var(--blue); }
+
+    /* ── Inline row ── */
+    .inline-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    /* ── Viability note ── */
+    .via-note {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+      min-height: 16px;
+    }
+    .via-note.computed { color: var(--green); font-weight: 600; }
+
+    /* ── Results ── */
+    .results-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 12px;
+    }
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .result-box {
+      background: var(--surface-hover);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+    }
+    .result-box.highlight {
+      background: var(--blue-bg);
+      border: 1.5px solid var(--blue-border);
+    }
+    .result-box.viability-box {
+      background: var(--green-bg);
+      border: 1.5px solid var(--green-border);
+    }
+    .result-box .r-label {
+      font-size: 0.73rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    .result-box .r-value {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .result-box.highlight    .r-value { color: var(--blue-dark); }
+    .result-box.viability-box .r-value{ color: var(--green-dark); }
+    .result-box .r-unit {
+      font-size: 0.70rem;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    /* ── Custom formula ── */
+    .formula-hint {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      background: var(--surface-hover);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      font-family: var(--font-mono);
+      line-height: 1.7;
+    }
+    .formula-hint code { color: var(--blue); font-family: var(--font-mono); }
+
+    .custom-result {
+      background: var(--surface-hover);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-top: 12px;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+    }
+    .custom-result .error {
+      color: var(--red);
+      font-weight: 400;
+      font-size: 0.85rem;
+    }
+
+    /* ── Reset button ── */
+    .btn-reset {
+      margin-top: 16px;
+      width: 100%;
+      padding: 9px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      background: transparent;
+      font-size: 0.85rem;
+      font-family: var(--font);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-reset:hover { background: var(--surface-hover); color: var(--text); }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="lt-nav">
+    <a class="lt-nav-brand" href="../../">🔬 LabTools</a>
+    <span class="lt-nav-sep">/</span>
+    <span class="lt-nav-page">Cell Count Calculator</span>
+  </nav>
+
+  <!-- Tool -->
+  <div class="page-body">
+    <div class="card">
+      <h1>🔬 Cell Count Calculator</h1>
+      <p class="subtitle">Hemocytometer — supports single or duplicate counts, with live/dead viability</p>
+
+      <div class="mode-toggle">
+        <button class="mode-btn active" onclick="switchMode('standard')">Standard Formula</button>
+        <button class="mode-btn"        onclick="switchMode('custom')">Custom Formula</button>
+      </div>
+
+      <!-- ── STANDARD MODE ── -->
+      <div id="standard" class="section active">
+
+        <!-- Live counts -->
+        <div class="group-block">
+          <div class="group-header">
+            🟢 Live Cell Counts
+            <span class="badge">Count 2 optional — leave blank for single count</span>
+          </div>
+          <div class="field-group">
+            <div>
+              <label>Live Count 1</label>
+              <input type="number" id="l1" placeholder="e.g. 300" min="0" oninput="calc()"/>
+            </div>
+            <div>
+              <label>Live Count 2 <span class="opt">(optional)</span></label>
+              <input type="number" id="l2" placeholder="optional" min="0" oninput="calc()"/>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dead counts -->
+        <div class="group-block dead-block">
+          <div class="group-header">
+            🔴 Dead Cell Counts <span class="badge">optional — for Trypan Blue viability</span>
+          </div>
+          <div class="field-group">
+            <div>
+              <label>Dead Count 1 <span class="opt">(optional)</span></label>
+              <input type="number" id="d1" placeholder="optional" min="0" oninput="calc()"/>
+            </div>
+            <div>
+              <label>Dead Count 2 <span class="opt">(optional)</span></label>
+              <input type="number" id="d2" placeholder="optional" min="0" oninput="calc()"/>
+            </div>
+          </div>
+          <div class="via-note" id="via-note">Enter dead counts above to auto-calculate viability.</div>
+        </div>
+
+        <!-- Parameters -->
+        <div class="inline-row">
+          <div>
+            <label>Dilution Factor</label>
+            <input type="number" id="df" value="20" min="1" oninput="calc()"/>
+          </div>
+          <div>
+            <label>Resuspension Volume (mL)</label>
+            <input type="number" id="vol" placeholder="e.g. 1.5" min="0" step="0.1" oninput="calc()"/>
+          </div>
+        </div>
+
+        <div class="lt-divider"></div>
+        <div class="results-title">Calculated Results</div>
+        <div class="results-grid">
+          <div class="result-box">
+            <div class="r-label">Avg Live Count</div>
+            <div class="r-value" id="res-avg">—</div>
+            <div class="r-unit"  id="res-avg-note">cells / square</div>
+          </div>
+          <div class="result-box viability-box">
+            <div class="r-label">Viability</div>
+            <div class="r-value" id="res-via">—</div>
+            <div class="r-unit"  id="res-via-note">from dead counts</div>
+          </div>
+          <div class="result-box highlight">
+            <div class="r-label">Total Live Cells</div>
+            <div class="r-value" id="res-total">—</div>
+            <div class="r-unit">avg × DF × 10⁴</div>
+          </div>
+          <div class="result-box highlight">
+            <div class="r-label">Final Density</div>
+            <div class="r-value" id="res-density">—</div>
+            <div class="r-unit">cells / mL</div>
+          </div>
+        </div>
+        <button class="btn-reset" onclick="resetStandard()">↺ Reset</button>
+      </div>
+
+      <!-- ── CUSTOM MODE ── -->
+      <div id="custom" class="section">
+        <div class="formula-hint">
+          Available variables:<br>
+          <code>l1</code>, <code>l2</code> — live counts (l2 = NaN if blank)<br>
+          <code>d1</code>, <code>d2</code> — dead counts (NaN if blank)<br>
+          <code>avg_live</code>, <code>avg_dead</code> — averaged (or single) counts<br>
+          <code>via</code> — computed viability (0–100, NaN if no dead counts)<br>
+          <code>df</code> — dilution factor &nbsp;|&nbsp; <code>vol</code> — resuspension volume (mL)<br><br>
+          Example: <code>avg_live * df * 10000 / vol</code>
+        </div>
+
+        <div class="group-block">
+          <div class="group-header">🟢 Live Cell Counts</div>
+          <div class="field-group">
+            <div>
+              <label>Live Count 1</label>
+              <input type="number" id="cl1" placeholder="e.g. 85" min="0" oninput="calcCustom()"/>
+            </div>
+            <div>
+              <label>Live Count 2 <span class="opt">(optional)</span></label>
+              <input type="number" id="cl2" placeholder="leave blank for single" min="0" oninput="calcCustom()"/>
+            </div>
+          </div>
+        </div>
+
+        <div class="group-block dead-block">
+          <div class="group-header">🔴 Dead Cell Counts <span class="badge">optional</span></div>
+          <div class="field-group">
+            <div>
+              <label>Dead Count 1 <span class="opt">(optional)</span></label>
+              <input type="number" id="cd1" placeholder="leave blank to skip" min="0" oninput="calcCustom()"/>
+            </div>
+            <div>
+              <label>Dead Count 2 <span class="opt">(optional)</span></label>
+              <input type="number" id="cd2" placeholder="leave blank to skip" min="0" oninput="calcCustom()"/>
+            </div>
+          </div>
+        </div>
+
+        <div class="inline-row">
+          <div>
+            <label>Dilution Factor</label>
+            <input type="number" id="cdf" value="20" min="0" oninput="calcCustom()"/>
+          </div>
+          <div>
+            <label>Resuspension Volume (mL)</label>
+            <input type="number" id="cvol" placeholder="e.g. 1.5" min="0" step="0.1" oninput="calcCustom()"/>
+          </div>
+        </div>
+
+        <div class="lt-divider"></div>
+        <div style="margin-bottom:8px">
+          <label>Custom Formula</label>
+          <textarea id="formula" placeholder="e.g. avg_live * df * 10000 / vol" oninput="calcCustom()"></textarea>
+        </div>
+        <div class="results-title">Result</div>
+        <div class="custom-result" id="custom-result">Enter a formula above…</div>
+        <button class="btn-reset" onclick="resetCustom()">↺ Reset</button>
+      </div>
+
+    </div><!-- /.card -->
+  </div><!-- /.page-body -->
+
+  <footer class="lt-footer">
+    LabTools &middot; Open source lab utilities
+  </footer>
+
+  <script>
+    function switchMode(mode) {
+      document.querySelectorAll('.mode-btn').forEach((b, i) => {
+        b.classList.toggle('active', (mode === 'standard' && i === 0) || (mode === 'custom' && i === 1));
+      });
+      document.getElementById('standard').classList.toggle('active', mode === 'standard');
+      document.getElementById('custom').classList.toggle('active', mode === 'custom');
+    }
+
+    function fmt(n) {
+      if (isNaN(n) || n === null || n === undefined) return '—';
+      if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+      return n.toLocaleString();
+    }
+
+    function avgCounts(a, b) {
+      const hasA = !isNaN(a);
+      const hasB = !isNaN(b);
+      if (!hasA && !hasB) return { avg: NaN, isSingle: false };
+      if (hasA && !hasB)  return { avg: a, isSingle: true };
+      if (!hasA && hasB)  return { avg: b, isSingle: true };
+      return { avg: (a + b) / 2, isSingle: false };
+    }
+
+    function calc() {
+      const l1  = parseFloat(document.getElementById('l1').value);
+      const l2  = parseFloat(document.getElementById('l2').value);
+      const d1  = parseFloat(document.getElementById('d1').value);
+      const d2  = parseFloat(document.getElementById('d2').value);
+      const df  = parseFloat(document.getElementById('df').value);
+      const vol = parseFloat(document.getElementById('vol').value);
+
+      const live = avgCounts(l1, isNaN(l2) ? NaN : l2);
+      const dead = avgCounts(d1, isNaN(d2) ? NaN : d2);
+      const avgLive = live.avg;
+      const avgDead = dead.avg;
+
+      const hasDeadCount = !isNaN(d1) || !isNaN(d2);
+      let viability = NaN;
+      if (!isNaN(avgLive) && hasDeadCount && !isNaN(avgDead)) {
+        viability = (avgLive / (avgLive + avgDead)) * 100;
+      } else if (!isNaN(avgLive) && hasDeadCount && avgDead === 0) {
+        viability = 100;
+      }
+
+      const total   = (!isNaN(avgLive) && !isNaN(df)) ? Math.round(avgLive * df * 10000) : NaN;
+      const density = (!isNaN(total) && !isNaN(vol) && vol > 0) ? Math.round(total / vol) : NaN;
+
+      if (!isNaN(avgLive)) {
+        document.getElementById('res-avg').textContent      = live.isSingle ? avgLive.toFixed(0) : avgLive.toFixed(1);
+        document.getElementById('res-avg-note').textContent = live.isSingle ? 'single count' : 'avg of 2 counts';
+      } else {
+        document.getElementById('res-avg').textContent      = '—';
+        document.getElementById('res-avg-note').textContent = 'cells / square';
+      }
+
+      if (!isNaN(viability)) {
+        document.getElementById('res-via').textContent      = viability.toFixed(1) + '%';
+        document.getElementById('res-via-note').textContent = dead.isSingle ? 'from 1 dead count' : 'from dead counts';
+        document.getElementById('via-note').textContent     = `✓ Viability auto-calculated: ${viability.toFixed(1)}%`;
+        document.getElementById('via-note').className       = 'via-note computed';
+      } else if (hasDeadCount) {
+        document.getElementById('res-via').textContent      = '—';
+        document.getElementById('res-via-note').textContent = 'waiting for live count';
+        document.getElementById('via-note').textContent     = 'Waiting for live count to compute viability.';
+        document.getElementById('via-note').className       = 'via-note';
+      } else {
+        document.getElementById('res-via').textContent      = '—';
+        document.getElementById('res-via-note').textContent = 'enter dead counts above';
+        document.getElementById('via-note').textContent     = 'Enter dead counts above to auto-calculate viability.';
+        document.getElementById('via-note').className       = 'via-note';
+      }
+
+      document.getElementById('res-total').textContent   = fmt(total);
+      document.getElementById('res-density').textContent = fmt(density);
+    }
+
+    function calcCustom() {
+      const l1  = parseFloat(document.getElementById('cl1').value);
+      const l2  = parseFloat(document.getElementById('cl2').value);
+      const d1  = parseFloat(document.getElementById('cd1').value);
+      const d2  = parseFloat(document.getElementById('cd2').value);
+      const df  = parseFloat(document.getElementById('cdf').value);
+      const vol = parseFloat(document.getElementById('cvol').value);
+
+      const live = avgCounts(l1, isNaN(l2) ? NaN : l2);
+      const dead = avgCounts(d1, isNaN(d2) ? NaN : d2);
+      const avg_live = live.avg;
+      const avg_dead = dead.avg;
+      let via = NaN;
+      if (!isNaN(avg_live) && !isNaN(avg_dead)) {
+        via = (avg_live / (avg_live + avg_dead)) * 100;
+      }
+
+      const formulaStr = document.getElementById('formula').value.trim();
+      const el = document.getElementById('custom-result');
+      if (!formulaStr) { el.innerHTML = 'Enter a formula above…'; return; }
+      try {
+        const fn = new Function('l1','l2','d1','d2','avg_live','avg_dead','via','df','vol',
+          `"use strict"; return (${formulaStr});`);
+        const result = fn(l1, l2, d1, d2, avg_live, avg_dead, via, df, vol);
+        if (result === null || result === undefined || (typeof result === 'number' && isNaN(result))) {
+          el.innerHTML = '<span class="error">⚠ Result is not a number — check your inputs or formula.</span>';
+        } else {
+          el.textContent = typeof result === 'number'
+            ? result.toLocaleString(undefined, { maximumFractionDigits: 4 })
+            : result;
+        }
+      } catch(e) {
+        el.innerHTML = `<span class="error">⚠ Formula error: ${e.message}</span>`;
+      }
+    }
+
+    function resetStandard() {
+      ['l1','l2','d1','d2','vol'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('df').value              = '20';
+      document.getElementById('res-avg').textContent   = '—';
+      document.getElementById('res-avg-note').textContent = 'cells / square';
+      document.getElementById('res-via').textContent   = '—';
+      document.getElementById('res-via-note').textContent = 'from dead counts';
+      document.getElementById('res-total').textContent = '—';
+      document.getElementById('res-density').textContent  = '—';
+      document.getElementById('via-note').textContent  = 'Enter dead counts above to auto-calculate viability.';
+      document.getElementById('via-note').className    = 'via-note';
+    }
+
+    function resetCustom() {
+      ['cl1','cl2','cd1','cd2','cvol'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('cdf').value             = '20';
+      document.getElementById('formula').value         = '';
+      document.getElementById('custom-result').textContent = 'Enter a formula above…';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,241 @@
+/*
+ * LabTools — Shared Design System
+ * Notion-inspired clean aesthetic.
+ * All tools import this file and use these tokens.
+ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ─── Design Tokens ─────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg:              #f7f7f5;
+  --surface:         #ffffff;
+  --surface-subtle:  #fafafa;
+  --surface-hover:   #f7f6f3;
+  --tag-bg:          #f1f1ef;
+
+  /* Text */
+  --text:            #37352f;
+  --text-secondary:  #6b6b6b;
+  --text-muted:      #9b9a97;
+  --text-dim:        #b6b5b2;
+  --text-placeholder:#c4c4c0;
+
+  /* Borders */
+  --border:          #e3e2df;
+  --border-subtle:   #f0efed;
+
+  /* Accents — Blue */
+  --blue:            #5c8dff;
+  --blue-dark:       #3366cc;
+  --blue-bg:         #eef3ff;
+  --blue-border:     #c8d9ff;
+
+  /* Accents — Green */
+  --green:           #57a85a;
+  --green-dark:      #2d7a2d;
+  --green-bg:        #efffef;
+  --green-border:    #b8e8b8;
+
+  /* Accents — Red */
+  --red:             #e03e3e;
+  --red-bg:          #fffafa;
+  --red-border:      #fde8e8;
+  --red-border-input:#fad4d4;
+
+  /* Shadows */
+  --shadow-card:     0 2px 12px rgba(0,0,0,0.08);
+  --shadow-sm:       0 1px 4px rgba(0,0,0,0.10);
+  --shadow-hover:    0 4px 20px rgba(0,0,0,0.12);
+
+  /* Radii */
+  --radius-xs:  4px;
+  --radius-sm:  6px;
+  --radius-md:  8px;
+  --radius-lg:  12px;
+
+  /* Typography */
+  --font:      -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
+}
+
+/* ─── Base ──────────────────────────────────────────────────── */
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ─── Navigation Bar ────────────────────────────────────────── */
+.lt-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(247,247,245,0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border-subtle);
+  height: 52px;
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lt-nav-brand {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.15s;
+}
+.lt-nav-brand:hover { opacity: 0.7; }
+
+.lt-nav-sep {
+  color: var(--border);
+  font-size: 1.1rem;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.lt-nav-page {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ─── Card ──────────────────────────────────────────────────── */
+.lt-card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 32px;
+  width: 100%;
+}
+
+/* ─── Inputs ────────────────────────────────────────────────── */
+.lt-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--surface);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.lt-input:focus        { border-color: var(--blue); }
+.lt-input::placeholder { color: var(--text-placeholder); }
+
+.lt-textarea {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  resize: vertical;
+  min-height: 60px;
+}
+
+/* ─── Buttons ───────────────────────────────────────────────── */
+.lt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+  text-decoration: none;
+}
+
+.lt-btn-primary {
+  background: var(--blue-dark);
+  color: #fff;
+}
+.lt-btn-primary:hover { opacity: 0.88; }
+
+.lt-btn-ghost {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  color: var(--text-muted);
+}
+.lt-btn-ghost:hover { background: var(--surface-hover); color: var(--text); }
+
+/* ─── Labels / Badges ───────────────────────────────────────── */
+.lt-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 5px;
+}
+.lt-label .opt {
+  font-size: 0.66rem;
+  color: var(--text-dim);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.lt-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: var(--radius-xs);
+  padding: 2px 7px;
+}
+.lt-badge-default { background: var(--tag-bg);    color: var(--text-muted);  }
+.lt-badge-green   { background: var(--green-bg);  color: var(--green-dark);  }
+.lt-badge-blue    { background: var(--blue-bg);   color: var(--blue-dark);   }
+.lt-badge-red     { background: var(--red-bg);    color: var(--red);         }
+
+/* ─── Divider ───────────────────────────────────────────────── */
+.lt-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 18px 0;
+}
+
+/* ─── Section Header ────────────────────────────────────────── */
+.lt-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+/* ─── Footer ────────────────────────────────────────────────── */
+.lt-footer {
+  text-align: center;
+  padding: 24px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-subtle);
+  margin-top: auto;
+}

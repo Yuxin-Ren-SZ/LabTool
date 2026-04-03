@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LabTools</title>
+  <link rel="stylesheet" href="assets/css/labtools.css"/>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 72px 24px 52px;
+      text-align: center;
+    }
+    .hero-icon {
+      font-size: 2.6rem;
+      line-height: 1;
+      margin-bottom: 18px;
+    }
+    .hero-title {
+      font-size: 2.1rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+    .hero-sub {
+      font-size: 0.98rem;
+      color: var(--text-muted);
+      max-width: 400px;
+      margin: 0 auto;
+      line-height: 1.65;
+    }
+
+    /* ── Tools section ── */
+    .tools-section {
+      flex: 1;
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 0 24px 72px;
+    }
+
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    /* ── Tool card ── */
+    .tool-card {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: box-shadow 0.18s, transform 0.18s;
+      cursor: pointer;
+    }
+    .tool-card:hover {
+      box-shadow: var(--shadow-hover);
+      transform: translateY(-2px);
+    }
+
+    .tool-card-icon   { font-size: 1.8rem; line-height: 1; margin-bottom: 4px; }
+    .tool-card-name   { font-size: 1rem;   font-weight: 700; color: var(--text); }
+    .tool-card-desc   { font-size: 0.84rem; color: var(--text-muted); line-height: 1.55; flex: 1; }
+
+    .tool-card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+    .tool-card-launch {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--blue-dark);
+    }
+    .tool-card:hover .tool-card-launch { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <main>
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-icon">🔬</div>
+      <h1 class="hero-title">LabTools</h1>
+      <p class="hero-sub">Interactive utilities for the cell biology bench. Open source, no install required.</p>
+    </section>
+
+    <!-- Tools grid -->
+    <section class="tools-section">
+      <div class="lt-section-label">Available Tools</div>
+      <div class="tools-grid">
+
+        <a class="tool-card" href="tools/cell-count/">
+          <div class="tool-card-icon">🧮</div>
+          <div class="tool-card-name">Cell Count Calculator</div>
+          <div class="tool-card-desc">
+            Hemocytometer counting with Trypan Blue viability analysis.
+            Supports single or duplicate counts and a custom formula mode.
+          </div>
+          <div class="tool-card-footer">
+            <span class="lt-badge lt-badge-green">Live</span>
+            <span class="tool-card-launch">Open →</span>
+          </div>
+        </a>
+
+        <!-- Future tool slots — uncomment and fill in as new tools are added -->
+        <!--
+        <a class="tool-card" href="tools/dilution/">
+          <div class="tool-card-icon">🧪</div>
+          <div class="tool-card-name">Dilution Calculator</div>
+          <div class="tool-card-desc">C₁V₁ = C₂V₂ solver for making stock solutions and serial dilutions.</div>
+          <div class="tool-card-footer">
+            <span class="lt-badge lt-badge-default">Coming soon</span>
+            <span class="tool-card-launch">Open →</span>
+          </div>
+        </a>
+        -->
+
+      </div>
+    </section>
+  </main>
+
+  <footer class="lt-footer">
+    LabTools &middot; Open source lab utilities
+  </footer>
+
+</body>
+</html>
