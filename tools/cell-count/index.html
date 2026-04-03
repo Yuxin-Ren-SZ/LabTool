@@ -403,14 +403,14 @@
       <div class="r-unit"  id="res-via-note">from dead counts</div>
     </div>
     <div class="result-box hl-blue">
-      <div class="r-label">Total Live Cells</div>
-      <div class="r-value" id="res-total">—</div>
-      <div class="r-unit"  id="res-total-note">—</div>
-    </div>
-    <div class="result-box hl-blue">
       <div class="r-label">Final Density</div>
       <div class="r-value" id="res-density">—</div>
-      <div class="r-unit">cells / mL</div>
+      <div class="r-unit"  id="res-density-note">cells / mL</div>
+    </div>
+    <div class="result-box hl-blue">
+      <div class="r-label" id="res-total-label">Total Live Cells</div>
+      <div class="r-value" id="res-total">—</div>
+      <div class="r-unit"  id="res-total-note">density × vol</div>
     </div>
   </div>
 
@@ -604,10 +604,12 @@ function calculate() {
   // cells per large-square equivalent
   const perLargeSq = !isNaN(avgLive) ? avgLive * mode.multiplier : NaN;
 
-  const totalLive = (!isNaN(perLargeSq) && !isNaN(df))
+  // count × DF × 10⁴ = cells/mL in stock = Final Density
+  const finalDensity = (!isNaN(perLargeSq) && !isNaN(df))
     ? Math.round(perLargeSq * df * 1e4) : NaN;
-  const density = (!isNaN(totalLive) && !isNaN(vol) && vol > 0)
-    ? Math.round(totalLive / vol) : NaN;
+  // Final Density × stock volume = Total Cells in tube
+  const totalCells = (!isNaN(finalDensity) && !isNaN(vol) && vol > 0)
+    ? Math.round(finalDensity * vol) : NaN;
 
   // Viability (skipped in count-all mode)
   const hasDeadAny = !isAll && deadAvg.n > 0;
@@ -654,14 +656,20 @@ function calculate() {
   }
 
   // ── Total label (live vs all cells) ──
-  document.querySelector('.result-box.hl-blue .r-label').textContent =
+  document.getElementById('res-total-label').textContent =
     isAll ? 'Total Cells' : 'Total Live Cells';
 
-  // ── Total + density ──
-  document.getElementById('res-total').textContent    = fmt(totalLive);
+  // ── Final Density (cells/mL in stock) ──
+  document.getElementById('res-density').textContent      = fmt(finalDensity);
+  document.getElementById('res-density-note').textContent =
+    !isNaN(avgLive) ? mode.formulaNote : 'cells / mL';
+
+  // ── Total cells in tube (density × vol) ──
+  document.getElementById('res-total').textContent    = fmt(totalCells);
   document.getElementById('res-total-note').textContent =
-    !isNaN(avgLive) ? mode.formulaNote : '—';
-  document.getElementById('res-density').textContent  = fmt(density);
+    !isNaN(finalDensity) && !isNaN(vol) && vol > 0
+      ? 'density × ' + vol + ' mL'
+      : !isNaN(finalDensity) ? 'enter resuspension vol' : '—';
 }
 
 // ─────────────────────────────────────────────────────────────
