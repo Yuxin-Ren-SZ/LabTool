@@ -180,6 +180,44 @@
       margin-top: 7px;
     }
 
+    /* ── Count-all toggle ── */
+    .count-all-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-subtle);
+      cursor: pointer;
+      user-select: none;
+      width: fit-content;
+    }
+    .count-all-row input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--blue-dark);
+      cursor: pointer;
+      flex-shrink: 0;
+      margin: 0;
+    }
+    .count-all-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+    .count-all-sub {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-weight: 400;
+      margin-left: 2px;
+    }
+
+    /* greyed-out dead block */
+    .group-block.disabled {
+      opacity: 0.38;
+      pointer-events: none;
+    }
+
     /* via note */
     .via-note {
       font-size: 0.74rem;
@@ -310,6 +348,12 @@
       </div>
     </div>
     <div class="count-hint" id="live-hint"></div>
+    <label class="count-all-row">
+      <input type="checkbox" id="count-all-toggle" onchange="onCountAllToggle()"/>
+      <span class="count-all-label">Count all cells
+        <span class="count-all-sub">— no Trypan Blue, dead section disabled</span>
+      </span>
+    </label>
   </div>
 
   <!-- ── Dead counts ── -->
@@ -541,9 +585,10 @@ function fmt(n) {
 // Calculate
 // ─────────────────────────────────────────────────────────────
 function calculate() {
-  const mode = MODES.find(m => m.id === currentModeId);
-  const df   = parseFloat(document.getElementById('df').value);
-  const vol  = parseFloat(document.getElementById('vol').value);
+  const mode   = MODES.find(m => m.id === currentModeId);
+  const isAll  = document.getElementById('count-all-toggle').checked;
+  const df     = parseFloat(document.getElementById('df').value);
+  const vol    = parseFloat(document.getElementById('vol').value);
 
   const live1 = parseFloat(document.getElementById('live1').value);
   const live2 = parseFloat(document.getElementById('live2').value);
@@ -564,11 +609,11 @@ function calculate() {
   const density = (!isNaN(totalLive) && !isNaN(vol) && vol > 0)
     ? Math.round(totalLive / vol) : NaN;
 
-  // Viability
-  const hasDeadAny = deadAvg.n > 0;
-  const viability = (!isNaN(avgLive) && hasDeadAny && !isNaN(avgDead))
+  // Viability (skipped in count-all mode)
+  const hasDeadAny = !isAll && deadAvg.n > 0;
+  const viability = (!isAll && !isNaN(avgLive) && hasDeadAny && !isNaN(avgDead))
     ? (avgLive / (avgLive + avgDead)) * 100
-    : (!isNaN(avgLive) && hasDeadAny && avgDead === 0) ? 100 : NaN;
+    : (!isAll && !isNaN(avgLive) && hasDeadAny && avgDead === 0) ? 100 : NaN;
 
   // ── Avg count display ──
   if (!isNaN(avgLive)) {
@@ -581,7 +626,16 @@ function calculate() {
   }
 
   // ── Viability display ──
-  if (!isNaN(viability)) {
+  const viaBox = document.querySelector('.result-box.hl-green');
+  document.querySelector('.result-box.hl-green .r-label').textContent =
+    isAll ? 'Viability' : 'Viability';
+
+  if (isAll) {
+    document.getElementById('res-via').textContent      = 'N/A';
+    document.getElementById('res-via-note').textContent = 'count-all mode';
+    document.getElementById('via-note').textContent     = 'Dead cell counting disabled — all cells counted as live.';
+    document.getElementById('via-note').className       = 'via-note';
+  } else if (!isNaN(viability)) {
     document.getElementById('res-via').textContent      = viability.toFixed(1) + '%';
     document.getElementById('res-via-note').textContent =
       deadAvg.n === 2 ? 'avg of 2 dead counts' : 'from dead count';
@@ -599,11 +653,30 @@ function calculate() {
     document.getElementById('via-note').className       = 'via-note';
   }
 
+  // ── Total label (live vs all cells) ──
+  document.querySelector('.result-box.hl-blue .r-label').textContent =
+    isAll ? 'Total Cells' : 'Total Live Cells';
+
   // ── Total + density ──
   document.getElementById('res-total').textContent    = fmt(totalLive);
   document.getElementById('res-total-note').textContent =
     !isNaN(avgLive) ? mode.formulaNote : '—';
   document.getElementById('res-density').textContent  = fmt(density);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Count-all toggle
+// ─────────────────────────────────────────────────────────────
+function onCountAllToggle() {
+  const isAll = document.getElementById('count-all-toggle').checked;
+  const deadBlock = document.getElementById('dead-block');
+  deadBlock.classList.toggle('disabled', isAll);
+  if (isAll) {
+    // clear dead inputs so they don't factor into calculation
+    document.getElementById('dead1').value = '';
+    document.getElementById('dead2').value = '';
+  }
+  calculate();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -614,6 +687,8 @@ function resetAll() {
     document.getElementById(id).value = '';
   });
   document.getElementById('df').value = '20';
+  document.getElementById('count-all-toggle').checked = false;
+  document.getElementById('dead-block').classList.remove('disabled');
   calculate();
 }
 
