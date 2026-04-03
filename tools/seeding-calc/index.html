@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cell Seeding Calculator · LabTools</title>
+  <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <style>
+    body { display: flex; flex-direction: column; }
+
+    .page-body {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      padding: 32px 16px 64px;
+      /* clip so slide animation doesn't overflow */
+      overflow: hidden;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card);
+      padding: 28px 28px 24px;
+      width: 100%;
+      max-width: 600px;
+      /* height controlled by content */
+    }
+
+    /* ── Step progress bar ── */
+    .step-bar {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-bottom: 24px;
+    }
+    .step-pip {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .step-pip .dot {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: var(--tag-bg);
+      border: 2px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    .step-pip.active .dot {
+      background: var(--blue-dark);
+      border-color: var(--blue-dark);
+      color: #fff;
+    }
+    .step-pip.done .dot {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff;
+    }
+    .step-pip.active { color: var(--text); }
+    .step-pip.done   { color: var(--green-dark); }
+    .step-connector {
+      flex: 1;
+      height: 2px;
+      background: var(--border-subtle);
+      margin: 0 8px;
+      transition: background 0.3s;
+    }
+    .step-connector.done { background: var(--green-border); }
+
+    /* ── Step panels ── */
+    .step-panel {
+      display: none;
+    }
+    .step-panel.active {
+      display: block;
+      animation: slideIn 0.22s ease;
+    }
+    .step-panel.slide-back {
+      animation: slideInBack 0.22s ease;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(28px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes slideInBack {
+      from { opacity: 0; transform: translateX(-28px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 4px;
+    }
+    .subtitle {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      margin-bottom: 22px;
+    }
+
+    /* ── Mode selector (Step 1) ── */
+    .mode-selector {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .mode-option {
+      cursor: pointer;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 6px 8px;
+      display: flex; flex-direction: column; align-items: center; gap: 7px;
+      background: var(--surface);
+      transition: border-color 0.15s, background 0.15s;
+      user-select: none;
+    }
+    .mode-option:hover  { border-color: var(--blue); background: var(--blue-bg); }
+    .mode-option.active {
+      border-color: var(--blue-dark); background: var(--blue-bg);
+      box-shadow: 0 0 0 2px var(--blue-border);
+    }
+    .mode-tag {
+      font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-muted); text-align: center; line-height: 1.3;
+    }
+    .mode-option.active .mode-tag { color: var(--blue-dark); }
+
+    .mode-desc {
+      font-size: 0.78rem; color: var(--text-muted);
+      background: var(--surface-subtle); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 20px; line-height: 1.5;
+    }
+    .mode-desc strong { color: var(--text); font-weight: 600; }
+    .mode-desc .formula-inline {
+      float: right; font-family: var(--font-mono); font-size: 0.72rem;
+      color: var(--text-dim); margin-left: 12px;
+    }
+
+    /* ── Group blocks ── */
+    .group-block {
+      background: var(--surface-subtle); border: 1.5px solid var(--border-subtle);
+      border-radius: 10px; padding: 13px 13px 10px; margin-bottom: 10px;
+      transition: opacity 0.2s;
+    }
+    .group-block.dead-block { border-color: var(--red-border); background: var(--red-bg); }
+    .group-block.disabled   { opacity: 0.38; pointer-events: none; }
+
+    .group-header {
+      font-size: 0.70rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-muted);
+      margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+    }
+    .group-header .badge {
+      font-size: 0.64rem; background: var(--tag-bg); color: var(--text-dim);
+      border-radius: var(--radius-xs); padding: 1px 5px;
+      font-weight: 500; text-transform: none; letter-spacing: 0;
+    }
+
+    /* ── Count inputs ── */
+    .count-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .count-field label {
+      font-size: 0.72rem; font-weight: 600; color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: 0.03em; display: block; margin-bottom: 4px;
+    }
+    .count-field .opt-tag {
+      font-size: 0.64rem; color: var(--text-dim); font-weight: 400;
+      text-transform: none; letter-spacing: 0;
+    }
+    .count-field input[type="number"] {
+      width: 100%; padding: 8px 10px;
+      border: 1.5px solid var(--border); border-radius: var(--radius-md);
+      font-size: 0.92rem; font-family: var(--font); color: var(--text);
+      background: var(--surface); outline: none; transition: border-color 0.15s;
+    }
+    .count-field input[type="number"]:focus { border-color: var(--blue); }
+    .count-field input[type="number"]::placeholder { color: var(--text-placeholder); }
+    .dead-block .count-field input[type="number"] { border-color: var(--red-border-input); }
+    .dead-block .count-field input[type="number"]:focus { border-color: var(--red); }
+
+    .count-hint { font-size: 0.74rem; color: var(--text-muted); margin-top: 7px; }
+
+    .count-all-row {
+      display: flex; align-items: center; gap: 8px; margin-top: 10px;
+      padding-top: 10px; border-top: 1px solid var(--border-subtle);
+      cursor: pointer; user-select: none; width: fit-content;
+    }
+    .count-all-row input[type="checkbox"] {
+      width: 15px; height: 15px; accent-color: var(--blue-dark);
+      cursor: pointer; flex-shrink: 0; margin: 0;
+    }
+    .count-all-label { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
+    .count-all-sub   { font-size: 0.72rem; color: var(--text-muted); font-weight: 400; margin-left: 2px; }
+
+    .via-note { font-size: 0.74rem; color: var(--text-muted); margin-top: 8px; min-height: 16px; }
+    .via-note.computed { color: var(--green); font-weight: 600; }
+
+    /* ── Params row ── */
+    .params-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
+    .params-row label {
+      font-size: 0.72rem; font-weight: 600; color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: 0.03em; display: block; margin-bottom: 4px;
+    }
+    .params-row input[type="number"] {
+      width: 100%; padding: 8px 10px;
+      border: 1.5px solid var(--border); border-radius: var(--radius-md);
+      font-size: 0.92rem; font-family: var(--font); color: var(--text);
+      background: var(--surface); outline: none; transition: border-color 0.15s;
+    }
+    .params-row input[type="number"]:focus { border-color: var(--blue); }
+    .params-row input[type="number"]::placeholder { color: var(--text-placeholder); }
+
+    /* ── Results (Step 1) ── */
+    .results-title {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 10px;
+    }
+    .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+    .result-box { background: var(--surface-hover); border-radius: var(--radius-md); padding: 11px 13px; }
+    .result-box.hl-blue  { background: var(--blue-bg);  border: 1.5px solid var(--blue-border); }
+    .result-box.hl-green { background: var(--green-bg); border: 1.5px solid var(--green-border); }
+    .r-label { font-size: 0.70rem; color: var(--text-muted); font-weight: 500; margin-bottom: 3px; }
+    .r-value { font-size: 1.15rem; font-weight: 700; color: var(--text); }
+    .hl-blue  .r-value { color: var(--blue-dark); }
+    .hl-green .r-value { color: var(--green-dark); }
+    .r-unit   { font-size: 0.68rem; color: var(--text-dim); margin-top: 2px; }
+
+    /* ── Next / Back buttons ── */
+    .nav-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 16px; gap: 10px;
+    }
+    .btn-reset {
+      padding: 8px 16px;
+      border: 1.5px solid var(--border); border-radius: var(--radius-md);
+      background: transparent; font-size: 0.82rem; font-family: var(--font);
+      color: var(--text-muted); cursor: pointer; transition: all 0.15s;
+    }
+    .btn-reset:hover { background: var(--surface-hover); color: var(--text); }
+
+    .btn-next {
+      padding: 9px 22px;
+      border: none; border-radius: var(--radius-md);
+      background: var(--blue-dark); color: #fff;
+      font-size: 0.88rem; font-weight: 700; font-family: var(--font);
+      cursor: pointer; transition: opacity 0.15s;
+      display: flex; align-items: center; gap: 6px;
+      margin-left: auto;
+    }
+    .btn-next:hover   { opacity: 0.88; }
+    .btn-next:disabled {
+      background: var(--tag-bg); color: var(--text-muted); cursor: not-allowed; opacity: 1;
+    }
+
+    .btn-back {
+      padding: 9px 16px;
+      border: 1.5px solid var(--border); border-radius: var(--radius-md);
+      background: transparent; font-size: 0.85rem; font-family: var(--font);
+      color: var(--text-secondary); font-weight: 600;
+      cursor: pointer; transition: all 0.15s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .btn-back:hover { background: var(--surface-hover); }
+
+    /* ── Step 2: Dilution ── */
+    .equation-banner {
+      background: var(--blue-bg); border: 1.5px solid var(--blue-border);
+      border-radius: var(--radius-md); padding: 10px 16px;
+      font-size: 1.05rem; font-weight: 700; color: var(--blue-dark);
+      text-align: center; margin-bottom: 20px; letter-spacing: 0.03em;
+      font-family: var(--font-mono);
+    }
+
+    .dilution-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .dil-field { display: flex; flex-direction: column; gap: 4px; }
+    .dil-field label {
+      font-size: 0.72rem; font-weight: 700; color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: 0.03em;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .dil-field label .var-tag {
+      font-family: var(--font-mono); font-size: 0.78rem; font-weight: 700;
+      background: var(--blue-bg); color: var(--blue-dark);
+      border-radius: var(--radius-xs); padding: 1px 6px;
+      text-transform: none; letter-spacing: 0;
+    }
+    .dil-field label .var-tag.solving {
+      background: var(--green-bg); color: var(--green-dark);
+    }
+    .dil-field .unit-wrap {
+      position: relative;
+    }
+    .dil-field input[type="number"] {
+      width: 100%; padding: 9px 48px 9px 10px;
+      border: 1.5px solid var(--border); border-radius: var(--radius-md);
+      font-size: 0.95rem; font-family: var(--font); color: var(--text);
+      background: var(--surface); outline: none; transition: border-color 0.15s, background 0.15s;
+    }
+    .dil-field input[type="number"]:focus { border-color: var(--blue); }
+    .dil-field input[type="number"]::placeholder { color: var(--text-placeholder); }
+    .dil-field input[type="number"].prefilled {
+      background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue-dark);
+    }
+    .dil-field input[type="number"].solving {
+      background: var(--green-bg); border-color: var(--green-border);
+      color: var(--green-dark); font-weight: 700;
+    }
+    .dil-field .unit {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      font-size: 0.72rem; color: var(--text-dim); pointer-events: none;
+      font-weight: 600;
+    }
+    .dil-field .prefill-note {
+      font-size: 0.68rem; color: var(--blue-dark); margin-top: 2px;
+    }
+
+    /* answer summary box */
+    .answer-box {
+      background: var(--green-bg); border: 1.5px solid var(--green-border);
+      border-radius: var(--radius-md); padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+    .answer-box .ans-label {
+      font-size: 0.70rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--green-dark); margin-bottom: 6px;
+    }
+    .answer-box .ans-value {
+      font-size: 1.3rem; font-weight: 800; color: var(--green-dark);
+    }
+    .answer-box .ans-unit {
+      font-size: 0.80rem; color: var(--green); margin-left: 4px; font-weight: 500;
+    }
+    .answer-box .ans-sub {
+      font-size: 0.78rem; color: var(--green-dark); margin-top: 4px; opacity: 0.8;
+    }
+    .answer-box.hidden { display: none; }
+
+    /* media-to-add note */
+    .media-note {
+      font-size: 0.80rem; color: var(--text-muted);
+      background: var(--surface-subtle); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm); padding: 9px 12px;
+      margin-bottom: 12px; line-height: 1.55;
+    }
+    .media-note strong { color: var(--text); }
+    .media-note.hidden { display: none; }
+
+    .dil-reset-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+
+    @media (max-width: 480px) {
+      .mode-selector { grid-template-columns: repeat(2, 1fr); }
+      .card { padding: 20px 16px; }
+      .dilution-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="lt-nav">
+  <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
+  <span class="lt-nav-sep">/</span>
+  <span class="lt-nav-page">Cell Seeding Calculator</span>
+</nav>
+
+<div class="page-body">
+<div class="card">
+
+  <!-- ── Step progress bar ── -->
+  <div class="step-bar">
+    <div class="step-pip active" id="pip1">
+      <div class="dot">1</div>
+      Cell Count
+    </div>
+    <div class="step-connector" id="connector"></div>
+    <div class="step-pip" id="pip2">
+      <div class="dot">2</div>
+      Dilution
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════
+       STEP 1 — Cell Count
+  ════════════════════════════════════ -->
+  <div class="step-panel active" id="step1">
+
+    <h1>🧮 Cell Count</h1>
+    <p class="subtitle">Count your cells, then proceed to calculate the dilution.</p>
+
+    <!-- Mode selector -->
+    <div class="lt-section-label" style="margin-bottom:8px">Counting Mode</div>
+    <div class="mode-selector" id="mode-selector"></div>
+    <div class="mode-desc" id="mode-desc"></div>
+
+    <!-- Live counts -->
+    <div class="group-block" id="live-block">
+      <div class="group-header">🟢 Live Cell Counts</div>
+      <div class="count-row">
+        <div class="count-field">
+          <label>Count 1</label>
+          <input type="number" id="live1" placeholder="e.g. 95" min="0" oninput="calcStep1()"/>
+        </div>
+        <div class="count-field">
+          <label>Count 2 <span class="opt-tag">(optional — 2nd chamber)</span></label>
+          <input type="number" id="live2" placeholder="optional" min="0" oninput="calcStep1()"/>
+        </div>
+      </div>
+      <div class="count-hint" id="live-hint"></div>
+      <label class="count-all-row">
+        <input type="checkbox" id="count-all-toggle" onchange="onCountAllToggle()"/>
+        <span class="count-all-label">Count all cells
+          <span class="count-all-sub">— no Trypan Blue, dead section disabled</span>
+        </span>
+      </label>
+    </div>
+
+    <!-- Dead counts -->
+    <div class="group-block dead-block" id="dead-block">
+      <div class="group-header">
+        🔴 Dead Cell Counts
+        <span class="badge">optional — Trypan Blue viability</span>
+      </div>
+      <div class="count-row">
+        <div class="count-field">
+          <label>Count 1 <span class="opt-tag">(optional)</span></label>
+          <input type="number" id="dead1" placeholder="optional" min="0" oninput="calcStep1()"/>
+        </div>
+        <div class="count-field">
+          <label>Count 2 <span class="opt-tag">(optional — 2nd chamber)</span></label>
+          <input type="number" id="dead2" placeholder="optional" min="0" oninput="calcStep1()"/>
+        </div>
+      </div>
+      <div class="via-note" id="via-note">Enter dead counts above to auto-calculate viability.</div>
+    </div>
+
+    <!-- Parameters -->
+    <div class="params-row">
+      <div>
+        <label>Dilution Factor</label>
+        <input type="number" id="df" value="20" min="1" oninput="calcStep1()"/>
+      </div>
+      <div>
+        <label>Resuspension Volume (mL)</label>
+        <input type="number" id="vol" placeholder="e.g. 2" min="0" step="0.1" oninput="calcStep1()"/>
+      </div>
+    </div>
+
+    <div class="lt-divider"></div>
+
+    <!-- Results -->
+    <div class="results-title">Results</div>
+    <div class="results-grid">
+      <div class="result-box">
+        <div class="r-label">Avg Count</div>
+        <div class="r-value" id="res-avg">—</div>
+        <div class="r-unit"  id="res-avg-note">from counts</div>
+      </div>
+      <div class="result-box hl-green">
+        <div class="r-label">Viability</div>
+        <div class="r-value" id="res-via">—</div>
+        <div class="r-unit"  id="res-via-note">from dead counts</div>
+      </div>
+      <div class="result-box hl-blue">
+        <div class="r-label">Final Density</div>
+        <div class="r-value" id="res-density">—</div>
+        <div class="r-unit"  id="res-density-note">cells / mL</div>
+      </div>
+      <div class="result-box hl-blue">
+        <div class="r-label" id="res-total-label">Total Live Cells</div>
+        <div class="r-value" id="res-total">—</div>
+        <div class="r-unit"  id="res-total-note">density × vol</div>
+      </div>
+    </div>
+
+    <!-- Nav row -->
+    <div class="nav-row">
+      <button class="btn-reset" onclick="resetStep1()">↺ Reset</button>
+      <button class="btn-next" id="btn-next" onclick="goToStep2()" disabled>
+        Next: Dilution <span>→</span>
+      </button>
+    </div>
+
+  </div><!-- /step1 -->
+
+
+  <!-- ════════════════════════════════════
+       STEP 2 — Dilution (C1V1 = C2V2)
+  ════════════════════════════════════ -->
+  <div class="step-panel" id="step2">
+
+    <h1>⚗️ Dilution</h1>
+    <p class="subtitle">Supply any three values — the fourth is calculated automatically.</p>
+
+    <div class="equation-banner">C₁V₁ = C₂V₂</div>
+
+    <div class="dilution-grid">
+
+      <!-- C1 -->
+      <div class="dil-field">
+        <label>
+          <span class="var-tag" id="c1-tag">C₁</span>
+          Stock Concentration
+        </label>
+        <div class="unit-wrap">
+          <input type="number" id="c1" placeholder="cells/mL" min="0"
+                 oninput="calcDilution()" class="prefilled"/>
+          <span class="unit">cells/mL</span>
+        </div>
+        <div class="prefill-note" id="c1-note">← from Step 1</div>
+      </div>
+
+      <!-- C2 -->
+      <div class="dil-field">
+        <label>
+          <span class="var-tag" id="c2-tag">C₂</span>
+          Target Concentration
+        </label>
+        <div class="unit-wrap">
+          <input type="number" id="c2" placeholder="cells/mL" min="0" oninput="calcDilution()"/>
+          <span class="unit">cells/mL</span>
+        </div>
+      </div>
+
+      <!-- V1 -->
+      <div class="dil-field">
+        <label>
+          <span class="var-tag" id="v1-tag">V₁</span>
+          Volume from Stock
+        </label>
+        <div class="unit-wrap">
+          <input type="number" id="v1" placeholder="mL" min="0" oninput="calcDilution()"/>
+          <span class="unit">mL</span>
+        </div>
+      </div>
+
+      <!-- V2 -->
+      <div class="dil-field">
+        <label>
+          <span class="var-tag" id="v2-tag">V₂</span>
+          Final Volume
+        </label>
+        <div class="unit-wrap">
+          <input type="number" id="v2" placeholder="mL" min="0" oninput="calcDilution()"/>
+          <span class="unit">mL</span>
+        </div>
+      </div>
+
+    </div><!-- /dilution-grid -->
+
+    <!-- Answer box -->
+    <div class="answer-box hidden" id="answer-box">
+      <div class="ans-label" id="ans-label">Solving for —</div>
+      <div>
+        <span class="ans-value" id="ans-value">—</span>
+        <span class="ans-unit" id="ans-unit"></span>
+      </div>
+      <div class="ans-sub" id="ans-sub"></div>
+    </div>
+
+    <!-- Media to add note -->
+    <div class="media-note hidden" id="media-note"></div>
+
+    <!-- Nav row -->
+    <div class="dil-reset-row">
+      <button class="btn-back" onclick="goToStep1()">← Back</button>
+      <button class="btn-reset" onclick="resetStep2()">↺ Reset dilution</button>
+    </div>
+
+  </div><!-- /step2 -->
+
+</div><!-- /card -->
+</div><!-- /page-body -->
+
+<footer class="lt-footer">LabTools · Open source lab utilities</footer>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// SVG diagram generator
+// ─────────────────────────────────────────────────────────────
+function makeDiagram(largeHL, smallHL) {
+  const S = 22, G = 1.5, W = S * 3 + G * 4, ss = S / 5;
+  const isLHL = (r,c) => largeHL.some(([a,b]) => a===r && b===c);
+  const isSHL = (r,c) => smallHL === 'all' ||
+    (Array.isArray(smallHL) && smallHL.some(([a,b]) => a===r && b===c));
+
+  let s = `<svg width="${W}" height="${W}" viewBox="0 0 ${W} ${W}" xmlns="http://www.w3.org/2000/svg">`;
+  s += `<rect width="${W}" height="${W}" rx="2" fill="#f7f6f3"/>`;
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      const x = G + c*(S+G), y = G + r*(S+G);
+      const hl = isLHL(r,c), ctr = r===1 && c===1;
+      s += `<rect x="${x}" y="${y}" width="${S}" height="${S}" rx="1"
+              fill="${hl?'#dce7ff':'#fff'}"
+              stroke="${ctr?'#9b9a97':'#ccc9c2'}" stroke-width="${ctr?0.8:0.6}"/>`;
+      if (ctr) {
+        for (let sr = 0; sr < 5; sr++) for (let sc = 0; sc < 5; sc++) {
+          const shl = isSHL(sr,sc);
+          s += `<rect x="${x+sc*ss}" y="${y+sr*ss}" width="${ss}" height="${ss}"
+                  fill="${shl?'#c8d9ff':'#f0efed'}" stroke="#d0cfc9" stroke-width="0.3"/>`;
+          if (shl) s += `<circle cx="${x+sc*ss+ss/2}" cy="${y+sr*ss+ss/2}"
+                           r="${ss*0.22}" fill="#3366cc" opacity="0.85"/>`;
+        }
+      }
+      if (hl && !ctr)
+        s += `<circle cx="${x+S/2}" cy="${y+S/2}" r="3.5" fill="#3366cc" opacity="0.9"/>`;
+    }
+  }
+  s += `<rect x="0.8" y="0.8" width="${W-1.6}" height="${W-1.6}" rx="2"
+          fill="none" stroke="#37352f" stroke-width="1"/></svg>`;
+  return s;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Counting modes
+// ─────────────────────────────────────────────────────────────
+const SMALL_ALL = 'all', SMALL_5 = [[0,0],[0,4],[2,2],[4,0],[4,4]];
+
+const MODES = [
+  { id:1, tag:'All 25\nsmall sq.', largeHL:[], smallHL:SMALL_ALL, multiplier:1,
+    formulaNote:'avg × DF × 10⁴',
+    desc:'<strong>All 25 small squares</strong> in center box — very dense samples. Enter total across all 25.',
+    hint:'Total cells across all 25 small squares' },
+  { id:2, tag:'5 small\nsq.', largeHL:[], smallHL:SMALL_5, multiplier:5,
+    formulaNote:'avg × 5 × DF × 10⁴',
+    desc:'<strong>5 small squares</strong> (4 corners + center) — dense samples. Enter total across those 5.',
+    hint:'Total cells across 5 small squares (corners + center)' },
+  { id:3, tag:'4 corner\nsq.', largeHL:[[0,0],[0,2],[2,0],[2,2]], smallHL:[], multiplier:0.25,
+    formulaNote:'avg ÷ 4 × DF × 10⁴',
+    desc:'<strong>4 large corner squares</strong> — standard routine counting. Enter total across all 4 corners.',
+    hint:'Total cells across all 4 corner squares' },
+  { id:4, tag:'1 corner\nsq.', largeHL:[[0,0]], smallHL:[], multiplier:1,
+    formulaNote:'count × DF × 10⁴',
+    desc:'<strong>Single corner square</strong> — quick estimate when density is adequate.',
+    hint:'Cells in one corner square' },
+];
+
+let currentModeId = 1;
+let step1FinalDensity = NaN; // passed to Step 2
+
+// ─────────────────────────────────────────────────────────────
+// Build mode selector
+// ─────────────────────────────────────────────────────────────
+function buildModeSelector() {
+  const container = document.getElementById('mode-selector');
+  MODES.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'mode-option' + (m.id === currentModeId ? ' active' : '');
+    div.innerHTML = `${makeDiagram(m.largeHL, m.smallHL)}<span class="mode-tag">${m.tag.replace('\n','<br>')}</span>`;
+    div.onclick = () => selectMode(m.id);
+    container.appendChild(div);
+  });
+}
+
+function selectMode(id) {
+  currentModeId = id;
+  document.querySelectorAll('.mode-option').forEach((el,i) =>
+    el.classList.toggle('active', MODES[i].id === id));
+  const m = MODES.find(x => x.id === id);
+  document.getElementById('mode-desc').innerHTML =
+    `<span class="formula-inline">${m.formulaNote}</span>${m.desc}`;
+  document.getElementById('live-hint').textContent = m.hint;
+  calcStep1();
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step 1 helpers
+// ─────────────────────────────────────────────────────────────
+function avgTwo(a, b) {
+  const ha = !isNaN(a), hb = !isNaN(b);
+  if (!ha && !hb) return { val: NaN, n: 0 };
+  if (ha && !hb)  return { val: a, n: 1 };
+  if (!ha && hb)  return { val: b, n: 1 };
+  return { val: (a+b)/2, n: 2 };
+}
+
+function fmt(n, dp=1) {
+  if (isNaN(n) || n == null) return '—';
+  if (n >= 1e6) return (n/1e6).toFixed(dp) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(dp) + 'K';
+  return n.toLocaleString();
+}
+
+function onCountAllToggle() {
+  const isAll = document.getElementById('count-all-toggle').checked;
+  const deadBlock = document.getElementById('dead-block');
+  deadBlock.classList.toggle('disabled', isAll);
+  if (isAll) {
+    document.getElementById('dead1').value = '';
+    document.getElementById('dead2').value = '';
+  }
+  calcStep1();
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step 1 calculate
+// ─────────────────────────────────────────────────────────────
+function calcStep1() {
+  const mode  = MODES.find(m => m.id === currentModeId);
+  const isAll = document.getElementById('count-all-toggle').checked;
+  const df    = parseFloat(document.getElementById('df').value);
+  const vol   = parseFloat(document.getElementById('vol').value);
+
+  const live1 = parseFloat(document.getElementById('live1').value);
+  const live2 = parseFloat(document.getElementById('live2').value);
+  const dead1 = parseFloat(document.getElementById('dead1').value);
+  const dead2 = parseFloat(document.getElementById('dead2').value);
+
+  const liveAvg = avgTwo(live1, live2);
+  const deadAvg = avgTwo(dead1, dead2);
+  const avgLive = liveAvg.val, avgDead = deadAvg.val;
+
+  const perLargeSq   = !isNaN(avgLive) ? avgLive * mode.multiplier : NaN;
+  const finalDensity = (!isNaN(perLargeSq) && !isNaN(df)) ? Math.round(perLargeSq * df * 1e4) : NaN;
+  const totalCells   = (!isNaN(finalDensity) && !isNaN(vol) && vol > 0) ? Math.round(finalDensity * vol) : NaN;
+
+  step1FinalDensity = finalDensity; // save for Step 2
+
+  // viability
+  const hasDeadAny = !isAll && deadAvg.n > 0;
+  const viability  = (!isAll && !isNaN(avgLive) && hasDeadAny && !isNaN(avgDead))
+    ? (avgLive / (avgLive + avgDead)) * 100
+    : (!isAll && !isNaN(avgLive) && hasDeadAny && avgDead === 0) ? 100 : NaN;
+
+  // avg count
+  document.getElementById('res-avg').textContent =
+    !isNaN(avgLive) ? avgLive.toFixed(1) : '—';
+  document.getElementById('res-avg-note').textContent =
+    !isNaN(avgLive) ? (liveAvg.n === 2 ? 'avg of 2 counts' : 'single count') : 'from counts';
+
+  // viability
+  if (isAll) {
+    document.getElementById('res-via').textContent      = 'N/A';
+    document.getElementById('res-via-note').textContent = 'count-all mode';
+    document.getElementById('via-note').textContent     = 'Dead cell counting disabled.';
+    document.getElementById('via-note').className       = 'via-note';
+  } else if (!isNaN(viability)) {
+    document.getElementById('res-via').textContent      = viability.toFixed(1) + '%';
+    document.getElementById('res-via-note').textContent = deadAvg.n === 2 ? 'avg of 2 dead counts' : 'from dead count';
+    document.getElementById('via-note').textContent     = `✓ Viability: ${viability.toFixed(1)}%`;
+    document.getElementById('via-note').className       = 'via-note computed';
+  } else if (hasDeadAny) {
+    document.getElementById('res-via').textContent      = '—';
+    document.getElementById('res-via-note').textContent = 'waiting for live count';
+    document.getElementById('via-note').textContent     = 'Waiting for live count to compute viability.';
+    document.getElementById('via-note').className       = 'via-note';
+  } else {
+    document.getElementById('res-via').textContent      = '—';
+    document.getElementById('res-via-note').textContent = 'enter dead counts above';
+    document.getElementById('via-note').textContent     = 'Enter dead counts above to auto-calculate viability.';
+    document.getElementById('via-note').className       = 'via-note';
+  }
+
+  // total label
+  document.getElementById('res-total-label').textContent = isAll ? 'Total Cells' : 'Total Live Cells';
+
+  // density + total
+  document.getElementById('res-density').textContent      = fmt(finalDensity);
+  document.getElementById('res-density-note').textContent = !isNaN(avgLive) ? mode.formulaNote : 'cells / mL';
+  document.getElementById('res-total').textContent        = fmt(totalCells);
+  document.getElementById('res-total-note').textContent   =
+    !isNaN(finalDensity) && !isNaN(vol) && vol > 0 ? `density × ${vol} mL`
+    : !isNaN(finalDensity) ? 'enter resuspension vol' : '—';
+
+  // enable Next button only when we have a density
+  document.getElementById('btn-next').disabled = isNaN(finalDensity);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step navigation
+// ─────────────────────────────────────────────────────────────
+function goToStep2() {
+  // pre-fill C1 from Step 1 density
+  const c1Input = document.getElementById('c1');
+  if (!isNaN(step1FinalDensity)) {
+    c1Input.value = step1FinalDensity;
+    c1Input.classList.add('prefilled');
+    document.getElementById('c1-note').style.display = '';
+  } else {
+    c1Input.value = '';
+    c1Input.classList.remove('prefilled');
+    document.getElementById('c1-note').style.display = 'none';
+  }
+
+  document.getElementById('step1').classList.remove('active');
+  const s2 = document.getElementById('step2');
+  s2.classList.add('active');
+  s2.classList.remove('slide-back');
+  void s2.offsetWidth; // force reflow for animation
+
+  // update progress bar
+  document.getElementById('pip1').classList.remove('active');
+  document.getElementById('pip1').classList.add('done');
+  document.getElementById('pip2').classList.add('active');
+  document.getElementById('connector').classList.add('done');
+
+  calcDilution();
+}
+
+function goToStep1() {
+  document.getElementById('step2').classList.remove('active');
+  const s1 = document.getElementById('step1');
+  s1.classList.add('active');
+
+  document.getElementById('pip2').classList.remove('active');
+  document.getElementById('pip1').classList.remove('done');
+  document.getElementById('pip1').classList.add('active');
+  document.getElementById('connector').classList.remove('done');
+}
+
+// ─────────────────────────────────────────────────────────────
+// Step 2 — Dilution solver
+// ─────────────────────────────────────────────────────────────
+function calcDilution() {
+  const c1 = parseFloat(document.getElementById('c1').value);
+  const c2 = parseFloat(document.getElementById('c2').value);
+  const v1 = parseFloat(document.getElementById('v1').value);
+  const v2 = parseFloat(document.getElementById('v2').value);
+
+  const fields = { c1, c2, v1, v2 };
+  const missing = Object.entries(fields).filter(([,v]) => isNaN(v)).map(([k]) => k);
+
+  const ansBox   = document.getElementById('answer-box');
+  const mediaNote= document.getElementById('media-note');
+
+  // reset all field styles
+  ['c1','c2','v1','v2'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove('solving');
+    const tag = document.getElementById(id + '-tag');
+    if (tag) tag.classList.remove('solving');
+  });
+
+  // C1 prefilled styling
+  const c1El = document.getElementById('c1');
+  if (!isNaN(step1FinalDensity) && parseFloat(c1El.value) === step1FinalDensity) {
+    c1El.classList.add('prefilled');
+  } else {
+    c1El.classList.remove('prefilled');
+  }
+
+  if (missing.length !== 1) {
+    ansBox.classList.add('hidden');
+    mediaNote.classList.add('hidden');
+    return;
+  }
+
+  const solve = missing[0];
+  let result = NaN;
+  if (solve === 'c1') result = (c2 * v2) / v1;
+  if (solve === 'v1') result = (c2 * v2) / c1;
+  if (solve === 'c2') result = (c1 * v1) / v2;
+  if (solve === 'v2') result = (c1 * v1) / c2;
+
+  if (isNaN(result) || result <= 0) {
+    ansBox.classList.add('hidden');
+    mediaNote.classList.add('hidden');
+    return;
+  }
+
+  // fill solved field
+  document.getElementById(solve).value = result % 1 === 0 ? result : result.toFixed(4);
+  document.getElementById(solve).classList.add('solving');
+  const solveTag = document.getElementById(solve + '-tag');
+  if (solveTag) solveTag.classList.add('solving');
+
+  // labels
+  const labels = { c1:'C₁ — Stock Concentration', c2:'C₂ — Target Concentration',
+                   v1:'V₁ — Volume from Stock', v2:'V₂ — Final Volume' };
+  const units  = { c1:'cells/mL', c2:'cells/mL', v1:'mL', v2:'mL' };
+
+  document.getElementById('ans-label').textContent = 'Solving for ' + labels[solve];
+  document.getElementById('ans-value').textContent =
+    (units[solve] === 'cells/mL') ? fmt(result, 2) : result.toFixed(4).replace(/\.?0+$/, '');
+  document.getElementById('ans-unit').textContent  = units[solve];
+
+  // sub-note
+  const knownC1 = isNaN(c1) ? result : c1;
+  const knownV1 = isNaN(v1) ? result : v1;
+  const knownV2 = isNaN(v2) ? result : v2;
+  document.getElementById('ans-sub').textContent =
+    `${knownC1.toExponential(2)} × ${knownV1.toFixed(4).replace(/\.?0+$/,'')} = ` +
+    `${(isNaN(c2)?result:c2).toExponential(2)} × ${knownV2.toFixed(4).replace(/\.?0+$/,'')}`;
+
+  ansBox.classList.remove('hidden');
+
+  // media to add (only meaningful when solving V1 or given V1 & V2)
+  const knownC2 = isNaN(c2) ? result : c2;
+  const finalV1 = isNaN(v1) ? result : v1;
+  const finalV2 = isNaN(v2) ? result : v2;
+  const mediaToAdd = finalV2 - finalV1;
+
+  if ((solve === 'v1' || solve === 'v2') && !isNaN(mediaToAdd) && mediaToAdd >= 0) {
+    mediaNote.innerHTML =
+      `💧 Add <strong>${mediaToAdd.toFixed(4).replace(/\.?0+$/,'')} mL</strong> of media to ` +
+      `<strong>${finalV1.toFixed(4).replace(/\.?0+$/,'')} mL</strong> of stock ` +
+      `→ ${finalV2.toFixed(4).replace(/\.?0+$/,'')} mL total at ` +
+      `<strong>${fmt(knownC2, 2)} cells/mL</strong>`;
+    mediaNote.classList.remove('hidden');
+  } else {
+    mediaNote.classList.add('hidden');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Resets
+// ─────────────────────────────────────────────────────────────
+function resetStep1() {
+  ['live1','live2','dead1','dead2','vol'].forEach(id =>
+    document.getElementById(id).value = '');
+  document.getElementById('df').value = '20';
+  document.getElementById('count-all-toggle').checked = false;
+  document.getElementById('dead-block').classList.remove('disabled');
+  calcStep1();
+}
+
+function resetStep2() {
+  // clear all except C1 (keep prefill)
+  ['c2','v1','v2'].forEach(id => document.getElementById(id).value = '');
+  // restore C1 prefill
+  if (!isNaN(step1FinalDensity)) {
+    document.getElementById('c1').value = step1FinalDensity;
+    document.getElementById('c1').classList.add('prefilled');
+  } else {
+    document.getElementById('c1').value = '';
+  }
+  calcDilution();
+}
+
+// ─────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────
+buildModeSelector();
+selectMode(currentModeId);
+document.getElementById('c1-note').style.display = 'none';
+</script>
+</body>
+</html>
