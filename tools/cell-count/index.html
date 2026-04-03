@@ -45,7 +45,6 @@
       gap: 8px;
       margin-bottom: 10px;
     }
-
     .mode-option {
       cursor: pointer;
       border: 1.5px solid var(--border);
@@ -74,6 +73,8 @@
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--text-muted);
+      text-align: center;
+      line-height: 1.3;
     }
     .mode-option.active .mode-tag { color: var(--blue-dark); }
 
@@ -87,11 +88,15 @@
       padding: 8px 12px;
       margin-bottom: 20px;
       line-height: 1.5;
-      display: flex;
-      align-items: center;
-      gap: 8px;
     }
     .mode-desc strong { color: var(--text); font-weight: 600; }
+    .mode-desc .formula-inline {
+      float: right;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      margin-left: 12px;
+    }
 
     /* ── Group blocks ── */
     .group-block {
@@ -100,6 +105,7 @@
       border-radius: 10px;
       padding: 13px 13px 10px;
       margin-bottom: 10px;
+      transition: opacity 0.2s;
     }
     .group-block.dead-block {
       border-color: var(--red-border);
@@ -127,16 +133,13 @@
       letter-spacing: 0;
     }
 
-    /* ── Input grids ── */
-    .inputs-grid {
+    /* ── Count input rows ── */
+    .count-row {
       display: grid;
-      gap: 8px;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
     }
-    .inputs-grid.cols-1 { grid-template-columns: 1fr; }
-    .inputs-grid.cols-2 { grid-template-columns: 1fr 1fr; }
-    .inputs-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
-
-    .input-field label {
+    .count-field label {
       font-size: 0.72rem;
       font-weight: 600;
       color: var(--text-secondary);
@@ -145,7 +148,14 @@
       display: block;
       margin-bottom: 4px;
     }
-    .input-field input[type="number"] {
+    .count-field .opt-tag {
+      font-size: 0.64rem;
+      color: var(--text-dim);
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .count-field input[type="number"] {
       width: 100%;
       padding: 8px 10px;
       border: 1.5px solid var(--border);
@@ -155,13 +165,20 @@
       color: var(--text);
       background: var(--surface);
       outline: none;
-      transition: border-color 0.15s;
+      transition: border-color 0.15s, opacity 0.2s;
     }
-    .input-field input[type="number"]:focus { border-color: var(--blue); }
-    .input-field input[type="number"]::placeholder { color: var(--text-placeholder); }
+    .count-field input[type="number"]:focus { border-color: var(--blue); }
+    .count-field input[type="number"]::placeholder { color: var(--text-placeholder); }
 
-    .dead-block .input-field input[type="number"] { border-color: var(--red-border-input); }
-    .dead-block .input-field input[type="number"]:focus { border-color: var(--red); }
+    .dead-block .count-field input[type="number"] { border-color: var(--red-border-input); }
+    .dead-block .count-field input[type="number"]:focus { border-color: var(--red); }
+
+    /* hint below count row */
+    .count-hint {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      margin-top: 7px;
+    }
 
     /* via note */
     .via-note {
@@ -169,7 +186,6 @@
       color: var(--text-muted);
       margin-top: 8px;
       min-height: 16px;
-      transition: color 0.15s;
     }
     .via-note.computed { color: var(--green); font-weight: 600; }
 
@@ -254,7 +270,6 @@
     }
     .btn-reset:hover { background: var(--surface-hover); color: var(--text); }
 
-    /* ── Responsive ── */
     @media (max-width: 480px) {
       .mode-selector { grid-template-columns: repeat(2, 1fr); }
       .card { padding: 20px 16px; }
@@ -282,18 +297,37 @@
   <div class="mode-desc" id="mode-desc"></div>
 
   <!-- ── Live counts ── -->
-  <div class="group-block">
+  <div class="group-block" id="live-block">
     <div class="group-header">🟢 Live Cell Counts</div>
-    <div class="inputs-grid" id="live-inputs"></div>
+    <div class="count-row">
+      <div class="count-field">
+        <label>Count 1</label>
+        <input type="number" id="live1" placeholder="e.g. 95" min="0" oninput="calculate()"/>
+      </div>
+      <div class="count-field">
+        <label>Count 2 <span class="opt-tag">(optional — 2nd chamber)</span></label>
+        <input type="number" id="live2" placeholder="optional" min="0" oninput="calculate()"/>
+      </div>
+    </div>
+    <div class="count-hint" id="live-hint"></div>
   </div>
 
   <!-- ── Dead counts ── -->
-  <div class="group-block dead-block">
+  <div class="group-block dead-block" id="dead-block">
     <div class="group-header">
       🔴 Dead Cell Counts
       <span class="badge">optional — Trypan Blue viability</span>
     </div>
-    <div class="inputs-grid" id="dead-inputs"></div>
+    <div class="count-row">
+      <div class="count-field">
+        <label>Count 1 <span class="opt-tag">(optional)</span></label>
+        <input type="number" id="dead1" placeholder="optional" min="0" oninput="calculate()"/>
+      </div>
+      <div class="count-field">
+        <label>Count 2 <span class="opt-tag">(optional — 2nd chamber)</span></label>
+        <input type="number" id="dead2" placeholder="optional" min="0" oninput="calculate()"/>
+      </div>
+    </div>
     <div class="via-note" id="via-note">Enter dead counts above to auto-calculate viability.</div>
   </div>
 
@@ -315,9 +349,9 @@
   <div class="results-title">Results</div>
   <div class="results-grid">
     <div class="result-box">
-      <div class="r-label">Avg Live Count</div>
+      <div class="r-label">Avg Count</div>
       <div class="r-value" id="res-avg">—</div>
-      <div class="r-unit"  id="res-avg-note">cells / sq</div>
+      <div class="r-unit"  id="res-avg-note">from counts</div>
     </div>
     <div class="result-box hl-green">
       <div class="r-label">Viability</div>
@@ -344,11 +378,11 @@
 
 <script>
 // ─────────────────────────────────────────────────────────────
-// SVG diagram generator (compact, for mode cards)
+// SVG diagram generator
 // ─────────────────────────────────────────────────────────────
 function makeDiagram(largeHL, smallHL) {
-  const S  = 22, G = 1.5;
-  const W  = S * 3 + G * 4;
+  const S = 22, G = 1.5;
+  const W = S * 3 + G * 4;
   const ss = S / 5;
 
   const isLHL = (r,c) => largeHL.some(([a,b]) => a===r && b===c);
@@ -362,8 +396,8 @@ function makeDiagram(largeHL, smallHL) {
 
   for (let r = 0; r < 3; r++) {
     for (let c = 0; c < 3; c++) {
-      const x   = G + c * (S + G);
-      const y   = G + r * (S + G);
+      const x = G + c * (S + G);
+      const y = G + r * (S + G);
       const hl  = isLHL(r, c);
       const ctr = r === 1 && c === 1;
 
@@ -372,27 +406,23 @@ function makeDiagram(largeHL, smallHL) {
               stroke="${ctr ? '#9b9a97' : '#ccc9c2'}"
               stroke-width="${ctr ? 0.8 : 0.6}"/>`;
 
-      // center: always draw 5×5 sub-grid
       if (ctr) {
         for (let sr = 0; sr < 5; sr++) {
           for (let sc = 0; sc < 5; sc++) {
             const shl = isSHL(sr, sc);
-            s += `<rect x="${x + sc*ss}" y="${y + sr*ss}"
-                    width="${ss}" height="${ss}"
+            s += `<rect x="${x+sc*ss}" y="${y+sr*ss}" width="${ss}" height="${ss}"
                     fill="${shl ? '#c8d9ff' : '#f0efed'}"
                     stroke="#d0cfc9" stroke-width="0.3"/>`;
             if (shl) {
-              s += `<circle cx="${x + sc*ss + ss/2}" cy="${y + sr*ss + ss/2}"
+              s += `<circle cx="${x+sc*ss+ss/2}" cy="${y+sr*ss+ss/2}"
                       r="${ss*0.22}" fill="#3366cc" opacity="0.85"/>`;
             }
           }
         }
       }
 
-      // dot for highlighted large square
       if (hl && !ctr) {
-        s += `<circle cx="${x+S/2}" cy="${y+S/2}" r="3.5"
-                fill="#3366cc" opacity="0.9"/>`;
+        s += `<circle cx="${x+S/2}" cy="${y+S/2}" r="3.5" fill="#3366cc" opacity="0.9"/>`;
       }
     }
   }
@@ -405,6 +435,9 @@ function makeDiagram(largeHL, smallHL) {
 
 // ─────────────────────────────────────────────────────────────
 // Mode definitions
+// Each mode: user enters TOTAL cells counted across N squares.
+// multiplier converts that total to "cells per 1 large square".
+// Final: avg_total × multiplier × DF × 10⁴
 // ─────────────────────────────────────────────────────────────
 const SMALL_ALL = 'all';
 const SMALL_5   = [[0,0],[0,4],[2,2],[4,0],[4,4]];
@@ -412,87 +445,50 @@ const SMALL_5   = [[0,0],[0,4],[2,2],[4,0],[4,4]];
 const MODES = [
   {
     id: 1,
-    tag: 'All 25',
-    desc: '<strong>All 25 small squares</strong> in the center box · For very dense samples. Enter the total count across all 25 squares.',
+    tag: 'All 25\nsmall sq.',
     largeHL: [],
     smallHL: SMALL_ALL,
-    fields: [
-      { key: 'sq_total', label: 'Total cells (all 25 squares)', placeholder: 'e.g. 112' }
-    ],
-    cols: 'cols-1',
-    formula: (live, df) => {
-      const total = live[0];
-      if (isNaN(total)) return { avg: NaN, multiplier: '÷25 × 25 × DF × 10⁴' };
-      return { avg: total / 25, multiplier: '÷25 × 25 × DF × 10⁴', total: Math.round(total * df * 1e4) };
-    },
-    formulaNote: 'total ÷ 25 × 25 × DF × 10⁴',
+    multiplier: 1,       // 25 small sq = 1 large sq, so total = per-large-sq equivalent
+    formulaNote: 'avg × DF × 10⁴',
+    desc: '<strong>All 25 small squares</strong> in the center box — for very dense samples. Enter total cells counted across all 25 squares.',
+    hint: 'Total cells across all 25 small squares',
   },
   {
     id: 2,
-    tag: '5 small sq.',
-    desc: '<strong>5 small squares</strong> (4 corners + center of inner grid) · For dense samples. Count each square separately.',
+    tag: '5 small\nsq.',
     largeHL: [],
     smallHL: SMALL_5,
-    fields: [
-      { key: 'sq_tl', label: 'Top-Left',     placeholder: 'e.g. 18' },
-      { key: 'sq_tr', label: 'Top-Right',    placeholder: 'e.g. 21' },
-      { key: 'sq_c',  label: 'Center',       placeholder: 'e.g. 19' },
-      { key: 'sq_bl', label: 'Bottom-Left',  placeholder: 'e.g. 20' },
-      { key: 'sq_br', label: 'Bottom-Right', placeholder: 'e.g. 17' },
-    ],
-    cols: 'cols-2',
-    formula: (live, df) => {
-      const vals = live.filter(v => !isNaN(v));
-      if (vals.length === 0) return { avg: NaN };
-      const avg = vals.reduce((a,b)=>a+b,0) / vals.length;
-      return { avg, total: Math.round(avg * 25 * df * 1e4) };
-    },
-    formulaNote: 'avg(≤5) × 25 × DF × 10⁴',
+    multiplier: 5,       // avg per small × 25 = avg × 5 per large sq
+    formulaNote: 'avg × 5 × DF × 10⁴',
+    desc: '<strong>5 small squares</strong> (4 corners + center of inner grid) — for dense samples. Enter total cells across those 5 squares.',
+    hint: 'Total cells across 5 small squares (corners + center)',
   },
   {
     id: 3,
-    tag: '4 corners',
-    desc: '<strong>4 large corner squares</strong> · Standard protocol for routine cell culture. Count each corner separately.',
+    tag: '4 corner\nsq.',
     largeHL: [[0,0],[0,2],[2,0],[2,2]],
     smallHL: [],
-    fields: [
-      { key: 'c_tl', label: 'Top-Left',     placeholder: 'e.g. 85' },
-      { key: 'c_tr', label: 'Top-Right',    placeholder: 'e.g. 90' },
-      { key: 'c_bl', label: 'Bottom-Left',  placeholder: 'e.g. 88' },
-      { key: 'c_br', label: 'Bottom-Right', placeholder: 'e.g. 92' },
-    ],
-    cols: 'cols-2',
-    formula: (live, df) => {
-      const vals = live.filter(v => !isNaN(v));
-      if (vals.length === 0) return { avg: NaN };
-      const avg = vals.reduce((a,b)=>a+b,0) / vals.length;
-      return { avg, total: Math.round(avg * df * 1e4) };
-    },
-    formulaNote: 'avg(≤4) × DF × 10⁴',
+    multiplier: 0.25,    // total ÷ 4 = avg per large sq
+    formulaNote: 'avg ÷ 4 × DF × 10⁴',
+    desc: '<strong>4 large corner squares</strong> — standard protocol for routine cell culture. Enter total cells across all 4 corners.',
+    hint: 'Total cells across all 4 corner squares',
   },
   {
     id: 4,
-    tag: '1 corner',
-    desc: '<strong>Single corner square</strong> · Quick estimate when sample density is adequate.',
+    tag: '1 corner\nsq.',
     largeHL: [[0,0]],
     smallHL: [],
-    fields: [
-      { key: 'one', label: 'Corner cell count', placeholder: 'e.g. 85' }
-    ],
-    cols: 'cols-1',
-    formula: (live, df) => {
-      const val = live[0];
-      if (isNaN(val)) return { avg: NaN };
-      return { avg: val, total: Math.round(val * df * 1e4) };
-    },
+    multiplier: 1,       // single square = per-large-sq directly
     formulaNote: 'count × DF × 10⁴',
+    desc: '<strong>Single corner square</strong> — quickest estimate when sample density is adequate.',
+    hint: 'Cells in one corner square',
   },
 ];
 
 // ─────────────────────────────────────────────────────────────
 // State
 // ─────────────────────────────────────────────────────────────
-let currentModeId = 3; // default: 4 corners
+let currentModeId = 1;
 
 // ─────────────────────────────────────────────────────────────
 // Build mode selector
@@ -503,7 +499,9 @@ function buildModeSelector() {
   MODES.forEach(m => {
     const div = document.createElement('div');
     div.className = 'mode-option' + (m.id === currentModeId ? ' active' : '');
-    div.innerHTML = `${makeDiagram(m.largeHL, m.smallHL)}<span class="mode-tag">${m.tag}</span>`;
+    // preserve newline in tag as line break
+    const tagHtml = m.tag.replace('\n', '<br>');
+    div.innerHTML = `${makeDiagram(m.largeHL, m.smallHL)}<span class="mode-tag">${tagHtml}</span>`;
     div.onclick = () => selectMode(m.id);
     container.appendChild(div);
   });
@@ -515,44 +513,27 @@ function selectMode(id) {
     el.classList.toggle('active', MODES[i].id === id);
   });
   const m = MODES.find(x => x.id === id);
-  document.getElementById('mode-desc').innerHTML = `<span>📐</span> ${m.desc} <span style="margin-left:auto;white-space:nowrap;color:var(--text-dim);font-family:var(--font-mono);font-size:0.72rem">${m.formulaNote}</span>`;
-  buildInputs(m);
+  document.getElementById('mode-desc').innerHTML =
+    `<span class="formula-inline">${m.formulaNote}</span>${m.desc}`;
+  document.getElementById('live-hint').textContent = m.hint;
   calculate();
-}
-
-// ─────────────────────────────────────────────────────────────
-// Build dynamic inputs
-// ─────────────────────────────────────────────────────────────
-function buildInputs(mode) {
-  ['live', 'dead'].forEach(type => {
-    const container = document.getElementById(`${type}-inputs`);
-    container.className = `inputs-grid ${mode.cols}`;
-    container.innerHTML = '';
-    mode.fields.forEach(f => {
-      const div = document.createElement('div');
-      div.className = 'input-field';
-      const isOpt = type === 'dead';
-      div.innerHTML = `
-        <label>${f.label}${isOpt ? ' <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:0.65rem;color:var(--text-dim)">(optional)</span>' : ''}</label>
-        <input type="number" id="${type}_${f.key}" placeholder="${isOpt ? 'optional' : f.placeholder}" min="0" oninput="calculate()"/>
-      `;
-      container.appendChild(div);
-    });
-  });
 }
 
 // ─────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────
-function getInputs(type) {
-  const mode = MODES.find(m => m.id === currentModeId);
-  return mode.fields.map(f => parseFloat(document.getElementById(`${type}_${f.key}`)?.value));
+function avgTwo(a, b) {
+  const ha = !isNaN(a), hb = !isNaN(b);
+  if (!ha && !hb) return { val: NaN, n: 0 };
+  if (ha && !hb)  return { val: a, n: 1 };
+  if (!ha && hb)  return { val: b, n: 1 };
+  return { val: (a + b) / 2, n: 2 };
 }
 
 function fmt(n) {
   if (isNaN(n) || n == null) return '—';
-  if (n >= 1e6) return (n/1e6).toFixed(2) + 'M';
-  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
   return n.toLocaleString();
 }
 
@@ -560,44 +541,50 @@ function fmt(n) {
 // Calculate
 // ─────────────────────────────────────────────────────────────
 function calculate() {
-  const mode   = MODES.find(m => m.id === currentModeId);
-  const df     = parseFloat(document.getElementById('df').value);
-  const vol    = parseFloat(document.getElementById('vol').value);
-  const liveVals = getInputs('live');
-  const deadVals = getInputs('dead');
+  const mode = MODES.find(m => m.id === currentModeId);
+  const df   = parseFloat(document.getElementById('df').value);
+  const vol  = parseFloat(document.getElementById('vol').value);
 
-  // Live
-  const liveResult = mode.formula(liveVals, df);
-  const avgLive    = liveResult.avg;
-  const totalLive  = liveResult.total;
+  const live1 = parseFloat(document.getElementById('live1').value);
+  const live2 = parseFloat(document.getElementById('live2').value);
+  const dead1 = parseFloat(document.getElementById('dead1').value);
+  const dead2 = parseFloat(document.getElementById('dead2').value);
 
-  // Dead (same averaging logic as live, then viability)
-  const deadFilled = deadVals.filter(v => !isNaN(v));
-  const hasDeadAny = deadFilled.length > 0;
-  const avgDead    = hasDeadAny ? deadFilled.reduce((a,b)=>a+b,0) / deadFilled.length : NaN;
-  const viability  = (!isNaN(avgLive) && hasDeadAny && !isNaN(avgDead))
-    ? (avgLive / (avgLive + avgDead)) * 100
-    : (!isNaN(avgLive) && hasDeadAny && avgDead === 0) ? 100 : NaN;
+  const liveAvg = avgTwo(live1, live2);
+  const deadAvg = avgTwo(dead1, dead2);
 
+  const avgLive = liveAvg.val;
+  const avgDead = deadAvg.val;
+
+  // cells per large-square equivalent
+  const perLargeSq = !isNaN(avgLive) ? avgLive * mode.multiplier : NaN;
+
+  const totalLive = (!isNaN(perLargeSq) && !isNaN(df))
+    ? Math.round(perLargeSq * df * 1e4) : NaN;
   const density = (!isNaN(totalLive) && !isNaN(vol) && vol > 0)
     ? Math.round(totalLive / vol) : NaN;
 
-  // ── Avg live count display ──
+  // Viability
+  const hasDeadAny = deadAvg.n > 0;
+  const viability = (!isNaN(avgLive) && hasDeadAny && !isNaN(avgDead))
+    ? (avgLive / (avgLive + avgDead)) * 100
+    : (!isNaN(avgLive) && hasDeadAny && avgDead === 0) ? 100 : NaN;
+
+  // ── Avg count display ──
   if (!isNaN(avgLive)) {
-    const filled = liveVals.filter(v => !isNaN(v)).length;
-    const total  = liveVals.length;
     document.getElementById('res-avg').textContent    = avgLive.toFixed(1);
-    document.getElementById('res-avg-note').textContent = filled === total
-      ? `avg of ${total} sq` : `avg of ${filled}/${total} sq`;
+    document.getElementById('res-avg-note').textContent =
+      liveAvg.n === 2 ? 'avg of 2 counts' : 'single count';
   } else {
-    document.getElementById('res-avg').textContent    = '—';
-    document.getElementById('res-avg-note').textContent = 'cells / sq';
+    document.getElementById('res-avg').textContent      = '—';
+    document.getElementById('res-avg-note').textContent = 'from counts';
   }
 
   // ── Viability display ──
   if (!isNaN(viability)) {
     document.getElementById('res-via').textContent      = viability.toFixed(1) + '%';
-    document.getElementById('res-via-note').textContent = `from ${deadFilled.length} dead count${deadFilled.length>1?'s':''}`;
+    document.getElementById('res-via-note').textContent =
+      deadAvg.n === 2 ? 'avg of 2 dead counts' : 'from dead count';
     document.getElementById('via-note').textContent     = `✓ Viability: ${viability.toFixed(1)}%`;
     document.getElementById('via-note').className       = 'via-note computed';
   } else if (hasDeadAny) {
@@ -612,20 +599,21 @@ function calculate() {
     document.getElementById('via-note').className       = 'via-note';
   }
 
-  // ── Total + formula note ──
-  document.getElementById('res-total').textContent = fmt(totalLive);
-  document.getElementById('res-total-note').textContent = !isNaN(avgLive)
-    ? mode.formulaNote : '—';
-  document.getElementById('res-density').textContent = fmt(density);
+  // ── Total + density ──
+  document.getElementById('res-total').textContent    = fmt(totalLive);
+  document.getElementById('res-total-note').textContent =
+    !isNaN(avgLive) ? mode.formulaNote : '—';
+  document.getElementById('res-density').textContent  = fmt(density);
 }
 
 // ─────────────────────────────────────────────────────────────
 // Reset
 // ─────────────────────────────────────────────────────────────
 function resetAll() {
-  document.querySelectorAll('.inputs-grid input[type="number"]').forEach(el => el.value = '');
-  document.getElementById('df').value  = '20';
-  document.getElementById('vol').value = '';
+  ['live1','live2','dead1','dead2','vol'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('df').value = '20';
   calculate();
 }
 
