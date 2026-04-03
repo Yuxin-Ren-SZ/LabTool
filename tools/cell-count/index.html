@@ -764,15 +764,11 @@ function downloadCsv() {
 }
 
 function copyResults() {
-  const csv = makeCsv(getExportRows());
   const text = getExportRows().map(r => `${r[0]}: ${r[1]}`).join('\n');
   const clipboardText = [
     'Cell Count Calculator Results',
     '',
     text,
-    '',
-    'CSV copy (tabular):',
-    csv,
   ].join('\n');
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
