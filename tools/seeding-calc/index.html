@@ -434,15 +434,15 @@
     }
     .bypass-conc-block.visible { display: block; }
     .bypass-conc-block .group-header { color: var(--blue-dark); }
-    .bypass-conc-block input[type="number"] {
+    .bypass-conc-block input {
       width: 100%; padding: 9px 10px;
       border: 1.5px solid var(--blue-border); border-radius: var(--radius-md);
       font-size: 1rem; font-family: var(--font); color: var(--blue-dark);
       background: var(--surface); outline: none; font-weight: 600;
       transition: border-color 0.15s;
     }
-    .bypass-conc-block input[type="number"]:focus { border-color: var(--blue-dark); }
-    .bypass-conc-block input[type="number"]::placeholder { color: var(--text-placeholder); font-weight: 400; }
+    .bypass-conc-block input:focus { border-color: var(--blue-dark); }
+    .bypass-conc-block input::placeholder { color: var(--text-placeholder); font-weight: 400; }
 
     /* counting section disabled state */
     #counting-section {
@@ -531,8 +531,8 @@
     <!-- Direct-entry field (visible when bypassed) -->
     <div class="bypass-conc-block" id="bypass-conc-block">
       <div class="group-header">📐 Known Concentration</div>
-      <input type="number" id="bypass-conc"
-             placeholder="e.g. 2,000,000  (cells/mL)" min="0"
+      <input type="text" inputmode="numeric" id="bypass-conc"
+             placeholder="e.g. 2,000,000  (cells/mL)"
              oninput="calcStep1()"/>
       <div class="unit-legend">K = 1,000 &nbsp;·&nbsp; M = 1,000,000 &nbsp;·&nbsp; B = 1,000,000,000</div>
     </div>
@@ -664,7 +664,7 @@
           Stock Concentration
         </label>
         <div class="unit-wrap">
-          <input type="number" id="c1" placeholder="e.g. 2" min="0"
+          <input type="text" inputmode="decimal" id="c1" placeholder="e.g. 2"
                  oninput="calcDilution()" class="prefilled"/>
           <span class="unit" id="c1-unit">M/mL</span>
         </div>
@@ -684,7 +684,7 @@
           Target Concentration
         </label>
         <div class="unit-wrap">
-          <input type="number" id="c2" placeholder="e.g. 0.5" min="0" oninput="calcDilution()"/>
+          <input type="text" inputmode="decimal" id="c2" placeholder="e.g. 0.5" oninput="calcDilution()"/>
           <span class="unit" id="c2-unit">M/mL</span>
         </div>
         <div class="unit-pills" id="c2-pills">
@@ -869,36 +869,46 @@ function fmt(n) {
   return Math.round(n).toLocaleString('en-US');
 }
 
-// Read a potentially comma-formatted input by its id
+// Read a (possibly comma-formatted) text input as a number
 function getNumVal(id) {
-  const el = document.getElementById(id);
-  const raw = el.getAttribute('data-raw');
-  return raw !== null ? parseFloat(raw) : parseFloat(el.value);
+  return parseFloat(document.getElementById(id).value.replace(/,/g, ''));
 }
 
-// Set up focus/blur comma formatting on a number input used for large values
+// Format a text input with commas after the user finishes editing.
+// On focus  → strip commas so editing is easy (just digits and a decimal point).
+// On blur / Enter → re-insert commas into the digit string.
 function setupCommaInput(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  // On focus: restore type=number so the browser lets the user edit cleanly
+
+  // Strip commas when the user starts editing
   el.addEventListener('focus', function() {
-    const raw = this.getAttribute('data-raw');
-    this.type = 'number';
-    this.value = raw !== null ? raw : '';
-    this.removeAttribute('data-raw');
+    const n = parseFloat(this.value.replace(/,/g, ''));
+    this.value = isNaN(n) ? '' : n.toString();
   });
-  // On blur (or Enter): switch to type=text and display comma-formatted value
+
+  // Re-insert commas when done editing
   el.addEventListener('blur', function() {
-    const n = parseFloat(this.value);
-    if (!isNaN(n) && n >= 0) {
-      this.setAttribute('data-raw', n);
-      this.type = 'text';
-      this.value = Math.round(n).toLocaleString('en-US');
-    }
+    applyCommaFormat(this);
   });
+
+  // Enter key counts as done
   el.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') this.blur();
   });
+}
+
+// Insert commas into the current string value of an input element.
+// Counts how many digits there are, then rebuilds the string with commas.
+function applyCommaFormat(el) {
+  const raw = el.value.replace(/,/g, '');   // strip any existing commas
+  const n   = parseFloat(raw);
+  if (isNaN(n) || raw === '') { el.value = raw; return; }
+  // Integer part gets the commas; preserve any decimal digits as-is
+  const parts    = raw.split('.');
+  const intPart  = parseInt(parts[0], 10);
+  const decPart  = parts[1] !== undefined ? '.' + parts[1] : '';
+  el.value = isNaN(intPart) ? raw : intPart.toLocaleString('en-US') + decPart;
 }
 
 function onBypassToggle() {
@@ -913,11 +923,7 @@ function onBypassToggle() {
     document.getElementById('count-all-toggle').checked = false;
     document.getElementById('dead-block').classList.remove('disabled');
   } else {
-    // fully reset bypass-conc input
-    const bcEl = document.getElementById('bypass-conc');
-    bcEl.type = 'number';
-    bcEl.value = '';
-    bcEl.removeAttribute('data-raw');
+    document.getElementById('bypass-conc').value = '';
   }
   calcStep1();
 }
@@ -1039,16 +1045,11 @@ function goToStep2() {
     unitState.c1 = { mult: u.mult, label: u.label };
     document.getElementById('c1-unit').textContent = u.label;
     setActivePill('c1-pills', u.pillText);
-    const displayVal = step1FinalDensity / u.mult;
-    c1Input.setAttribute('data-raw', displayVal);
-    c1Input.type = 'text';
-    c1Input.value = fmtSig(displayVal);
+    c1Input.value = fmtSig(step1FinalDensity / u.mult);
     c1Input.classList.add('prefilled');
     document.getElementById('c1-note').style.display = '';
   } else {
-    c1Input.type = 'number';
     c1Input.value = '';
-    c1Input.removeAttribute('data-raw');
     c1Input.classList.remove('prefilled');
     document.getElementById('c1-note').style.display = 'none';
   }
@@ -1174,13 +1175,11 @@ function calcDilution() {
     if (tag) tag.classList.remove('solving');
   });
 
-  // C1 prefilled styling — check against base-unit density
+  // C1 prefilled styling — compare base-unit value to Step 1 density
   const c1El = document.getElementById('c1');
-  if (!isNaN(step1FinalDensity) && Math.abs(c1 - step1FinalDensity) < 1) {
-    c1El.classList.add('prefilled');
-  } else {
-    c1El.classList.remove('prefilled');
-  }
+  const c1IsFromStep1 = !isNaN(step1FinalDensity) && !isNaN(c1) &&
+                        Math.abs(c1 - step1FinalDensity) < 0.5;
+  c1El.classList.toggle('prefilled', c1IsFromStep1);
 
   if (missing.length !== 1) {
     ansBox.classList.add('hidden');
@@ -1208,14 +1207,7 @@ function calcDilution() {
 
   // Write result into the solved input field
   const solveEl = document.getElementById(solve);
-  if (solve === 'c1' || solve === 'c2') {
-    solveEl.setAttribute('data-raw', result_disp);
-    solveEl.type = 'text';
-    solveEl.value = fmtSig(result_disp);
-  } else {
-    solveEl.type = 'number';
-    solveEl.value = parseFloat(result_disp.toPrecision(5));
-  }
+  solveEl.value = fmtSig(result_disp);
   solveEl.classList.add('solving');
   const solveTag = document.getElementById(solve + '-tag');
   if (solveTag) solveTag.classList.add('solving');
@@ -1271,10 +1263,7 @@ function resetStep1() {
   document.getElementById('bypass-toggle').checked = false;
   document.getElementById('bypass-row').classList.remove('active');
   document.getElementById('bypass-conc-block').classList.remove('visible');
-  const bcEl = document.getElementById('bypass-conc');
-  bcEl.type = 'number';
-  bcEl.value = '';
-  bcEl.removeAttribute('data-raw');
+  document.getElementById('bypass-conc').value = '';
   document.getElementById('counting-section').classList.remove('disabled');
   // reset counting inputs
   ['live1','live2','dead1','dead2','vol'].forEach(id =>
@@ -1286,18 +1275,10 @@ function resetStep1() {
 }
 
 function resetStep2() {
-  // Clear C2 (type text if it was solved as a concentration)
-  const c2El = document.getElementById('c2');
-  c2El.type = 'number';
-  c2El.value = '';
-  c2El.removeAttribute('data-raw');
-  c2El.classList.remove('solving');
-  // Clear volumes
-  ['v1','v2'].forEach(id => {
-    const el = document.getElementById(id);
-    el.type = 'number';
-    el.value = '';
-    el.classList.remove('solving');
+  // Clear C2, V1, V2
+  ['c2','v1','v2'].forEach(id => {
+    document.getElementById(id).value = '';
+    document.getElementById(id).classList.remove('solving');
   });
   // Clear solved tag highlights
   ['c1','c2','v1','v2'].forEach(id => {
@@ -1311,16 +1292,11 @@ function resetStep2() {
     unitState.c1 = { mult: u.mult, label: u.label };
     document.getElementById('c1-unit').textContent = u.label;
     setActivePill('c1-pills', u.pillText);
-    const displayVal = step1FinalDensity / u.mult;
-    c1El.setAttribute('data-raw', displayVal);
-    c1El.type = 'text';
-    c1El.value = fmtSig(displayVal);
+    c1El.value = fmtSig(step1FinalDensity / u.mult);
     c1El.classList.add('prefilled');
     c1El.classList.remove('solving');
   } else {
-    c1El.type = 'number';
     c1El.value = '';
-    c1El.removeAttribute('data-raw');
     c1El.classList.remove('prefilled');
   }
   calcDilution();
@@ -1450,10 +1426,12 @@ function fallbackCopyText(text) {
 buildModeSelector();
 selectMode(currentModeId);
 document.getElementById('c1-note').style.display = 'none';
-// Enable comma-formatting on blur for large-number inputs
+// Enable comma-formatting on blur for concentration inputs
 setupCommaInput('bypass-conc');
 setupCommaInput('c1');
 setupCommaInput('c2');
+// Also apply comma format to bypass-conc on initial calcStep1 calls via the oninput handler,
+// so the bypass input formats itself when the user presses Enter or leaves the field.
 </script>
 </body>
 </html>
