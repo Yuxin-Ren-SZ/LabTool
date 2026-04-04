@@ -898,17 +898,24 @@ function setupCommaInput(id) {
   });
 }
 
-// Insert commas into the current string value of an input element.
-// Counts how many digits there are, then rebuilds the string with commas.
+// Insert commas into the digit string currently in an input element.
+// Only digits (and one decimal point) are kept — anything else is stripped.
+// The integer portion gets commas; the decimal portion is preserved as-is.
+// Example: "2000000" → "2,000,000", "1.5" → "1.5", "3.14159" → "3.14159"
 function applyCommaFormat(el) {
-  const raw = el.value.replace(/,/g, '');   // strip any existing commas
-  const n   = parseFloat(raw);
-  if (isNaN(n) || raw === '') { el.value = raw; return; }
-  // Integer part gets the commas; preserve any decimal digits as-is
-  const parts    = raw.split('.');
-  const intPart  = parseInt(parts[0], 10);
-  const decPart  = parts[1] !== undefined ? '.' + parts[1] : '';
-  el.value = isNaN(intPart) ? raw : intPart.toLocaleString('en-US') + decPart;
+  // Keep only digits and the first decimal point
+  let raw = el.value.replace(/[^0-9.]/g, '');
+  const dot = raw.indexOf('.');
+  if (dot !== -1)
+    raw = raw.slice(0, dot + 1) + raw.slice(dot + 1).replace(/\./g, '');
+
+  if (raw === '' || raw === '.') { el.value = raw; return; }
+
+  const parts   = raw.split('.');
+  const intStr  = parts[0] === '' ? '0' : parts[0];
+  const intVal  = parseInt(intStr, 10);
+  const decPart = parts.length > 1 ? '.' + parts[1] : '';
+  el.value = intVal.toLocaleString('en-US') + decPart;
 }
 
 function onBypassToggle() {
@@ -1129,13 +1136,36 @@ function setActivePill(pillsId, pillText) {
   );
 }
 
-// Format a display-unit value with sensible significant figures
+// Format a calculated result with appropriate significant figures.
+// Rules:
+//   • Exact integers → no decimal point (commas if large)
+//   • Non-integers   → toFixed based on magnitude so ≥ 2 sig figs are
+//                       always visible (trailing zeros are preserved)
+//   • Very small     → exponential notation
 function fmtSig(n) {
   if (isNaN(n) || n == null) return '—';
   if (n === 0) return '0';
   const abs = Math.abs(n);
-  if (abs < 0.0001) return n.toExponential(3);
-  if (abs < 100)    return parseFloat(n.toPrecision(4)).toString();
+
+  // Scientific notation for very small values
+  if (abs < 0.001) return n.toExponential(2);
+
+  // Exact integers: no false precision, commas for large values
+  if (Number.isInteger(n))
+    return abs >= 1000 ? n.toLocaleString('en-US') : n.toString();
+
+  // Non-integer decimals: use toFixed to control decimal places so that
+  // trailing zeros are preserved and at least 2 sig figs are visible.
+  //   0.001–0.099  → 3 d.p.  e.g. 0.012 → "0.012"  (2 sig figs)
+  //   0.1–0.999    → 2 d.p.  e.g. 0.20  → "0.20"   (2 sig figs)
+  //   1–9.999      → 2 d.p.  e.g. 1.50  → "1.50"   (3 sig figs)
+  //   10–99.99     → 1 d.p.  e.g. 12.5  → "12.5"   (3 sig figs)
+  //   100–999.9    → 1 d.p.  e.g. 125.5 → "125.5"  (4 sig figs)
+  //   ≥1000        → rounded with commas
+  if (abs < 0.1)   return n.toFixed(3);
+  if (abs < 1)     return n.toFixed(2);
+  if (abs < 10)    return n.toFixed(2);
+  if (abs < 1000)  return n.toFixed(1);
   return Math.round(n).toLocaleString('en-US');
 }
 
