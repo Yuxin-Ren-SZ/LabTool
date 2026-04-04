@@ -330,6 +330,38 @@
       font-size: 0.68rem; color: var(--blue-dark); margin-top: 2px;
     }
 
+    /* ── Unit pill selectors (Step 2) ── */
+    .unit-pills {
+      display: flex;
+      gap: 3px;
+      margin-top: 5px;
+      flex-wrap: wrap;
+    }
+    .unit-pill {
+      padding: 2px 8px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      font-size: 0.68rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      cursor: pointer;
+      line-height: 1.5;
+      transition: border-color 0.12s, background 0.12s, color 0.12s;
+    }
+    .unit-pill:hover {
+      border-color: var(--blue);
+      color: var(--blue-dark);
+      background: var(--blue-bg);
+    }
+    .unit-pill.active {
+      background: var(--blue-dark);
+      border-color: var(--blue-dark);
+      color: #fff;
+    }
+    .unit-pill.active:hover { opacity: 0.88; }
+
     /* answer summary box */
     .answer-box {
       background: var(--green-bg); border: 1.5px solid var(--green-border);
@@ -632,12 +664,17 @@
           Stock Concentration
         </label>
         <div class="unit-wrap">
-          <input type="number" id="c1" placeholder="cells/mL" min="0"
+          <input type="number" id="c1" placeholder="e.g. 2" min="0"
                  oninput="calcDilution()" class="prefilled"/>
-          <span class="unit">cells/mL</span>
+          <span class="unit" id="c1-unit">M/mL</span>
         </div>
         <div class="prefill-note" id="c1-note">← from Step 1</div>
-        <div class="unit-legend">K = 1,000 &nbsp;·&nbsp; M = 1,000,000 &nbsp;·&nbsp; B = 1,000,000,000</div>
+        <div class="unit-pills" id="c1-pills">
+          <button class="unit-pill" onclick="setConcentrationUnit('c1',1,'cells/mL',this)">cells</button>
+          <button class="unit-pill" onclick="setConcentrationUnit('c1',1e3,'K/mL',this)">K</button>
+          <button class="unit-pill active" onclick="setConcentrationUnit('c1',1e6,'M/mL',this)">M</button>
+          <button class="unit-pill" onclick="setConcentrationUnit('c1',1e9,'B/mL',this)">B</button>
+        </div>
       </div>
 
       <!-- C2 -->
@@ -647,10 +684,15 @@
           Target Concentration
         </label>
         <div class="unit-wrap">
-          <input type="number" id="c2" placeholder="cells/mL" min="0" oninput="calcDilution()"/>
-          <span class="unit">cells/mL</span>
+          <input type="number" id="c2" placeholder="e.g. 0.5" min="0" oninput="calcDilution()"/>
+          <span class="unit" id="c2-unit">M/mL</span>
         </div>
-        <div class="unit-legend">K = 1,000 &nbsp;·&nbsp; M = 1,000,000 &nbsp;·&nbsp; B = 1,000,000,000</div>
+        <div class="unit-pills" id="c2-pills">
+          <button class="unit-pill" onclick="setConcentrationUnit('c2',1,'cells/mL',this)">cells</button>
+          <button class="unit-pill" onclick="setConcentrationUnit('c2',1e3,'K/mL',this)">K</button>
+          <button class="unit-pill active" onclick="setConcentrationUnit('c2',1e6,'M/mL',this)">M</button>
+          <button class="unit-pill" onclick="setConcentrationUnit('c2',1e9,'B/mL',this)">B</button>
+        </div>
       </div>
 
       <!-- V1 -->
@@ -660,8 +702,13 @@
           Volume from Stock
         </label>
         <div class="unit-wrap">
-          <input type="number" id="v1" placeholder="mL" min="0" oninput="calcDilution()"/>
-          <span class="unit">mL</span>
+          <input type="number" id="v1" placeholder="e.g. 0.5" min="0" oninput="calcDilution()"/>
+          <span class="unit" id="v1-unit">mL</span>
+        </div>
+        <div class="unit-pills" id="v1-pills">
+          <button class="unit-pill" onclick="setVolumeUnit('v1',0.001,'µL',this)">µL</button>
+          <button class="unit-pill active" onclick="setVolumeUnit('v1',1,'mL',this)">mL</button>
+          <button class="unit-pill" onclick="setVolumeUnit('v1',1000,'L',this)">L</button>
         </div>
       </div>
 
@@ -672,8 +719,13 @@
           Final Volume
         </label>
         <div class="unit-wrap">
-          <input type="number" id="v2" placeholder="mL" min="0" oninput="calcDilution()"/>
-          <span class="unit">mL</span>
+          <input type="number" id="v2" placeholder="e.g. 5" min="0" oninput="calcDilution()"/>
+          <span class="unit" id="v2-unit">mL</span>
+        </div>
+        <div class="unit-pills" id="v2-pills">
+          <button class="unit-pill" onclick="setVolumeUnit('v2',0.001,'µL',this)">µL</button>
+          <button class="unit-pill active" onclick="setVolumeUnit('v2',1,'mL',this)">mL</button>
+          <button class="unit-pill" onclick="setVolumeUnit('v2',1000,'L',this)">L</button>
         </div>
       </div>
 
@@ -980,12 +1032,17 @@ function calcStep1() {
 // Step navigation
 // ─────────────────────────────────────────────────────────────
 function goToStep2() {
-  // pre-fill C1 from Step 1 density (comma-formatted)
+  // pre-fill C1 from Step 1 density — auto-select the best scale unit
   const c1Input = document.getElementById('c1');
   if (!isNaN(step1FinalDensity)) {
-    c1Input.setAttribute('data-raw', step1FinalDensity);
+    const u = autoBestConcUnit(step1FinalDensity);
+    unitState.c1 = { mult: u.mult, label: u.label };
+    document.getElementById('c1-unit').textContent = u.label;
+    setActivePill('c1-pills', u.pillText);
+    const displayVal = step1FinalDensity / u.mult;
+    c1Input.setAttribute('data-raw', displayVal);
     c1Input.type = 'text';
-    c1Input.value = step1FinalDensity.toLocaleString('en-US');
+    c1Input.value = fmtSig(displayVal);
     c1Input.classList.add('prefilled');
     document.getElementById('c1-note').style.display = '';
   } else {
@@ -1023,31 +1080,103 @@ function goToStep1() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Step 2 — Unit state + helpers
+// ─────────────────────────────────────────────────────────────
+
+// Tracks the multiplier and display label for each dilution field
+// Concentrations: mult is the cells-per-unit factor (e.g. 1e6 for M)
+// Volumes: mult converts display unit → mL (e.g. 0.001 for µL)
+const unitState = {
+  c1: { mult: 1e6, label: 'M/mL' },
+  c2: { mult: 1e6, label: 'M/mL' },
+  v1: { mult: 1,   label: 'mL'   },
+  v2: { mult: 1,   label: 'mL'   },
+};
+
+// Called by concentration unit pill buttons
+function setConcentrationUnit(field, mult, label, btn) {
+  unitState[field] = { mult, label };
+  document.getElementById(field + '-unit').textContent = label;
+  btn.closest('.unit-pills').querySelectorAll('.unit-pill')
+    .forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  calcDilution();
+}
+
+// Called by volume unit pill buttons
+function setVolumeUnit(field, mult, label, btn) {
+  unitState[field] = { mult, label };
+  document.getElementById(field + '-unit').textContent = label;
+  btn.closest('.unit-pills').querySelectorAll('.unit-pill')
+    .forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  calcDilution();
+}
+
+// Choose the best concentration unit scale for a raw cells/mL value
+function autoBestConcUnit(cellsPerML) {
+  if (cellsPerML >= 1e9) return { mult: 1e9, label: 'B/mL', pillText: 'B' };
+  if (cellsPerML >= 1e6) return { mult: 1e6, label: 'M/mL', pillText: 'M' };
+  if (cellsPerML >= 1e3) return { mult: 1e3, label: 'K/mL', pillText: 'K' };
+  return { mult: 1, label: 'cells/mL', pillText: 'cells' };
+}
+
+// Activate a pill in a pill group by matching its text content
+function setActivePill(pillsId, pillText) {
+  document.querySelectorAll('#' + pillsId + ' .unit-pill').forEach(b =>
+    b.classList.toggle('active', b.textContent.trim() === pillText)
+  );
+}
+
+// Format a display-unit value with sensible significant figures
+function fmtSig(n) {
+  if (isNaN(n) || n == null) return '—';
+  if (n === 0) return '0';
+  const abs = Math.abs(n);
+  if (abs < 0.0001) return n.toExponential(3);
+  if (abs < 100)    return parseFloat(n.toPrecision(4)).toString();
+  return Math.round(n).toLocaleString('en-US');
+}
+
+// Convert a mL value to the most readable volume unit for display
+function bestVolumeDisplay(mL) {
+  const abs = Math.abs(mL);
+  if (abs > 0 && abs < 1)    return { val: mL * 1000, unit: 'µL' };
+  if (abs >= 1000)           return { val: mL / 1000, unit: 'L'  };
+  return { val: mL, unit: 'mL' };
+}
+
+// ─────────────────────────────────────────────────────────────
 // Step 2 — Dilution solver
 // ─────────────────────────────────────────────────────────────
 function calcDilution() {
-  const c1 = getNumVal('c1');
-  const c2 = getNumVal('c2');
-  const v1 = getNumVal('v1');
-  const v2 = getNumVal('v2');
+  // Read display values, convert to base units (cells/mL and mL)
+  const c1_disp = getNumVal('c1');
+  const c2_disp = getNumVal('c2');
+  const v1_disp = getNumVal('v1');
+  const v2_disp = getNumVal('v2');
+
+  const c1 = isNaN(c1_disp) ? NaN : c1_disp * unitState.c1.mult;
+  const c2 = isNaN(c2_disp) ? NaN : c2_disp * unitState.c2.mult;
+  const v1 = isNaN(v1_disp) ? NaN : v1_disp * unitState.v1.mult;
+  const v2 = isNaN(v2_disp) ? NaN : v2_disp * unitState.v2.mult;
 
   const fields = { c1, c2, v1, v2 };
   const missing = Object.entries(fields).filter(([,v]) => isNaN(v)).map(([k]) => k);
 
-  const ansBox   = document.getElementById('answer-box');
-  const mediaNote= document.getElementById('media-note');
+  const ansBox    = document.getElementById('answer-box');
+  const mediaNote = document.getElementById('media-note');
 
-  // reset all field styles
+  // Reset all field styles
   ['c1','c2','v1','v2'].forEach(id => {
-    const el = document.getElementById(id);
-    el.classList.remove('solving');
+    document.getElementById(id).classList.remove('solving');
     const tag = document.getElementById(id + '-tag');
     if (tag) tag.classList.remove('solving');
   });
 
-  // C1 prefilled styling
+  // C1 prefilled styling — check against base-unit density
   const c1El = document.getElementById('c1');
-  if (!isNaN(step1FinalDensity) && getNumVal('c1') === step1FinalDensity) {
+  if (!isNaN(step1FinalDensity) && Math.abs(c1 - step1FinalDensity) < 1) {
     c1El.classList.add('prefilled');
   } else {
     c1El.classList.remove('prefilled');
@@ -1060,64 +1189,74 @@ function calcDilution() {
   }
 
   const solve = missing[0];
-  let result = NaN;
-  if (solve === 'c1') result = (c2 * v2) / v1;
-  if (solve === 'v1') result = (c2 * v2) / c1;
-  if (solve === 'c2') result = (c1 * v1) / v2;
-  if (solve === 'v2') result = (c1 * v1) / c2;
 
-  if (isNaN(result) || result <= 0) {
+  // Solve for the missing variable in base units
+  let result_base = NaN;
+  if (solve === 'c1') result_base = (c2 * v2) / v1;
+  if (solve === 'v1') result_base = (c2 * v2) / c1;
+  if (solve === 'c2') result_base = (c1 * v1) / v2;
+  if (solve === 'v2') result_base = (c1 * v1) / c2;
+
+  if (isNaN(result_base) || result_base <= 0) {
     ansBox.classList.add('hidden');
     mediaNote.classList.add('hidden');
     return;
   }
 
-  // fill solved field
+  // Convert result back to the user's selected display unit
+  const result_disp = result_base / unitState[solve].mult;
+
+  // Write result into the solved input field
   const solveEl = document.getElementById(solve);
   if (solve === 'c1' || solve === 'c2') {
-    // concentrations: display with comma formatting
-    solveEl.setAttribute('data-raw', result);
+    solveEl.setAttribute('data-raw', result_disp);
     solveEl.type = 'text';
-    solveEl.value = Math.round(result).toLocaleString('en-US');
+    solveEl.value = fmtSig(result_disp);
   } else {
-    solveEl.value = result % 1 === 0 ? result : result.toFixed(4);
+    solveEl.type = 'number';
+    solveEl.value = parseFloat(result_disp.toPrecision(5));
   }
   solveEl.classList.add('solving');
   const solveTag = document.getElementById(solve + '-tag');
   if (solveTag) solveTag.classList.add('solving');
 
-  // labels
-  const labels = { c1:'C₁ — Stock Concentration', c2:'C₂ — Target Concentration',
-                   v1:'V₁ — Volume from Stock', v2:'V₂ — Final Volume' };
-  const units  = { c1:'cells/mL', c2:'cells/mL', v1:'mL', v2:'mL' };
-
+  // ── Answer box ──
+  const labels = {
+    c1: 'C₁ — Stock Concentration', c2: 'C₂ — Target Concentration',
+    v1: 'V₁ — Volume from Stock',   v2: 'V₂ — Final Volume',
+  };
   document.getElementById('ans-label').textContent = 'Solving for ' + labels[solve];
-  document.getElementById('ans-value').textContent =
-    (units[solve] === 'cells/mL') ? fmt(result) : result.toFixed(4).replace(/\.?0+$/, '');
-  document.getElementById('ans-unit').textContent  = units[solve];
+  document.getElementById('ans-value').textContent = fmtSig(result_disp);
+  document.getElementById('ans-unit').textContent  = unitState[solve].label;
 
-  // sub-note
-  const knownC1 = isNaN(c1) ? result : c1;
-  const knownV1 = isNaN(v1) ? result : v1;
-  const knownV2 = isNaN(v2) ? result : v2;
+  // Equation verification sub-note — show in display units so it's meaningful
+  const dc1 = isNaN(c1_disp) ? result_disp : c1_disp;
+  const dc2 = isNaN(c2_disp) ? result_disp : c2_disp;
+  const dv1 = isNaN(v1_disp) ? result_disp : v1_disp;
+  const dv2 = isNaN(v2_disp) ? result_disp : v2_disp;
   document.getElementById('ans-sub').textContent =
-    `${knownC1.toExponential(2)} × ${knownV1.toFixed(4).replace(/\.?0+$/,'')} = ` +
-    `${(isNaN(c2)?result:c2).toExponential(2)} × ${knownV2.toFixed(4).replace(/\.?0+$/,'')}`;
+    `${fmtSig(dc1)} ${unitState.c1.label} × ${fmtSig(dv1)} ${unitState.v1.label}` +
+    ` = ${fmtSig(dc2)} ${unitState.c2.label} × ${fmtSig(dv2)} ${unitState.v2.label}`;
 
   ansBox.classList.remove('hidden');
 
-  // media to add (only meaningful when solving V1 or given V1 & V2)
-  const knownC2 = isNaN(c2) ? result : c2;
-  const finalV1 = isNaN(v1) ? result : v1;
-  const finalV2 = isNaN(v2) ? result : v2;
-  const mediaToAdd = finalV2 - finalV1;
+  // ── Media-to-add note (meaningful when both V1 and V2 are known) ──
+  const finalV1_mL = solve === 'v1' ? result_base : (isNaN(v1) ? NaN : v1);
+  const finalV2_mL = solve === 'v2' ? result_base : (isNaN(v2) ? NaN : v2);
+  const mediaToAdd_mL = finalV2_mL - finalV1_mL;
 
-  if ((solve === 'v1' || solve === 'v2') && !isNaN(mediaToAdd) && mediaToAdd >= 0) {
+  if (!isNaN(mediaToAdd_mL) && mediaToAdd_mL >= 0 &&
+      !isNaN(finalV1_mL) && !isNaN(finalV2_mL)) {
+    const mDisp = bestVolumeDisplay(mediaToAdd_mL);
+    const sDisp = bestVolumeDisplay(finalV1_mL);
+    const tDisp = bestVolumeDisplay(finalV2_mL);
+    const finalC2_cells = isNaN(c2) ? result_base : c2;
+    const finalC2_disp  = finalC2_cells / unitState.c2.mult;
     mediaNote.innerHTML =
-      `💧 Add <strong>${mediaToAdd.toFixed(4).replace(/\.?0+$/,'')} mL</strong> of media to ` +
-      `<strong>${finalV1.toFixed(4).replace(/\.?0+$/,'')} mL</strong> of stock ` +
-      `→ ${finalV2.toFixed(4).replace(/\.?0+$/,'')} mL total at ` +
-      `<strong>${fmt(knownC2, 2)} cells/mL</strong>`;
+      `💧 Add <strong>${fmtSig(mDisp.val)} ${mDisp.unit}</strong> of media ` +
+      `to <strong>${fmtSig(sDisp.val)} ${sDisp.unit}</strong> of stock ` +
+      `→ ${fmtSig(tDisp.val)} ${tDisp.unit} total ` +
+      `at <strong>${fmtSig(finalC2_disp)} ${unitState.c2.label}</strong>`;
     mediaNote.classList.remove('hidden');
   } else {
     mediaNote.classList.add('hidden');
@@ -1147,24 +1286,35 @@ function resetStep1() {
 }
 
 function resetStep2() {
-  // clear C2 (reset type to number in case it was formatted or solved)
+  // Clear C2 (type text if it was solved as a concentration)
   const c2El = document.getElementById('c2');
   c2El.type = 'number';
   c2El.value = '';
   c2El.removeAttribute('data-raw');
   c2El.classList.remove('solving');
-  // clear volumes
+  // Clear volumes
   ['v1','v2'].forEach(id => {
     const el = document.getElementById(id);
+    el.type = 'number';
     el.value = '';
     el.classList.remove('solving');
   });
-  // restore C1 prefill (comma-formatted)
+  // Clear solved tag highlights
+  ['c1','c2','v1','v2'].forEach(id => {
+    const tag = document.getElementById(id + '-tag');
+    if (tag) tag.classList.remove('solving');
+  });
+  // Restore C1 prefill with auto-selected unit
   const c1El = document.getElementById('c1');
   if (!isNaN(step1FinalDensity)) {
-    c1El.setAttribute('data-raw', step1FinalDensity);
+    const u = autoBestConcUnit(step1FinalDensity);
+    unitState.c1 = { mult: u.mult, label: u.label };
+    document.getElementById('c1-unit').textContent = u.label;
+    setActivePill('c1-pills', u.pillText);
+    const displayVal = step1FinalDensity / u.mult;
+    c1El.setAttribute('data-raw', displayVal);
     c1El.type = 'text';
-    c1El.value = step1FinalDensity.toLocaleString('en-US');
+    c1El.value = fmtSig(displayVal);
     c1El.classList.add('prefilled');
     c1El.classList.remove('solving');
   } else {
@@ -1210,22 +1360,21 @@ function getCellCountRows() {
 }
 
 function getDilutionRows() {
-  // figure out which variable was solved
-  const c1 = document.getElementById('c1').value;
-  const v1 = document.getElementById('v1').value;
-  const c2 = document.getElementById('c2').value;
-  const v2 = document.getElementById('v2').value;
-  const ansLabel = document.getElementById('ans-label').textContent;
-  const ansValue = document.getElementById('ans-value').textContent;
-  const ansUnit  = document.getElementById('ans-unit').textContent;
+  const c1v = document.getElementById('c1').value;
+  const v1v = document.getElementById('v1').value;
+  const c2v = document.getElementById('c2').value;
+  const v2v = document.getElementById('v2').value;
+  const ansLabel  = document.getElementById('ans-label').textContent;
+  const ansValue  = document.getElementById('ans-value').textContent;
+  const ansUnit   = document.getElementById('ans-unit').textContent;
   const mediaText = document.getElementById('media-note').classList.contains('hidden')
     ? '' : document.getElementById('media-note').innerText;
   return [
     ['=== Dilution (C₁V₁ = C₂V₂) ===', ''],
-    ['C₁ — Stock concentration (cells/mL)', c1],
-    ['V₁ — Volume from stock (mL)',         v1],
-    ['C₂ — Target concentration (cells/mL)',c2],
-    ['V₂ — Final volume (mL)',              v2],
+    [`C₁ — Stock concentration (${unitState.c1.label})`, c1v],
+    [`V₁ — Volume from stock (${unitState.v1.label})`,   v1v],
+    [`C₂ — Target concentration (${unitState.c2.label})`,c2v],
+    [`V₂ — Final volume (${unitState.v2.label})`,        v2v],
     ['Solved for',   ansLabel.replace('Solving for ', '')],
     ['Solved value', ansValue + (ansUnit ? ' ' + ansUnit : '')],
     ['Media to add', mediaText],
