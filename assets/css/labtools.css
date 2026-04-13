@@ -12,56 +12,119 @@
 
 /* ─── Design Tokens ─────────────────────────────────────────── */
 :root {
-  /* Backgrounds */
-  --bg:              #f7f7f5;
-  --surface:         #ffffff;
-  --surface-subtle:  #fafafa;
-  --surface-hover:   #f7f6f3;
-  --tag-bg:          #f1f1ef;
 
-  /* Text */
-  --text:            #37352f;
-  --text-secondary:  #6b6b6b;
-  --text-muted:      #9b9a97;
-  --text-dim:        #b6b5b2;
-  --text-placeholder:#c4c4c0;
+  /* ── Backgrounds ────────────────────────────────────────────
+   * Surface layers from outermost page fill to card-level white.
+   * Use outermost layers for page chrome, innermost for content cards.
+   */
+  --bg:              #f7f7f5;   /* page background                  */
+  --surface:         #ffffff;   /* card / modal surface             */
+  --surface-subtle:  #fafafa;   /* inset section background         */
+  --surface-hover:   #f7f6f3;   /* hover state for surface elements */
+  --tag-bg:          #f1f1ef;   /* chip / tag / pill background     */
 
-  /* Borders */
-  --border:          #e3e2df;
-  --border-subtle:   #f0efed;
+  /* ── Text ───────────────────────────────────────────────────
+   * 5-level scale from body text (darkest) to placeholder (lightest).
+   * --text            primary body and headings
+   * --text-secondary  labels, field captions
+   * --text-muted      hints, secondary metadata
+   * --text-dim        de-emphasized, fine print
+   * --text-placeholder input placeholder text
+   */
+  --text:             #37352f;
+  --text-secondary:   #6b6b6b;
+  --text-muted:       #9b9a97;
+  --text-dim:         #b6b5b2;
+  --text-placeholder: #c4c4c0;
 
-  /* Accents — Blue */
-  --blue:            #5c8dff;
-  --blue-dark:       #3366cc;
-  --blue-bg:         #eef3ff;
-  --blue-border:     #c8d9ff;
+  /* ── Borders ────────────────────────────────────────────────
+   * Two levels: standard stroke for inputs and cards,
+   * subtle for dividers and inset sections.
+   */
+  --border:        #e3e2df;
+  --border-subtle: #f0efed;
 
-  /* Accents — Green */
-  --green:           #57a85a;
-  --green-dark:      #2d7a2d;
-  --green-bg:        #efffef;
-  --green-border:    #b8e8b8;
+  /* ── Accent Colors ──────────────────────────────────────────
+   * Each family has four variants:
+   *   --X         mid tone (icon fills, interactive elements)
+   *   --X-dark    dark tone — use for TEXT on light backgrounds
+   *   --X-bg      light tint — use for surface FILLS
+   *   --X-border  border stroke to pair with --X-bg fills
+   *
+   * Semantic intent:
+   *   Blue   = primary interaction, links, focus, active state
+   *   Green  = success, confirmed result, valid / in-range
+   *   Yellow = caution, approaching a limit, needs review
+   *   Red    = error, out-of-range, blocked action
+   *
+   * Red also defines --red-border-input for focus rings on
+   * inputs inside error-state containers (slightly more saturated).
+   */
 
-  /* Accents — Red */
-  --red:             #e03e3e;
-  --red-bg:          #fffafa;
-  --red-border:      #fde8e8;
-  --red-border-input:#fad4d4;
+  /* Blue */
+  --blue:        #5c8dff;
+  --blue-dark:   #3366cc;
+  --blue-bg:     #eef3ff;
+  --blue-border: #c8d9ff;
 
-  /* Shadows */
-  --shadow-card:     0 2px 12px rgba(0,0,0,0.08);
-  --shadow-sm:       0 1px 4px rgba(0,0,0,0.10);
-  --shadow-hover:    0 4px 20px rgba(0,0,0,0.12);
+  /* Green */
+  --green:        #57a85a;
+  --green-dark:   #2d7a2d;
+  --green-bg:     #efffef;
+  --green-border: #b8e8b8;
 
-  /* Radii */
-  --radius-xs:  4px;
-  --radius-sm:  6px;
-  --radius-md:  8px;
-  --radius-lg:  12px;
+  /* Yellow */
+  --yellow:        #d97706;
+  --yellow-dark:   #92400e;
+  --yellow-bg:     #fffbeb;
+  --yellow-border: #fcd34d;
 
-  /* Typography */
+  /* Red */
+  --red:              #e03e3e;
+  --red-bg:           #fffafa;
+  --red-border:       #fde8e8;
+  --red-border-input: #fad4d4;
+
+  /* ── Shadows ────────────────────────────────────────────────
+   * shadow-card  standard resting elevation for cards and panels
+   * shadow-sm    subtle lift for small interactive elements
+   * shadow-hover elevated state on card hover
+   */
+  --shadow-card:  0 2px 12px rgba(0,0,0,0.08);
+  --shadow-sm:    0 1px 4px rgba(0,0,0,0.10);
+  --shadow-hover: 0 4px 20px rgba(0,0,0,0.12);
+
+  /* ── Radii ───────────────────────────────────────────────────
+   * Four-step scale: xs (badges) → sm → md (inputs, buttons) → lg (cards)
+   */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* ── Typography ─────────────────────────────────────────────
+   * Font stacks
+   */
   --font:      -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
+
+  /* Font-size scale
+   * Use these tokens in shared component CSS.
+   * Tool-specific style blocks may use explicit values until migrated.
+   *
+   * --fs-2xs  0.68rem  badges, sub-units, fine print
+   * --fs-xs   0.72rem  section labels, small metadata
+   * --fs-sm   0.78rem  secondary body, hints, notes
+   * --fs-base 0.88rem  standard UI body, buttons
+   * --fs-md   0.95rem  primary inputs, form field text
+   * --fs-xl   1.25rem  page-level headings (h1 in tools)
+   */
+  --fs-2xs:  0.68rem;
+  --fs-xs:   0.72rem;
+  --fs-sm:   0.78rem;
+  --fs-base: 0.88rem;
+  --fs-md:   0.95rem;
+  --fs-xl:   1.25rem;
 }
 
 /* ─── Base ──────────────────────────────────────────────────── */
@@ -131,7 +194,7 @@ a { color: inherit; text-decoration: none; }
   padding: 9px 12px;
   border: 1.5px solid var(--border);
   border-radius: var(--radius-md);
-  font-size: 0.95rem;
+  font-size: var(--fs-md);
   font-family: var(--font);
   color: var(--text);
   background: var(--surface);
@@ -180,7 +243,7 @@ a { color: inherit; text-decoration: none; }
 
 /* ─── Labels / Badges ───────────────────────────────────────── */
 .lt-label {
-  font-size: 0.75rem;
+  font-size: 0.75rem; /* intentional: falls between --fs-xs and --fs-sm */
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -190,7 +253,12 @@ a { color: inherit; text-decoration: none; }
   gap: 5px;
   margin-bottom: 5px;
 }
-.lt-label .opt {
+/* .lt-opt — inline optional-indicator text within labels and field descriptions.
+ * Use inside .lt-label or as a standalone span next to input labels.
+ * Example: <label class="lt-label">Count 2 <span class="lt-opt">(optional)</span></label>
+ */
+.lt-opt,
+.lt-label .lt-opt {
   font-size: 0.66rem;
   color: var(--text-dim);
   font-weight: 400;
@@ -201,7 +269,7 @@ a { color: inherit; text-decoration: none; }
 .lt-badge {
   display: inline-flex;
   align-items: center;
-  font-size: 0.68rem;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -222,13 +290,17 @@ a { color: inherit; text-decoration: none; }
 
 /* ─── Section Header ────────────────────────────────────────── */
 .lt-section-label {
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--text-muted);
   margin-bottom: 12px;
 }
+
+/* Tighter margin variant — use when the section label sits directly
+ * above a compact selector or input (e.g. the counting mode picker). */
+.lt-section-label--tight { margin-bottom: 8px; }
 
 /* ─── Footer ────────────────────────────────────────────────── */
 .lt-footer {
@@ -302,7 +374,7 @@ a { color: inherit; text-decoration: none; }
 .mode-desc .formula-inline {
   float: right;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   margin-left: 12px;
 }
@@ -335,7 +407,7 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   gap: 6px;
 }
-.group-header .badge {
+.group-header .lt-badge {
   font-size: 0.64rem;
   background: var(--tag-bg);
   color: var(--text-dim);
@@ -353,7 +425,7 @@ a { color: inherit; text-decoration: none; }
   gap: 10px;
 }
 .count-field label {
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -361,7 +433,7 @@ a { color: inherit; text-decoration: none; }
   display: block;
   margin-bottom: 4px;
 }
-.count-field .opt-tag {
+.count-field .lt-opt {
   font-size: 0.64rem;
   color: var(--text-dim);
   font-weight: 400;
@@ -412,7 +484,7 @@ a { color: inherit; text-decoration: none; }
   margin: 0;
 }
 .count-all-label { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
-.count-all-sub   { font-size: 0.72rem; color: var(--text-muted); font-weight: 400; margin-left: 2px; }
+.count-all-sub   { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 400; margin-left: 2px; }
 
 /* ─── Viability note ────────────────────────────────────────── */
 .via-note          { font-size: 0.74rem; color: var(--text-muted); margin-top: 8px; min-height: 16px; }
@@ -426,7 +498,7 @@ a { color: inherit; text-decoration: none; }
   margin-bottom: 4px;
 }
 .params-row label {
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -451,7 +523,7 @@ a { color: inherit; text-decoration: none; }
 
 /* ─── Results section ───────────────────────────────────────── */
 .results-title {
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -475,7 +547,7 @@ a { color: inherit; text-decoration: none; }
 .r-value { font-size: 1.15rem; font-weight: 700; color: var(--text); }
 .result-box.hl-blue  .r-value { color: var(--blue-dark); }
 .result-box.hl-green .r-value { color: var(--green-dark); }
-.r-unit  { font-size: 0.68rem; color: var(--text-dim); margin-top: 2px; }
+.r-unit  { font-size: var(--fs-2xs); color: var(--text-dim); margin-top: 2px; }
 
 /* ─── Export action row + utility text ──────────────────────── */
 .action-row {
@@ -491,7 +563,7 @@ a { color: inherit; text-decoration: none; }
   min-height: 18px;
 }
 .unit-legend {
-  font-size: 0.68rem;
+  font-size: var(--fs-2xs);
   color: var(--text-dim);
   margin-top: 5px;
   letter-spacing: 0.01em;
@@ -516,3 +588,301 @@ a { color: inherit; text-decoration: none; }
   .mode-selector { grid-template-columns: repeat(2, 1fr); }
   .action-row    { flex-direction: column; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   Layout Components
+   Shared page-level layout used by all tool pages.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Tool Page Layout ──────────────────────────────────────── */
+/*
+ * .lt-page-body
+ *   Centering wrapper for all tool card pages. Place immediately
+ *   after <nav> and before <footer> as the main content container.
+ *
+ *   <body>
+ *     <nav class="lt-nav">…</nav>
+ *     <div class="lt-page-body">
+ *       <div class="card">…</div>
+ *     </div>
+ *     <footer class="lt-footer">…</footer>
+ *   </body>
+ *
+ *   If the tool uses slide animations, add overflow:hidden inline:
+ *     <div class="lt-page-body" style="overflow:hidden">
+ */
+.lt-page-body {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 32px 16px 64px;
+}
+
+/*
+ * .lt-tool-title / .lt-tool-subtitle
+ *   Standard heading pair at the top of a tool card.
+ *   Place immediately after the opening <div class="card">.
+ *
+ *   <h1 class="lt-tool-title">🔬 Tool Name</h1>
+ *   <p  class="lt-tool-subtitle">Brief description of purpose.</p>
+ */
+.lt-tool-title {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.lt-tool-subtitle {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  margin-bottom: 22px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   Form Components
+   Documented input types and form controls.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Numeric Input Variants ────────────────────────────────── */
+/*
+ * Extend .lt-input for numeric fields. Always pair with type="number".
+ *
+ * .lt-input-int — whole-number inputs (cell counts, dilution factors)
+ *   Required HTML: type="number" inputmode="numeric" min="0" step="1"
+ *   Example:
+ *     <input class="lt-input lt-input-int" type="number"
+ *            inputmode="numeric" min="0" step="1" />
+ *
+ * .lt-input-float — decimal inputs (volumes, concentrations)
+ *   Required HTML: type="number" inputmode="decimal" min="0" step="any"
+ *   Example:
+ *     <input class="lt-input lt-input-float" type="number"
+ *            inputmode="decimal" min="0" step="0.1" />
+ *
+ * Note: CSS alone cannot enforce integer-only entry — the step and
+ * inputmode attributes handle that. These classes add semantic clarity
+ * and tabular-nums alignment only.
+ */
+.lt-input-int,
+.lt-input-float {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Select (Dropdown) ─────────────────────────────────────── */
+/*
+ * .lt-select
+ *   Standard single-value dropdown. Use for selection from a short
+ *   fixed list (fewer than ~8 options). For larger or searchable lists,
+ *   use a custom component.
+ *
+ *   Example:
+ *     <select class="lt-select">
+ *       <option value="a">Option A</option>
+ *     </select>
+ *
+ *   Note: the default arrow appearance differs by browser/OS — this
+ *   is intentional to stay native and accessible.
+ */
+.lt-select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-md);
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--surface);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  appearance: auto; /* keep native arrow for accessibility */
+}
+.lt-select:focus { border-color: var(--blue); }
+
+/* ─── Checkbox Toggle Row ───────────────────────────────────── */
+/*
+ * .lt-checkbox-row
+ *   A full-width clickable row that wraps a checkbox + label text.
+ *   Use for binary toggles that conditionally enable or disable a
+ *   form section — more prominent than a bare checkbox.
+ *
+ *   Use .lt-opt inside the label for secondary/clarifying text.
+ *
+ *   Example:
+ *     <label class="lt-checkbox-row">
+ *       <input type="checkbox" />
+ *       <span>Enable feature
+ *         <span class="lt-opt">— affects the section below</span>
+ *       </span>
+ *     </label>
+ *
+ *   Do NOT use .lt-checkbox-row for multi-select option lists —
+ *   use individual checkboxes with .lt-label instead.
+ */
+.lt-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  cursor: pointer;
+  user-select: none;
+  width: fit-content;
+}
+.lt-checkbox-row input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--blue-dark);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   Feedback Components
+   Visual feedback for validation states, guidance, and errors.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Alert / Notification Strip ───────────────────────────── */
+/*
+ * .lt-alert
+ *   Inline notification strip for non-modal feedback within a form.
+ *   Always pair with one semantic variant class:
+ *
+ *   .lt-alert-info    Neutral guidance, tips, or contextual notes.
+ *                     Use for expected supplementary info (e.g. "Add
+ *                     X mL of media to reach the target volume.").
+ *
+ *   .lt-alert-success Confirmed result or value within valid range.
+ *                     Use sparingly — prefer result boxes for calculated
+ *                     outputs. Good for "Sample is within acceptable range."
+ *
+ *   .lt-alert-warn    Caution — user should review before proceeding.
+ *                     Use when a value is approaching a limit or an
+ *                     action has a reversible consequence.
+ *                     e.g. "V₁ is close to your stock volume."
+ *
+ *   .lt-alert-danger  Error or out-of-range value — action is blocked or
+ *                     result is invalid. Use for clear input errors.
+ *                     e.g. "V₁ exceeds your total stock volume."
+ *
+ * Anatomy:
+ *   <div class="lt-alert lt-alert-warn">
+ *     <strong>Warning:</strong> V₁ approaches stock volume.
+ *   </div>
+ *
+ * Show/hide pattern (JS-driven):
+ *   Add .hidden to hide: element.classList.add('hidden')
+ *   Or set display directly: element.style.display = 'none'/'block'
+ */
+.lt-alert {
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  line-height: 1.55;
+  font-size: 0.80rem;
+}
+.lt-alert.hidden { display: none; }
+
+.lt-alert-info {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+.lt-alert-info strong { color: var(--text); }
+
+.lt-alert-success {
+  background: var(--green-bg);
+  border: 1px solid var(--green-border);
+  color: var(--green-dark);
+  font-weight: 600;
+}
+
+.lt-alert-warn {
+  background: var(--yellow-bg);
+  border: 1px solid var(--yellow-border);
+  color: var(--yellow-dark);
+  font-weight: 600;
+}
+
+.lt-alert-danger {
+  background: var(--red-bg);
+  border: 1px solid var(--red-border);
+  color: var(--red);
+  font-weight: 600;
+}
+
+/* ─── Disabled Section Overlay ──────────────────────────────── */
+/*
+ * .lt-disabled
+ *   Apply to a CONTAINER to grey out an entire form section and
+ *   block all interaction within it. Use when a section is
+ *   conditionally inactive based on another control's state.
+ *
+ *   Do NOT apply to individual <input> elements — use the HTML
+ *   `disabled` attribute for those (it also prevents form submission).
+ *
+ *   Example: grey out the counting section when bypass mode is on.
+ *     <div id="counting-section" class="lt-disabled">…</div>
+ *
+ *   Toggle in JS:
+ *     el.classList.toggle('lt-disabled', isBypassed);
+ */
+.lt-disabled {
+  opacity: 0.32;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   Navigation / Pill Components
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Pill Selector ─────────────────────────────────────────── */
+/*
+ * .lt-pill-group / .lt-pill
+ *   A row of small toggle buttons for selecting a unit or display
+ *   variant inline near an input field. Best for 2–5 short labels.
+ *
+ *   JS adds .active to the currently selected pill. The button with
+ *   .active is styled as a filled primary button; others are outlined.
+ *
+ *   Example:
+ *     <div class="lt-pill-group">
+ *       <button class="lt-pill active">K</button>
+ *       <button class="lt-pill">M</button>
+ *       <button class="lt-pill">B</button>
+ *     </div>
+ *
+ *   For a descriptive tooltip, add a title attribute:
+ *     <button class="lt-pill" title="× 1,000 cells per mL">K</button>
+ */
+.lt-pill-group {
+  display: flex;
+  gap: 3px;
+  margin-top: 5px;
+  flex-wrap: wrap;
+}
+.lt-pill {
+  padding: 2px 8px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1.5;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+.lt-pill:hover               { border-color: var(--blue); color: var(--blue-dark); background: var(--blue-bg); }
+.lt-pill.active              { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; }
+.lt-pill.active:hover        { opacity: 0.88; }
+.lt-pill[title]              { cursor: help; }

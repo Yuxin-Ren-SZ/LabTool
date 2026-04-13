@@ -10,14 +10,6 @@
   <style>
     body { display: flex; flex-direction: column; }
 
-    .page-body {
-      flex: 1;
-      display: flex;
-      justify-content: center;
-      padding: 32px 16px 64px;
-      overflow: hidden; /* clip slide animation */
-    }
-
     /* ── Card ── */
     .card {
       background: var(--surface);
@@ -77,18 +69,6 @@
     .step-panel.slide-back { animation: slideInBack 0.22s ease; }
     @keyframes slideIn     { from { opacity: 0; transform: translateX(28px);  } to { opacity: 1; transform: translateX(0); } }
     @keyframes slideInBack { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: translateX(0); } }
-
-    h1 {
-      font-size: 1.25rem;
-      font-weight: 700;
-      display: flex; align-items: center; gap: 8px;
-      margin-bottom: 4px;
-    }
-    .subtitle {
-      font-size: 0.84rem;
-      color: var(--text-muted);
-      margin-bottom: 22px;
-    }
 
     /* ── Nav buttons ── */
     .nav-row {
@@ -163,22 +143,6 @@
     }
     .dil-field .prefill-note { font-size: 0.68rem; color: var(--blue-dark); margin-top: 2px; }
 
-    /* ── Unit pill selectors (Step 2) ── */
-    .unit-pills { display: flex; gap: 3px; margin-top: 5px; flex-wrap: wrap; }
-    .unit-pill {
-      padding: 2px 8px;
-      border: 1.5px solid var(--border); border-radius: var(--radius-sm);
-      background: var(--surface);
-      font-size: 0.68rem; font-weight: 700; font-family: var(--font-mono);
-      color: var(--text-muted);
-      cursor: pointer; line-height: 1.5;
-      transition: border-color 0.12s, background 0.12s, color 0.12s;
-    }
-    .unit-pill:hover  { border-color: var(--blue); color: var(--blue-dark); background: var(--blue-bg); }
-    .unit-pill.active { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; }
-    .unit-pill.active:hover { opacity: 0.88; }
-    .unit-pill[title]  { cursor: help; }
-
     /* ── Answer box ── */
     .answer-box {
       background: var(--green-bg); border: 1.5px solid var(--green-border);
@@ -193,41 +157,7 @@
     .answer-box .ans-sub   { font-size: 0.78rem; color: var(--green-dark); margin-top: 4px; opacity: 0.8; }
     .answer-box.hidden { display: none; }
 
-    /* ── Media-to-add note ── */
-    .media-note {
-      font-size: 0.80rem; color: var(--text-muted);
-      background: var(--surface-subtle); border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-sm); padding: 9px 12px;
-      margin-bottom: 12px; line-height: 1.55;
-    }
-    .media-note strong { color: var(--text); }
-    .media-note.hidden { display: none; }
-
-    /* ── Dilution error message ── */
-    .dilution-error {
-      font-size: 0.80rem; color: var(--red);
-      background: var(--red-bg); border: 1px solid var(--red-border);
-      border-radius: var(--radius-sm); padding: 9px 12px;
-      margin-bottom: 12px; line-height: 1.55; display: none;
-      font-weight: 600;
-    }
-    .dilution-error.visible { display: block; }
-
     .dil-reset-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
-
-    /* ── Stock volume warning ── */
-    .stock-warning {
-      border-radius: var(--radius-sm); padding: 9px 12px;
-      margin-top: 10px; line-height: 1.55; font-size: 0.80rem;
-      font-weight: 600; display: none;
-    }
-    .stock-warning.visible { display: block; }
-    .stock-warning.caution {
-      color: #92400e; background: #fffbeb; border: 1px solid #fcd34d;
-    }
-    .stock-warning.danger {
-      color: var(--red); background: var(--red-bg); border: 1px solid var(--red-border);
-    }
 
     /* ── Bypass toggle ── */
     .bypass-row {
@@ -264,10 +194,6 @@
     .bypass-conc-block input:focus { border-color: var(--blue-dark); }
     .bypass-conc-block input::placeholder { color: var(--text-placeholder); font-weight: 400; }
 
-    /* Counting section disabled overlay */
-    #counting-section { transition: opacity 0.2s; }
-    #counting-section.disabled { opacity: 0.32; pointer-events: none; }
-
     /* Export action row override (auto width, no top margin) */
     .action-row .btn-reset { width: auto; margin-top: 0; padding: 8px 14px; }
     .export-note { margin-top: 6px; }
@@ -286,7 +212,7 @@
   <span class="lt-nav-page">Cell Seeding Calculator</span>
 </nav>
 
-<div class="page-body">
+<div class="lt-page-body" style="overflow:hidden">
 <div class="card">
 
   <!-- ── Step progress bar ── -->
@@ -307,8 +233,8 @@
   ════════════════════════════════════ -->
   <div class="step-panel active" id="step1">
 
-    <h1>🧮 Cell Count</h1>
-    <p class="subtitle">Count your cells, then proceed to calculate the dilution.</p>
+    <h1 class="lt-tool-title">🧮 Cell Count</h1>
+    <p class="lt-tool-subtitle">Count your cells, then proceed to calculate the dilution.</p>
 
     <!-- Bypass toggle -->
     <label class="bypass-row" id="bypass-row">
@@ -327,11 +253,11 @@
                oninput="calcStep1()" style="flex:1; margin-bottom:0;"/>
         <span id="bypass-conc-unit" style="font-size:0.78rem; font-weight:600; color:var(--blue-dark); white-space:nowrap;">M/mL</span>
       </div>
-      <div class="unit-pills" id="bypass-conc-pills">
-        <button class="unit-pill" title="cells per mL" onclick="setBypassUnit('cells')">cells</button>
-        <button class="unit-pill" title="× 1,000 cells per mL" onclick="setBypassUnit('K')">K</button>
-        <button class="unit-pill active" title="× 1,000,000 cells per mL" onclick="setBypassUnit('M')">M</button>
-        <button class="unit-pill" title="× 1,000,000,000 cells per mL" onclick="setBypassUnit('B')">B</button>
+      <div class="lt-pill-group" id="bypass-conc-pills">
+        <button class="lt-pill" title="cells per mL" onclick="setBypassUnit('cells')">cells</button>
+        <button class="lt-pill" title="× 1,000 cells per mL" onclick="setBypassUnit('K')">K</button>
+        <button class="lt-pill active" title="× 1,000,000 cells per mL" onclick="setBypassUnit('M')">M</button>
+        <button class="lt-pill" title="× 1,000,000,000 cells per mL" onclick="setBypassUnit('B')">B</button>
       </div>
     </div>
 
@@ -339,7 +265,7 @@
     <div id="counting-section">
 
     <!-- Mode selector -->
-    <div class="lt-section-label" style="margin-bottom:8px">Counting Mode</div>
+    <div class="lt-section-label lt-section-label--tight">Counting Mode</div>
     <div class="mode-selector" id="mode-selector"></div>
     <div class="mode-desc" id="mode-desc"></div>
 
@@ -352,7 +278,7 @@
           <input type="number" inputmode="numeric" id="live1" placeholder="e.g. 95" min="0" oninput="calcStep1()"/>
         </div>
         <div class="count-field">
-          <label>Count 2 <span class="opt-tag">(optional — 2nd chamber)</span></label>
+          <label>Count 2 <span class="lt-opt">(optional — 2nd chamber)</span></label>
           <input type="number" inputmode="numeric" id="live2" placeholder="optional" min="0" oninput="calcStep1()"/>
         </div>
       </div>
@@ -369,15 +295,15 @@
     <div class="group-block dead-block" id="dead-block">
       <div class="group-header">
         🔴 Dead Cell Counts
-        <span class="badge">optional — Trypan Blue viability</span>
+        <span class="lt-badge lt-badge-default">optional — Trypan Blue viability</span>
       </div>
       <div class="count-row">
         <div class="count-field">
-          <label>Count 1 <span class="opt-tag">(optional)</span></label>
+          <label>Count 1 <span class="lt-opt">(optional)</span></label>
           <input type="number" inputmode="numeric" id="dead1" placeholder="optional" min="0" oninput="calcStep1()"/>
         </div>
         <div class="count-field">
-          <label>Count 2 <span class="opt-tag">(optional — 2nd chamber)</span></label>
+          <label>Count 2 <span class="lt-opt">(optional — 2nd chamber)</span></label>
           <input type="number" inputmode="numeric" id="dead2" placeholder="optional" min="0" oninput="calcStep1()"/>
         </div>
       </div>
@@ -448,12 +374,12 @@
   ════════════════════════════════════ -->
   <div class="step-panel" id="step2">
 
-    <h1>⚗️ Dilution</h1>
-    <p class="subtitle">Leave the unknown field empty, then click Calculate.</p>
+    <h1 class="lt-tool-title">⚗️ Dilution</h1>
+    <p class="lt-tool-subtitle">Leave the unknown field empty, then click Calculate.</p>
 
     <div class="equation-banner">C₁V₁ = C₂V₂</div>
 
-    <div class="dilution-error" id="dilution-error"></div>
+    <div class="lt-alert lt-alert-danger hidden" id="dilution-error"></div>
 
     <div class="dilution-grid">
 
@@ -469,11 +395,11 @@
           <span class="unit" id="c1-unit">M/mL</span>
         </div>
         <div class="prefill-note" id="c1-note">← from Step 1</div>
-        <div class="unit-pills" id="c1-pills">
-          <button class="unit-pill" title="cells per mL" onclick="setUnit('c1','cells')">cells</button>
-          <button class="unit-pill" title="× 1,000 cells per mL" onclick="setUnit('c1','K')">K</button>
-          <button class="unit-pill active" title="× 1,000,000 cells per mL" onclick="setUnit('c1','M')">M</button>
-          <button class="unit-pill" title="× 1,000,000,000 cells per mL" onclick="setUnit('c1','B')">B</button>
+        <div class="lt-pill-group" id="c1-pills">
+          <button class="lt-pill" title="cells per mL" onclick="setUnit('c1','cells')">cells</button>
+          <button class="lt-pill" title="× 1,000 cells per mL" onclick="setUnit('c1','K')">K</button>
+          <button class="lt-pill active" title="× 1,000,000 cells per mL" onclick="setUnit('c1','M')">M</button>
+          <button class="lt-pill" title="× 1,000,000,000 cells per mL" onclick="setUnit('c1','B')">B</button>
         </div>
       </div>
 
@@ -488,11 +414,11 @@
                  oninput="onDilFieldInput('c2')"/>
           <span class="unit" id="c2-unit">M/mL</span>
         </div>
-        <div class="unit-pills" id="c2-pills">
-          <button class="unit-pill" title="cells per mL" onclick="setUnit('c2','cells')">cells</button>
-          <button class="unit-pill" title="× 1,000 cells per mL" onclick="setUnit('c2','K')">K</button>
-          <button class="unit-pill active" title="× 1,000,000 cells per mL" onclick="setUnit('c2','M')">M</button>
-          <button class="unit-pill" title="× 1,000,000,000 cells per mL" onclick="setUnit('c2','B')">B</button>
+        <div class="lt-pill-group" id="c2-pills">
+          <button class="lt-pill" title="cells per mL" onclick="setUnit('c2','cells')">cells</button>
+          <button class="lt-pill" title="× 1,000 cells per mL" onclick="setUnit('c2','K')">K</button>
+          <button class="lt-pill active" title="× 1,000,000 cells per mL" onclick="setUnit('c2','M')">M</button>
+          <button class="lt-pill" title="× 1,000,000,000 cells per mL" onclick="setUnit('c2','B')">B</button>
         </div>
       </div>
 
@@ -507,10 +433,10 @@
                  oninput="onDilFieldInput('v1')"/>
           <span class="unit" id="v1-unit">mL</span>
         </div>
-        <div class="unit-pills" id="v1-pills">
-          <button class="unit-pill" title="microliters" onclick="setUnit('v1','uL')">µL</button>
-          <button class="unit-pill active" title="milliliters" onclick="setUnit('v1','mL')">mL</button>
-          <button class="unit-pill" title="liters" onclick="setUnit('v1','L')">L</button>
+        <div class="lt-pill-group" id="v1-pills">
+          <button class="lt-pill" title="microliters" onclick="setUnit('v1','uL')">µL</button>
+          <button class="lt-pill active" title="milliliters" onclick="setUnit('v1','mL')">mL</button>
+          <button class="lt-pill" title="liters" onclick="setUnit('v1','L')">L</button>
         </div>
       </div>
 
@@ -525,10 +451,10 @@
                  oninput="onDilFieldInput('v2')"/>
           <span class="unit" id="v2-unit">mL</span>
         </div>
-        <div class="unit-pills" id="v2-pills">
-          <button class="unit-pill" title="microliters" onclick="setUnit('v2','uL')">µL</button>
-          <button class="unit-pill active" title="milliliters" onclick="setUnit('v2','mL')">mL</button>
-          <button class="unit-pill" title="liters" onclick="setUnit('v2','L')">L</button>
+        <div class="lt-pill-group" id="v2-pills">
+          <button class="lt-pill" title="microliters" onclick="setUnit('v2','uL')">µL</button>
+          <button class="lt-pill active" title="milliliters" onclick="setUnit('v2','mL')">mL</button>
+          <button class="lt-pill" title="liters" onclick="setUnit('v2','L')">L</button>
         </div>
       </div>
 
@@ -549,10 +475,10 @@
     </div>
 
     <!-- Media to add note -->
-    <div class="media-note hidden" id="media-note"></div>
+    <div class="lt-alert lt-alert-info hidden" id="media-note"></div>
 
     <!-- Stock volume warning -->
-    <div class="stock-warning" id="stock-warning"></div>
+    <div class="lt-alert hidden" id="stock-warning"></div>
 
     <!-- Export row -->
     <div class="action-row">
@@ -570,7 +496,7 @@
   </div><!-- /step2 -->
 
 </div><!-- /card -->
-</div><!-- /page-body -->
+</div><!-- /lt-page-body -->
 
 <footer class="lt-footer">LabTools · Open source lab utilities</footer>
 
@@ -681,7 +607,7 @@ function onBypassToggle() {
   const bypassed = document.getElementById('bypass-toggle').checked;
   document.getElementById('bypass-row').classList.toggle('active', bypassed);
   document.getElementById('bypass-conc-block').classList.toggle('visible', bypassed);
-  document.getElementById('counting-section').classList.toggle('disabled', bypassed);
+  document.getElementById('counting-section').classList.toggle('lt-disabled', bypassed);
   if (bypassed) {
     ['live1', 'live2', 'dead1', 'dead2'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('count-all-toggle').checked = false;
@@ -722,7 +648,7 @@ function setBypassUnit(unitKey) {
   const newUnit = BYPASS_CONC_UNITS[unitKey];
 
   document.getElementById('bypass-conc-unit').textContent = newUnit.label;
-  document.querySelectorAll('#bypass-conc-pills .unit-pill').forEach(b =>
+  document.querySelectorAll('#bypass-conc-pills .lt-pill').forEach(b =>
     b.classList.toggle('active', b.textContent.trim() === unitKey));
 
   // Convert displayed value to the new unit
@@ -858,7 +784,7 @@ function goToStep2() {
     const u = autoBestConcUnit(step1FinalDensity);
     dilState.c1.unitKey = u.pillText === 'cells' ? 'cells' : u.pillText;
     document.getElementById('c1-unit').textContent = u.label;
-    document.querySelectorAll('#c1-pills .unit-pill').forEach(b =>
+    document.querySelectorAll('#c1-pills .lt-pill').forEach(b =>
       b.classList.toggle('active', b.textContent.trim() === u.pillText));
     c1Input.value = fmt4(step1FinalDensity / u.mult);
     document.getElementById('c1-note').style.display = '';
@@ -870,7 +796,7 @@ function goToStep2() {
   hideDilError();
   document.getElementById('answer-box').classList.add('hidden');
   document.getElementById('media-note').classList.add('hidden');
-  document.getElementById('stock-warning').className = 'stock-warning';
+  document.getElementById('stock-warning').className = 'lt-alert hidden';
 
   document.getElementById('step1').classList.remove('active');
   const s2 = document.getElementById('step2');
@@ -986,7 +912,7 @@ function setUnit(field, unitKey) {
 
   // Update label and active pill
   document.getElementById(field + '-unit').textContent = newUnit.label;
-  document.querySelectorAll('#' + field + '-pills .unit-pill').forEach(b =>
+  document.querySelectorAll('#' + field + '-pills .lt-pill').forEach(b =>
     b.classList.toggle('active', b.textContent.trim() === unitKey ||
       (unitKey === 'uL' && b.textContent.trim() === 'µL')));
 
@@ -1001,13 +927,13 @@ function setUnit(field, unitKey) {
 function showDilError(msg) {
   const el = document.getElementById('dilution-error');
   el.textContent = msg;
-  el.classList.add('visible');
+  el.classList.remove('hidden');
 }
 
 function hideDilError() {
   const el = document.getElementById('dilution-error');
   el.textContent = '';
-  el.classList.remove('visible');
+  el.classList.add('hidden');
 }
 
 
@@ -1160,18 +1086,18 @@ function calcDilution() {
         `⛔ Insufficient stock: you need ${fmt4(v1Disp.val)} ${v1Disp.unit} from stock, ` +
         `but your total resuspension volume is only ${fmt4(totDisp.val)} ${totDisp.unit}. ` +
         `This dilution cannot be made — try resuspending in a larger volume or choosing a higher target density.`;
-      stockWarn.className = 'stock-warning visible danger';
+      stockWarn.className = 'lt-alert lt-alert-danger';
     } else if (pct >= 90) {
       stockWarn.textContent =
         `⚠ Low stock: you need ${fmt4(v1Disp.val)} ${v1Disp.unit} from stock ` +
         `(${pct.toFixed(0)}% of your ${fmt4(totDisp.val)} ${totDisp.unit} resuspension volume). ` +
         `You may not have enough — consider a smaller final volume or a higher target density.`;
-      stockWarn.className = 'stock-warning visible caution';
+      stockWarn.className = 'lt-alert lt-alert-warn';
     } else {
-      stockWarn.className = 'stock-warning';
+      stockWarn.className = 'lt-alert hidden';
     }
   } else {
-    stockWarn.className = 'stock-warning';
+    stockWarn.className = 'lt-alert hidden';
   }
 }
 
@@ -1185,7 +1111,7 @@ function resetStep1() {
   document.getElementById('bypass-conc-block').classList.remove('visible');
   document.getElementById('bypass-conc').value = '';
   setBypassUnit('M'); // reset unit to default
-  document.getElementById('counting-section').classList.remove('disabled');
+  document.getElementById('counting-section').classList.remove('lt-disabled');
   ['live1', 'live2', 'dead1', 'dead2', 'vol'].forEach(id =>
     document.getElementById(id).value = '');
   document.getElementById('df').value = '20';
@@ -1207,7 +1133,7 @@ function resetStep2() {
     const u = autoBestConcUnit(step1FinalDensity);
     dilState.c1.unitKey = u.pillText === 'cells' ? 'cells' : u.pillText;
     document.getElementById('c1-unit').textContent = u.label;
-    document.querySelectorAll('#c1-pills .unit-pill').forEach(b =>
+    document.querySelectorAll('#c1-pills .lt-pill').forEach(b =>
       b.classList.toggle('active', b.textContent.trim() === u.pillText));
     c1El.value = fmt4(step1FinalDensity / u.mult);
   } else {
@@ -1220,7 +1146,7 @@ function resetStep2() {
   // Hide answer, media note, stock warning, and error
   document.getElementById('answer-box').classList.add('hidden');
   document.getElementById('media-note').classList.add('hidden');
-  document.getElementById('stock-warning').className = 'stock-warning';
+  document.getElementById('stock-warning').className = 'lt-alert hidden';
   hideDilError();
 }
 

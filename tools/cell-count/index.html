@@ -10,13 +10,6 @@
   <style>
     body { display: flex; flex-direction: column; }
 
-    .page-body {
-      flex: 1;
-      display: flex;
-      justify-content: center;
-      padding: 32px 16px 64px;
-    }
-
     /* ── Card ── */
     .card {
       background: var(--surface);
@@ -27,19 +20,8 @@
       max-width: 600px;
     }
 
-    h1 {
-      font-size: 1.25rem;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 4px;
-    }
-    .subtitle {
-      font-size: 0.84rem;
-      color: var(--text-muted);
-      margin-bottom: 24px;
-    }
+    /* subtitle margin override — matches seeding-calc Step 1 spacing */
+    .lt-tool-subtitle { margin-bottom: 24px; }
 
     /* ── Full-width action buttons in this tool ── */
     .action-row .btn-reset { width: 100%; }
@@ -58,14 +40,14 @@
   <span class="lt-nav-page">Cell Count Calculator</span>
 </nav>
 
-<div class="page-body">
+<div class="lt-page-body">
 <div class="card">
 
-  <h1>🔬 Cell Count Calculator</h1>
-  <p class="subtitle">Hemocytometer · Neubauer improved chamber</p>
+  <h1 class="lt-tool-title">🔬 Cell Count Calculator</h1>
+  <p class="lt-tool-subtitle">Hemocytometer · Neubauer improved chamber</p>
 
   <!-- ── Mode selector ── -->
-  <div class="lt-section-label" style="margin-bottom:8px">Counting Mode</div>
+  <div class="lt-section-label lt-section-label--tight">Counting Mode</div>
   <div class="mode-selector" id="mode-selector"></div>
   <div class="mode-desc" id="mode-desc"></div>
 
@@ -78,7 +60,7 @@
         <input type="number" inputmode="numeric" id="live1" placeholder="e.g. 95" min="0" oninput="calculate()"/>
       </div>
       <div class="count-field">
-        <label>Count 2 <span class="opt-tag">(optional — 2nd chamber)</span></label>
+        <label>Count 2 <span class="lt-opt">(optional — 2nd chamber)</span></label>
         <input type="number" inputmode="numeric" id="live2" placeholder="optional" min="0" oninput="calculate()"/>
       </div>
     </div>
@@ -95,15 +77,15 @@
   <div class="group-block dead-block" id="dead-block">
     <div class="group-header">
       🔴 Dead Cell Counts
-      <span class="badge">optional — Trypan Blue viability</span>
+      <span class="lt-badge lt-badge-default">optional — Trypan Blue viability</span>
     </div>
     <div class="count-row">
       <div class="count-field">
-        <label>Count 1 <span class="opt-tag">(optional)</span></label>
+        <label>Count 1 <span class="lt-opt">(optional)</span></label>
         <input type="number" inputmode="numeric" id="dead1" placeholder="optional" min="0" oninput="calculate()"/>
       </div>
       <div class="count-field">
-        <label>Count 2 <span class="opt-tag">(optional — 2nd chamber)</span></label>
+        <label>Count 2 <span class="lt-opt">(optional — 2nd chamber)</span></label>
         <input type="number" inputmode="numeric" id="dead2" placeholder="optional" min="0" oninput="calculate()"/>
       </div>
     </div>
@@ -157,7 +139,7 @@
   </div>
   <div class="export-note" id="export-note">Save or copy results after calculation.</div>
 </div>
-</div>
+</div><!-- /lt-page-body -->
 
 <footer class="lt-footer">LabTools · Open source lab utilities</footer>
 
