@@ -7,61 +7,11 @@
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <script src="../../assets/js/labtools-calc.js"></script>
   <style>
-    body { display: flex; flex-direction: column; }
+    /* ── Card width (base styles live in labtools.css .card) ── */
+    .card { max-width: 660px; }
 
-    .card {
-      background: var(--surface);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-card);
-      padding: 28px 28px 24px;
-      width: 100%;
-      max-width: 660px;
-    }
-
-    /* ── Step bar ── */
-    .step-bar {
-      display: flex;
-      align-items: center;
-      margin-bottom: 24px;
-    }
-    .step-pip {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      font-size: 0.78rem;
-      font-weight: 600;
-      color: var(--text-muted);
-    }
-    .step-pip .dot {
-      width: 22px; height: 22px;
-      border-radius: 50%;
-      background: var(--tag-bg);
-      border: 2px solid var(--border);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 0.68rem; font-weight: 700;
-      color: var(--text-muted);
-      flex-shrink: 0;
-      transition: all 0.2s;
-    }
-    .step-pip.active .dot { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; }
-    .step-pip.done   .dot { background: var(--green);     border-color: var(--green);     color: #fff; }
-    .step-pip.active { color: var(--text); }
-    .step-pip.done   { color: var(--green-dark); }
-    .step-connector {
-      flex: 1;
-      height: 2px;
-      background: var(--border-subtle);
-      margin: 0 10px;
-      transition: background 0.3s;
-    }
-    .step-connector.done { background: var(--green-border); }
-
-    /* ── Panels ── */
-    .panel { display: none; }
-    .panel.active { display: block; animation: slideIn 0.22s ease; }
-    .panel.slide-back { animation: slideInBack 0.22s ease; }
-    @keyframes slideIn     { from { opacity: 0; transform: translateX(24px);  } to { opacity: 1; transform: translateX(0); } }
-    @keyframes slideInBack { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: translateX(0); } }
+    /* Mobile padding override — slightly tighter than the shared 20px/16px default */
+    @media (max-width: 520px) { .card { padding: 18px 14px; } }
 
     /* ── Protocol editor table ── */
     .proto-table {
@@ -114,6 +64,8 @@
 
     .dur-wrap { display: flex; align-items: center; gap: 4px; }
     .dur-wrap span { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; }
+    .dur-wrap input:nth-of-type(1) { width: 58px; }
+    .dur-wrap input:nth-of-type(2) { width: 64px; }
 
     .acts-cell { display: flex; gap: 2px; align-items: center; }
     .act-btn {
@@ -450,8 +402,10 @@
       margin-bottom: 6px;
     }
 
+    /* Import label acts as a button — needs pointer cursor */
+    .bottom-row label.btn-reset { cursor: pointer; }
+
     @media (max-width: 520px) {
-      .card { padding: 18px 14px; }
       .countdown { font-size: 2.2rem; }
       .proto-table th.col-slot,
       .proto-row td.col-slot { display: none; }
@@ -482,7 +436,7 @@
   <!-- ══════════════════════════════════════════════
        Panel 1 — Protocol Setup
   ══════════════════════════════════════════════ -->
-  <div class="panel active" id="panel-setup">
+  <div class="step-panel active" id="panel-setup">
 
     <div class="lt-section-label lt-section-label--tight">Protocol Steps</div>
 
@@ -517,7 +471,7 @@
     <div class="validation-msg" id="validation-msg"></div>
     <div class="bottom-row">
       <button class="btn-reset" onclick="exportProtocol()">⬇ Export Protocol</button>
-      <label class="btn-reset" style="cursor:pointer">
+      <label class="btn-reset">
         ⬆ Import Protocol
         <input type="file" accept=".csv" id="import-input" style="display:none" onchange="importProtocol(event)"/>
       </label>
@@ -530,7 +484,7 @@
   <!-- ══════════════════════════════════════════════
        Panel 2 — Run Timer
   ══════════════════════════════════════════════ -->
-  <div class="panel" id="panel-run">
+  <div class="step-panel" id="panel-run">
 
     <div class="timer-header">
       <button class="btn-back" onclick="goToSetup()">← Back to Protocol</button>
@@ -584,8 +538,10 @@
 
 <script>
 // ─────────────────────────────────────────────────────────────
-// Default protocol (fake testing protocol)
+// Default protocol (short testing protocol — 3 × 5-second steps)
 // ─────────────────────────────────────────────────────────────
+
+/** Pre-loaded protocol so the table is not empty on first open. */
 const DEFAULT_PROTOCOL = [
   { solution: 'Step A', durationMin: 0, durationSec: 5, slot: '1' },
   { solution: 'Step B', durationMin: 0, durationSec: 5, slot: '2' },
@@ -595,29 +551,56 @@ const DEFAULT_PROTOCOL = [
 // ─────────────────────────────────────────────────────────────
 // State
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Live protocol array. Each entry is a step object:
+ *   { solution: string, durationMin: number|'', durationSec: number|'', slot: string }
+ * Mutated directly by the editor; also fully replaced by importProtocol().
+ */
 let protocol = DEFAULT_PROTOCOL.map(s => ({ ...s }));
 
-// Timer state
-let currentStep  = 0;       // 0-based index
-let timerState   = 'idle';  // idle | running | paused | done
-let stepEndTime  = null;    // absolute timestamp (ms)
-let pausedRemaining = null; // ms remaining when paused
-let tickInterval = null;
+/** 0-based index of the currently running or upcoming step. */
+let currentStep     = 0;
+/** Timer lifecycle: 'idle' | 'running' | 'paused' | 'done' */
+let timerState      = 'idle';
+/** Absolute wall-clock timestamp (ms) when the current step will finish. */
+let stepEndTime     = null;
+/** Milliseconds remaining when the timer was last paused. */
+let pausedRemaining = null;
+/** setInterval handle for the 100 ms countdown tick. */
+let tickInterval    = null;
 
-// Results tracking
-let stepResults  = [];  // { solution, durationMin, durationSec, slot, startedAt, actualMs }
+/**
+ * Per-step results collected during a run.
+ * Each entry mirrors a protocol step and adds:
+ *   startedAt: string | null   — wall-clock HH:MM:SS when step started
+ *   actualMs:  number | null   — actual elapsed milliseconds
+ */
+let stepResults  = [];
+/** Wall-clock timestamp (ms) when the current step's timer was first started. */
 let stepStartTs  = null;
+/**
+ * Row indices flagged by validateProtocol() for slot or solution conflicts.
+ * Used to highlight cells in the protocol table.
+ */
 let validationWarnings = { solution: new Set(), slot: new Set() };
 
-// Drag-and-drop reorder state
+/** Source row index captured at dragstart for drag-and-drop reordering. */
 let dragSrcIndex = null;
 
-// Audio
+/** Web Audio API context — created lazily on first playAlarm() call. */
 let audioCtx = null;
 
 // ─────────────────────────────────────────────────────────────
-// Sync DOM input values back into the protocol array
+// DOM ↔ protocol synchronisation
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Read the current input values from every rendered .proto-row and
+ * write them back into the protocol array. Call this before any
+ * operation that reads protocol[] after the user may have typed
+ * (e.g. before goToRun() or before a drag-and-drop reorder).
+ */
 function syncProtocolFromDOM() {
   document.querySelectorAll('.proto-row').forEach((tr, i) => {
     const inputs = tr.querySelectorAll('input');
@@ -629,8 +612,13 @@ function syncProtocolFromDOM() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Drag-and-drop reorder helpers
+// Drag-and-drop reorder
+// Each .proto-row is made draggable; its data-index attribute tracks
+// its current position. Event handlers are re-wired on every
+// renderProtoTable() call (rows are fully rebuilt each time).
 // ─────────────────────────────────────────────────────────────
+
+/** Record the source row index and apply a dragging style on drag start. */
 function onDragStart(e) {
   dragSrcIndex = parseInt(e.currentTarget.dataset.index);
   e.currentTarget.classList.add('dragging');
@@ -644,6 +632,7 @@ function onDragOver(e) {
 function onDragLeave(e) {
   e.currentTarget.classList.remove('drag-over');
 }
+/** Handle a drop: sync DOM → protocol[], splice the moved step, re-render. */
 function onDrop(e) {
   e.preventDefault();
   const destIndex = parseInt(e.currentTarget.dataset.index);
@@ -664,6 +653,12 @@ function onDragEnd(e) {
 // ─────────────────────────────────────────────────────────────
 // Panel 1 — Protocol editor
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Rebuild the entire <tbody> of the protocol table from the protocol[].
+ * Wires drag-and-drop handlers and validation highlight classes on each row.
+ * Called after every structural change (add, delete, move, import).
+ */
 function renderProtoTable() {
   const tbody = document.getElementById('proto-body');
   tbody.innerHTML = '';
@@ -688,11 +683,11 @@ function renderProtoTable() {
         <div class="dur-wrap">
           <input type="number" min="0" step="1" placeholder="min"
             value="${step.durationMin !== '' ? step.durationMin : ''}"
-            oninput="updateStep(${i},'durationMin',this.value)" style="width:58px"/>
+            oninput="updateStep(${i},'durationMin',this.value)" />
           <span>min</span>
           <input type="number" min="0" max="59.999" step="0.1" placeholder="sec"
             value="${step.durationSec !== '' ? step.durationSec : ''}"
-            oninput="updateStep(${i},'durationSec',this.value)" style="width:64px"/>
+            oninput="updateStep(${i},'durationSec',this.value)" />
           <span>sec</span>
         </div>
       </td>
@@ -717,6 +712,15 @@ function renderProtoTable() {
   });
 }
 
+/**
+ * Update a single field in protocol[i] from an oninput event.
+ * Clears any validation warnings and optionally auto-fills the slot
+ * when the solution name matches another step.
+ *
+ * @param {number} i      Step index (0-based)
+ * @param {string} field  Field name: 'solution' | 'durationMin' | 'durationSec' | 'slot'
+ * @param {string} val    Raw string value from the input element
+ */
 function updateStep(i, field, val) {
   if (field === 'durationMin' || field === 'durationSec') {
     protocol[i][field] = val === '' ? '' : parseFloat(val);
@@ -730,6 +734,13 @@ function updateStep(i, field, val) {
   if (field === 'solution') tryAutoFillSlot(i);
 }
 
+/**
+ * If the slot for step i is empty and another step with the same solution
+ * name already has a slot, copy that slot to step i automatically.
+ * Provides a convenience shortcut for repeated-solution protocols.
+ *
+ * @param {number} i  Step index to potentially auto-fill
+ */
 function tryAutoFillSlot(i) {
   if (protocol[i].slot !== '') return;
   const name = protocol[i].solution.trim().toLowerCase();
@@ -745,6 +756,9 @@ function tryAutoFillSlot(i) {
   }
 }
 
+/**
+ * Append a blank step to the protocol and focus its solution input.
+ */
 function addStep() {
   protocol.push({ solution: '', durationMin: '', durationSec: '', slot: '' });
   renderProtoTable();
@@ -754,6 +768,12 @@ function addStep() {
   if (lastRow) lastRow.querySelector('input[type="text"]').focus();
 }
 
+/**
+ * Remove step at index i. Refuses to remove the last remaining step.
+ * Re-renders and re-checks for slot conflicts after deletion.
+ *
+ * @param {number} i  Step index to remove
+ */
 function deleteStep(i) {
   if (protocol.length <= 1) return;
   protocol.splice(i, 1);
@@ -765,6 +785,10 @@ function deleteStep(i) {
       : '';
 }
 
+/**
+ * Discard the entire protocol after a user confirmation prompt.
+ * Resets to a single blank step and focuses its solution input.
+ */
 function clearProtocol() {
   if (!confirm('Clear all steps and start over?')) return;
   protocol = [{ solution: '', durationMin: '', durationSec: '', slot: '' }];
@@ -775,6 +799,13 @@ function clearProtocol() {
   if (firstRow) firstRow.querySelector('input[type="text"]').focus();
 }
 
+/**
+ * Move a step one position up (dir = -1) or down (dir = +1).
+ * No-op if the move would go out of bounds.
+ *
+ * @param {number} i   Step index to move
+ * @param {number} dir -1 (up) or +1 (down)
+ */
 function moveStep(i, dir) {
   const j = i + dir;
   if (j < 0 || j >= protocol.length) return;
@@ -787,6 +818,17 @@ function moveStep(i, dir) {
       : '';
 }
 
+/**
+ * Validate the current protocol[] for common errors:
+ * - Missing solution name
+ * - Invalid minutes (must be non-negative integer)
+ * - Invalid seconds (must be in [0, 60))
+ * - Zero total duration
+ * - Non-integer slot numbers
+ * - Slot conflicts (same slot, different solution names)
+ *
+ * @returns {string|null} Error message, or null if the protocol is valid.
+ */
 function validateProtocol() {
   clearValidationWarnings();
   for (let i = 0; i < protocol.length; i++) {
@@ -823,6 +865,13 @@ function validateProtocol() {
   return null;
 }
 
+/**
+ * Detect slot conflicts: a slot that is assigned to more than one
+ * distinct solution name. Populates validationWarnings with the
+ * row indices involved.
+ *
+ * @returns {number|null} The first conflicting slot number, or null.
+ */
 function collectSlotConflictWarnings() {
   clearValidationWarnings();
   const slotSolutions = new Map();
@@ -877,6 +926,10 @@ function applyValidationWarnings() {
   });
 }
 
+/**
+ * Validate the protocol, then transition to Panel 2 (run timer).
+ * Initialises stepResults[] and resets all timer state to idle.
+ */
 function goToRun() {
   syncProtocolFromDOM();
 
@@ -901,6 +954,10 @@ function goToRun() {
   showPanel('run');
 }
 
+/**
+ * Return to Panel 1 (protocol editor) from Panel 2.
+ * Stops the running timer and resets the tab title.
+ */
 function goToSetup() {
   clearInterval(tickInterval);
   timerState = 'idle';
@@ -911,8 +968,16 @@ function goToSetup() {
 // ─────────────────────────────────────────────────────────────
 // Panel navigation
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Show a named panel and update the step-bar pip states.
+ * Adds .slide-back for backward animations (right-to-left slide).
+ *
+ * @param {'setup'|'run'} name  Panel to show
+ * @param {boolean} [back]     True when navigating backward (←)
+ */
 function showPanel(name, back) {
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
   const target = document.getElementById('panel-' + name);
   if (back) target.classList.add('slide-back');
   else      target.classList.remove('slide-back');
@@ -936,6 +1001,11 @@ function showPanel(name, back) {
 // ─────────────────────────────────────────────────────────────
 // Timer core
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Toggle between start, pause, and resume based on the current timerState.
+ * Delegates to startStep(), pauseTimer(), or resumeTimer().
+ */
 function toggleStartPause() {
   if (timerState === 'idle' || timerState === 'step_complete') {
     startStep();
@@ -946,6 +1016,11 @@ function toggleStartPause() {
   }
 }
 
+/**
+ * Begin (or resume) the current step's countdown.
+ * Computes the absolute end timestamp from remaining ms, records the
+ * wall-clock start time in stepResults[], and starts the tick interval.
+ */
 function startStep() {
   ensureAudio();
   const durationMs = getStepDurationMs(protocol[currentStep]);
@@ -963,6 +1038,10 @@ function startStep() {
   startTick();
 }
 
+/**
+ * Pause the running timer. Captures remaining ms so resumeTimer()
+ * can continue from exactly where it stopped.
+ */
 function pauseTimer() {
   clearInterval(tickInterval);
   pausedRemaining = Math.max(0, stepEndTime - Date.now());
@@ -975,6 +1054,10 @@ function resumeTimer() {
   startStep();
 }
 
+/**
+ * Skip the current step immediately (records actualMs = 0) and
+ * advance to the next step or completion state.
+ */
 function skipStep() {
   clearInterval(tickInterval);
   stepResults[currentStep].actualMs = 0;
@@ -984,6 +1067,10 @@ function skipStep() {
   advanceStep();
 }
 
+/**
+ * Reset the run panel to its initial state (Step 1, idle).
+ * Clears all timing state, stepResults[], and the done banner.
+ */
 function resetTimer() {
   clearInterval(tickInterval);
   currentStep = 0;
@@ -1002,6 +1089,11 @@ function resetTimer() {
   renderRunPanel();
 }
 
+/**
+ * Start the 100 ms tick interval.
+ * Each tick redraws the countdown and advances the step when time reaches 0.
+ * Using 100 ms (not 1000 ms) keeps the display smooth and responsive.
+ */
 function startTick() {
   clearInterval(tickInterval);
   tickInterval = setInterval(() => {
@@ -1017,6 +1109,10 @@ function startTick() {
   }, 100);
 }
 
+/**
+ * Move to the next step after the current one completes or is skipped.
+ * If this was the last step, calls onAllDone() instead.
+ */
 function advanceStep() {
   pausedRemaining = null;
   stepStartTs = null;
@@ -1053,8 +1149,13 @@ function onAllDone() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Render helpers
+// Render helpers (Panel 2)
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Re-draw the entire run panel to reflect the current step.
+ * Called when advancing a step, resetting, or arriving from Panel 1.
+ */
 function renderRunPanel() {
   const step = protocol[currentStep];
   const slotNum = parseSlotNumber(step.slot);
@@ -1078,6 +1179,12 @@ function renderRunPanel() {
   updateControls();
 }
 
+/**
+ * Update the countdown display (MM:SS) and progress bar width
+ * from the given remaining milliseconds.
+ *
+ * @param {number} remainingMs  Milliseconds left in the current step
+ */
 function renderCountdown(remainingMs) {
   const totalSec = Math.ceil(remainingMs / 1000);
   const m = Math.floor(totalSec / 60);
@@ -1102,6 +1209,11 @@ function renderNextStrip() {
   strip.innerHTML = `<strong>Next:</strong> Step ${currentStep + 2}${slotPart} · ${escHtml(next.solution)} · ${formatStepDurationText(next)}`;
 }
 
+/**
+ * Rebuild the scrollable all-steps list (.steps-list) below the controls.
+ * Marks each row as sl-done, sl-current, or sl-upcoming based on
+ * the currentStep index and timerState.
+ */
 function renderStepsList() {
   const list = document.getElementById('steps-list');
   list.innerHTML = '';
@@ -1128,6 +1240,11 @@ function renderStepsList() {
   });
 }
 
+/**
+ * Render the slot rack (visual slide-position indicator).
+ * Shows a row of numbered slot boxes; the currently active slot is
+ * highlighted. Hides the rack entirely when no slots are assigned.
+ */
 function renderSlotRack() {
   const rack = document.getElementById('slot-rack');
   const status = document.getElementById('slot-rack-status');
@@ -1208,12 +1325,24 @@ function updateTabTitle(remainingMs) {
 // ─────────────────────────────────────────────────────────────
 // Audio
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Lazily initialise the Web Audio API context.
+ * Must be called from a user-gesture handler (startStep) because browsers
+ * block AudioContext creation before any user interaction.
+ */
 function ensureAudio() {
   if (!audioCtx) {
     try { audioCtx = new AudioContext(); } catch(e) { audioCtx = null; }
   }
 }
 
+/**
+ * Play a three-beep alarm using the Web Audio API.
+ * Three 880 Hz oscillator pulses are scheduled at 0, 0.42, and 0.84 s.
+ * Each pulse fades out with an exponential ramp to prevent clicks.
+ * No-op when the alarm toggle is off or when audioCtx is unavailable.
+ */
 function playAlarm() {
   if (!document.getElementById('alarm-toggle').checked) return;
   if (!audioCtx) return;
@@ -1237,6 +1366,11 @@ function playAlarm() {
 // ─────────────────────────────────────────────────────────────
 // Import / Export
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Export the current protocol as a CSV file (stain-protocol.csv).
+ * Columns: Step, Solution, Duration Min, Duration Sec, Slot.
+ */
 function exportProtocol() {
   syncProtocolFromDOM();
 
@@ -1247,6 +1381,14 @@ function exportProtocol() {
   downloadCsv([header, ...lines].join('\n'), 'stain-protocol.csv');
 }
 
+/**
+ * Read an uploaded CSV file and replace the current protocol.
+ * Delegates parsing to parseProtocolCsv(); displays any error in
+ * validation-msg. Resets the file input so the same file can be
+ * re-imported if the user makes corrections.
+ *
+ * @param {Event} evt  Change event from the hidden file input
+ */
 function importProtocol(evt) {
   const file = evt.target.files[0];
   if (!file) return;
@@ -1266,6 +1408,13 @@ function importProtocol(evt) {
   evt.target.value = '';
 }
 
+/**
+ * Parse CSV text into protocol steps. Expects the export format:
+ * Step, Solution, Duration Min, Duration Sec, Slot (header row required).
+ *
+ * @param {string} text  Raw CSV content
+ * @returns {{ steps: Object[] } | { error: string }}
+ */
 function parseProtocolCsv(text) {
   const lines = text.trim().split(/\r?\n/);
   if (lines.length < 2) return { error: 'CSV must have a header row and at least one step.' };
@@ -1289,6 +1438,11 @@ function parseProtocolCsv(text) {
   return { steps };
 }
 
+/**
+ * Export per-step timing results after the protocol completes.
+ * Columns: Step, Solution, Duration Min, Duration Sec, Slot,
+ *          Started At, Actual Duration (min).
+ */
 function exportResults() {
   const header = 'Step,Solution,Duration Min,Duration Sec,Slot,Started At,Actual Duration (min)';
   const lines = stepResults.map((r, i) => {
@@ -1301,6 +1455,8 @@ function exportResults() {
 // ─────────────────────────────────────────────────────────────
 // Utilities
 // ─────────────────────────────────────────────────────────────
+
+/** Escape a string for safe insertion into HTML (prevents XSS in innerHTML). */
 function escHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -1314,6 +1470,13 @@ function csvCell(val) {
   return `"${s}"`;
 }
 
+/**
+ * Parse one RFC-4180 CSV line into an array of field strings.
+ * Handles quoted fields, escaped quotes (""), and unquoted fields.
+ *
+ * @param {string} line  A single CSV line (no trailing newline)
+ * @returns {string[]}
+ */
 function splitCsvLine(line) {
   const result = [];
   let cur = '', inQ = false;
@@ -1332,6 +1495,12 @@ function splitCsvLine(line) {
   return result;
 }
 
+/**
+ * Create a CSV Blob and trigger a browser file download.
+ *
+ * @param {string} content   CSV string content
+ * @param {string} filename  Suggested download filename
+ */
 function downloadCsv(content, filename) {
   const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
@@ -1354,6 +1523,12 @@ function formatDuration(ms) {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
+/**
+ * Convert a step's duration fields (min + sec) to milliseconds.
+ *
+ * @param {{ durationMin: number|string, durationSec: number|string }} step
+ * @returns {number} Duration in ms, or NaN if either field is invalid
+ */
 function getStepDurationMs(step) {
   const min = Number(step.durationMin);
   const sec = Number(step.durationSec);
@@ -1372,6 +1547,13 @@ function formatStepDurationText(step) {
   return `${min} min ${secText} sec`;
 }
 
+/**
+ * Parse a slot field value into a positive integer.
+ * Returns null for empty, non-numeric, fractional, or non-positive values.
+ *
+ * @param {string|number|null|undefined} slot
+ * @returns {number|null}
+ */
 function parseSlotNumber(slot) {
   if (slot === null || slot === undefined) return null;
   const raw = String(slot).trim();

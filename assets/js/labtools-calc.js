@@ -187,7 +187,6 @@ function restrictToNumeric(e) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. Core hemocytometer calculations
 // ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Convert a hemocytometer average count into Final Concentration (cells/mL).

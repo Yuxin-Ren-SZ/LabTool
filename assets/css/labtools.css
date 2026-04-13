@@ -133,6 +133,8 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -185,6 +187,24 @@ a { color: inherit; text-decoration: none; }
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   padding: 32px;
+  width: 100%;
+}
+
+/* ─── Tool card wrapper ─────────────────────────────────────────
+ * Centered content card used by all tool pages. Sits inside
+ * .lt-page-body and carries the tool's primary chrome.
+ *
+ * Each tool keeps a local `max-width` override because tools
+ * intentionally differ in width (e.g. 600px vs 660px). The shared
+ * rule only provides the surface, radius, shadow, and base padding.
+ *
+ * Responsive padding is applied in the @media block at the bottom.
+ */
+.card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 28px 28px 24px;
   width: 100%;
 }
 
@@ -318,6 +338,76 @@ a { color: inherit; text-decoration: none; }
    Shared visual components used across cell-count and seeding-calc.
    These classes are used directly in tool HTML without renaming.
    ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Step progress bar ─────────────────────────────────────────
+ * Horizontal progress tracker for multi-panel tools (e.g. a two-step
+ * workflow). Each step is a .step-pip with a circular .dot and label.
+ * .step-connector is the thin line that bridges two pips.
+ *
+ * JS toggles .active / .done on .step-pip and .done on .step-connector
+ * as the user moves between panels.
+ *
+ * Typical markup:
+ *   <div class="step-bar">
+ *     <div class="step-pip active" id="pip1"><div class="dot">1</div> Step One</div>
+ *     <div class="step-connector" id="conn1"></div>
+ *     <div class="step-pip" id="pip2"><div class="dot">2</div> Step Two</div>
+ *   </div>
+ */
+.step-bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+}
+.step-pip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.step-pip .dot {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--tag-bg);
+  border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.68rem; font-weight: 700; color: var(--text-muted);
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+.step-pip.active .dot { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; }
+.step-pip.done   .dot { background: var(--green);     border-color: var(--green);     color: #fff; }
+.step-pip.active       { color: var(--text); }
+.step-pip.done         { color: var(--green-dark); }
+.step-connector {
+  flex: 1;
+  height: 2px;
+  background: var(--border-subtle);
+  margin: 0 8px;
+  transition: background 0.3s;
+}
+.step-connector.done { background: var(--green-border); }
+
+/* ─── Step panel (multi-panel tools) ────────────────────────────
+ * Each panel of a multi-step tool lives in a .step-panel div.
+ * Only the panel with .active is shown. JS also adds .slide-back
+ * to trigger the reverse slide animation when navigating backward.
+ *
+ * Animations:
+ *   .active (default)    slides in from the right (forward navigation)
+ *   .slide-back + .active slides in from the left  (backward navigation)
+ *
+ * Tools that use slide animations should add overflow:hidden to
+ * .lt-page-body inline (see the comment on .lt-page-body).
+ */
+.step-panel             { display: none; }
+.step-panel.active      { display: block; animation: slideIn 0.22s ease; }
+.step-panel.slide-back  { animation: slideInBack 0.22s ease; }
+
+@keyframes slideIn     { from { opacity: 0; transform: translateX(24px);  } to { opacity: 1; transform: translateX(0); } }
+@keyframes slideInBack { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: translateX(0); } }
 
 /* ─── Counting mode selector ────────────────────────────────── */
 .mode-selector {
@@ -585,6 +675,7 @@ a { color: inherit; text-decoration: none; }
 
 /* ─── Responsive: stack on narrow screens ────────────────────── */
 @media (max-width: 480px) {
+  .card          { padding: 20px 16px; }
   .mode-selector { grid-template-columns: repeat(2, 1fr); }
   .action-row    { flex-direction: column; }
 }

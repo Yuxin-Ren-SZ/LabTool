@@ -8,27 +8,14 @@
   <!-- Shared pure-function utilities (avgTwo, fmt, calcCellDensity, makeDiagram, MODES …) -->
   <script src="../../assets/js/labtools-calc.js"></script>
   <style>
-    body { display: flex; flex-direction: column; }
+    /* ── Card width (base styles live in labtools.css .card) ── */
+    .card { max-width: 600px; }
 
-    /* ── Card ── */
-    .card {
-      background: var(--surface);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-card);
-      padding: 28px 28px 24px;
-      width: 100%;
-      max-width: 600px;
-    }
-
-    /* subtitle margin override — matches seeding-calc Step 1 spacing */
+    /* Subtitle margin override — matches seeding-calc Step 1 spacing */
     .lt-tool-subtitle { margin-bottom: 24px; }
 
-    /* ── Full-width action buttons in this tool ── */
+    /* Full-width action buttons in this tool */
     .action-row .btn-reset { width: 100%; }
-
-    @media (max-width: 480px) {
-      .card { padding: 20px 16px; }
-    }
   </style>
 </head>
 <body>
@@ -149,11 +136,19 @@
 // (makeDiagram, MODES, avgTwo, fmt, calcCellDensity, calcTotalCells,
 //  calcViabilityPct are loaded from assets/js/labtools-calc.js)
 // ─────────────────────────────────────────────────────────────
+
+/** Currently selected counting mode ID (1–4, matching MODES[].id). */
 let currentModeId = 1;
 
 // ─────────────────────────────────────────────────────────────
 // Mode selector UI
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Render the 4-option mode selector grid from the MODES array.
+ * Each option shows an SVG diagram and a short label.
+ * Called once on init; selectMode() handles subsequent updates.
+ */
 function buildModeSelector() {
   const container = document.getElementById('mode-selector');
   container.innerHTML = '';
@@ -167,6 +162,14 @@ function buildModeSelector() {
   });
 }
 
+/**
+ * Activate a counting mode by ID:
+ * - Marks the clicked option as .active, clears others.
+ * - Updates the mode description strip (formula + text).
+ * - Propagates the change by triggering calculate().
+ *
+ * @param {number} id  Mode ID from MODES[].id (1–4)
+ */
 function selectMode(id) {
   currentModeId = id;
   document.querySelectorAll('.mode-option').forEach((el, i) => {
@@ -182,6 +185,17 @@ function selectMode(id) {
 // ─────────────────────────────────────────────────────────────
 // Calculate
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Read all inputs, run shared calculation functions, and write
+ * every result field to the DOM. Called on any input change.
+ *
+ * Calculation chain (using labtools-calc.js utilities):
+ *   avgTwo()          → average live/dead counts (handles 1 or 2 chambers)
+ *   calcCellDensity() → Final Concentration in cells/mL
+ *   calcTotalCells()  → Total cells = density × resuspension volume
+ *   calcViabilityPct() → Trypan Blue % viability (optional, requires dead counts)
+ */
 function calculate() {
   const mode  = MODES.find(m => m.id === currentModeId);
   const isAll = document.getElementById('count-all-toggle').checked;
@@ -198,7 +212,7 @@ function calculate() {
   const avgLive = liveAvg.val;
   const avgDead = deadAvg.val;
 
-  // Guard: negative counts are physically impossible
+  // Guard: negative counts are physically impossible on a hemocytometer
   if ((!isNaN(live1) && live1 < 0) || (!isNaN(live2) && live2 < 0) ||
       (!isNaN(dead1) && dead1 < 0) || (!isNaN(dead2) && dead2 < 0)) {
     document.getElementById('res-avg').textContent     = '—';
@@ -227,31 +241,35 @@ function calculate() {
     document.getElementById('res-avg-note').textContent = 'from counts';
   }
 
-  // ── Viability display ──
+  // ── Viability display — four mutually exclusive branches ──
   if (isAll) {
+    // Count-all mode: viability is meaningless (no Trypan Blue stain used)
     document.getElementById('res-via').textContent      = 'N/A';
     document.getElementById('res-via-note').textContent = 'count-all mode';
     document.getElementById('via-note').textContent     = 'Dead cell counting disabled — all cells counted as live.';
     document.getElementById('via-note').className       = 'via-note';
   } else if (!isNaN(viability)) {
+    // Valid viability: both live and dead counts are present
     document.getElementById('res-via').textContent      = viability.toFixed(1) + '%';
     document.getElementById('res-via-note').textContent =
       deadAvg.n === 2 ? 'avg of 2 dead counts' : 'from dead count';
     document.getElementById('via-note').textContent     = `✓ Viability: ${viability.toFixed(1)}%`;
     document.getElementById('via-note').className       = 'via-note computed';
   } else if (hasDeadAny) {
+    // Dead counts entered but live count missing → cannot compute yet
     document.getElementById('res-via').textContent      = '—';
     document.getElementById('res-via-note').textContent = 'waiting for live count';
     document.getElementById('via-note').textContent     = 'Waiting for live count to compute viability.';
     document.getElementById('via-note').className       = 'via-note';
   } else {
+    // No dead counts at all — prompt the user
     document.getElementById('res-via').textContent      = '—';
     document.getElementById('res-via-note').textContent = 'enter dead counts above';
     document.getElementById('via-note').textContent     = 'Enter dead counts above to auto-calculate viability.';
     document.getElementById('via-note').className       = 'via-note';
   }
 
-  // ── Total label (live vs all cells) ──
+  // ── Total label changes when counting all cells (no viability distinction) ──
   document.getElementById('res-total-label').textContent =
     isAll ? 'Total Cells' : 'Total Live Cells';
 
@@ -270,6 +288,13 @@ function calculate() {
 // ─────────────────────────────────────────────────────────────
 // Count-all toggle
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Handle the "Count all cells" checkbox toggle.
+ * When enabled: disables the dead-cell block (greys it out) and
+ * clears any previously entered dead counts.
+ * When disabled: re-enables the dead-cell block.
+ */
 function onCountAllToggle() {
   const isAll = document.getElementById('count-all-toggle').checked;
   const deadBlock = document.getElementById('dead-block');
@@ -284,6 +309,11 @@ function onCountAllToggle() {
 // ─────────────────────────────────────────────────────────────
 // Reset
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Clear all inputs and reset UI to the initial blank state.
+ * Preserves the default DF (20) and restores the dead-cell block.
+ */
 function resetAll() {
   ['live1', 'live2', 'dead1', 'dead2', 'vol'].forEach(id => {
     document.getElementById(id).value = '';
@@ -298,6 +328,13 @@ function resetAll() {
 // ─────────────────────────────────────────────────────────────
 // Export helpers
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Collect current input and result values as a [field, value] row array.
+ * Used by both makeCsv() and copyResults() to share formatting logic.
+ *
+ * @returns {Array<[string, string]>} Rows including a header row.
+ */
 function getExportRows() {
   const mode  = MODES.find(m => m.id === currentModeId);
   const isAll = document.getElementById('count-all-toggle').checked;
@@ -319,6 +356,13 @@ function getExportRows() {
   ];
 }
 
+/**
+ * Convert a rows array into an RFC-4180 CSV string.
+ * All fields are double-quoted; embedded quotes are escaped by doubling.
+ *
+ * @param {Array<string[]>} rows
+ * @returns {string} CSV content
+ */
 function makeCsv(rows) {
   return rows.map(r => r.map(cell => {
     const text = String(cell).replace(/"/g, '""');
@@ -326,6 +370,10 @@ function makeCsv(rows) {
   }).join(',')).join('\n');
 }
 
+/**
+ * Build a CSV Blob and trigger a browser download via a temporary <a> element.
+ * The object URL is revoked immediately after the click to free memory.
+ */
 function downloadCsv() {
   const csv  = makeCsv(getExportRows());
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -340,6 +388,10 @@ function downloadCsv() {
   document.getElementById('export-note').textContent = 'CSV file generated for download.';
 }
 
+/**
+ * Copy a plain-text summary of all results to the clipboard.
+ * Uses the Clipboard API when available; falls back to execCommand otherwise.
+ */
 function copyResults() {
   const text = ['Cell Count Calculator Results', '',
     ...getExportRows().map(r => `${r[0]}: ${r[1]}`)].join('\n');
@@ -355,6 +407,12 @@ function copyResults() {
   }
 }
 
+/**
+ * Legacy clipboard copy for browsers without navigator.clipboard.
+ * Creates an off-screen textarea, selects it, and calls execCommand('copy').
+ *
+ * @param {string} text  Plain text to copy
+ */
 function fallbackCopyText(text) {
   const ta = document.createElement('textarea');
   ta.value = text;

@@ -8,69 +8,10 @@
   <!-- Shared pure-function utilities (avgTwo, fmt, fmtSig, calcCellDensity, makeDiagram, MODES …) -->
   <script src="../../assets/js/labtools-calc.js"></script>
   <style>
-    body { display: flex; flex-direction: column; }
+    /* ── Card width (base styles live in labtools.css .card) ── */
+    .card { max-width: 600px; }
 
-    /* ── Card ── */
-    .card {
-      background: var(--surface);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-card);
-      padding: 28px 28px 24px;
-      width: 100%;
-      max-width: 600px;
-    }
-
-    /* ── Step progress bar ── */
-    .step-bar {
-      display: flex;
-      align-items: center;
-      gap: 0;
-      margin-bottom: 24px;
-    }
-    .step-pip {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      font-size: 0.78rem;
-      font-weight: 600;
-      color: var(--text-muted);
-    }
-    .step-pip .dot {
-      width: 22px; height: 22px;
-      border-radius: 50%;
-      background: var(--tag-bg);
-      border: 2px solid var(--border);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 0.68rem;
-      font-weight: 700;
-      color: var(--text-muted);
-      flex-shrink: 0;
-      transition: all 0.2s;
-    }
-    .step-pip.active .dot { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; }
-    .step-pip.done   .dot { background: var(--green);     border-color: var(--green);     color: #fff; }
-    .step-pip.active { color: var(--text); }
-    .step-pip.done   { color: var(--green-dark); }
-    .step-connector {
-      flex: 1;
-      height: 2px;
-      background: var(--border-subtle);
-      margin: 0 8px;
-      transition: background 0.3s;
-    }
-    .step-connector.done { background: var(--green-border); }
-
-    /* ── Step panels ── */
-    .step-panel { display: none; }
-    .step-panel.active {
-      display: block;
-      animation: slideIn 0.22s ease;
-    }
-    .step-panel.slide-back { animation: slideInBack 0.22s ease; }
-    @keyframes slideIn     { from { opacity: 0; transform: translateX(28px);  } to { opacity: 1; transform: translateX(0); } }
-    @keyframes slideInBack { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: translateX(0); } }
-
-    /* ── Nav buttons ── */
+    /* ── Step 1→2 navigation buttons ── */
     .nav-row {
       display: flex; align-items: center; justify-content: space-between;
       margin-top: 16px; gap: 10px;
@@ -84,8 +25,10 @@
       display: flex; align-items: center; gap: 6px;
       margin-left: auto;
     }
-    .btn-next:hover { opacity: 0.88; }
+    .btn-next:hover    { opacity: 0.88; }
     .btn-next:disabled { background: var(--tag-bg); color: var(--text-muted); cursor: not-allowed; opacity: 1; }
+    /* Wider variant used for the Step 2 "Calculate" button */
+    .btn-next--wide    { padding: 10px 24px; font-size: 0.9rem; }
 
     .btn-back {
       padding: 9px 16px;
@@ -97,7 +40,50 @@
     }
     .btn-back:hover { background: var(--surface-hover); }
 
-    /* ── Step 2: Dilution ── */
+    /* ── Bypass toggle (skip counting step) ── */
+    .bypass-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 12px;
+      background: var(--tag-bg); border: 1.5px solid var(--border);
+      border-radius: var(--radius-md); margin-bottom: 18px;
+      cursor: pointer; user-select: none;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .bypass-row:hover  { background: var(--blue-bg); border-color: var(--blue); }
+    .bypass-row.active { background: var(--blue-bg); border-color: var(--blue-dark); }
+    .bypass-row input[type="checkbox"] {
+      width: 15px; height: 15px; accent-color: var(--blue-dark);
+      cursor: pointer; flex-shrink: 0; margin: 0;
+    }
+    .bypass-label { font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); }
+    .bypass-label .bypass-sub { font-size: 0.72rem; color: var(--text-muted); font-weight: 400; margin-left: 4px; }
+
+    /* Direct-entry concentration block (visible when bypass is active) */
+    .bypass-conc-block {
+      background: var(--blue-bg); border: 1.5px solid var(--blue-border);
+      border-radius: 10px; padding: 13px 13px 12px; margin-bottom: 10px; display: none;
+    }
+    .bypass-conc-block.visible { display: block; }
+    .bypass-conc-block .group-header { color: var(--blue-dark); }
+    /* Row containing the input and unit label side-by-side */
+    .bypass-conc-row {
+      position: relative; display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+    }
+    .bypass-conc-block input {
+      flex: 1; margin-bottom: 0; padding: 9px 10px;
+      border: 1.5px solid var(--blue-border); border-radius: var(--radius-md);
+      font-size: 1rem; font-family: var(--font); color: var(--blue-dark);
+      background: var(--surface); outline: none; font-weight: 600;
+      transition: border-color 0.15s;
+    }
+    .bypass-conc-block input:focus        { border-color: var(--blue-dark); }
+    .bypass-conc-block input::placeholder { color: var(--text-placeholder); font-weight: 400; }
+    /* Unit label (e.g. "M/mL") displayed to the right of the input */
+    .bypass-conc-unit {
+      font-size: 0.78rem; font-weight: 600; color: var(--blue-dark); white-space: nowrap;
+    }
+
+    /* ── Step 2: Dilution (C₁V₁ = C₂V₂) ── */
     .equation-banner {
       background: var(--blue-bg); border: 1.5px solid var(--blue-border);
       border-radius: var(--radius-md); padding: 10px 16px;
@@ -119,6 +105,7 @@
       text-transform: uppercase; letter-spacing: 0.03em;
       display: flex; align-items: center; gap: 6px;
     }
+    /* Monospace variable tag (C₁, V₂, …) inside each field label */
     .dil-field label .var-tag {
       font-family: var(--font-mono); font-size: 0.78rem; font-weight: 700;
       background: var(--blue-bg); color: var(--blue-dark);
@@ -133,9 +120,11 @@
       font-size: 0.95rem; font-family: var(--font); color: var(--text);
       background: var(--surface); outline: none; transition: border-color 0.15s, background 0.15s;
     }
-    .dil-field input:focus { border-color: var(--blue); }
+    .dil-field input:focus        { border-color: var(--blue); }
     .dil-field input::placeholder { color: var(--text-placeholder); }
+    /* .prefilled — value inherited from Step 1 (read-only, blue tint) */
     .dil-field input.prefilled { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue-dark); }
+    /* .solving — field whose value was calculated (green tint) */
     .dil-field input.solving   { background: var(--green-bg); border-color: var(--green-border); color: var(--green-dark); font-weight: 700; }
     .dil-field .unit {
       position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
@@ -143,7 +132,7 @@
     }
     .dil-field .prefill-note { font-size: 0.68rem; color: var(--blue-dark); margin-top: 2px; }
 
-    /* ── Answer box ── */
+    /* ── Answer box — green confirmation strip ── */
     .answer-box {
       background: var(--green-bg); border: 1.5px solid var(--green-border);
       border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 10px;
@@ -157,50 +146,20 @@
     .answer-box .ans-sub   { font-size: 0.78rem; color: var(--green-dark); margin-top: 4px; opacity: 0.8; }
     .answer-box.hidden { display: none; }
 
-    .dil-reset-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+    /* Centered "Calculate" button row in Step 2 */
+    .calc-btn-row { text-align: center; margin: 16px 0; }
 
-    /* ── Bypass toggle ── */
-    .bypass-row {
-      display: flex; align-items: center; gap: 8px;
-      padding: 10px 12px;
-      background: var(--tag-bg); border: 1.5px solid var(--border);
-      border-radius: var(--radius-md); margin-bottom: 18px;
-      cursor: pointer; user-select: none;
-      transition: background 0.15s, border-color 0.15s;
+    /* Back/reset row at the bottom of Step 2 */
+    .dil-reset-row {
+      display: flex; justify-content: space-between; align-items: center; margin-top: 10px;
     }
-    .bypass-row:hover  { background: var(--blue-bg); border-color: var(--blue); }
-    .bypass-row.active { background: var(--blue-bg); border-color: var(--blue-dark); }
-    .bypass-row input[type="checkbox"] {
-      width: 15px; height: 15px; accent-color: var(--blue-dark);
-      cursor: pointer; flex-shrink: 0; margin: 0;
-    }
-    .bypass-label { font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); }
-    .bypass-label .bypass-sub { font-size: 0.72rem; color: var(--text-muted); font-weight: 400; margin-left: 4px; }
-
-    /* Direct-entry concentration block (visible when bypassed) */
-    .bypass-conc-block {
-      background: var(--blue-bg); border: 1.5px solid var(--blue-border);
-      border-radius: 10px; padding: 13px 13px 12px; margin-bottom: 10px; display: none;
-    }
-    .bypass-conc-block.visible { display: block; }
-    .bypass-conc-block .group-header { color: var(--blue-dark); }
-    .bypass-conc-block input {
-      width: 100%; padding: 9px 10px;
-      border: 1.5px solid var(--blue-border); border-radius: var(--radius-md);
-      font-size: 1rem; font-family: var(--font); color: var(--blue-dark);
-      background: var(--surface); outline: none; font-weight: 600;
-      transition: border-color 0.15s;
-    }
-    .bypass-conc-block input:focus { border-color: var(--blue-dark); }
-    .bypass-conc-block input::placeholder { color: var(--text-placeholder); font-weight: 400; }
 
     /* Export action row override (auto width, no top margin) */
     .action-row .btn-reset { width: auto; margin-top: 0; padding: 8px 14px; }
     .export-note { margin-top: 6px; }
 
     @media (max-width: 480px) {
-      .card           { padding: 20px 16px; }
-      .dilution-grid  { grid-template-columns: 1fr; }
+      .dilution-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -247,11 +206,11 @@
     <!-- Direct-entry field (visible when bypassed) -->
     <div class="bypass-conc-block" id="bypass-conc-block">
       <div class="group-header">📐 Known Concentration</div>
-      <div style="position:relative; display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+      <div class="bypass-conc-row">
         <input type="text" inputmode="decimal" id="bypass-conc"
                placeholder="e.g. 2"
-               oninput="calcStep1()" style="flex:1; margin-bottom:0;"/>
-        <span id="bypass-conc-unit" style="font-size:0.78rem; font-weight:600; color:var(--blue-dark); white-space:nowrap;">M/mL</span>
+               oninput="calcStep1()"/>
+        <span id="bypass-conc-unit" class="bypass-conc-unit">M/mL</span>
       </div>
       <div class="lt-pill-group" id="bypass-conc-pills">
         <button class="lt-pill" title="cells per mL" onclick="setBypassUnit('cells')">cells</button>
@@ -360,7 +319,7 @@
     </div>
     <div class="export-note" id="export-note-s1"></div>
 
-    <div class="nav-row" style="margin-top:10px">
+    <div class="nav-row">
       <div></div>
       <button class="btn-next" id="btn-next" onclick="goToStep2()" disabled>
         Next: Dilution <span>→</span>
@@ -461,8 +420,8 @@
 
     </div><!-- /dilution-grid -->
 
-    <div style="text-align: center; margin: 16px 0;">
-      <button class="btn-next" onclick="calcDilution()" style="padding: 10px 24px; font-size: 0.9rem;">Calculate</button>
+    <div class="calc-btn-row">
+      <button class="btn-next btn-next--wide" onclick="calcDilution()">Calculate</button>
     </div>
 
     <!-- Answer box -->
@@ -489,7 +448,7 @@
     <div class="export-note" id="export-note-s2"></div>
 
     <!-- Back / Reset row -->
-    <div class="dil-reset-row" style="margin-top:10px">
+    <div class="dil-reset-row">
       <button class="btn-back" onclick="goToStep1()">← Back</button>
       <button class="btn-reset" onclick="resetStep2()">↺ Reset dilution</button>
     </div>
@@ -523,13 +482,22 @@
 // (makeDiagram, MODES, avgTwo, fmt, fmtSig, calcCellDensity,
 //  calcTotalCells, calcViabilityPct are from labtools-calc.js)
 // ─────────────────────────────────────────────────────────────
+
+/** Currently selected counting mode ID (1–4, matching MODES[].id). */
 let currentModeId     = 1;
-let step1FinalDensity = NaN; // passed to Step 2
-let step1TotalVolML   = NaN; // resuspension volume from Step 1, in mL
+/** Final concentration (cells/mL) from Step 1, passed to the Step 2 dilution solver. */
+let step1FinalDensity = NaN;
+/** Resuspension volume (mL) from Step 1, used for stock-volume warnings in Step 2. */
+let step1TotalVolML   = NaN;
 
 // ─────────────────────────────────────────────────────────────
 // Mode selector UI  [⟳ SYNC with cell-count/index.html]
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Render the 4-option counting mode selector from the MODES array.
+ * Identical to cell-count's buildModeSelector(); called once at init.
+ */
 function buildModeSelector() {
   const container = document.getElementById('mode-selector');
   container.innerHTML = '';
@@ -542,6 +510,12 @@ function buildModeSelector() {
   });
 }
 
+/**
+ * Activate a counting mode by ID and trigger a Step 1 recalculation.
+ * Identical to cell-count's selectMode(); [⟳ SYNC]
+ *
+ * @param {number} id  Mode ID from MODES[].id (1–4)
+ */
 function selectMode(id) {
   currentModeId = id;
   document.querySelectorAll('.mode-option').forEach((el, i) =>
@@ -558,8 +532,12 @@ function selectMode(id) {
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Parse a (possibly comma-formatted or K/M/B-suffixed) text input as a number.
- * Used for the concentration text inputs in Step 1 bypass and Step 2 dilution grid.
+ * Parse a text input value as a plain number, accepting comma-formatted
+ * values (e.g. "1,500,000") and K/M/B suffix notation (e.g. "1.5M").
+ * Used for the bypass concentration input and Step 2 dilution fields.
+ *
+ * @param {string} id  Element ID to read
+ * @returns {number} Parsed base value, or NaN if empty/unparseable
  */
 function getNumVal(id) {
   const val = document.getElementById(id).value.trim();
@@ -605,6 +583,13 @@ function applyCommaFormat(el) {
   el.value = intVal.toLocaleString('en-US') + decPart;
 }
 
+/**
+ * Handle the "I already have my cell concentration" bypass checkbox.
+ * When enabled: shows the direct-entry block, greys the counting section,
+ * and clears all counting inputs.
+ * When disabled: hides the direct-entry block, re-enables counting, clears
+ * the bypass concentration field.
+ */
 function onBypassToggle() {
   const bypassed = document.getElementById('bypass-toggle').checked;
   document.getElementById('bypass-row').classList.toggle('active', bypassed);
@@ -620,6 +605,11 @@ function onBypassToggle() {
   calcStep1();
 }
 
+/**
+ * Handle the "Count all cells" checkbox in Step 1.
+ * Disables the dead-cell block (greys it, clears inputs) when checked.
+ * [⟳ SYNC with cell-count/index.html]
+ */
 function onCountAllToggle() {
   const isAll = document.getElementById('count-all-toggle').checked;
   const deadBlock = document.getElementById('dead-block');
@@ -632,9 +622,9 @@ function onCountAllToggle() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────
-// Bypass concentration unit (reuses CONC_UNITS from Step 2 scope,
-// but defined here independently so Step 1 works standalone)
+// Bypass concentration unit
+// (defined independently from Step 2's CONC_UNITS so Step 1
+//  bypass works even before Step 2 is initialised)
 // ─────────────────────────────────────────────────────────────
 const BYPASS_CONC_UNITS = {
   cells: { label: 'cells/mL', baseVal: 1   },
@@ -644,6 +634,13 @@ const BYPASS_CONC_UNITS = {
 };
 let bypassConcUnitKey = 'M';
 
+/**
+ * Switch the bypass concentration display unit (cells / K / M / B).
+ * Converts the currently displayed value so the underlying cells/mL
+ * quantity is preserved when the user changes units.
+ *
+ * @param {string} unitKey  Key from BYPASS_CONC_UNITS ('cells'|'K'|'M'|'B')
+ */
 function setBypassUnit(unitKey) {
   const oldUnit = BYPASS_CONC_UNITS[bypassConcUnitKey];
   bypassConcUnitKey = unitKey;
@@ -779,6 +776,13 @@ function calcStep1() {
 // ─────────────────────────────────────────────────────────────
 // Step navigation
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Transition from Step 1 (cell count) to Step 2 (dilution).
+ * Pre-fills C₁ with the Step 1 final density, selecting the best
+ * display unit automatically via autoBestConcUnit(). Slides step2 in
+ * from the right and updates the step-bar pip states.
+ */
 function goToStep2() {
   // Pre-fill C1 from Step 1 density — auto-select the best unit scale
   const c1Input = document.getElementById('c1');
@@ -812,6 +816,11 @@ function goToStep2() {
   document.getElementById('connector').classList.add('done');
 }
 
+/**
+ * Slide back to Step 1 from Step 2.
+ * Adds .slide-back to trigger the leftward slide animation and
+ * resets the step-bar pip states to reflect Step 1 being active.
+ */
 function goToStep1() {
   document.getElementById('step2').classList.remove('active');
   const s1 = document.getElementById('step1');
@@ -926,12 +935,14 @@ function setUnit(field, unitKey) {
   }
 }
 
+/** Show the dilution error strip with a message. */
 function showDilError(msg) {
   const el = document.getElementById('dilution-error');
   el.textContent = msg;
   el.classList.remove('hidden');
 }
 
+/** Hide the dilution error strip and clear its message. */
 function hideDilError() {
   const el = document.getElementById('dilution-error');
   el.textContent = '';
@@ -942,6 +953,18 @@ function hideDilError() {
 // ─────────────────────────────────────────────────────────────
 // Step 2 — Dilution solver (C₁V₁ = C₂V₂)
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Solve the dilution equation C₁V₁ = C₂V₂ for the one empty field.
+ *
+ * Logic:
+ * 1. Read all four fields as base-unit values (cells/mL and µL).
+ * 2. If exactly one is empty, solve for it algebraically.
+ * 3. If all four are filled, re-solve the previously calculated field.
+ * 4. Write the result into the input, show the answer box, and compute
+ *    a "media to add" note (V₂ − V₁) plus a stock-volume warning
+ *    when V₁ approaches or exceeds the Step 1 resuspension volume.
+ */
 function calcDilution() {
   hideDilError();
 
@@ -1107,6 +1130,11 @@ function calcDilution() {
 // ─────────────────────────────────────────────────────────────
 // Resets
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Reset all Step 1 inputs (counts, DF, volume, bypass) to defaults.
+ * Restores the bypass unit to M/mL and triggers a recalculation.
+ */
 function resetStep1() {
   document.getElementById('bypass-toggle').checked = false;
   document.getElementById('bypass-row').classList.remove('active');
@@ -1122,6 +1150,10 @@ function resetStep1() {
   calcStep1();
 }
 
+/**
+ * Clear editable Step 2 fields (C₂, V₁, V₂) and restore C₁ from the
+ * Step 1 density. Hides the answer box, media note, and all warnings.
+ */
 function resetStep2() {
   // Clear editable fields and reset their state
   for (const id of ['c2', 'v1', 'v2']) {
@@ -1156,6 +1188,13 @@ function resetStep2() {
 // ─────────────────────────────────────────────────────────────
 // Export helpers
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Collect Step 1 (cell count) values as [field, value] rows.
+ * Returns a minimal bypass summary when the bypass mode is active.
+ *
+ * @returns {Array<[string, string]>}
+ */
 function getCellCountRows() {
   const bypassed = document.getElementById('bypass-toggle').checked;
   if (bypassed) {
@@ -1186,6 +1225,12 @@ function getCellCountRows() {
   ];
 }
 
+/**
+ * Collect Step 2 (dilution) values as [field, value] rows.
+ * Includes the solved field, its value, and the media-to-add note.
+ *
+ * @returns {Array<[string, string]>}
+ */
 function getDilutionRows() {
   const ansLabel  = document.getElementById('ans-label').textContent;
   const ansValue  = document.getElementById('ans-value').textContent;
@@ -1204,6 +1249,13 @@ function getDilutionRows() {
   ];
 }
 
+/**
+ * Convert a rows array into an RFC-4180 CSV string.
+ * All fields are double-quoted; embedded quotes are escaped by doubling.
+ *
+ * @param {Array<string[]>} rows
+ * @returns {string}
+ */
 function makeCsv(rows) {
   return rows.map(r => r.map(cell => {
     const text = String(cell).replace(/"/g, '""');
@@ -1211,12 +1263,25 @@ function makeCsv(rows) {
   }).join(',')).join('\n');
 }
 
+/**
+ * Write a status message to the export note below whichever step is
+ * currently active (Step 1 or Step 2).
+ *
+ * @param {string} msg
+ */
 function setExportNote(msg) {
   const s1     = document.getElementById('step1');
   const noteId = s1.classList.contains('active') ? 'export-note-s1' : 'export-note-s2';
   document.getElementById(noteId).textContent = msg;
 }
 
+/**
+ * Download results as a CSV file.
+ *
+ * @param {'count'|'full'} scope
+ *   'count' — Step 1 data only.
+ *   'full'  — Step 1 + Step 2 dilution data combined.
+ */
 function downloadCsv(scope) {
   const rows = scope === 'full'
     ? [...getCellCountRows(), ['', ''], ...getDilutionRows()]
@@ -1234,6 +1299,12 @@ function downloadCsv(scope) {
   setExportNote('CSV file generated for download.');
 }
 
+/**
+ * Copy a plain-text summary to the clipboard.
+ * Falls back to the textarea execCommand technique for older browsers.
+ *
+ * @param {'count'|'full'} scope  Same as downloadCsv().
+ */
 function copyResults(scope) {
   const rows = scope === 'full'
     ? [...getCellCountRows(), ['', ''], ...getDilutionRows()]
@@ -1250,6 +1321,12 @@ function copyResults(scope) {
   }
 }
 
+/**
+ * Legacy clipboard copy via document.execCommand('copy').
+ * Used when navigator.clipboard is unavailable (non-HTTPS or older browsers).
+ *
+ * @param {string} text
+ */
 function fallbackCopyText(text) {
   const ta = document.createElement('textarea');
   ta.value = text;
