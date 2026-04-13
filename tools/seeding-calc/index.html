@@ -350,6 +350,7 @@
         <div class="r-unit"  id="res-total-note">conc. × vol</div>
       </div>
     </div>
+    <div class="unit-legend">K = 1,000 &nbsp;·&nbsp; M = 1,000,000 &nbsp;·&nbsp; B = 1,000,000,000</div>
 
     <!-- Export + Nav row -->
     <div class="action-row">
@@ -531,6 +532,7 @@ let step1TotalVolML   = NaN; // resuspension volume from Step 1, in mL
 // ─────────────────────────────────────────────────────────────
 function buildModeSelector() {
   const container = document.getElementById('mode-selector');
+  container.innerHTML = '';
   MODES.forEach(m => {
     const div = document.createElement('div');
     div.className = 'mode-option' + (m.id === currentModeId ? ' active' : '');
@@ -735,7 +737,7 @@ function calcStep1() {
   if (isAll) {
     document.getElementById('res-via').textContent      = 'N/A';
     document.getElementById('res-via-note').textContent = 'count-all mode';
-    document.getElementById('via-note').textContent     = 'Dead cell counting disabled.';
+    document.getElementById('via-note').textContent     = 'Dead cell counting disabled — all cells counted as live.';
     document.getElementById('via-note').className       = 'via-note';
   } else if (!isNaN(viability)) {
     document.getElementById('res-via').textContent      = viability.toFixed(1) + '%';
