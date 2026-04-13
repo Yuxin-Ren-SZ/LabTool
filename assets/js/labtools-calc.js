@@ -190,7 +190,7 @@ function restrictToNumeric(e) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Convert a hemocytometer average count into Final Density (cells/mL).
+ * Convert a hemocytometer average count into Final Concentration (cells/mL).
  *
  * Formula: avgCount × multiplier × dilutionFactor × 10⁴
  *
@@ -215,7 +215,7 @@ function calcCellDensity(avgCount, multiplier, df) {
 /**
  * Calculate total cells in a resuspension volume.
  *
- * @param {number} density   Final Density in cells/mL
+ * @param {number} density   Final Concentration in cells/mL
  * @param {number} volumeML  Resuspension volume in mL (> 0)
  * @returns {number} Rounded total cell count, or NaN if inputs are invalid
  *

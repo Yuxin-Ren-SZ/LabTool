@@ -120,14 +120,14 @@
       <div class="r-unit"  id="res-via-note">from dead counts</div>
     </div>
     <div class="result-box hl-blue">
-      <div class="r-label">Final Density</div>
+      <div class="r-label">Final Concentration</div>
       <div class="r-value" id="res-density">—</div>
-      <div class="r-unit"  id="res-density-note">cells / mL</div>
+      <div class="r-unit"  id="res-density-note">cells/mL</div>
     </div>
     <div class="result-box hl-blue">
       <div class="r-label" id="res-total-label">Total Live Cells</div>
       <div class="r-value" id="res-total">—</div>
-      <div class="r-unit"  id="res-total-note">density × vol</div>
+      <div class="r-unit"  id="res-total-note">conc. × vol</div>
     </div>
   </div>
   <div class="unit-legend">K = 1,000 &nbsp;·&nbsp; M = 1,000,000 &nbsp;·&nbsp; B = 1,000,000,000</div>
@@ -255,16 +255,15 @@ function calculate() {
   document.getElementById('res-total-label').textContent =
     isAll ? 'Total Cells' : 'Total Live Cells';
 
-  // ── Final Density ──
+  // ── Final Concentration ──
   document.getElementById('res-density').textContent      = fmt(finalDensity);
-  document.getElementById('res-density-note').textContent =
-    !isNaN(avgLive) ? mode.formulaNote : 'cells / mL';
+  document.getElementById('res-density-note').textContent = 'cells/mL';
 
   // ── Total cells in tube ──
   document.getElementById('res-total').textContent      = fmt(totalCells);
   document.getElementById('res-total-note').textContent =
     !isNaN(finalDensity) && !isNaN(vol) && vol > 0
-      ? 'density × ' + vol + ' mL'
+      ? 'conc. × ' + vol + ' mL'
       : !isNaN(finalDensity) ? 'enter resuspension vol' : '—';
 }
 
@@ -315,7 +314,7 @@ function getExportRows() {
     ['Resuspension volume (mL)',    document.getElementById('vol').value  || ''],
     ['Average live count',          document.getElementById('res-avg').textContent],
     ['Viability',                   document.getElementById('res-via').textContent],
-    ['Final density (cells/mL)',    document.getElementById('res-density').textContent],
+    ['Final concentration (cells/mL)', document.getElementById('res-density').textContent],
     ['Total cells',                 document.getElementById('res-total').textContent],
   ];
 }
