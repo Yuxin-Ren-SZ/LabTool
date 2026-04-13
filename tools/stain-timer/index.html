@@ -143,6 +143,8 @@
       margin-bottom: 16px;
     }
     .add-step-btn:hover { border-color: var(--blue); color: var(--blue-dark); background: var(--blue-bg); }
+    .add-step-btn.secondary { border-style: solid; color: var(--text-muted); }
+    .add-step-btn.secondary:hover { border-color: var(--red, #c0392b); color: var(--red, #c0392b); background: var(--red-bg, #fdf0ef); }
 
     /* ── Settings block ── */
     .settings-block {
@@ -487,6 +489,7 @@
     </table>
 
     <button class="add-step-btn" onclick="addStep()">＋ Add Step</button>
+    <button class="add-step-btn secondary" onclick="clearProtocol()">✕ Clear All</button>
 
     <div class="lt-section-label lt-section-label--tight">Settings</div>
     <div class="settings-block">
@@ -569,32 +572,12 @@
 
 <script>
 // ─────────────────────────────────────────────────────────────
-// Default protocol (Myelin Nissl staining)
+// Default protocol (fake testing protocol)
 // ─────────────────────────────────────────────────────────────
 const DEFAULT_PROTOCOL = [
-  { solution: 'DD Water',     durationMin: 3,  durationSec: 0,  slot: '1'  },
-  { solution: '70% EtOH',     durationMin: 3,  durationSec: 0,  slot: '2'  },
-  { solution: '95% EtOH',     durationMin: 3,  durationSec: 0,  slot: '3'  },
-  { solution: '95% EtOH',     durationMin: 3,  durationSec: 0,  slot: '3'  },
-  { solution: '100% EtOH',    durationMin: 3,  durationSec: 0,  slot: '4'  },
-  { solution: '100% EtOH',    durationMin: 3,  durationSec: 0,  slot: '4'  },
-  { solution: 'Citrisolve',   durationMin: 10, durationSec: 0,  slot: '5'  },
-  { solution: 'Citrisolve',   durationMin: 10, durationSec: 0,  slot: '5'  },
-  { solution: '100% EtOH',    durationMin: 3,  durationSec: 0,  slot: '6'  },
-  { solution: '100% EtOH',    durationMin: 3,  durationSec: 0,  slot: '6'  },
-  { solution: '95% EtOH',     durationMin: 3,  durationSec: 0,  slot: '7'  },
-  { solution: '95% EtOH',     durationMin: 3,  durationSec: 0,  slot: '7'  },
-  { solution: '70% EtOH',     durationMin: 3,  durationSec: 0,  slot: '8'  },
-  { solution: 'DD Water',     durationMin: 3,  durationSec: 0,  slot: '9'  },
-  { solution: 'Myelin Stain', durationMin: 10, durationSec: 0,  slot: '10' },
-  { solution: 'DD Water',     durationMin: 1,  durationSec: 0,  slot: '9'  },
-  { solution: 'Diff',         durationMin: 1,  durationSec: 30, slot: '11' },
-  { solution: 'DD Water',     durationMin: 1,  durationSec: 0,  slot: '9'  },
-  { solution: 'Nissl',        durationMin: 20, durationSec: 0,  slot: '12' },
-  { solution: 'DD Water',     durationMin: 1,  durationSec: 0,  slot: '9'  },
-  { solution: '95% EtOH',     durationMin: 1,  durationSec: 0,  slot: '7'  },
-  { solution: '100% EtOH',    durationMin: 1,  durationSec: 0,  slot: '6'  },
-  { solution: 'Citrisolve',   durationMin: 6,  durationSec: 0,  slot: '5'  },
+  { solution: 'Step A', durationMin: 0, durationSec: 5, slot: '1' },
+  { solution: 'Step B', durationMin: 0, durationSec: 5, slot: '2' },
+  { solution: 'Step C', durationMin: 0, durationSec: 5, slot: '3' },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -675,6 +658,22 @@ function updateStep(i, field, val) {
   }
   clearValidationWarnings();
   document.getElementById('validation-msg').textContent = '';
+  if (field === 'solution') tryAutoFillSlot(i);
+}
+
+function tryAutoFillSlot(i) {
+  if (protocol[i].slot !== '') return;
+  const name = protocol[i].solution.trim().toLowerCase();
+  if (!name) return;
+  for (let j = 0; j < protocol.length; j++) {
+    if (j === i) continue;
+    if (protocol[j].solution.trim().toLowerCase() === name && protocol[j].slot !== '') {
+      protocol[i].slot = protocol[j].slot;
+      const rows = document.querySelectorAll('.proto-row');
+      if (rows[i]) rows[i].querySelector('.col-slot input').value = protocol[j].slot;
+      return;
+    }
+  }
 }
 
 function addStep() {
@@ -695,6 +694,16 @@ function deleteStep(i) {
     conflictSlot !== null
       ? `Slot ${conflictSlot} is assigned to multiple solutions. Each slot can only contain one solution name.`
       : '';
+}
+
+function clearProtocol() {
+  if (!confirm('Clear all steps and start over?')) return;
+  protocol = [{ solution: '', durationMin: '', durationSec: '', slot: '' }];
+  clearValidationWarnings();
+  document.getElementById('validation-msg').textContent = '';
+  renderProtoTable();
+  const firstRow = document.querySelector('.proto-row');
+  if (firstRow) firstRow.querySelector('input[type="text"]').focus();
 }
 
 function moveStep(i, dir) {
