@@ -270,6 +270,68 @@
     }
     .done-state .progress-fill { background: var(--green-dark); }
 
+    .slot-rack {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px 13px;
+      margin-bottom: 14px;
+    }
+    .slot-rack[hidden] { display: none; }
+    .slot-rack-header {
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .slot-rack-status {
+      font-size: 0.81rem;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+    }
+    .slot-rack-status.unassigned {
+      color: var(--red);
+      font-weight: 600;
+    }
+    .slot-rack-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .slot-box {
+      width: 34px;
+      height: 16px;
+      border-radius: 4px;
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.66rem;
+      font-weight: 700;
+      line-height: 1;
+      transition: border-color 0.18s, background 0.18s, color 0.18s, transform 0.18s, box-shadow 0.18s;
+    }
+    .slot-box.active {
+      background: var(--blue-dark);
+      border-color: var(--blue-dark);
+      color: #fff;
+      box-shadow: 0 0 0 3px rgba(62, 114, 201, 0.15);
+      animation: slotPulse 1.35s ease-in-out infinite;
+    }
+    .done-state .slot-box.active {
+      background: var(--green-dark);
+      border-color: var(--green-dark);
+      box-shadow: 0 0 0 3px rgba(52, 135, 94, 0.14);
+    }
+    @keyframes slotPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.07); }
+    }
+
     .timer-controls {
       display: flex;
       gap: 8px;
@@ -465,6 +527,12 @@
       <div class="step-solution" id="step-solution">—</div>
       <div class="countdown" id="countdown">--:--</div>
       <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    </div>
+
+    <div class="slot-rack" id="slot-rack" hidden>
+      <div class="slot-rack-header">Slide Position</div>
+      <div class="slot-rack-status" id="slot-rack-status"></div>
+      <div class="slot-rack-row" id="slot-rack-row"></div>
     </div>
 
     <!-- Controls -->
@@ -820,11 +888,12 @@ function onAllDone() {
 // ─────────────────────────────────────────────────────────────
 function renderRunPanel() {
   const step = protocol[currentStep];
+  const slotNum = parseSlotNumber(step.slot);
 
   document.getElementById('step-counter').textContent =
     `Step ${currentStep + 1} of ${protocol.length}`;
   document.getElementById('step-slot-label').textContent =
-    step.slot ? `Slot ${step.slot}` : '';
+    slotNum !== null ? `Slot ${slotNum}` : 'No slot assigned';
   document.getElementById('step-solution').textContent = step.solution;
 
   const durationMs = parseFloat(step.duration) * 60 * 1000;
@@ -834,6 +903,7 @@ function renderRunPanel() {
       ? ((1 - pausedRemaining / durationMs) * 100).toFixed(1) + '%'
       : '0%';
 
+  renderSlotRack();
   renderNextStrip();
   renderStepsList();
   updateControls();
@@ -858,7 +928,8 @@ function renderNextStrip() {
     return;
   }
   const next = protocol[currentStep + 1];
-  const slotPart = next.slot ? ` · Slot ${next.slot}` : '';
+  const nextSlot = parseSlotNumber(next.slot);
+  const slotPart = nextSlot !== null ? ` · Slot ${nextSlot}` : ' · No slot assigned';
   strip.innerHTML = `<strong>Next:</strong> Step ${currentStep + 2}${slotPart} · ${escHtml(next.solution)} · ${next.duration} min`;
 }
 
@@ -872,7 +943,8 @@ function renderStepsList() {
     div.className = 'sl-row ' + (isDone ? 'sl-done' : isCurrent ? 'sl-current' : 'sl-upcoming');
 
     const icon = isDone ? '✓' : isCurrent ? '→' : '';
-    const slotStr = step.slot ? `Slot ${step.slot}` : '';
+    const slotNum = parseSlotNumber(step.slot);
+    const slotStr = slotNum !== null ? `Slot ${slotNum}` : 'No slot';
     const durStr = isCurrent && timerState === 'running'
       ? document.getElementById('countdown').textContent + ' left'
       : step.duration + ' min';
@@ -885,6 +957,42 @@ function renderStepsList() {
       <span class="sl-slot">${slotStr}</span>`;
     list.appendChild(div);
   });
+}
+
+function renderSlotRack() {
+  const rack = document.getElementById('slot-rack');
+  const status = document.getElementById('slot-rack-status');
+  const row = document.getElementById('slot-rack-row');
+  const current = protocol[currentStep];
+  const currentSlot = parseSlotNumber(current.slot);
+  const maxSlot = getMaxAssignedSlot();
+
+  if (maxSlot === null) {
+    rack.hidden = true;
+    status.textContent = '';
+    status.className = 'slot-rack-status';
+    row.innerHTML = '';
+    return;
+  }
+
+  rack.hidden = false;
+  row.innerHTML = '';
+
+  for (let slot = 1; slot <= maxSlot; slot++) {
+    const box = document.createElement('div');
+    box.className = 'slot-box' + (slot === currentSlot ? ' active' : '');
+    box.textContent = String(slot);
+    box.setAttribute('aria-label', `Slot ${slot}`);
+    row.appendChild(box);
+  }
+
+  if (currentSlot !== null) {
+    status.className = 'slot-rack-status';
+    status.textContent = `Slides are currently in ${current.solution}, slot ${currentSlot}.`;
+  } else {
+    status.className = 'slot-rack-status unassigned';
+    status.textContent = `Slides are in ${current.solution}, but no slot is assigned for this step.`;
+  }
 }
 
 function updateControls() {
@@ -1076,6 +1184,23 @@ function formatDuration(ms) {
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function parseSlotNumber(slot) {
+  if (slot === null || slot === undefined) return null;
+  const raw = String(slot).trim();
+  if (!/^\d+$/.test(raw)) return null;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function getMaxAssignedSlot() {
+  let max = null;
+  protocol.forEach(step => {
+    const slotNum = parseSlotNumber(step.slot);
+    if (slotNum !== null) max = max === null ? slotNum : Math.max(max, slotNum);
+  });
+  return max;
 }
 
 // ─────────────────────────────────────────────────────────────

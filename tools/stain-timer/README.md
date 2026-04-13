@@ -37,6 +37,10 @@ Click **Run Protocol →** to enter the timer view.
 | ↺ Reset | Return to step 1 (protocol is not changed) |
 | ← Back to Protocol | Return to Page 1 to edit the protocol |
 
+If any slots are assigned in the protocol, page 2 also shows a horizontal slot rack from `1` through the highest slot number used. The current step's slot is highlighted with a subtle pulse.
+
+If the current step has no slot assigned, the run page says so explicitly instead of guessing where the slides are.
+
 The browser **tab title** updates with the remaining time so you can monitor progress while working in other tabs.
 
 When all steps finish, **Export Results** downloads a CSV that includes:
