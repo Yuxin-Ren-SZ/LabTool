@@ -54,6 +54,7 @@ The scope is typically the tool name or the shared asset being changed:
 feat(seeding-calc): add bypass mode for known concentrations
 fix(cell-count): correct multiplier for 5-square mode
 enhance(seeding-calc): highlight warning when V₁ exceeds stock volume
+docs(counting-modes): align formulas with shared calculator
 docs(README): add link to counting-modes reference
 style(css): align card padding tokens
 ```

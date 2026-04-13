@@ -71,16 +71,3 @@ The hemocytometer large square volume is 0.1 µL = 10⁻⁴ mL, giving the × 10
 ## Count All Cells mode
 
 Check **"Count all cells (no Trypan Blue)"** in the live cell section if you are not using a viability dye. This disables and greys out the dead cell inputs. The result is labelled "Total Cells" instead of "Total Live Cells" and viability is not calculated.
-
----
-
-## Notion integration
-
-A companion Cell Count Calculator database lives in the MEA Chip Project notebook:
-
-| Page | URL |
-|---|---|
-| MEA Chip Project | https://www.notion.so/1fa040a9a3d7801292cdd28b698f14b7 |
-| Claude's Template | https://www.notion.so/336040a9a3d781cb8766cec519f83014 |
-| Dissociation Procedure | https://www.notion.so/336040a9a3d781e0aed2da906b8ac1bb |
-| Cell Count Calculator DB | https://www.notion.so/b4a5a6740d41432e9517744a5fca651f |

@@ -2,6 +2,8 @@
 
 A configurable step-by-step staining protocol timer with a countdown display, progress bar, and audio alarm.
 
+Part of the [LabTools](../../) collection.
+
 ## Workflow
 
 ### Page 1 — Protocol Setup

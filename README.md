@@ -7,16 +7,27 @@ No installation required — open any tool directly in a browser or visit the Gi
 
 | Tool | Description |
 |---|---|
-| [Cell Count Calculator](tools/cell-count/) | Hemocytometer counting with Trypan Blue viability, 4 counting modes, and dual-chamber support |
+| [Cell Count Calculator](tools/cell-count/) | Hemocytometer counting with Trypan Blue viability, 4 counting modes, and optional dual-chamber averaging |
+| [Cell Seeding Calculator](tools/seeding-calc/) | Two-step workflow for cell counting and C₁V₁ = C₂V₂ dilution planning, with optional direct concentration entry |
+| [Stain Timer](tools/stain-timer/) | Configurable multi-step staining protocol timer with countdown, slot tracking, CSV import/export, and audio alarms |
 
 ## Structure
 
 ```
 LabTools/
-├── index.html              # Hub landing page
-├── assets/css/labtools.css # Shared design system
+├── index.html                # Hub landing page
+├── README.md                 # Repo overview
+├── assets/
+│   ├── css/labtools.css      # Shared design system
+│   └── js/labtools-calc.js   # Shared pure calculation helpers
 ├── tools/
-│   └── cell-count/
+│   ├── cell-count/
+│   │   ├── index.html
+│   │   └── README.md
+│   ├── seeding-calc/
+│   │   ├── index.html
+│   │   └── README.md
+│   └── stain-timer/
 │       ├── index.html
 │       └── README.md
 └── docs/
@@ -29,4 +40,4 @@ Hosted on GitHub Pages from the `dev` branch. Each tool is a self-contained HTML
 
 ## Design
 
-All tools share a common design system defined in `assets/css/labtools.css` — a Notion-inspired clean aesthetic with CSS custom properties for colors, spacing, and typography. New tools should import this stylesheet and use the defined variables.
+All tools share a common design system defined in `assets/css/labtools.css` and shared bench-math utilities in `assets/js/labtools-calc.js`. New tools should import those shared assets when applicable, keep tool-specific UI self-contained, and avoid introducing frameworks or build tooling.

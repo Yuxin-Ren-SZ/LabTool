@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-LabTools is a collection of zero-dependency, static HTML tools for cell biology bench work. No build step, no bundler, no framework — each tool is a self-contained HTML file with inline CSS and a shared JS utility script.
+LabTools is a collection of zero-dependency, static HTML tools for cell biology bench work. No build step, no bundler, no framework — each tool is a self-contained HTML file with inline CSS and shared assets for common styling and pure calculation utilities.
 
 ## Deployment
 
@@ -18,16 +18,17 @@ LabTools/
 ├── assets/
 │   ├── css/labtools.css          # Shared design system (CSS custom properties + component classes)
 │   └── js/labtools-calc.js       # Shared pure-function utilities (no DOM, testable in any console)
-├── tools/
+├── tools/                        # One folder per tool, each with index.html + README.md
 │   ├── cell-count/index.html     # Standalone hemocytometer calculator
-│   └── seeding-calc/index.html   # Two-step guided tool: cell count → dilution (C₁V₁ = C₂V₂)
+│   ├── seeding-calc/index.html   # Cell count → dilution workflow with optional bypass
+│   └── stain-timer/index.html    # Configurable staining protocol timer
 └── docs/
     └── counting-modes.html       # Reference diagrams for hemocytometer counting modes
 ```
 
 ### Shared library: `assets/js/labtools-calc.js`
 
-All math lives here as plain globals (no modules). Each tool loads it via `<script src="../../assets/js/labtools-calc.js">`. Key exports:
+Shared calculation and formatting helpers live here as plain globals (no modules). Tools load it via `<script src="../../assets/js/labtools-calc.js">` when needed. Key exports:
 
 - `avgTwo(a, b)` — average two optional counts (handles NaN)
 - `fmt(n)` — integer with thousands commas, `'—'` for NaN
@@ -36,7 +37,7 @@ All math lives here as plain globals (no modules). Each tool loads it via `<scri
 - `restrictToNumeric(input)` — limits an `<input>` to numeric characters
 - `calcCellDensity(count, multiplier, df)` — core hemocytometer formula
 - `calcTotalCells(density, volML)` / `calcViabilityPct(live, dead)`
-- `makeDiagram(mode)` — generates SVG hemocytometer diagrams
+- `makeDiagram(largeHL, smallHL)` — generates SVG hemocytometer diagrams
 - `MODES` / `SMALL_ALL` / `SMALL_5` — counting mode definitions
 
 Quick tests can be run by pasting calls into any browser console (e.g. `calcCellDensity(80, 0.25, 20)` → `4000000`).
@@ -52,7 +53,7 @@ Notion-inspired aesthetic driven by CSS custom properties. Key conventions:
 
 ### Independence between tools
 
-`tools/seeding-calc/` contains its own copy of the cell count UI and does **not** import from `tools/cell-count/`. Both tools load `labtools-calc.js` for shared math but are otherwise independent.
+`tools/seeding-calc/` contains its own copy of the cell count UI and does **not** import from `tools/cell-count/`. `tools/stain-timer/` uses the shared CSS but is otherwise self-contained. Shared utilities should stay DOM-free so tools remain loosely coupled.
 
 ## Adding a New Tool
 
