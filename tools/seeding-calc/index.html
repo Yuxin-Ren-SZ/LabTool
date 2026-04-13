@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Cell Seeding Calculator · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <!-- Shared pure-function utilities (avgTwo, fmt, fmtSig, calcCellDensity, makeDiagram, MODES …) -->
+  <script src="../../assets/js/labtools-calc.js"></script>
   <style>
     body { display: flex; flex-direction: column; }
 
@@ -13,8 +15,7 @@
       display: flex;
       justify-content: center;
       padding: 32px 16px 64px;
-      /* clip so slide animation doesn't overflow */
-      overflow: hidden;
+      overflow: hidden; /* clip slide animation */
     }
 
     /* ── Card ── */
@@ -25,7 +26,6 @@
       padding: 28px 28px 24px;
       width: 100%;
       max-width: 600px;
-      /* height controlled by content */
     }
 
     /* ── Step progress bar ── */
@@ -55,16 +55,8 @@
       flex-shrink: 0;
       transition: all 0.2s;
     }
-    .step-pip.active .dot {
-      background: var(--blue-dark);
-      border-color: var(--blue-dark);
-      color: #fff;
-    }
-    .step-pip.done .dot {
-      background: var(--green);
-      border-color: var(--green);
-      color: #fff;
-    }
+    .step-pip.active .dot { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; }
+    .step-pip.done   .dot { background: var(--green);     border-color: var(--green);     color: #fff; }
     .step-pip.active { color: var(--text); }
     .step-pip.done   { color: var(--green-dark); }
     .step-connector {
@@ -77,24 +69,14 @@
     .step-connector.done { background: var(--green-border); }
 
     /* ── Step panels ── */
-    .step-panel {
-      display: none;
-    }
+    .step-panel { display: none; }
     .step-panel.active {
       display: block;
       animation: slideIn 0.22s ease;
     }
-    .step-panel.slide-back {
-      animation: slideInBack 0.22s ease;
-    }
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateX(28px); }
-      to   { opacity: 1; transform: translateX(0); }
-    }
-    @keyframes slideInBack {
-      from { opacity: 0; transform: translateX(-28px); }
-      to   { opacity: 1; transform: translateX(0); }
-    }
+    .step-panel.slide-back { animation: slideInBack 0.22s ease; }
+    @keyframes slideIn     { from { opacity: 0; transform: translateX(28px);  } to { opacity: 1; transform: translateX(0); } }
+    @keyframes slideInBack { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: translateX(0); } }
 
     h1 {
       font-size: 1.25rem;
@@ -108,146 +90,11 @@
       margin-bottom: 22px;
     }
 
-    /* ── Mode selector (Step 1) ── */
-    .mode-selector {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
-      margin-bottom: 10px;
-    }
-    .mode-option {
-      cursor: pointer;
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius-md);
-      padding: 10px 6px 8px;
-      display: flex; flex-direction: column; align-items: center; gap: 7px;
-      background: var(--surface);
-      transition: border-color 0.15s, background 0.15s;
-      user-select: none;
-    }
-    .mode-option:hover  { border-color: var(--blue); background: var(--blue-bg); }
-    .mode-option.active {
-      border-color: var(--blue-dark); background: var(--blue-bg);
-      box-shadow: 0 0 0 2px var(--blue-border);
-    }
-    .mode-tag {
-      font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.06em; color: var(--text-muted); text-align: center; line-height: 1.3;
-    }
-    .mode-option.active .mode-tag { color: var(--blue-dark); }
-
-    .mode-desc {
-      font-size: 0.78rem; color: var(--text-muted);
-      background: var(--surface-subtle); border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 20px; line-height: 1.5;
-    }
-    .mode-desc strong { color: var(--text); font-weight: 600; }
-    .mode-desc .formula-inline {
-      float: right; font-family: var(--font-mono); font-size: 0.72rem;
-      color: var(--text-dim); margin-left: 12px;
-    }
-
-    /* ── Group blocks ── */
-    .group-block {
-      background: var(--surface-subtle); border: 1.5px solid var(--border-subtle);
-      border-radius: 10px; padding: 13px 13px 10px; margin-bottom: 10px;
-      transition: opacity 0.2s;
-    }
-    .group-block.dead-block { border-color: var(--red-border); background: var(--red-bg); }
-    .group-block.disabled   { opacity: 0.38; pointer-events: none; }
-
-    .group-header {
-      font-size: 0.70rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.06em; color: var(--text-muted);
-      margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
-    }
-    .group-header .badge {
-      font-size: 0.64rem; background: var(--tag-bg); color: var(--text-dim);
-      border-radius: var(--radius-xs); padding: 1px 5px;
-      font-weight: 500; text-transform: none; letter-spacing: 0;
-    }
-
-    /* ── Count inputs ── */
-    .count-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .count-field label {
-      font-size: 0.72rem; font-weight: 600; color: var(--text-secondary);
-      text-transform: uppercase; letter-spacing: 0.03em; display: block; margin-bottom: 4px;
-    }
-    .count-field .opt-tag {
-      font-size: 0.64rem; color: var(--text-dim); font-weight: 400;
-      text-transform: none; letter-spacing: 0;
-    }
-    .count-field input[type="number"] {
-      width: 100%; padding: 8px 10px;
-      border: 1.5px solid var(--border); border-radius: var(--radius-md);
-      font-size: 0.92rem; font-family: var(--font); color: var(--text);
-      background: var(--surface); outline: none; transition: border-color 0.15s;
-    }
-    .count-field input[type="number"]:focus { border-color: var(--blue); }
-    .count-field input[type="number"]::placeholder { color: var(--text-placeholder); }
-    .dead-block .count-field input[type="number"] { border-color: var(--red-border-input); }
-    .dead-block .count-field input[type="number"]:focus { border-color: var(--red); }
-
-    .count-hint { font-size: 0.74rem; color: var(--text-muted); margin-top: 7px; }
-
-    .count-all-row {
-      display: flex; align-items: center; gap: 8px; margin-top: 10px;
-      padding-top: 10px; border-top: 1px solid var(--border-subtle);
-      cursor: pointer; user-select: none; width: fit-content;
-    }
-    .count-all-row input[type="checkbox"] {
-      width: 15px; height: 15px; accent-color: var(--blue-dark);
-      cursor: pointer; flex-shrink: 0; margin: 0;
-    }
-    .count-all-label { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
-    .count-all-sub   { font-size: 0.72rem; color: var(--text-muted); font-weight: 400; margin-left: 2px; }
-
-    .via-note { font-size: 0.74rem; color: var(--text-muted); margin-top: 8px; min-height: 16px; }
-    .via-note.computed { color: var(--green); font-weight: 600; }
-
-    /* ── Params row ── */
-    .params-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
-    .params-row label {
-      font-size: 0.72rem; font-weight: 600; color: var(--text-secondary);
-      text-transform: uppercase; letter-spacing: 0.03em; display: block; margin-bottom: 4px;
-    }
-    .params-row input[type="number"] {
-      width: 100%; padding: 8px 10px;
-      border: 1.5px solid var(--border); border-radius: var(--radius-md);
-      font-size: 0.92rem; font-family: var(--font); color: var(--text);
-      background: var(--surface); outline: none; transition: border-color 0.15s;
-    }
-    .params-row input[type="number"]:focus { border-color: var(--blue); }
-    .params-row input[type="number"]::placeholder { color: var(--text-placeholder); }
-
-    /* ── Results (Step 1) ── */
-    .results-title {
-      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 10px;
-    }
-    .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
-    .result-box { background: var(--surface-hover); border-radius: var(--radius-md); padding: 11px 13px; }
-    .result-box.hl-blue  { background: var(--blue-bg);  border: 1.5px solid var(--blue-border); }
-    .result-box.hl-green { background: var(--green-bg); border: 1.5px solid var(--green-border); }
-    .r-label { font-size: 0.70rem; color: var(--text-muted); font-weight: 500; margin-bottom: 3px; }
-    .r-value { font-size: 1.15rem; font-weight: 700; color: var(--text); }
-    .hl-blue  .r-value { color: var(--blue-dark); }
-    .hl-green .r-value { color: var(--green-dark); }
-    .r-unit   { font-size: 0.68rem; color: var(--text-dim); margin-top: 2px; }
-
-    /* ── Next / Back buttons ── */
+    /* ── Nav buttons ── */
     .nav-row {
       display: flex; align-items: center; justify-content: space-between;
       margin-top: 16px; gap: 10px;
     }
-    .btn-reset {
-      padding: 8px 16px;
-      border: 1.5px solid var(--border); border-radius: var(--radius-md);
-      background: transparent; font-size: 0.82rem; font-family: var(--font);
-      color: var(--text-muted); cursor: pointer; transition: all 0.15s;
-    }
-    .btn-reset:hover { background: var(--surface-hover); color: var(--text); }
-
     .btn-next {
       padding: 9px 22px;
       border: none; border-radius: var(--radius-md);
@@ -257,10 +104,8 @@
       display: flex; align-items: center; gap: 6px;
       margin-left: auto;
     }
-    .btn-next:hover   { opacity: 0.88; }
-    .btn-next:disabled {
-      background: var(--tag-bg); color: var(--text-muted); cursor: not-allowed; opacity: 1;
-    }
+    .btn-next:hover { opacity: 0.88; }
+    .btn-next:disabled { background: var(--tag-bg); color: var(--text-muted); cursor: not-allowed; opacity: 1; }
 
     .btn-back {
       padding: 9px 16px;
@@ -300,12 +145,8 @@
       border-radius: var(--radius-xs); padding: 1px 6px;
       text-transform: none; letter-spacing: 0;
     }
-    .dil-field label .var-tag.solving {
-      background: var(--green-bg); color: var(--green-dark);
-    }
-    .dil-field .unit-wrap {
-      position: relative;
-    }
+    .dil-field label .var-tag.solving { background: var(--green-bg); color: var(--green-dark); }
+    .dil-field .unit-wrap { position: relative; }
     .dil-field input {
       width: 100%; padding: 9px 48px 9px 10px;
       border: 1.5px solid var(--border); border-radius: var(--radius-md);
@@ -314,76 +155,45 @@
     }
     .dil-field input:focus { border-color: var(--blue); }
     .dil-field input::placeholder { color: var(--text-placeholder); }
-    .dil-field input.prefilled {
-      background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue-dark);
-    }
-    .dil-field input.solving {
-      background: var(--green-bg); border-color: var(--green-border);
-      color: var(--green-dark); font-weight: 700;
-    }
+    .dil-field input.prefilled { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue-dark); }
+    .dil-field input.solving   { background: var(--green-bg); border-color: var(--green-border); color: var(--green-dark); font-weight: 700; }
     .dil-field .unit {
       position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-      font-size: 0.72rem; color: var(--text-dim); pointer-events: none;
-      font-weight: 600;
+      font-size: 0.72rem; color: var(--text-dim); pointer-events: none; font-weight: 600;
     }
-    .dil-field .prefill-note {
-      font-size: 0.68rem; color: var(--blue-dark); margin-top: 2px;
-    }
+    .dil-field .prefill-note { font-size: 0.68rem; color: var(--blue-dark); margin-top: 2px; }
 
     /* ── Unit pill selectors (Step 2) ── */
-    .unit-pills {
-      display: flex;
-      gap: 3px;
-      margin-top: 5px;
-      flex-wrap: wrap;
-    }
+    .unit-pills { display: flex; gap: 3px; margin-top: 5px; flex-wrap: wrap; }
     .unit-pill {
       padding: 2px 8px;
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius-sm);
+      border: 1.5px solid var(--border); border-radius: var(--radius-sm);
       background: var(--surface);
-      font-size: 0.68rem;
-      font-weight: 700;
-      font-family: var(--font-mono);
+      font-size: 0.68rem; font-weight: 700; font-family: var(--font-mono);
       color: var(--text-muted);
-      cursor: pointer;
-      line-height: 1.5;
+      cursor: pointer; line-height: 1.5;
       transition: border-color 0.12s, background 0.12s, color 0.12s;
     }
-    .unit-pill:hover {
-      border-color: var(--blue);
-      color: var(--blue-dark);
-      background: var(--blue-bg);
-    }
-    .unit-pill.active {
-      background: var(--blue-dark);
-      border-color: var(--blue-dark);
-      color: #fff;
-    }
+    .unit-pill:hover  { border-color: var(--blue); color: var(--blue-dark); background: var(--blue-bg); }
+    .unit-pill.active { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; }
     .unit-pill.active:hover { opacity: 0.88; }
+    .unit-pill[title]  { cursor: help; }
 
-    /* answer summary box */
+    /* ── Answer box ── */
     .answer-box {
       background: var(--green-bg); border: 1.5px solid var(--green-border);
-      border-radius: var(--radius-md); padding: 14px 16px;
-      margin-bottom: 10px;
+      border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 10px;
     }
     .answer-box .ans-label {
       font-size: 0.70rem; font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.05em; color: var(--green-dark); margin-bottom: 6px;
     }
-    .answer-box .ans-value {
-      font-size: 1.3rem; font-weight: 800; color: var(--green-dark);
-    }
-    .answer-box .ans-unit {
-      font-size: 0.80rem; color: var(--green); margin-left: 4px; font-weight: 500;
-    }
-    .answer-box .ans-sub {
-      font-size: 0.78rem; color: var(--green-dark); margin-top: 4px; opacity: 0.8;
-    }
+    .answer-box .ans-value { font-size: 1.3rem; font-weight: 800; color: var(--green-dark); }
+    .answer-box .ans-unit  { font-size: 0.80rem; color: var(--green); margin-left: 4px; font-weight: 500; }
+    .answer-box .ans-sub   { font-size: 0.78rem; color: var(--green-dark); margin-top: 4px; opacity: 0.8; }
     .answer-box.hidden { display: none; }
 
-    /* media-to-add note */
+    /* ── Media-to-add note ── */
     .media-note {
       font-size: 0.80rem; color: var(--text-muted);
       background: var(--surface-subtle); border: 1px solid var(--border-subtle);
@@ -393,44 +203,40 @@
     .media-note strong { color: var(--text); }
     .media-note.hidden { display: none; }
 
+    /* ── Dilution error message ── */
+    .dilution-error {
+      font-size: 0.80rem; color: var(--red);
+      background: var(--red-bg); border: 1px solid var(--red-border);
+      border-radius: var(--radius-sm); padding: 9px 12px;
+      margin-bottom: 12px; line-height: 1.55; display: none;
+      font-weight: 600;
+    }
+    .dilution-error.visible { display: block; }
+
     .dil-reset-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
 
     /* ── Bypass toggle ── */
     .bypass-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      display: flex; align-items: center; gap: 8px;
       padding: 10px 12px;
-      background: var(--tag-bg);
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius-md);
-      margin-bottom: 18px;
-      cursor: pointer;
-      user-select: none;
+      background: var(--tag-bg); border: 1.5px solid var(--border);
+      border-radius: var(--radius-md); margin-bottom: 18px;
+      cursor: pointer; user-select: none;
       transition: background 0.15s, border-color 0.15s;
     }
-    .bypass-row:hover { background: var(--blue-bg); border-color: var(--blue); }
+    .bypass-row:hover  { background: var(--blue-bg); border-color: var(--blue); }
     .bypass-row.active { background: var(--blue-bg); border-color: var(--blue-dark); }
     .bypass-row input[type="checkbox"] {
-      width: 15px; height: 15px;
-      accent-color: var(--blue-dark);
+      width: 15px; height: 15px; accent-color: var(--blue-dark);
       cursor: pointer; flex-shrink: 0; margin: 0;
     }
-    .bypass-label {
-      font-size: 0.82rem; font-weight: 600; color: var(--text-secondary);
-    }
-    .bypass-label .bypass-sub {
-      font-size: 0.72rem; color: var(--text-muted); font-weight: 400; margin-left: 4px;
-    }
+    .bypass-label { font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); }
+    .bypass-label .bypass-sub { font-size: 0.72rem; color: var(--text-muted); font-weight: 400; margin-left: 4px; }
 
-    /* direct-entry block shown when bypassed */
+    /* Direct-entry concentration block (visible when bypassed) */
     .bypass-conc-block {
-      background: var(--blue-bg);
-      border: 1.5px solid var(--blue-border);
-      border-radius: 10px;
-      padding: 13px 13px 12px;
-      margin-bottom: 10px;
-      display: none;
+      background: var(--blue-bg); border: 1.5px solid var(--blue-border);
+      border-radius: 10px; padding: 13px 13px 12px; margin-bottom: 10px; display: none;
     }
     .bypass-conc-block.visible { display: block; }
     .bypass-conc-block .group-header { color: var(--blue-dark); }
@@ -444,47 +250,17 @@
     .bypass-conc-block input:focus { border-color: var(--blue-dark); }
     .bypass-conc-block input::placeholder { color: var(--text-placeholder); font-weight: 400; }
 
-    /* counting section disabled state */
-    #counting-section {
-      transition: opacity 0.2s;
-    }
-    #counting-section.disabled {
-      opacity: 0.32;
-      pointer-events: none;
-    }
+    /* Counting section disabled overlay */
+    #counting-section { transition: opacity 0.2s; }
+    #counting-section.disabled { opacity: 0.32; pointer-events: none; }
 
-    /* ── Unit legend (K / M / B hint) ── */
-    .unit-legend {
-      font-size: 0.68rem;
-      color: var(--text-dim);
-      margin-top: 5px;
-      letter-spacing: 0.01em;
-    }
-
-    /* ── Export action row ── */
-    .action-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 12px;
-    }
-    .action-row .btn-reset {
-      width: auto;
-      margin-top: 0;
-      padding: 8px 14px;
-    }
-    .export-note {
-      font-size: 0.76rem;
-      color: var(--text-muted);
-      margin-top: 6px;
-      min-height: 18px;
-    }
+    /* Export action row override (auto width, no top margin) */
+    .action-row .btn-reset { width: auto; margin-top: 0; padding: 8px 14px; }
+    .export-note { margin-top: 6px; }
 
     @media (max-width: 480px) {
-      .mode-selector { grid-template-columns: repeat(2, 1fr); }
-      .card { padding: 20px 16px; }
-      .dilution-grid { grid-template-columns: 1fr; }
-      .action-row { flex-direction: column; }
+      .card           { padding: 20px 16px; }
+      .dilution-grid  { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -531,13 +307,13 @@
     <!-- Direct-entry field (visible when bypassed) -->
     <div class="bypass-conc-block" id="bypass-conc-block">
       <div class="group-header">📐 Known Concentration</div>
-      <input type="text" inputmode="numeric" id="bypass-conc"
+      <input type="text" inputmode="decimal" id="bypass-conc"
              placeholder="e.g. 2,000,000  (cells/mL)"
              oninput="calcStep1()"/>
       <div class="unit-legend">K = 1,000 &nbsp;·&nbsp; M = 1,000,000 &nbsp;·&nbsp; B = 1,000,000,000</div>
     </div>
 
-    <!-- Counting section (greyed out when bypassed) -->
+    <!-- Counting section (greyed when bypassed) -->
     <div id="counting-section">
 
     <!-- Mode selector -->
@@ -551,11 +327,11 @@
       <div class="count-row">
         <div class="count-field">
           <label>Count 1</label>
-          <input type="number" id="live1" placeholder="e.g. 95" min="0" oninput="calcStep1()"/>
+          <input type="number" inputmode="numeric" id="live1" placeholder="e.g. 95" min="0" oninput="calcStep1()"/>
         </div>
         <div class="count-field">
           <label>Count 2 <span class="opt-tag">(optional — 2nd chamber)</span></label>
-          <input type="number" id="live2" placeholder="optional" min="0" oninput="calcStep1()"/>
+          <input type="number" inputmode="numeric" id="live2" placeholder="optional" min="0" oninput="calcStep1()"/>
         </div>
       </div>
       <div class="count-hint" id="live-hint"></div>
@@ -576,11 +352,11 @@
       <div class="count-row">
         <div class="count-field">
           <label>Count 1 <span class="opt-tag">(optional)</span></label>
-          <input type="number" id="dead1" placeholder="optional" min="0" oninput="calcStep1()"/>
+          <input type="number" inputmode="numeric" id="dead1" placeholder="optional" min="0" oninput="calcStep1()"/>
         </div>
         <div class="count-field">
           <label>Count 2 <span class="opt-tag">(optional — 2nd chamber)</span></label>
-          <input type="number" id="dead2" placeholder="optional" min="0" oninput="calcStep1()"/>
+          <input type="number" inputmode="numeric" id="dead2" placeholder="optional" min="0" oninput="calcStep1()"/>
         </div>
       </div>
       <div class="via-note" id="via-note">Enter dead counts above to auto-calculate viability.</div>
@@ -590,11 +366,11 @@
     <div class="params-row">
       <div>
         <label>Dilution Factor</label>
-        <input type="number" id="df" value="20" min="1" oninput="calcStep1()"/>
+        <input type="number" inputmode="decimal" id="df" value="20" min="1" oninput="calcStep1()"/>
       </div>
       <div>
         <label>Resuspension Volume (mL)</label>
-        <input type="number" id="vol" placeholder="e.g. 2" min="0" step="0.1" oninput="calcStep1()"/>
+        <input type="number" inputmode="decimal" id="vol" placeholder="e.g. 2" min="0" step="0.1" oninput="calcStep1()"/>
       </div>
     </div>
 
@@ -651,29 +427,31 @@
   <div class="step-panel" id="step2">
 
     <h1>⚗️ Dilution</h1>
-    <p class="subtitle">Supply any three values — the fourth is calculated automatically.</p>
+    <p class="subtitle">Leave the unknown field empty, then click Calculate.</p>
 
     <div class="equation-banner">C₁V₁ = C₂V₂</div>
 
+    <div class="dilution-error" id="dilution-error"></div>
+
     <div class="dilution-grid">
 
-      <!-- C1 -->
+      <!-- C1 — locked from Step 1 -->
       <div class="dil-field">
         <label>
           <span class="var-tag" id="c1-tag">C₁</span>
           Stock Concentration
         </label>
         <div class="unit-wrap">
-          <input type="text" inputmode="decimal" id="c1" placeholder="e.g. 2"
-                 oninput="calcDilution()" class="prefilled"/>
+          <input type="text" inputmode="decimal" id="c1" placeholder="—"
+                 readonly/>
           <span class="unit" id="c1-unit">M/mL</span>
         </div>
         <div class="prefill-note" id="c1-note">← from Step 1</div>
         <div class="unit-pills" id="c1-pills">
-          <button class="unit-pill" onclick="setConcentrationUnit('c1',1,'cells/mL',this)">cells</button>
-          <button class="unit-pill" onclick="setConcentrationUnit('c1',1e3,'K/mL',this)">K</button>
-          <button class="unit-pill active" onclick="setConcentrationUnit('c1',1e6,'M/mL',this)">M</button>
-          <button class="unit-pill" onclick="setConcentrationUnit('c1',1e9,'B/mL',this)">B</button>
+          <button class="unit-pill" title="cells per mL" onclick="setUnit('c1','cells')">cells</button>
+          <button class="unit-pill" title="× 1,000 cells per mL" onclick="setUnit('c1','K')">K</button>
+          <button class="unit-pill active" title="× 1,000,000 cells per mL" onclick="setUnit('c1','M')">M</button>
+          <button class="unit-pill" title="× 1,000,000,000 cells per mL" onclick="setUnit('c1','B')">B</button>
         </div>
       </div>
 
@@ -684,14 +462,15 @@
           Target Concentration
         </label>
         <div class="unit-wrap">
-          <input type="text" inputmode="decimal" id="c2" placeholder="e.g. 0.5" oninput="calcDilution()"/>
+          <input type="text" inputmode="decimal" id="c2" placeholder="leave empty to solve"
+                 oninput="onDilFieldInput('c2')"/>
           <span class="unit" id="c2-unit">M/mL</span>
         </div>
         <div class="unit-pills" id="c2-pills">
-          <button class="unit-pill" onclick="setConcentrationUnit('c2',1,'cells/mL',this)">cells</button>
-          <button class="unit-pill" onclick="setConcentrationUnit('c2',1e3,'K/mL',this)">K</button>
-          <button class="unit-pill active" onclick="setConcentrationUnit('c2',1e6,'M/mL',this)">M</button>
-          <button class="unit-pill" onclick="setConcentrationUnit('c2',1e9,'B/mL',this)">B</button>
+          <button class="unit-pill" title="cells per mL" onclick="setUnit('c2','cells')">cells</button>
+          <button class="unit-pill" title="× 1,000 cells per mL" onclick="setUnit('c2','K')">K</button>
+          <button class="unit-pill active" title="× 1,000,000 cells per mL" onclick="setUnit('c2','M')">M</button>
+          <button class="unit-pill" title="× 1,000,000,000 cells per mL" onclick="setUnit('c2','B')">B</button>
         </div>
       </div>
 
@@ -702,13 +481,14 @@
           Volume from Stock
         </label>
         <div class="unit-wrap">
-          <input type="number" id="v1" placeholder="e.g. 0.5" min="0" oninput="calcDilution()"/>
+          <input type="text" inputmode="decimal" id="v1" placeholder="leave empty to solve"
+                 oninput="onDilFieldInput('v1')"/>
           <span class="unit" id="v1-unit">mL</span>
         </div>
         <div class="unit-pills" id="v1-pills">
-          <button class="unit-pill" onclick="setVolumeUnit('v1',0.001,'µL',this)">µL</button>
-          <button class="unit-pill active" onclick="setVolumeUnit('v1',1,'mL',this)">mL</button>
-          <button class="unit-pill" onclick="setVolumeUnit('v1',1000,'L',this)">L</button>
+          <button class="unit-pill" title="microliters" onclick="setUnit('v1','uL')">µL</button>
+          <button class="unit-pill active" title="milliliters" onclick="setUnit('v1','mL')">mL</button>
+          <button class="unit-pill" title="liters" onclick="setUnit('v1','L')">L</button>
         </div>
       </div>
 
@@ -719,24 +499,29 @@
           Final Volume
         </label>
         <div class="unit-wrap">
-          <input type="number" id="v2" placeholder="e.g. 5" min="0" oninput="calcDilution()"/>
+          <input type="text" inputmode="decimal" id="v2" placeholder="leave empty to solve"
+                 oninput="onDilFieldInput('v2')"/>
           <span class="unit" id="v2-unit">mL</span>
         </div>
         <div class="unit-pills" id="v2-pills">
-          <button class="unit-pill" onclick="setVolumeUnit('v2',0.001,'µL',this)">µL</button>
-          <button class="unit-pill active" onclick="setVolumeUnit('v2',1,'mL',this)">mL</button>
-          <button class="unit-pill" onclick="setVolumeUnit('v2',1000,'L',this)">L</button>
+          <button class="unit-pill" title="microliters" onclick="setUnit('v2','uL')">µL</button>
+          <button class="unit-pill active" title="milliliters" onclick="setUnit('v2','mL')">mL</button>
+          <button class="unit-pill" title="liters" onclick="setUnit('v2','L')">L</button>
         </div>
       </div>
 
     </div><!-- /dilution-grid -->
+
+    <div style="text-align: center; margin: 16px 0;">
+      <button class="btn-next" onclick="calcDilution()" style="padding: 10px 24px; font-size: 0.9rem;">Calculate</button>
+    </div>
 
     <!-- Answer box -->
     <div class="answer-box hidden" id="answer-box">
       <div class="ans-label" id="ans-label">Solving for —</div>
       <div>
         <span class="ans-value" id="ans-value">—</span>
-        <span class="ans-unit" id="ans-unit"></span>
+        <span class="ans-unit"  id="ans-unit"></span>
       </div>
       <div class="ans-sub" id="ans-sub"></div>
     </div>
@@ -765,78 +550,39 @@
 <footer class="lt-footer">LabTools · Open source lab utilities</footer>
 
 <script>
-// ─────────────────────────────────────────────────────────────
-// SVG diagram generator
-// ─────────────────────────────────────────────────────────────
-function makeDiagram(largeHL, smallHL) {
-  const S = 22, G = 1.5, W = S * 3 + G * 4, ss = S / 5;
-  const isLHL = (r,c) => largeHL.some(([a,b]) => a===r && b===c);
-  const isSHL = (r,c) => smallHL === 'all' ||
-    (Array.isArray(smallHL) && smallHL.some(([a,b]) => a===r && b===c));
-
-  let s = `<svg width="${W}" height="${W}" viewBox="0 0 ${W} ${W}" xmlns="http://www.w3.org/2000/svg">`;
-  s += `<rect width="${W}" height="${W}" rx="2" fill="#f7f6f3"/>`;
-  for (let r = 0; r < 3; r++) {
-    for (let c = 0; c < 3; c++) {
-      const x = G + c*(S+G), y = G + r*(S+G);
-      const hl = isLHL(r,c), ctr = r===1 && c===1;
-      s += `<rect x="${x}" y="${y}" width="${S}" height="${S}" rx="1"
-              fill="${hl?'#dce7ff':'#fff'}"
-              stroke="${ctr?'#9b9a97':'#ccc9c2'}" stroke-width="${ctr?0.8:0.6}"/>`;
-      if (ctr) {
-        for (let sr = 0; sr < 5; sr++) for (let sc = 0; sc < 5; sc++) {
-          const shl = isSHL(sr,sc);
-          s += `<rect x="${x+sc*ss}" y="${y+sr*ss}" width="${ss}" height="${ss}"
-                  fill="${shl?'#c8d9ff':'#f0efed'}" stroke="#d0cfc9" stroke-width="0.3"/>`;
-          if (shl) s += `<circle cx="${x+sc*ss+ss/2}" cy="${y+sr*ss+ss/2}"
-                           r="${ss*0.22}" fill="#3366cc" opacity="0.85"/>`;
-        }
-      }
-      if (hl && !ctr)
-        s += `<circle cx="${x+S/2}" cy="${y+S/2}" r="3.5" fill="#3366cc" opacity="0.9"/>`;
-    }
-  }
-  s += `<rect x="0.8" y="0.8" width="${W-1.6}" height="${W-1.6}" rx="2"
-          fill="none" stroke="#37352f" stroke-width="1"/></svg>`;
-  return s;
-}
+// ═══════════════════════════════════════════════════════════════════
+// ⟳ SYNC SECTION — adapted from tools/cell-count/index.html
+//
+//   This section (up to "END SYNC") contains a lightly adapted copy
+//   of the standalone Cell Count Calculator's logic.
+//
+//   If you fix a bug or add a feature to tools/cell-count/index.html,
+//   search this file for "⟳ SYNC" to find and apply the same changes.
+//
+//   Differences from standalone:
+//     • The calculate function is named calcStep1() instead of calculate()
+//     • calcStep1() writes step1FinalDensity for Step 2 to consume
+//     • calcStep1() also updates btn-next disabled state
+//     • Bypass mode (skip counting) is added before the main counting logic
+// ═══════════════════════════════════════════════════════════════════
 
 // ─────────────────────────────────────────────────────────────
-// Counting modes
+// State
+// (makeDiagram, MODES, avgTwo, fmt, fmtSig, calcCellDensity,
+//  calcTotalCells, calcViabilityPct are from labtools-calc.js)
 // ─────────────────────────────────────────────────────────────
-const SMALL_ALL = 'all', SMALL_5 = [[0,0],[0,4],[2,2],[4,0],[4,4]];
-
-const MODES = [
-  { id:1, tag:'All 25\nsmall sq.', largeHL:[], smallHL:SMALL_ALL, multiplier:1,
-    formulaNote:'avg × DF × 10⁴',
-    desc:'<strong>All 25 small squares</strong> in center box — very dense samples. Enter total across all 25.',
-    hint:'Total cells across all 25 small squares' },
-  { id:2, tag:'5 small\nsq.', largeHL:[], smallHL:SMALL_5, multiplier:5,
-    formulaNote:'avg × 5 × DF × 10⁴',
-    desc:'<strong>5 small squares</strong> (4 corners + center) — dense samples. Enter total across those 5.',
-    hint:'Total cells across 5 small squares (corners + center)' },
-  { id:3, tag:'4 corner\nsq.', largeHL:[[0,0],[0,2],[2,0],[2,2]], smallHL:[], multiplier:0.25,
-    formulaNote:'avg ÷ 4 × DF × 10⁴',
-    desc:'<strong>4 large corner squares</strong> — standard routine counting. Enter total across all 4 corners.',
-    hint:'Total cells across all 4 corner squares' },
-  { id:4, tag:'1 corner\nsq.', largeHL:[[0,0]], smallHL:[], multiplier:1,
-    formulaNote:'count × DF × 10⁴',
-    desc:'<strong>Single corner square</strong> — quick estimate when density is adequate.',
-    hint:'Cells in one corner square' },
-];
-
-let currentModeId = 1;
+let currentModeId    = 1;
 let step1FinalDensity = NaN; // passed to Step 2
 
 // ─────────────────────────────────────────────────────────────
-// Build mode selector
+// Mode selector UI  [⟳ SYNC with cell-count/index.html]
 // ─────────────────────────────────────────────────────────────
 function buildModeSelector() {
   const container = document.getElementById('mode-selector');
   MODES.forEach(m => {
     const div = document.createElement('div');
     div.className = 'mode-option' + (m.id === currentModeId ? ' active' : '');
-    div.innerHTML = `${makeDiagram(m.largeHL, m.smallHL)}<span class="mode-tag">${m.tag.replace('\n','<br>')}</span>`;
+    div.innerHTML = `${makeDiagram(m.largeHL, m.smallHL)}<span class="mode-tag">${m.tag.replace('\n', '<br>')}</span>`;
     div.onclick = () => selectMode(m.id);
     container.appendChild(div);
   });
@@ -844,7 +590,7 @@ function buildModeSelector() {
 
 function selectMode(id) {
   currentModeId = id;
-  document.querySelectorAll('.mode-option').forEach((el,i) =>
+  document.querySelectorAll('.mode-option').forEach((el, i) =>
     el.classList.toggle('active', MODES[i].id === id));
   const m = MODES.find(x => x.id === id);
   document.getElementById('mode-desc').innerHTML =
@@ -854,66 +600,53 @@ function selectMode(id) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Step 1 helpers
+// Step 1 helpers  [⟳ SYNC with cell-count/index.html]
 // ─────────────────────────────────────────────────────────────
-function avgTwo(a, b) {
-  const ha = !isNaN(a), hb = !isNaN(b);
-  if (!ha && !hb) return { val: NaN, n: 0 };
-  if (ha && !hb)  return { val: a, n: 1 };
-  if (!ha && hb)  return { val: b, n: 1 };
-  return { val: (a+b)/2, n: 2 };
-}
 
-function fmt(n) {
-  if (isNaN(n) || n == null) return '—';
-  return Math.round(n).toLocaleString('en-US');
-}
-
-// Read a (possibly comma-formatted) text input as a number
+/**
+ * Parse a (possibly comma-formatted or K/M/B-suffixed) text input as a number.
+ * Used for the concentration text inputs in Step 1 bypass and Step 2 dilution grid.
+ */
 function getNumVal(id) {
-  return parseFloat(document.getElementById(id).value.replace(/,/g, ''));
+  const val = document.getElementById(id).value.trim();
+  if (!val) return NaN;
+  let clean = val.replace(/,/g, '');
+  const suffixMatch = clean.match(/^([0-9.]+)\s*(K|M|B)$/i);
+  if (suffixMatch) {
+    const num    = parseFloat(suffixMatch[1]);
+    const suffix = suffixMatch[2].toUpperCase();
+    const mult   = suffix === 'K' ? 1e3 : suffix === 'M' ? 1e6 : 1e9;
+    return num * mult;
+  }
+  if (/^[0-9.e+-]+$/i.test(clean)) {
+    const parsed = parseFloat(clean);
+    return isNaN(parsed) ? NaN : parsed;
+  }
+  return parseFloat(clean);
 }
 
-// Format a text input with commas after the user finishes editing.
-// On focus  → strip commas so editing is easy (just digits and a decimal point).
-// On blur / Enter → re-insert commas into the digit string.
+/** Strip commas when the user focuses a text input so editing is easy. */
 function setupCommaInput(id) {
   const el = document.getElementById(id);
   if (!el) return;
-
-  // Strip commas when the user starts editing
-  el.addEventListener('focus', function() {
+  el.addEventListener('focus', function () {
     const n = parseFloat(this.value.replace(/,/g, ''));
     this.value = isNaN(n) ? '' : n.toString();
   });
-
-  // Re-insert commas when done editing
-  el.addEventListener('blur', function() {
-    applyCommaFormat(this);
-  });
-
-  // Enter key counts as done
-  el.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') this.blur();
-  });
+  el.addEventListener('blur', function () { applyCommaFormat(this); });
+  el.addEventListener('keydown', function (e) { if (e.key === 'Enter') this.blur(); });
 }
 
-// Insert commas into the digit string currently in an input element.
-// Only digits (and one decimal point) are kept — anything else is stripped.
-// The integer portion gets commas; the decimal portion is preserved as-is.
-// Example: "2000000" → "2,000,000", "1.5" → "1.5", "3.14159" → "3.14159"
+/** Re-insert thousands commas into a text input value after editing. */
 function applyCommaFormat(el) {
-  // Keep only digits and the first decimal point
   let raw = el.value.replace(/[^0-9.]/g, '');
   const dot = raw.indexOf('.');
   if (dot !== -1)
     raw = raw.slice(0, dot + 1) + raw.slice(dot + 1).replace(/\./g, '');
-
   if (raw === '' || raw === '.') { el.value = raw; return; }
-
-  const parts   = raw.split('.');
-  const intStr  = parts[0] === '' ? '0' : parts[0];
-  const intVal  = parseInt(intStr, 10);
+  const parts  = raw.split('.');
+  const intStr = parts[0] === '' ? '0' : parts[0];
+  const intVal = parseInt(intStr, 10);
   const decPart = parts.length > 1 ? '.' + parts[1] : '';
   el.value = intVal.toLocaleString('en-US') + decPart;
 }
@@ -923,10 +656,8 @@ function onBypassToggle() {
   document.getElementById('bypass-row').classList.toggle('active', bypassed);
   document.getElementById('bypass-conc-block').classList.toggle('visible', bypassed);
   document.getElementById('counting-section').classList.toggle('disabled', bypassed);
-
   if (bypassed) {
-    // clear counting inputs so they don't affect the result
-    ['live1','live2','dead1','dead2'].forEach(id => document.getElementById(id).value = '');
+    ['live1', 'live2', 'dead1', 'dead2'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('count-all-toggle').checked = false;
     document.getElementById('dead-block').classList.remove('disabled');
   } else {
@@ -947,21 +678,21 @@ function onCountAllToggle() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Step 1 calculate
+// Step 1 calculate  [⟳ SYNC with cell-count/index.html — calcStep1 ≈ calculate]
 // ─────────────────────────────────────────────────────────────
 function calcStep1() {
   // ── Bypass mode: user enters known concentration directly ──
   const bypassed = document.getElementById('bypass-toggle').checked;
   if (bypassed) {
     const bypassVal = getNumVal('bypass-conc');
-    step1FinalDensity = (!isNaN(bypassVal) && bypassVal > 0) ? Math.round(bypassVal) : NaN;
+    step1FinalDensity = (!isNaN(bypassVal) && bypassVal > 0) ? bypassVal : NaN;
 
-    document.getElementById('res-avg').textContent      = '—';
-    document.getElementById('res-avg-note').textContent = 'bypassed';
-    document.getElementById('res-via').textContent      = '—';
-    document.getElementById('res-via-note').textContent = 'bypassed';
-    document.getElementById('via-note').textContent     = '';
-    document.getElementById('via-note').className       = 'via-note';
+    document.getElementById('res-avg').textContent       = '—';
+    document.getElementById('res-avg-note').textContent  = 'bypassed';
+    document.getElementById('res-via').textContent       = '—';
+    document.getElementById('res-via-note').textContent  = 'bypassed';
+    document.getElementById('via-note').textContent      = '';
+    document.getElementById('via-note').className        = 'via-note';
     document.getElementById('res-total-label').textContent = 'Total Cells';
     document.getElementById('res-density').textContent      = fmt(step1FinalDensity);
     document.getElementById('res-density-note').textContent = !isNaN(step1FinalDensity) ? 'cells / mL (entered)' : 'cells / mL';
@@ -981,21 +712,33 @@ function calcStep1() {
   const dead1 = parseFloat(document.getElementById('dead1').value);
   const dead2 = parseFloat(document.getElementById('dead2').value);
 
+  // Guard: negative counts are physically impossible  [⟳ SYNC fix]
+  if ((!isNaN(live1) && live1 < 0) || (!isNaN(live2) && live2 < 0) ||
+      (!isNaN(dead1) && dead1 < 0) || (!isNaN(dead2) && dead2 < 0)) {
+    step1FinalDensity = NaN;
+    document.getElementById('res-avg').textContent      = '—';
+    document.getElementById('res-density').textContent  = '—';
+    document.getElementById('res-total').textContent    = '—';
+    document.getElementById('via-note').textContent     = '⚠ Counts cannot be negative.';
+    document.getElementById('via-note').className       = 'via-note';
+    document.getElementById('btn-next').disabled = true;
+    return;
+  }
+
   const liveAvg = avgTwo(live1, live2);
   const deadAvg = avgTwo(dead1, dead2);
-  const avgLive = liveAvg.val, avgDead = deadAvg.val;
+  const avgLive = liveAvg.val;
+  const avgDead = deadAvg.val;
 
-  const perLargeSq   = !isNaN(avgLive) ? avgLive * mode.multiplier : NaN;
-  const finalDensity = (!isNaN(perLargeSq) && !isNaN(df)) ? Math.round(perLargeSq * df * 1e4) : NaN;
-  const totalCells   = (!isNaN(finalDensity) && !isNaN(vol) && vol > 0) ? Math.round(finalDensity * vol) : NaN;
+  // Core calculations via shared utilities
+  const finalDensity = calcCellDensity(avgLive, mode.multiplier, df);
+  const totalCells   = calcTotalCells(finalDensity, vol);
 
-  step1FinalDensity = finalDensity; // save for Step 2
+  step1FinalDensity = finalDensity; // pass to Step 2
 
-  // viability
+  // Viability — only when dead counts are entered (not in count-all mode)
   const hasDeadAny = !isAll && deadAvg.n > 0;
-  const viability  = (!isAll && !isNaN(avgLive) && hasDeadAny && !isNaN(avgDead))
-    ? (avgLive / (avgLive + avgDead)) * 100
-    : (!isAll && !isNaN(avgLive) && hasDeadAny && avgDead === 0) ? 100 : NaN;
+  const viability  = hasDeadAny ? calcViabilityPct(avgLive, avgDead) : NaN;
 
   // avg count
   document.getElementById('res-avg').textContent =
@@ -1037,29 +780,37 @@ function calcStep1() {
     !isNaN(finalDensity) && !isNaN(vol) && vol > 0 ? `density × ${vol} mL`
     : !isNaN(finalDensity) ? 'enter resuspension vol' : '—';
 
-  // enable Next button only when we have a density
+  // enable Next button only when we have a valid density
   document.getElementById('btn-next').disabled = isNaN(finalDensity);
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// ⟳ END SYNC (tools/cell-count/index.html)
+// ═══════════════════════════════════════════════════════════════════
+
 
 // ─────────────────────────────────────────────────────────────
 // Step navigation
 // ─────────────────────────────────────────────────────────────
 function goToStep2() {
-  // pre-fill C1 from Step 1 density — auto-select the best scale unit
+  // Pre-fill C1 from Step 1 density — auto-select the best unit scale
   const c1Input = document.getElementById('c1');
   if (!isNaN(step1FinalDensity)) {
     const u = autoBestConcUnit(step1FinalDensity);
-    unitState.c1 = { mult: u.mult, label: u.label };
+    dilState.c1.unitKey = u.pillText === 'cells' ? 'cells' : u.pillText;
     document.getElementById('c1-unit').textContent = u.label;
-    setActivePill('c1-pills', u.pillText);
-    c1Input.value = fmtSig(step1FinalDensity / u.mult);
-    c1Input.classList.add('prefilled');
+    document.querySelectorAll('#c1-pills .unit-pill').forEach(b =>
+      b.classList.toggle('active', b.textContent.trim() === u.pillText));
+    c1Input.value = fmt4(step1FinalDensity / u.mult);
     document.getElementById('c1-note').style.display = '';
   } else {
     c1Input.value = '';
-    c1Input.classList.remove('prefilled');
     document.getElementById('c1-note').style.display = 'none';
   }
+  renderDilFieldState('c1');
+  hideDilError();
+  document.getElementById('answer-box').classList.add('hidden');
+  document.getElementById('media-note').classList.add('hidden');
 
   document.getElementById('step1').classList.remove('active');
   const s2 = document.getElementById('step2');
@@ -1067,19 +818,19 @@ function goToStep2() {
   s2.classList.remove('slide-back');
   void s2.offsetWidth; // force reflow for animation
 
-  // update progress bar
   document.getElementById('pip1').classList.remove('active');
   document.getElementById('pip1').classList.add('done');
   document.getElementById('pip2').classList.add('active');
   document.getElementById('connector').classList.add('done');
-
-  calcDilution();
 }
 
 function goToStep1() {
   document.getElementById('step2').classList.remove('active');
   const s1 = document.getElementById('step1');
+  s1.classList.remove('slide-back'); // reset so animation re-triggers
   s1.classList.add('active');
+  void s1.offsetWidth; // force reflow
+  s1.classList.add('slide-back');
 
   document.getElementById('pip2').classList.remove('active');
   document.getElementById('pip1').classList.remove('done');
@@ -1087,216 +838,268 @@ function goToStep1() {
   document.getElementById('connector').classList.remove('done');
 }
 
-// ─────────────────────────────────────────────────────────────
-// Step 2 — Unit state + helpers
-// ─────────────────────────────────────────────────────────────
 
-// Tracks the multiplier and display label for each dilution field
-// Concentrations: mult is the cells-per-unit factor (e.g. 1e6 for M)
-// Volumes: mult converts display unit → mL (e.g. 0.001 for µL)
-const unitState = {
-  c1: { mult: 1e6, label: 'M/mL' },
-  c2: { mult: 1e6, label: 'M/mL' },
-  v1: { mult: 1,   label: 'mL'   },
-  v2: { mult: 1,   label: 'mL'   },
+// ─────────────────────────────────────────────────────────────
+// Step 2 — Unit registry
+// Base units: concentration in cells/mL, volume in µL.
+// Formula: C1_base × V1_base = C2_base × V2_base
+// (mixed units cancel identically on both sides)
+// ─────────────────────────────────────────────────────────────
+const CONC_UNITS = {
+  cells: { label: 'cells/mL', baseVal: 1   },
+  K:     { label: 'K/mL',     baseVal: 1e3 },
+  M:     { label: 'M/mL',     baseVal: 1e6 },
+  B:     { label: 'B/mL',     baseVal: 1e9 },
+};
+const VOL_UNITS = {
+  uL: { label: 'µL', baseVal: 1    },
+  mL: { label: 'mL', baseVal: 1e3  },
+  L:  { label: 'L',  baseVal: 1e6  },
+};
+const FIELD_UNITS = {
+  c1: CONC_UNITS, c2: CONC_UNITS,
+  v1: VOL_UNITS,  v2: VOL_UNITS,
 };
 
-// Called by concentration unit pill buttons
-function setConcentrationUnit(field, mult, label, btn) {
-  unitState[field] = { mult, label };
-  document.getElementById(field + '-unit').textContent = label;
-  btn.closest('.unit-pills').querySelectorAll('.unit-pill')
-    .forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  calcDilution();
+// Per-field state. 'from': 'inherited' | 'input' | 'calculated'
+const dilState = {
+  c1: { from: 'inherited', unitKey: 'M'  },
+  c2: { from: 'input',     unitKey: 'M'  },
+  v1: { from: 'input',     unitKey: 'mL' },
+  v2: { from: 'input',     unitKey: 'mL' },
+};
+
+/** Return the active unit object for a field. */
+function getUnit(field) {
+  return FIELD_UNITS[field][dilState[field].unitKey];
 }
 
-// Called by volume unit pill buttons
-function setVolumeUnit(field, mult, label, btn) {
-  unitState[field] = { mult, label };
-  document.getElementById(field + '-unit').textContent = label;
-  btn.closest('.unit-pills').querySelectorAll('.unit-pill')
-    .forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  calcDilution();
+/**
+ * Parse a field's displayed value into base units.
+ * Accepts plain numbers and comma-formatted numbers.
+ * Returns NaN if the field is empty or unparseable.
+ */
+function getBaseVal(field) {
+  const raw = document.getElementById(field).value.replace(/,/g, '').trim();
+  if (raw === '') return NaN;
+  const n = parseFloat(raw);
+  return isNaN(n) ? NaN : n * getUnit(field).baseVal;
 }
 
-// Choose the best concentration unit scale for a raw cells/mL value
-function autoBestConcUnit(cellsPerML) {
-  if (cellsPerML >= 1e9) return { mult: 1e9, label: 'B/mL', pillText: 'B' };
-  if (cellsPerML >= 1e6) return { mult: 1e6, label: 'M/mL', pillText: 'M' };
-  if (cellsPerML >= 1e3) return { mult: 1e3, label: 'K/mL', pillText: 'K' };
-  return { mult: 1, label: 'cells/mL', pillText: 'cells' };
-}
-
-// Activate a pill in a pill group by matching its text content
-function setActivePill(pillsId, pillText) {
-  document.querySelectorAll('#' + pillsId + ' .unit-pill').forEach(b =>
-    b.classList.toggle('active', b.textContent.trim() === pillText)
-  );
-}
-
-// Format a calculated result with appropriate significant figures.
-// Rules:
-//   • Exact integers → no decimal point (commas if large)
-//   • Non-integers   → toFixed based on magnitude so ≥ 2 sig figs are
-//                       always visible (trailing zeros are preserved)
-//   • Very small     → exponential notation
-function fmtSig(n) {
-  if (isNaN(n) || n == null) return '—';
+/** Format a number to at most 4 significant figures for display. */
+function fmt4(n) {
+  if (!isFinite(n) || n == null) return '—';
   if (n === 0) return '0';
   const abs = Math.abs(n);
-
-  // Scientific notation for very small values
-  if (abs < 0.001) return n.toExponential(2);
-
-  // Exact integers: no false precision, commas for large values
-  if (Number.isInteger(n))
-    return abs >= 1000 ? n.toLocaleString('en-US') : n.toString();
-
-  // Non-integer decimals: use toFixed to control decimal places so that
-  // trailing zeros are preserved and at least 2 sig figs are visible.
-  //   0.001–0.099  → 3 d.p.  e.g. 0.012 → "0.012"  (2 sig figs)
-  //   0.1–0.999    → 2 d.p.  e.g. 0.20  → "0.20"   (2 sig figs)
-  //   1–9.999      → 2 d.p.  e.g. 1.50  → "1.50"   (3 sig figs)
-  //   10–99.99     → 1 d.p.  e.g. 12.5  → "12.5"   (3 sig figs)
-  //   100–999.9    → 1 d.p.  e.g. 125.5 → "125.5"  (4 sig figs)
-  //   ≥1000        → rounded with commas
-  if (abs < 0.1)   return n.toFixed(3);
-  if (abs < 1)     return n.toFixed(2);
-  if (abs < 10)    return n.toFixed(2);
-  if (abs < 1000)  return n.toFixed(1);
-  return Math.round(n).toLocaleString('en-US');
+  if (abs < 1e-3) return parseFloat(n.toPrecision(4)).toExponential();
+  if (abs >= 1e4)  return parseFloat(n.toPrecision(4)).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  return parseFloat(n.toPrecision(4)).toString();
 }
 
-// Convert a mL value to the most readable volume unit for display
-function bestVolumeDisplay(mL) {
-  const abs = Math.abs(mL);
-  if (abs > 0 && abs < 1)    return { val: mL * 1000, unit: 'µL' };
-  if (abs >= 1000)           return { val: mL / 1000, unit: 'L'  };
-  return { val: mL, unit: 'mL' };
+/** Sync an input's CSS classes and readonly state to its dilState. */
+function renderDilFieldState(field) {
+  const el  = document.getElementById(field);
+  const tag = document.getElementById(field + '-tag');
+  const s   = dilState[field].from;
+  el.classList.toggle('prefilled',  s === 'inherited');
+  el.classList.toggle('solving',    s === 'calculated');
+  el.readOnly = (s === 'inherited');
+  if (tag) tag.classList.toggle('solving', s === 'calculated');
 }
+
+/** Called on every keystroke in an editable dilution field. */
+function onDilFieldInput(field) {
+  if (dilState[field].from === 'calculated') {
+    dilState[field].from = 'input';
+    renderDilFieldState(field);
+  }
+}
+
+/**
+ * Switch the display unit for a field.
+ * Converts the currently displayed value so the underlying quantity is preserved.
+ */
+function setUnit(field, unitKey) {
+  const oldUnit = getUnit(field);
+  dilState[field].unitKey = unitKey;
+  const newUnit = getUnit(field);
+
+  // Update label and active pill
+  document.getElementById(field + '-unit').textContent = newUnit.label;
+  document.querySelectorAll('#' + field + '-pills .unit-pill').forEach(b =>
+    b.classList.toggle('active', b.textContent.trim() === unitKey ||
+      (unitKey === 'uL' && b.textContent.trim() === 'µL')));
+
+  // Convert displayed value to the new unit (preserves base quantity)
+  const el  = document.getElementById(field);
+  const raw = parseFloat(el.value.replace(/,/g, ''));
+  if (!isNaN(raw)) {
+    el.value = fmt4(raw * oldUnit.baseVal / newUnit.baseVal);
+  }
+}
+
+function showDilError(msg) {
+  const el = document.getElementById('dilution-error');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+function hideDilError() {
+  const el = document.getElementById('dilution-error');
+  el.textContent = '';
+  el.classList.remove('visible');
+}
+
 
 // ─────────────────────────────────────────────────────────────
-// Step 2 — Dilution solver
+// Step 2 — Dilution solver (C₁V₁ = C₂V₂)
 // ─────────────────────────────────────────────────────────────
 function calcDilution() {
-  // Read display values, convert to base units (cells/mL and mL)
-  const c1_disp = getNumVal('c1');
-  const c2_disp = getNumVal('c2');
-  const v1_disp = getNumVal('v1');
-  const v2_disp = getNumVal('v2');
-
-  const c1 = isNaN(c1_disp) ? NaN : c1_disp * unitState.c1.mult;
-  const c2 = isNaN(c2_disp) ? NaN : c2_disp * unitState.c2.mult;
-  const v1 = isNaN(v1_disp) ? NaN : v1_disp * unitState.v1.mult;
-  const v2 = isNaN(v2_disp) ? NaN : v2_disp * unitState.v2.mult;
-
-  const fields = { c1, c2, v1, v2 };
-  const missing = Object.entries(fields).filter(([,v]) => isNaN(v)).map(([k]) => k);
+  hideDilError();
 
   const ansBox    = document.getElementById('answer-box');
   const mediaNote = document.getElementById('media-note');
 
-  // Reset all field styles
-  ['c1','c2','v1','v2'].forEach(id => {
-    document.getElementById(id).classList.remove('solving');
-    const tag = document.getElementById(id + '-tag');
-    if (tag) tag.classList.remove('solving');
-  });
+  // Gather base-unit values; collect empty (non-C1) fields
+  const baseVals = {};
+  const emptyFields = [];
 
-  // C1 prefilled styling — compare base-unit value to Step 1 density
-  const c1El = document.getElementById('c1');
-  const c1IsFromStep1 = !isNaN(step1FinalDensity) && !isNaN(c1) &&
-                        Math.abs(c1 - step1FinalDensity) < 0.5;
-  c1El.classList.toggle('prefilled', c1IsFromStep1);
+  for (const id of ['c1', 'c2', 'v1', 'v2']) {
+    const val = getBaseVal(id);
+    if (isNaN(val)) {
+      emptyFields.push(id);
+    } else {
+      baseVals[id] = val;
+    }
+  }
 
-  if (missing.length !== 1) {
+  // C1 is always locked — it should never be empty
+  if (emptyFields.includes('c1')) {
+    showDilError('C₁ is inherited from Step 1 — go back if the density needs updating.');
     ansBox.classList.add('hidden');
     mediaNote.classList.add('hidden');
     return;
   }
 
-  const solve = missing[0];
+  // Determine which field to solve
+  let solve = null;
 
-  // Solve for the missing variable in base units
-  let result_base = NaN;
-  if (solve === 'c1') result_base = (c2 * v2) / v1;
-  if (solve === 'v1') result_base = (c2 * v2) / c1;
+  if (emptyFields.length === 1) {
+    // Exactly one empty: solve for it
+    solve = emptyFields[0];
+  } else if (emptyFields.length === 0) {
+    // All filled — re-solve the previously calculated field if one exists
+    solve = ['c2', 'v1', 'v2'].find(id => dilState[id].from === 'calculated') || null;
+    if (!solve) {
+      showDilError('All fields are filled. Clear the value you want to solve for, then click Calculate.');
+      ansBox.classList.add('hidden');
+      mediaNote.classList.add('hidden');
+      return;
+    }
+    // Remove the calculated field's value from baseVals so it is re-derived
+    delete baseVals[solve];
+  } else {
+    showDilError(`${emptyFields.length} fields are empty — fill all but one, then click Calculate.`);
+    ansBox.classList.add('hidden');
+    mediaNote.classList.add('hidden');
+    return;
+  }
+
+  // Validate positive values (negative concentrations/volumes are physically impossible)
+  for (const [id, val] of Object.entries(baseVals)) {
+    if (val <= 0) {
+      showDilError(`${id.toUpperCase()} must be a positive value.`);
+      ansBox.classList.add('hidden');
+      mediaNote.classList.add('hidden');
+      return;
+    }
+  }
+
+  // Solve using base units: C1 × V1 = C2 × V2
+  const { c1, c2, v1, v2 } = baseVals;
+  let result_base;
   if (solve === 'c2') result_base = (c1 * v1) / v2;
+  if (solve === 'v1') result_base = (c2 * v2) / c1;
   if (solve === 'v2') result_base = (c1 * v1) / c2;
 
-  if (isNaN(result_base) || result_base <= 0) {
+  if (!isFinite(result_base) || result_base <= 0) {
+    showDilError('Invalid result — check that all inputs are positive numbers.');
     ansBox.classList.add('hidden');
     mediaNote.classList.add('hidden');
     return;
   }
 
-  // Convert result back to the user's selected display unit
-  const result_disp = result_base / unitState[solve].mult;
+  const result_disp = result_base / getUnit(solve).baseVal;
 
-  // Write result into the solved input field
-  const solveEl = document.getElementById(solve);
-  solveEl.value = fmtSig(result_disp);
-  solveEl.classList.add('solving');
-  const solveTag = document.getElementById(solve + '-tag');
-  if (solveTag) solveTag.classList.add('solving');
+  // Update field state: reset any old 'calculated' field → 'input', mark new solve
+  for (const id of ['c2', 'v1', 'v2']) {
+    if (id !== solve && dilState[id].from === 'calculated') {
+      dilState[id].from = 'input';
+    }
+  }
+  dilState[solve].from = 'calculated';
+
+  // Write result into the solved input
+  document.getElementById(solve).value = fmt4(result_disp);
+
+  // Sync all field visual states
+  ['c1', 'c2', 'v1', 'v2'].forEach(renderDilFieldState);
 
   // ── Answer box ──
-  const labels = {
+  const FIELD_LABELS = {
     c1: 'C₁ — Stock Concentration', c2: 'C₂ — Target Concentration',
     v1: 'V₁ — Volume from Stock',   v2: 'V₂ — Final Volume',
   };
-  document.getElementById('ans-label').textContent = 'Solving for ' + labels[solve];
-  document.getElementById('ans-value').textContent = fmtSig(result_disp);
-  document.getElementById('ans-unit').textContent  = unitState[solve].label;
+  document.getElementById('ans-label').textContent = 'Solved: ' + FIELD_LABELS[solve];
+  document.getElementById('ans-value').textContent = fmt4(result_disp);
+  document.getElementById('ans-unit').textContent  = getUnit(solve).label;
 
-  // Equation verification sub-note — show in display units so it's meaningful
-  const dc1 = isNaN(c1_disp) ? result_disp : c1_disp;
-  const dc2 = isNaN(c2_disp) ? result_disp : c2_disp;
-  const dv1 = isNaN(v1_disp) ? result_disp : v1_disp;
-  const dv2 = isNaN(v2_disp) ? result_disp : v2_disp;
+  // Verification equation (all values in their display units)
+  const allBase = { c1: baseVals.c1, c2: baseVals.c2, v1: baseVals.v1, v2: baseVals.v2 };
+  allBase[solve] = result_base;
+  const dc1 = fmt4(allBase.c1 / getUnit('c1').baseVal);
+  const dc2 = fmt4(allBase.c2 / getUnit('c2').baseVal);
+  const dv1 = fmt4(allBase.v1 / getUnit('v1').baseVal);
+  const dv2 = fmt4(allBase.v2 / getUnit('v2').baseVal);
   document.getElementById('ans-sub').textContent =
-    `${fmtSig(dc1)} ${unitState.c1.label} × ${fmtSig(dv1)} ${unitState.v1.label}` +
-    ` = ${fmtSig(dc2)} ${unitState.c2.label} × ${fmtSig(dv2)} ${unitState.v2.label}`;
+    `${dc1} ${getUnit('c1').label} × ${dv1} ${getUnit('v1').label}` +
+    ` = ${dc2} ${getUnit('c2').label} × ${dv2} ${getUnit('v2').label}`;
 
   ansBox.classList.remove('hidden');
 
-  // ── Media-to-add note (meaningful when both V1 and V2 are known) ──
-  const finalV1_mL = solve === 'v1' ? result_base : (isNaN(v1) ? NaN : v1);
-  const finalV2_mL = solve === 'v2' ? result_base : (isNaN(v2) ? NaN : v2);
-  const mediaToAdd_mL = finalV2_mL - finalV1_mL;
+  // ── Media-to-add note ──
+  // V base units are µL; bestVolumeDisplay() takes mL, so divide by 1000
+  const v1_uL = allBase.v1;
+  const v2_uL = allBase.v2;
+  const mediaToAdd_uL = v2_uL - v1_uL;
 
-  if (!isNaN(mediaToAdd_mL) && mediaToAdd_mL >= 0 &&
-      !isNaN(finalV1_mL) && !isNaN(finalV2_mL)) {
-    const mDisp = bestVolumeDisplay(mediaToAdd_mL);
-    const sDisp = bestVolumeDisplay(finalV1_mL);
-    const tDisp = bestVolumeDisplay(finalV2_mL);
-    const finalC2_cells = isNaN(c2) ? result_base : c2;
-    const finalC2_disp  = finalC2_cells / unitState.c2.mult;
+  if (isFinite(mediaToAdd_uL) && mediaToAdd_uL >= 0) {
+    const mDisp = bestVolumeDisplay(mediaToAdd_uL / 1000);
+    const sDisp = bestVolumeDisplay(v1_uL / 1000);
+    const tDisp = bestVolumeDisplay(v2_uL / 1000);
+    const c2_disp_val = fmt4(allBase.c2 / getUnit('c2').baseVal);
     mediaNote.innerHTML =
-      `💧 Add <strong>${fmtSig(mDisp.val)} ${mDisp.unit}</strong> of media ` +
-      `to <strong>${fmtSig(sDisp.val)} ${sDisp.unit}</strong> of stock ` +
-      `→ ${fmtSig(tDisp.val)} ${tDisp.unit} total ` +
-      `at <strong>${fmtSig(finalC2_disp)} ${unitState.c2.label}</strong>`;
+      `💧 Add <strong>${fmt4(mDisp.val)} ${mDisp.unit}</strong> of media ` +
+      `to <strong>${fmt4(sDisp.val)} ${sDisp.unit}</strong> of stock ` +
+      `→ ${fmt4(tDisp.val)} ${tDisp.unit} total ` +
+      `at <strong>${c2_disp_val} ${getUnit('c2').label}</strong>`;
     mediaNote.classList.remove('hidden');
   } else {
     mediaNote.classList.add('hidden');
   }
 }
 
+
 // ─────────────────────────────────────────────────────────────
 // Resets
 // ─────────────────────────────────────────────────────────────
 function resetStep1() {
-  // reset bypass
   document.getElementById('bypass-toggle').checked = false;
   document.getElementById('bypass-row').classList.remove('active');
   document.getElementById('bypass-conc-block').classList.remove('visible');
   document.getElementById('bypass-conc').value = '';
   document.getElementById('counting-section').classList.remove('disabled');
-  // reset counting inputs
-  ['live1','live2','dead1','dead2','vol'].forEach(id =>
+  ['live1', 'live2', 'dead1', 'dead2', 'vol'].forEach(id =>
     document.getElementById(id).value = '');
   document.getElementById('df').value = '20';
   document.getElementById('count-all-toggle').checked = false;
@@ -1305,32 +1108,34 @@ function resetStep1() {
 }
 
 function resetStep2() {
-  // Clear C2, V1, V2
-  ['c2','v1','v2'].forEach(id => {
+  // Clear editable fields and reset their state
+  for (const id of ['c2', 'v1', 'v2']) {
     document.getElementById(id).value = '';
-    document.getElementById(id).classList.remove('solving');
-  });
-  // Clear solved tag highlights
-  ['c1','c2','v1','v2'].forEach(id => {
-    const tag = document.getElementById(id + '-tag');
-    if (tag) tag.classList.remove('solving');
-  });
-  // Restore C1 prefill with auto-selected unit
+    dilState[id].from = 'input';
+  }
+
+  // Restore C1 with best auto-selected unit from Step 1 density
   const c1El = document.getElementById('c1');
   if (!isNaN(step1FinalDensity)) {
     const u = autoBestConcUnit(step1FinalDensity);
-    unitState.c1 = { mult: u.mult, label: u.label };
+    dilState.c1.unitKey = u.pillText === 'cells' ? 'cells' : u.pillText;
     document.getElementById('c1-unit').textContent = u.label;
-    setActivePill('c1-pills', u.pillText);
-    c1El.value = fmtSig(step1FinalDensity / u.mult);
-    c1El.classList.add('prefilled');
-    c1El.classList.remove('solving');
+    document.querySelectorAll('#c1-pills .unit-pill').forEach(b =>
+      b.classList.toggle('active', b.textContent.trim() === u.pillText));
+    c1El.value = fmt4(step1FinalDensity / u.mult);
   } else {
     c1El.value = '';
-    c1El.classList.remove('prefilled');
   }
-  calcDilution();
+
+  // Sync all visual states
+  ['c1', 'c2', 'v1', 'v2'].forEach(renderDilFieldState);
+
+  // Hide answer and error
+  document.getElementById('answer-box').classList.add('hidden');
+  document.getElementById('media-note').classList.add('hidden');
+  hideDilError();
 }
+
 
 // ─────────────────────────────────────────────────────────────
 // Export helpers
@@ -1340,36 +1145,32 @@ function getCellCountRows() {
   if (bypassed) {
     return [
       ['=== Cell Count ===', ''],
-      ['Mode', 'Bypass — concentration entered directly'],
-      ['Known concentration (cells/mL)', document.getElementById('bypass-conc').value || ''],
-      ['Final density (cells/mL)',       document.getElementById('res-density').textContent],
+      ['Mode',                            'Bypass — concentration entered directly'],
+      ['Known concentration (cells/mL)',  document.getElementById('bypass-conc').value || ''],
+      ['Final density (cells/mL)',        document.getElementById('res-density').textContent],
     ];
   }
   const mode  = MODES.find(m => m.id === currentModeId);
   const isAll = document.getElementById('count-all-toggle').checked;
   return [
     ['=== Cell Count ===', ''],
-    ['Counting mode',              mode.tag.replace(/\n/g, ' ')],
-    ['Formula',                   mode.formulaNote],
-    ['Count all cells (no Trypan Blue)', isAll ? 'Yes' : 'No'],
-    ['Live count 1',              document.getElementById('live1').value || ''],
-    ['Live count 2',              document.getElementById('live2').value || ''],
-    ['Dead count 1',              document.getElementById('dead1').value || ''],
-    ['Dead count 2',              document.getElementById('dead2').value || ''],
-    ['Dilution factor',           document.getElementById('df').value   || ''],
-    ['Resuspension volume (mL)',  document.getElementById('vol').value  || ''],
-    ['Average live count',        document.getElementById('res-avg').textContent],
-    ['Viability',                 document.getElementById('res-via').textContent],
-    ['Final density (cells/mL)',  document.getElementById('res-density').textContent],
-    ['Total cells',               document.getElementById('res-total').textContent],
+    ['Counting mode',                     mode.tag.replace(/\n/g, ' ')],
+    ['Formula',                           mode.formulaNote],
+    ['Count all cells (no Trypan Blue)',  isAll ? 'Yes' : 'No'],
+    ['Live count 1',                      document.getElementById('live1').value || ''],
+    ['Live count 2',                      document.getElementById('live2').value || ''],
+    ['Dead count 1',                      document.getElementById('dead1').value || ''],
+    ['Dead count 2',                      document.getElementById('dead2').value || ''],
+    ['Dilution factor',                   document.getElementById('df').value   || ''],
+    ['Resuspension volume (mL)',          document.getElementById('vol').value  || ''],
+    ['Average live count',               document.getElementById('res-avg').textContent],
+    ['Viability',                         document.getElementById('res-via').textContent],
+    ['Final density (cells/mL)',          document.getElementById('res-density').textContent],
+    ['Total cells',                       document.getElementById('res-total').textContent],
   ];
 }
 
 function getDilutionRows() {
-  const c1v = document.getElementById('c1').value;
-  const v1v = document.getElementById('v1').value;
-  const c2v = document.getElementById('c2').value;
-  const v2v = document.getElementById('v2').value;
   const ansLabel  = document.getElementById('ans-label').textContent;
   const ansValue  = document.getElementById('ans-value').textContent;
   const ansUnit   = document.getElementById('ans-unit').textContent;
@@ -1377,13 +1178,13 @@ function getDilutionRows() {
     ? '' : document.getElementById('media-note').innerText;
   return [
     ['=== Dilution (C₁V₁ = C₂V₂) ===', ''],
-    [`C₁ — Stock concentration (${unitState.c1.label})`, c1v],
-    [`V₁ — Volume from stock (${unitState.v1.label})`,   v1v],
-    [`C₂ — Target concentration (${unitState.c2.label})`,c2v],
-    [`V₂ — Final volume (${unitState.v2.label})`,        v2v],
-    ['Solved for',   ansLabel.replace('Solving for ', '')],
-    ['Solved value', ansValue + (ansUnit ? ' ' + ansUnit : '')],
-    ['Media to add', mediaText],
+    [`C₁ — Stock concentration (${getUnit('c1').label})`,  document.getElementById('c1').value],
+    [`V₁ — Volume from stock (${getUnit('v1').label})`,    document.getElementById('v1').value],
+    [`C₂ — Target concentration (${getUnit('c2').label})`, document.getElementById('c2').value],
+    [`V₂ — Final volume (${getUnit('v2').label})`,         document.getElementById('v2').value],
+    ['Solved for',    ansLabel.replace('Solved: ', '')],
+    ['Solved value',  ansValue + (ansUnit ? ' ' + ansUnit : '')],
+    ['Media to add',  mediaText],
   ];
 }
 
@@ -1395,8 +1196,7 @@ function makeCsv(rows) {
 }
 
 function setExportNote(msg) {
-  // update whichever step's note is visible
-  const s1 = document.getElementById('step1');
+  const s1     = document.getElementById('step1');
   const noteId = s1.classList.contains('active') ? 'export-note-s1' : 'export-note-s2';
   document.getElementById(noteId).textContent = msg;
 }
@@ -1422,7 +1222,8 @@ function copyResults(scope) {
   const rows = scope === 'full'
     ? [...getCellCountRows(), ['', ''], ...getDilutionRows()]
     : getCellCountRows();
-  const text = ['Cell Seeding Calculator Results', '', ...rows.map(r => `${r[0]}: ${r[1]}`)].join('\n');
+  const text = ['Cell Seeding Calculator Results', '',
+    ...rows.map(r => `${r[0]}: ${r[1]}`)].join('\n');
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text)
@@ -1450,18 +1251,22 @@ function fallbackCopyText(text) {
   document.body.removeChild(ta);
 }
 
+
 // ─────────────────────────────────────────────────────────────
 // Init
 // ─────────────────────────────────────────────────────────────
 buildModeSelector();
 selectMode(currentModeId);
 document.getElementById('c1-note').style.display = 'none';
-// Enable comma-formatting on blur for concentration inputs
 setupCommaInput('bypass-conc');
-setupCommaInput('c1');
+// c1 is readonly (inherited from Step 1) — no comma input setup needed
 setupCommaInput('c2');
-// Also apply comma format to bypass-conc on initial calcStep1 calls via the oninput handler,
-// so the bypass input formats itself when the user presses Enter or leaves the field.
+// Apply initial visual state to all dilution fields
+['c1', 'c2', 'v1', 'v2'].forEach(renderDilFieldState);
+
+// Restrict all number inputs; text-based dilution fields handle their own parsing
+document.querySelectorAll('input[type="number"]')
+  .forEach(el => el.addEventListener('keydown', restrictToNumeric));
 </script>
 </body>
 </html>
