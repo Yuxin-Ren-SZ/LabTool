@@ -215,6 +215,20 @@
 
     .dil-reset-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
 
+    /* ── Stock volume warning ── */
+    .stock-warning {
+      border-radius: var(--radius-sm); padding: 9px 12px;
+      margin-top: 10px; line-height: 1.55; font-size: 0.80rem;
+      font-weight: 600; display: none;
+    }
+    .stock-warning.visible { display: block; }
+    .stock-warning.caution {
+      color: #92400e; background: #fffbeb; border: 1px solid #fcd34d;
+    }
+    .stock-warning.danger {
+      color: var(--red); background: var(--red-bg); border: 1px solid var(--red-border);
+    }
+
     /* ── Bypass toggle ── */
     .bypass-row {
       display: flex; align-items: center; gap: 8px;
@@ -537,6 +551,9 @@
     <!-- Media to add note -->
     <div class="media-note hidden" id="media-note"></div>
 
+    <!-- Stock volume warning -->
+    <div class="stock-warning" id="stock-warning"></div>
+
     <!-- Export row -->
     <div class="action-row">
       <button class="btn-reset" onclick="copyResults('full')">📋 Copy All Results</button>
@@ -579,8 +596,9 @@
 // (makeDiagram, MODES, avgTwo, fmt, fmtSig, calcCellDensity,
 //  calcTotalCells, calcViabilityPct are from labtools-calc.js)
 // ─────────────────────────────────────────────────────────────
-let currentModeId    = 1;
+let currentModeId     = 1;
 let step1FinalDensity = NaN; // passed to Step 2
+let step1TotalVolML   = NaN; // resuspension volume from Step 1, in mL
 
 // ─────────────────────────────────────────────────────────────
 // Mode selector UI  [⟳ SYNC with cell-count/index.html]
@@ -725,6 +743,7 @@ function calcStep1() {
     const bypassRaw = getNumVal('bypass-conc');
     const bypassVal = isNaN(bypassRaw) ? NaN : bypassRaw * BYPASS_CONC_UNITS[bypassConcUnitKey].baseVal;
     step1FinalDensity = (!isNaN(bypassVal) && bypassVal > 0) ? bypassVal : NaN;
+    step1TotalVolML   = NaN; // no resuspension volume in bypass mode
 
     document.getElementById('res-avg').textContent       = '—';
     document.getElementById('res-avg-note').textContent  = 'bypassed';
@@ -745,6 +764,7 @@ function calcStep1() {
   const isAll = document.getElementById('count-all-toggle').checked;
   const df    = parseFloat(document.getElementById('df').value);
   const vol   = parseFloat(document.getElementById('vol').value);
+  step1TotalVolML = (!isNaN(vol) && vol > 0) ? vol : NaN;
 
   const live1 = parseFloat(document.getElementById('live1').value);
   const live2 = parseFloat(document.getElementById('live2').value);
@@ -850,6 +870,7 @@ function goToStep2() {
   hideDilError();
   document.getElementById('answer-box').classList.add('hidden');
   document.getElementById('media-note').classList.add('hidden');
+  document.getElementById('stock-warning').className = 'stock-warning';
 
   document.getElementById('step1').classList.remove('active');
   const s2 = document.getElementById('step2');
@@ -1126,6 +1147,32 @@ function calcDilution() {
   } else {
     mediaNote.classList.add('hidden');
   }
+
+  // ── Stock volume warning ──
+  const stockWarn = document.getElementById('stock-warning');
+  const v1_mL = v1_uL / 1000;
+  if (isFinite(v1_mL) && !isNaN(step1TotalVolML)) {
+    const pct = (v1_mL / step1TotalVolML) * 100;
+    const v1Disp  = bestVolumeDisplay(v1_mL);
+    const totDisp = bestVolumeDisplay(step1TotalVolML);
+    if (pct >= 100) {
+      stockWarn.textContent =
+        `⛔ Insufficient stock: you need ${fmt4(v1Disp.val)} ${v1Disp.unit} from stock, ` +
+        `but your total resuspension volume is only ${fmt4(totDisp.val)} ${totDisp.unit}. ` +
+        `This dilution cannot be made — try resuspending in a larger volume or choosing a higher target density.`;
+      stockWarn.className = 'stock-warning visible danger';
+    } else if (pct >= 90) {
+      stockWarn.textContent =
+        `⚠ Low stock: you need ${fmt4(v1Disp.val)} ${v1Disp.unit} from stock ` +
+        `(${pct.toFixed(0)}% of your ${fmt4(totDisp.val)} ${totDisp.unit} resuspension volume). ` +
+        `You may not have enough — consider a smaller final volume or a higher target density.`;
+      stockWarn.className = 'stock-warning visible caution';
+    } else {
+      stockWarn.className = 'stock-warning';
+    }
+  } else {
+    stockWarn.className = 'stock-warning';
+  }
 }
 
 
@@ -1170,9 +1217,10 @@ function resetStep2() {
   // Sync all visual states
   ['c1', 'c2', 'v1', 'v2'].forEach(renderDilFieldState);
 
-  // Hide answer and error
+  // Hide answer, media note, stock warning, and error
   document.getElementById('answer-box').classList.add('hidden');
   document.getElementById('media-note').classList.add('hidden');
+  document.getElementById('stock-warning').className = 'stock-warning';
   hideDilError();
 }
 
