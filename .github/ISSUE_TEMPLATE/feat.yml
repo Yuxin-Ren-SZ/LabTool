@@ -1,0 +1,72 @@
+name: New feature or tool
+description: Request a new tool or a net-new capability in an existing tool
+labels: [feat]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Title format:** `feat: short description of what to add`
+        Example: `feat: add protein dilution calculator tool`
+
+        > Use **enhance** instead if you want to improve something that already exists.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What would you like to add?
+      description: One-sentence summary of the new tool or capability.
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem it solves
+      description: Describe the bench workflow gap this would address.
+    validations:
+      required: true
+
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: How should the tool or feature work? What inputs does it take and what does it output?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Is this a new standalone tool or an addition to an existing tool?
+      options:
+        - New standalone tool
+        - Addition to an existing tool
+    validations:
+      required: true
+
+  - type: textarea
+    id: io
+    attributes:
+      label: Relevant inputs and outputs
+      description: List the numbers or values in, and the numbers or values out.
+      placeholder: |
+        Inputs: cell density (cells/mL), target volume (mL)
+        Output: volume of stock to transfer (mL)
+    validations:
+      required: false
+
+  - type: textarea
+    id: reference
+    attributes:
+      label: Scientific reference or formula
+      description: Link or description of the underlying biology or chemistry, if applicable.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I confirmed no existing tool already covers this
+          required: true

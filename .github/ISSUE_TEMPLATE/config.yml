@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question
+    url: https://github.com/Yuxin-Ren-SZ/LabTool/issues/new?template=question.yml
+    about: Use the Question template for science or tool behavior questions

@@ -1,0 +1,41 @@
+name: Question
+description: Ask about the science, a formula, or expected tool behavior
+labels: [question]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Title format:** `question: short description of what you want to know`
+        Example: `question: why does 4-corner mode divide rather than multiply`
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: Ask it directly.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What were you trying to do when this came up?
+    validations:
+      required: false
+
+  - type: textarea
+    id: research
+    attributes:
+      label: What you've already tried or found
+      description: Docs read, forum posts, prior issues, etc.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and discussions first
+          required: true

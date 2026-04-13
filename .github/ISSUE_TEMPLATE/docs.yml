@@ -1,0 +1,42 @@
+name: Documentation issue
+description: Something in the docs is wrong, missing, or unclear
+labels: [docs]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Title format:** `docs: short description of what needs fixing`
+        Example: `docs: counting-modes diagram missing 5-square description`
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: What is wrong or missing?
+      description: Describe the gap or error in the documentation.
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Location
+      description: File path or URL of the affected documentation.
+      placeholder: "e.g. docs/counting-modes.html or tools/seeding-calc/README.md"
+    validations:
+      required: true
+
+  - type: textarea
+    id: fix
+    attributes:
+      label: Suggested correction
+      description: If you know the right answer, put it here.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: This is a documentation issue, not a bug in the tool itself (use bug for wrong calculations)
+          required: true

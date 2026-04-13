@@ -1,0 +1,55 @@
+name: Enhancement to existing tool
+description: Improve the UX, flow, or output of a tool that already exists
+labels: [enhance]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Title format:** `enhance: short description of the improvement`
+        Example: `enhance: show recommended seeding range based on cell line`
+
+        > Use **feat** if you are requesting something that does not exist at all.
+        > Use **bug** if the tool is producing wrong results.
+
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Which tool?
+      options:
+        - cell-count
+        - seeding-calc
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behavior
+      description: What does the tool do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed improvement
+      description: What should change and why is it better for bench use?
+    validations:
+      required: true
+
+  - type: textarea
+    id: who
+    attributes:
+      label: Who benefits?
+      description: Describe the user or workflow that gains from this change.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: This is a UX or workflow improvement, not a net-new capability (use feat for new capabilities)
+          required: true
