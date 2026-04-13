@@ -307,10 +307,18 @@
     <!-- Direct-entry field (visible when bypassed) -->
     <div class="bypass-conc-block" id="bypass-conc-block">
       <div class="group-header">📐 Known Concentration</div>
-      <input type="text" inputmode="decimal" id="bypass-conc"
-             placeholder="e.g. 2,000,000  (cells/mL)"
-             oninput="calcStep1()"/>
-      <div class="unit-legend">K = 1,000 &nbsp;·&nbsp; M = 1,000,000 &nbsp;·&nbsp; B = 1,000,000,000</div>
+      <div style="position:relative; display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+        <input type="text" inputmode="decimal" id="bypass-conc"
+               placeholder="e.g. 2"
+               oninput="calcStep1()" style="flex:1; margin-bottom:0;"/>
+        <span id="bypass-conc-unit" style="font-size:0.78rem; font-weight:600; color:var(--blue-dark); white-space:nowrap;">M/mL</span>
+      </div>
+      <div class="unit-pills" id="bypass-conc-pills">
+        <button class="unit-pill" title="cells per mL" onclick="setBypassUnit('cells')">cells</button>
+        <button class="unit-pill" title="× 1,000 cells per mL" onclick="setBypassUnit('K')">K</button>
+        <button class="unit-pill active" title="× 1,000,000 cells per mL" onclick="setBypassUnit('M')">M</button>
+        <button class="unit-pill" title="× 1,000,000,000 cells per mL" onclick="setBypassUnit('B')">B</button>
+      </div>
     </div>
 
     <!-- Counting section (greyed when bypassed) -->
@@ -678,13 +686,44 @@ function onCountAllToggle() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Bypass concentration unit (reuses CONC_UNITS from Step 2 scope,
+// but defined here independently so Step 1 works standalone)
+// ─────────────────────────────────────────────────────────────
+const BYPASS_CONC_UNITS = {
+  cells: { label: 'cells/mL', baseVal: 1   },
+  K:     { label: 'K/mL',     baseVal: 1e3 },
+  M:     { label: 'M/mL',     baseVal: 1e6 },
+  B:     { label: 'B/mL',     baseVal: 1e9 },
+};
+let bypassConcUnitKey = 'M';
+
+function setBypassUnit(unitKey) {
+  const oldUnit = BYPASS_CONC_UNITS[bypassConcUnitKey];
+  bypassConcUnitKey = unitKey;
+  const newUnit = BYPASS_CONC_UNITS[unitKey];
+
+  document.getElementById('bypass-conc-unit').textContent = newUnit.label;
+  document.querySelectorAll('#bypass-conc-pills .unit-pill').forEach(b =>
+    b.classList.toggle('active', b.textContent.trim() === unitKey));
+
+  // Convert displayed value to the new unit
+  const el  = document.getElementById('bypass-conc');
+  const raw = parseFloat(el.value.replace(/,/g, ''));
+  if (!isNaN(raw)) el.value = String(parseFloat((raw * oldUnit.baseVal / newUnit.baseVal).toPrecision(4)));
+
+  calcStep1();
+}
+
+// ─────────────────────────────────────────────────────────────
 // Step 1 calculate  [⟳ SYNC with cell-count/index.html — calcStep1 ≈ calculate]
 // ─────────────────────────────────────────────────────────────
 function calcStep1() {
   // ── Bypass mode: user enters known concentration directly ──
   const bypassed = document.getElementById('bypass-toggle').checked;
   if (bypassed) {
-    const bypassVal = getNumVal('bypass-conc');
+    const bypassRaw = getNumVal('bypass-conc');
+    const bypassVal = isNaN(bypassRaw) ? NaN : bypassRaw * BYPASS_CONC_UNITS[bypassConcUnitKey].baseVal;
     step1FinalDensity = (!isNaN(bypassVal) && bypassVal > 0) ? bypassVal : NaN;
 
     document.getElementById('res-avg').textContent       = '—';
@@ -1098,6 +1137,7 @@ function resetStep1() {
   document.getElementById('bypass-row').classList.remove('active');
   document.getElementById('bypass-conc-block').classList.remove('visible');
   document.getElementById('bypass-conc').value = '';
+  setBypassUnit('M'); // reset unit to default
   document.getElementById('counting-section').classList.remove('disabled');
   ['live1', 'live2', 'dead1', 'dead2', 'vol'].forEach(id =>
     document.getElementById(id).value = '');
