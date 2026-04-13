@@ -126,6 +126,17 @@
     .act-btn:hover { background: var(--surface-hover); color: var(--text); }
     .act-btn.del:hover { background: var(--red-bg); color: var(--red); }
 
+    /* ── Drag handle ── */
+    .col-drag { width: 20px; padding: 0 2px !important; }
+    .drag-handle {
+      cursor: grab; color: var(--text-dim); font-size: 0.9rem;
+      padding: 4px 3px; line-height: 1; user-select: none;
+      display: flex; align-items: center;
+    }
+    .drag-handle:active { cursor: grabbing; }
+    .proto-row.drag-over { outline: 2px solid var(--blue); outline-offset: -2px; }
+    .proto-row.dragging  { opacity: 0.4; }
+
     .add-step-btn {
       display: flex;
       align-items: center;
@@ -478,6 +489,7 @@
     <table class="proto-table">
       <thead>
         <tr>
+          <th class="col-drag"></th>
           <th class="col-num">#</th>
           <th class="col-sol">Solution</th>
           <th class="col-dur">Duration</th>
@@ -597,8 +609,57 @@ let stepResults  = [];  // { solution, durationMin, durationSec, slot, startedAt
 let stepStartTs  = null;
 let validationWarnings = { solution: new Set(), slot: new Set() };
 
+// Drag-and-drop reorder state
+let dragSrcIndex = null;
+
 // Audio
 let audioCtx = null;
+
+// ─────────────────────────────────────────────────────────────
+// Sync DOM input values back into the protocol array
+// ─────────────────────────────────────────────────────────────
+function syncProtocolFromDOM() {
+  document.querySelectorAll('.proto-row').forEach((tr, i) => {
+    const inputs = tr.querySelectorAll('input');
+    protocol[i].solution   = inputs[0].value;
+    protocol[i].durationMin = inputs[1].value === '' ? '' : parseFloat(inputs[1].value);
+    protocol[i].durationSec = inputs[2].value === '' ? '' : parseFloat(inputs[2].value);
+    protocol[i].slot        = inputs[3].value;
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Drag-and-drop reorder helpers
+// ─────────────────────────────────────────────────────────────
+function onDragStart(e) {
+  dragSrcIndex = parseInt(e.currentTarget.dataset.index);
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+}
+function onDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+function onDrop(e) {
+  e.preventDefault();
+  const destIndex = parseInt(e.currentTarget.dataset.index);
+  e.currentTarget.classList.remove('drag-over');
+  if (dragSrcIndex === null || dragSrcIndex === destIndex) return;
+  syncProtocolFromDOM();
+  const [moved] = protocol.splice(dragSrcIndex, 1);
+  protocol.splice(destIndex, 0, moved);
+  dragSrcIndex = null;
+  renderProtoTable();
+}
+function onDragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+  document.querySelectorAll('.proto-row').forEach(r => r.classList.remove('drag-over'));
+  dragSrcIndex = null;
+}
 
 // ─────────────────────────────────────────────────────────────
 // Panel 1 — Protocol editor
@@ -609,7 +670,15 @@ function renderProtoTable() {
   protocol.forEach((step, i) => {
     const tr = document.createElement('tr');
     tr.className = 'proto-row';
+    tr.draggable = true;
+    tr.dataset.index = i;
+    tr.addEventListener('dragstart', onDragStart);
+    tr.addEventListener('dragover',  onDragOver);
+    tr.addEventListener('dragleave', onDragLeave);
+    tr.addEventListener('drop',      onDrop);
+    tr.addEventListener('dragend',   onDragEnd);
     tr.innerHTML = `
+      <td class="col-drag"><span class="drag-handle" title="Drag to reorder">⠿</span></td>
       <td class="col-num">${i + 1}</td>
       <td class="col-sol">
         <input type="text" placeholder="Solution name" value="${escHtml(step.solution)}"
@@ -809,15 +878,7 @@ function applyValidationWarnings() {
 }
 
 function goToRun() {
-  // Re-read current input values from the DOM before validating
-  const rows = document.querySelectorAll('.proto-row');
-  rows.forEach((tr, i) => {
-    const inputs = tr.querySelectorAll('input');
-    protocol[i].solution = inputs[0].value;
-    protocol[i].durationMin = inputs[1].value === '' ? '' : parseFloat(inputs[1].value);
-    protocol[i].durationSec = inputs[2].value === '' ? '' : parseFloat(inputs[2].value);
-    protocol[i].slot        = inputs[3].value;
-  });
+  syncProtocolFromDOM();
 
   const err = validateProtocol();
   if (err) {
@@ -1177,15 +1238,7 @@ function playAlarm() {
 // Import / Export
 // ─────────────────────────────────────────────────────────────
 function exportProtocol() {
-  // Re-read from DOM first
-  const rows = document.querySelectorAll('.proto-row');
-  rows.forEach((tr, i) => {
-    const inputs = tr.querySelectorAll('input');
-    protocol[i].solution = inputs[0].value;
-    protocol[i].durationMin = inputs[1].value === '' ? '' : parseFloat(inputs[1].value);
-    protocol[i].durationSec = inputs[2].value === '' ? '' : parseFloat(inputs[2].value);
-    protocol[i].slot        = inputs[3].value;
-  });
+  syncProtocolFromDOM();
 
   const header = 'Step,Solution,Duration Min,Duration Sec,Slot';
   const lines = protocol.map((s, i) =>
