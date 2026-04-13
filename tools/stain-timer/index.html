@@ -82,7 +82,7 @@
     }
     .proto-table th.col-num   { width: 32px; text-align: center; }
     .proto-table th.col-sol   { /* flex */ }
-    .proto-table th.col-dur   { width: 90px; }
+    .proto-table th.col-dur   { width: 170px; }
     .proto-table th.col-slot  { width: 68px; }
     .proto-table th.col-acts  { width: 72px; }
 
@@ -110,6 +110,7 @@
     .proto-row input:focus         { border-color: var(--blue); }
     .proto-row input::placeholder  { color: var(--text-placeholder); }
     .proto-row input.error         { border-color: var(--red); background: var(--red-bg); }
+    .proto-row input.warning       { border-color: var(--yellow-border); background: var(--yellow-bg); color: var(--yellow-dark); }
 
     .dur-wrap { display: flex; align-items: center; gap: 4px; }
     .dur-wrap span { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; }
@@ -571,29 +572,29 @@
 // Default protocol (Myelin Nissl staining)
 // ─────────────────────────────────────────────────────────────
 const DEFAULT_PROTOCOL = [
-  { solution: 'DD Water',     duration: 3,    slot: '1'  },
-  { solution: '70% EtOH',     duration: 3,    slot: '2'  },
-  { solution: '95% EtOH',     duration: 3,    slot: '3'  },
-  { solution: '95% EtOH',     duration: 3,    slot: '3'  },
-  { solution: '100% EtOH',    duration: 3,    slot: '4'  },
-  { solution: '100% EtOH',    duration: 3,    slot: '4'  },
-  { solution: 'Citrisolve',   duration: 10,   slot: '5'  },
-  { solution: 'Citrisolve',   duration: 10,   slot: '5'  },
-  { solution: '100% EtOH',    duration: 3,    slot: '6'  },
-  { solution: '100% EtOH',    duration: 3,    slot: '6'  },
-  { solution: '95% EtOH',     duration: 3,    slot: '7'  },
-  { solution: '95% EtOH',     duration: 3,    slot: '7'  },
-  { solution: '70% EtOH',     duration: 3,    slot: '8'  },
-  { solution: 'DD Water',     duration: 3,    slot: '9'  },
-  { solution: 'Myelin Stain', duration: 10,   slot: '10' },
-  { solution: 'DD Water',     duration: 1,    slot: '9'  },
-  { solution: 'Diff',         duration: 1.5,  slot: '11' },
-  { solution: 'DD Water',     duration: 1,    slot: '9'  },
-  { solution: 'Nissl',        duration: 20,   slot: '12' },
-  { solution: 'DD Water',     duration: 1,    slot: '9'  },
-  { solution: '95% EtOH',     duration: 1,    slot: '7'  },
-  { solution: '100% EtOH',    duration: 1,    slot: '6'  },
-  { solution: 'Citrisolve',   duration: 6,    slot: '5'  },
+  { solution: 'DD Water',     durationMin: 3,  durationSec: 0,  slot: '1'  },
+  { solution: '70% EtOH',     durationMin: 3,  durationSec: 0,  slot: '2'  },
+  { solution: '95% EtOH',     durationMin: 3,  durationSec: 0,  slot: '3'  },
+  { solution: '95% EtOH',     durationMin: 3,  durationSec: 0,  slot: '3'  },
+  { solution: '100% EtOH',    durationMin: 3,  durationSec: 0,  slot: '4'  },
+  { solution: '100% EtOH',    durationMin: 3,  durationSec: 0,  slot: '4'  },
+  { solution: 'Citrisolve',   durationMin: 10, durationSec: 0,  slot: '5'  },
+  { solution: 'Citrisolve',   durationMin: 10, durationSec: 0,  slot: '5'  },
+  { solution: '100% EtOH',    durationMin: 3,  durationSec: 0,  slot: '6'  },
+  { solution: '100% EtOH',    durationMin: 3,  durationSec: 0,  slot: '6'  },
+  { solution: '95% EtOH',     durationMin: 3,  durationSec: 0,  slot: '7'  },
+  { solution: '95% EtOH',     durationMin: 3,  durationSec: 0,  slot: '7'  },
+  { solution: '70% EtOH',     durationMin: 3,  durationSec: 0,  slot: '8'  },
+  { solution: 'DD Water',     durationMin: 3,  durationSec: 0,  slot: '9'  },
+  { solution: 'Myelin Stain', durationMin: 10, durationSec: 0,  slot: '10' },
+  { solution: 'DD Water',     durationMin: 1,  durationSec: 0,  slot: '9'  },
+  { solution: 'Diff',         durationMin: 1,  durationSec: 30, slot: '11' },
+  { solution: 'DD Water',     durationMin: 1,  durationSec: 0,  slot: '9'  },
+  { solution: 'Nissl',        durationMin: 20, durationSec: 0,  slot: '12' },
+  { solution: 'DD Water',     durationMin: 1,  durationSec: 0,  slot: '9'  },
+  { solution: '95% EtOH',     durationMin: 1,  durationSec: 0,  slot: '7'  },
+  { solution: '100% EtOH',    durationMin: 1,  durationSec: 0,  slot: '6'  },
+  { solution: 'Citrisolve',   durationMin: 6,  durationSec: 0,  slot: '5'  },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -609,8 +610,9 @@ let pausedRemaining = null; // ms remaining when paused
 let tickInterval = null;
 
 // Results tracking
-let stepResults  = [];  // { solution, duration, slot, startedAt, actualMs }
+let stepResults  = [];  // { solution, durationMin, durationSec, slot, startedAt, actualMs }
 let stepStartTs  = null;
+let validationWarnings = { solution: new Set(), slot: new Set() };
 
 // Audio
 let audioCtx = null;
@@ -632,10 +634,14 @@ function renderProtoTable() {
       </td>
       <td class="col-dur">
         <div class="dur-wrap">
-          <input type="number" min="0.1" step="0.5" placeholder="min"
-            value="${step.duration !== '' ? step.duration : ''}"
-            oninput="updateStep(${i},'duration',this.value)" style="width:64px"/>
+          <input type="number" min="0" step="1" placeholder="min"
+            value="${step.durationMin !== '' ? step.durationMin : ''}"
+            oninput="updateStep(${i},'durationMin',this.value)" style="width:58px"/>
           <span>min</span>
+          <input type="number" min="0" max="59.999" step="0.1" placeholder="sec"
+            value="${step.durationSec !== '' ? step.durationSec : ''}"
+            oninput="updateStep(${i},'durationSec',this.value)" style="width:64px"/>
+          <span>sec</span>
         </div>
       </td>
       <td class="col-slot">
@@ -651,22 +657,28 @@ function renderProtoTable() {
         </div>
       </td>`;
     tbody.appendChild(tr);
+
+    if (validationWarnings.solution.has(i))
+      tr.querySelector('.col-sol input').classList.add('warning');
+    if (validationWarnings.slot.has(i))
+      tr.querySelector('.col-slot input').classList.add('warning');
   });
 }
 
 function updateStep(i, field, val) {
-  if (field === 'duration') {
+  if (field === 'durationMin' || field === 'durationSec') {
     protocol[i][field] = val === '' ? '' : parseFloat(val);
   } else if (field === 'slot') {
     protocol[i][field] = val;
   } else {
     protocol[i][field] = val;
   }
+  clearValidationWarnings();
   document.getElementById('validation-msg').textContent = '';
 }
 
 function addStep() {
-  protocol.push({ solution: '', duration: '', slot: '' });
+  protocol.push({ solution: '', durationMin: '', durationSec: '', slot: '' });
   renderProtoTable();
   // Focus the new solution input
   const rows = document.querySelectorAll('.proto-row');
@@ -677,28 +689,114 @@ function addStep() {
 function deleteStep(i) {
   if (protocol.length <= 1) return;
   protocol.splice(i, 1);
+  const conflictSlot = collectSlotConflictWarnings();
   renderProtoTable();
+  document.getElementById('validation-msg').textContent =
+    conflictSlot !== null
+      ? `Slot ${conflictSlot} is assigned to multiple solutions. Each slot can only contain one solution name.`
+      : '';
 }
 
 function moveStep(i, dir) {
   const j = i + dir;
   if (j < 0 || j >= protocol.length) return;
   [protocol[i], protocol[j]] = [protocol[j], protocol[i]];
+  const conflictSlot = collectSlotConflictWarnings();
   renderProtoTable();
+  document.getElementById('validation-msg').textContent =
+    conflictSlot !== null
+      ? `Slot ${conflictSlot} is assigned to multiple solutions. Each slot can only contain one solution name.`
+      : '';
 }
 
 function validateProtocol() {
+  clearValidationWarnings();
   for (let i = 0; i < protocol.length; i++) {
     if (!protocol[i].solution.trim()) {
       return `Step ${i + 1}: solution name is required.`;
     }
-    const d = parseFloat(protocol[i].duration);
-    if (isNaN(d) || d <= 0) {
-      return `Step ${i + 1}: duration must be a positive number.`;
+    const slotRaw = String(protocol[i].slot || '').trim();
+    const min = parseFloat(protocol[i].durationMin);
+    const sec = parseFloat(protocol[i].durationSec);
+    if (isNaN(min) || min < 0 || !Number.isInteger(min)) {
+      return `Step ${i + 1}: minutes must be a non-negative integer.`;
+    }
+    if (isNaN(sec) || sec < 0 || sec >= 60) {
+      return `Step ${i + 1}: seconds must be at least 0 and less than 60.`;
+    }
+    if (getStepDurationMs(protocol[i]) <= 0) {
+      return `Step ${i + 1}: duration must be greater than 0 seconds.`;
+    }
+    if (slotRaw) {
+      const slotNum = parseSlotNumber(slotRaw);
+      if (slotNum === null) {
+        return `Step ${i + 1}: slot must be a positive integer.`;
+      }
     }
   }
   if (protocol.length === 0) return 'Add at least one step.';
+
+  const firstConflictSlot = collectSlotConflictWarnings();
+  if (firstConflictSlot !== null) {
+    applyValidationWarnings();
+    return `Slot ${firstConflictSlot} is assigned to multiple solutions. Each slot can only contain one solution name.`;
+  }
+
   return null;
+}
+
+function collectSlotConflictWarnings() {
+  clearValidationWarnings();
+  const slotSolutions = new Map();
+
+  for (let i = 0; i < protocol.length; i++) {
+    const solution = String(protocol[i].solution || '').trim();
+    const slotRaw = String(protocol[i].slot || '').trim();
+    if (!solution || !slotRaw) continue;
+
+    const slotNum = parseSlotNumber(slotRaw);
+    if (slotNum === null) continue;
+
+    const solutionKey = solution.toLowerCase();
+    const seen = slotSolutions.get(slotNum);
+    if (!seen) {
+      slotSolutions.set(slotNum, new Map([[solutionKey, [i]]]));
+      continue;
+    }
+
+    const rows = seen.get(solutionKey);
+    if (rows) rows.push(i);
+    else seen.set(solutionKey, [i]);
+  }
+
+  let firstConflictSlot = null;
+  slotSolutions.forEach((solutionsByName, slotNum) => {
+    if (solutionsByName.size <= 1) return;
+    if (firstConflictSlot === null) firstConflictSlot = slotNum;
+    solutionsByName.forEach(rows => {
+      rows.forEach(rowIdx => {
+        validationWarnings.solution.add(rowIdx);
+        validationWarnings.slot.add(rowIdx);
+      });
+    });
+  });
+
+  return firstConflictSlot;
+}
+
+function clearValidationWarnings() {
+  validationWarnings.solution.clear();
+  validationWarnings.slot.clear();
+  document.querySelectorAll('.proto-row input.warning').forEach(el => el.classList.remove('warning'));
+}
+
+function applyValidationWarnings() {
+  document.querySelectorAll('.proto-row').forEach((tr, i) => {
+    if (validationWarnings.solution.has(i))
+      tr.querySelector('.col-sol input').classList.add('warning');
+    if (validationWarnings.slot.has(i))
+      tr.querySelector('.col-slot input').classList.add('warning');
+  });
 }
 
 function goToRun() {
@@ -707,8 +805,9 @@ function goToRun() {
   rows.forEach((tr, i) => {
     const inputs = tr.querySelectorAll('input');
     protocol[i].solution = inputs[0].value;
-    protocol[i].duration = inputs[1].value === '' ? '' : parseFloat(inputs[1].value);
-    protocol[i].slot     = inputs[2].value;
+    protocol[i].durationMin = inputs[1].value === '' ? '' : parseFloat(inputs[1].value);
+    protocol[i].durationSec = inputs[2].value === '' ? '' : parseFloat(inputs[2].value);
+    protocol[i].slot        = inputs[3].value;
   });
 
   const err = validateProtocol();
@@ -723,7 +822,7 @@ function goToRun() {
   stepEndTime  = null;
   pausedRemaining = null;
   stepResults  = protocol.map(s => ({
-    solution: s.solution, duration: s.duration, slot: s.slot,
+    solution: s.solution, durationMin: s.durationMin, durationSec: s.durationSec, slot: s.slot,
     startedAt: null, actualMs: null
   }));
   clearInterval(tickInterval);
@@ -779,7 +878,7 @@ function toggleStartPause() {
 
 function startStep() {
   ensureAudio();
-  const durationMs = parseFloat(protocol[currentStep].duration) * 60 * 1000;
+  const durationMs = getStepDurationMs(protocol[currentStep]);
   const remaining = pausedRemaining !== null ? pausedRemaining : durationMs;
   pausedRemaining = null;
   stepEndTime = Date.now() + remaining;
@@ -823,7 +922,7 @@ function resetTimer() {
   pausedRemaining = null;
   stepStartTs = null;
   stepResults = protocol.map(s => ({
-    solution: s.solution, duration: s.duration, slot: s.slot,
+    solution: s.solution, durationMin: s.durationMin, durationSec: s.durationSec, slot: s.slot,
     startedAt: null, actualMs: null
   }));
   document.getElementById('current-block').className = 'current-step-block';
@@ -896,7 +995,7 @@ function renderRunPanel() {
     slotNum !== null ? `Slot ${slotNum}` : 'No slot assigned';
   document.getElementById('step-solution').textContent = step.solution;
 
-  const durationMs = parseFloat(step.duration) * 60 * 1000;
+  const durationMs = getStepDurationMs(step);
   renderCountdown(pausedRemaining !== null ? pausedRemaining : durationMs);
   document.getElementById('progress-fill').style.width =
     pausedRemaining !== null
@@ -916,7 +1015,7 @@ function renderCountdown(remainingMs) {
   document.getElementById('countdown').textContent =
     String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
 
-  const durationMs = parseFloat(protocol[currentStep].duration) * 60 * 1000;
+  const durationMs = getStepDurationMs(protocol[currentStep]);
   const pct = durationMs > 0 ? ((1 - remainingMs / durationMs) * 100) : 100;
   document.getElementById('progress-fill').style.width = Math.min(100, pct).toFixed(1) + '%';
 }
@@ -930,7 +1029,7 @@ function renderNextStrip() {
   const next = protocol[currentStep + 1];
   const nextSlot = parseSlotNumber(next.slot);
   const slotPart = nextSlot !== null ? ` · Slot ${nextSlot}` : ' · No slot assigned';
-  strip.innerHTML = `<strong>Next:</strong> Step ${currentStep + 2}${slotPart} · ${escHtml(next.solution)} · ${next.duration} min`;
+  strip.innerHTML = `<strong>Next:</strong> Step ${currentStep + 2}${slotPart} · ${escHtml(next.solution)} · ${formatStepDurationText(next)}`;
 }
 
 function renderStepsList() {
@@ -947,7 +1046,7 @@ function renderStepsList() {
     const slotStr = slotNum !== null ? `Slot ${slotNum}` : 'No slot';
     const durStr = isCurrent && timerState === 'running'
       ? document.getElementById('countdown').textContent + ' left'
-      : step.duration + ' min';
+      : formatStepDurationText(step);
 
     div.innerHTML = `
       <span class="sl-icon">${icon}</span>
@@ -1074,13 +1173,14 @@ function exportProtocol() {
   rows.forEach((tr, i) => {
     const inputs = tr.querySelectorAll('input');
     protocol[i].solution = inputs[0].value;
-    protocol[i].duration = inputs[1].value === '' ? '' : parseFloat(inputs[1].value);
-    protocol[i].slot     = inputs[2].value;
+    protocol[i].durationMin = inputs[1].value === '' ? '' : parseFloat(inputs[1].value);
+    protocol[i].durationSec = inputs[2].value === '' ? '' : parseFloat(inputs[2].value);
+    protocol[i].slot        = inputs[3].value;
   });
 
-  const header = 'Step,Solution,Duration (min),Slot';
+  const header = 'Step,Solution,Duration Min,Duration Sec,Slot';
   const lines = protocol.map((s, i) =>
-    [i + 1, csvCell(s.solution), s.duration, s.slot].join(',')
+    [i + 1, csvCell(s.solution), s.durationMin, s.durationSec, s.slot].join(',')
   );
   downloadCsv([header, ...lines].join('\n'), 'stain-protocol.csv');
 }
@@ -1110,22 +1210,28 @@ function parseProtocolCsv(text) {
   const steps = [];
   for (let i = 1; i < lines.length; i++) {
     const cols = splitCsvLine(lines[i]);
-    if (cols.length < 3) return { error: `Row ${i + 1}: expected at least 3 columns.` };
+    if (cols.length < 4) return { error: `Row ${i + 1}: expected at least 4 columns.` };
     const solution = cols[1] ? cols[1].trim() : '';
-    const duration = parseFloat(cols[2]);
-    const slot     = cols[3] ? cols[3].trim() : '';
+    const durationMin = parseFloat(cols[2]);
+    const durationSec = parseFloat(cols[3]);
+    const slot        = cols[4] ? cols[4].trim() : '';
     if (!solution) return { error: `Row ${i + 1}: solution name is empty.` };
-    if (isNaN(duration) || duration <= 0) return { error: `Row ${i + 1}: invalid duration.` };
-    steps.push({ solution, duration, slot });
+    if (isNaN(durationMin) || durationMin < 0 || !Number.isInteger(durationMin))
+      return { error: `Row ${i + 1}: invalid duration minutes.` };
+    if (isNaN(durationSec) || durationSec < 0 || durationSec >= 60)
+      return { error: `Row ${i + 1}: invalid duration seconds.` };
+    const step = { solution, durationMin, durationSec, slot };
+    if (getStepDurationMs(step) <= 0) return { error: `Row ${i + 1}: invalid duration.` };
+    steps.push(step);
   }
   return { steps };
 }
 
 function exportResults() {
-  const header = 'Step,Solution,Duration (min),Slot,Started At,Actual Duration (min)';
+  const header = 'Step,Solution,Duration Min,Duration Sec,Slot,Started At,Actual Duration (min)';
   const lines = stepResults.map((r, i) => {
     const actual = r.actualMs !== null ? (r.actualMs / 60000).toFixed(2) : '';
-    return [i + 1, csvCell(r.solution), r.duration, r.slot, r.startedAt || '', actual].join(',');
+    return [i + 1, csvCell(r.solution), r.durationMin, r.durationSec, r.slot, r.startedAt || '', actual].join(',');
   });
   downloadCsv([header, ...lines].join('\n'), 'stain-results.csv');
 }
@@ -1184,6 +1290,24 @@ function formatDuration(ms) {
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function getStepDurationMs(step) {
+  const min = Number(step.durationMin);
+  const sec = Number(step.durationSec);
+  if (isNaN(min) || isNaN(sec)) return NaN;
+  return (min * 60 + sec) * 1000;
+}
+
+function formatStepDurationText(step) {
+  const min = Number(step.durationMin);
+  const sec = Number(step.durationSec);
+  if (isNaN(min) || isNaN(sec)) return '—';
+  const hasFraction = !Number.isInteger(sec);
+  const secText = hasFraction ? sec.toFixed(1).replace(/\.0$/, '') : String(sec);
+  if (min === 0) return `${secText} sec`;
+  if (sec === 0) return `${min} min`;
+  return `${min} min ${secText} sec`;
 }
 
 function parseSlotNumber(slot) {
