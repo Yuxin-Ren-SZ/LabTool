@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Stain Timer · LabTools</title>
+  <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <script src="../../assets/js/labtools-calc.js"></script>
+  <style>
+    body { display: flex; flex-direction: column; }
+
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card);
+      padding: 28px 28px 24px;
+      width: 100%;
+      max-width: 660px;
+    }
+
+    /* ── Step bar ── */
+    .step-bar {
+      display: flex;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .step-pip {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .step-pip .dot {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: var(--tag-bg);
+      border: 2px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.68rem; font-weight: 700;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    .step-pip.active .dot { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; }
+    .step-pip.done   .dot { background: var(--green);     border-color: var(--green);     color: #fff; }
+    .step-pip.active { color: var(--text); }
+    .step-pip.done   { color: var(--green-dark); }
+    .step-connector {
+      flex: 1;
+      height: 2px;
+      background: var(--border-subtle);
+      margin: 0 10px;
+      transition: background 0.3s;
+    }
+    .step-connector.done { background: var(--green-border); }
+
+    /* ── Panels ── */
+    .panel { display: none; }
+    .panel.active { display: block; animation: slideIn 0.22s ease; }
+    .panel.slide-back { animation: slideInBack 0.22s ease; }
+    @keyframes slideIn     { from { opacity: 0; transform: translateX(24px);  } to { opacity: 1; transform: translateX(0); } }
+    @keyframes slideInBack { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: translateX(0); } }
+
+    /* ── Protocol editor table ── */
+    .proto-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+      margin-bottom: 12px;
+    }
+    .proto-table th {
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      padding: 0 6px 8px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .proto-table th.col-num   { width: 32px; text-align: center; }
+    .proto-table th.col-sol   { /* flex */ }
+    .proto-table th.col-dur   { width: 90px; }
+    .proto-table th.col-slot  { width: 68px; }
+    .proto-table th.col-acts  { width: 72px; }
+
+    .proto-row td { padding: 3px 4px; vertical-align: middle; }
+    .proto-row td.col-num {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-weight: 600;
+      width: 32px;
+    }
+    .proto-row input[type="text"],
+    .proto-row input[type="number"] {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 0.84rem;
+      font-family: var(--font);
+      color: var(--text);
+      background: var(--surface);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .proto-row input:focus         { border-color: var(--blue); }
+    .proto-row input::placeholder  { color: var(--text-placeholder); }
+    .proto-row input.error         { border-color: var(--red); background: var(--red-bg); }
+
+    .dur-wrap { display: flex; align-items: center; gap: 4px; }
+    .dur-wrap span { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; }
+
+    .acts-cell { display: flex; gap: 2px; align-items: center; }
+    .act-btn {
+      border: none; background: transparent; cursor: pointer;
+      color: var(--text-dim); font-size: 0.82rem;
+      padding: 4px 5px; border-radius: var(--radius-sm);
+      transition: color 0.12s, background 0.12s;
+      line-height: 1;
+    }
+    .act-btn:hover { background: var(--surface-hover); color: var(--text); }
+    .act-btn.del:hover { background: var(--red-bg); color: var(--red); }
+
+    .add-step-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: transparent;
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius-md);
+      padding: 7px 14px;
+      font-size: 0.82rem;
+      font-family: var(--font);
+      color: var(--text-muted);
+      cursor: pointer;
+      width: 100%;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      margin-bottom: 16px;
+    }
+    .add-step-btn:hover { border-color: var(--blue); color: var(--blue-dark); background: var(--blue-bg); }
+
+    /* ── Settings block ── */
+    .settings-block {
+      background: var(--surface-subtle);
+      border: 1.5px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      margin-bottom: 16px;
+    }
+    .alarm-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .alarm-row input[type="checkbox"] {
+      width: 15px; height: 15px;
+      accent-color: var(--blue-dark);
+      cursor: pointer; flex-shrink: 0; margin: 0;
+    }
+    .alarm-row-label { font-size: 0.84rem; font-weight: 600; color: var(--text-secondary); }
+    .alarm-row-sub   { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 400; }
+
+    /* ── Bottom action row ── */
+    .bottom-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .bottom-row .spacer { flex: 1; }
+    .btn-run {
+      padding: 9px 20px;
+      background: var(--blue-dark);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: 0.85rem;
+      font-weight: 700;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-run:hover   { opacity: 0.88; }
+    .btn-run:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Panel 2: timer display ── */
+    .timer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .btn-back {
+      background: transparent;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 6px 12px;
+      font-size: 0.80rem;
+      font-family: var(--font);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-back:hover { background: var(--surface-hover); color: var(--text); }
+
+    .current-step-block {
+      background: var(--blue-bg);
+      border: 1.5px solid var(--blue-border);
+      border-radius: var(--radius-lg);
+      padding: 20px 22px 18px;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+    .current-step-block.done-state {
+      background: var(--green-bg);
+      border-color: var(--green-border);
+    }
+    .step-counter {
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--blue-dark);
+      margin-bottom: 4px;
+    }
+    .done-state .step-counter { color: var(--green-dark); }
+    .step-slot-label {
+      font-size: 0.75rem;
+      color: var(--blue-dark);
+      font-weight: 500;
+      margin-bottom: 3px;
+    }
+    .done-state .step-slot-label { color: var(--green-dark); }
+    .step-solution {
+      font-size: 1.30rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+    .countdown {
+      font-size: 2.8rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: var(--blue-dark);
+      letter-spacing: -0.02em;
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+    .done-state .countdown { color: var(--green-dark); }
+    .progress-track {
+      width: 100%;
+      height: 7px;
+      background: var(--blue-border);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .done-state .progress-track { background: var(--green-border); }
+    .progress-fill {
+      height: 100%;
+      background: var(--blue-dark);
+      border-radius: 99px;
+      transition: width 0.1s linear;
+      width: 0%;
+    }
+    .done-state .progress-fill { background: var(--green-dark); }
+
+    .timer-controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .btn-start {
+      flex: 1;
+      padding: 10px 16px;
+      background: var(--blue-dark);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: 0.88rem;
+      font-weight: 700;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: opacity 0.15s;
+      min-width: 100px;
+    }
+    .btn-start:hover { opacity: 0.88; }
+    .btn-start:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-start.paused { background: var(--green-dark); }
+
+    .btn-skip, .btn-reset-timer {
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      background: transparent;
+      font-size: 0.84rem;
+      font-family: var(--font);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-skip:hover, .btn-reset-timer:hover { background: var(--surface-hover); color: var(--text); }
+    .btn-skip:disabled, .btn-reset-timer:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .next-step-strip {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px 13px;
+      font-size: 0.81rem;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+    .next-step-strip strong { color: var(--text-secondary); }
+
+    /* ── All steps list ── */
+    .steps-list {
+      max-height: 220px;
+      overflow-y: auto;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      margin-bottom: 14px;
+    }
+    .sl-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 0.81rem;
+      transition: background 0.12s;
+    }
+    .sl-row:last-child { border-bottom: none; }
+    .sl-row.sl-done     { color: var(--text-dim); }
+    .sl-row.sl-current  { background: var(--blue-bg); color: var(--text); font-weight: 600; }
+    .sl-row.sl-upcoming { color: var(--text-muted); }
+    .sl-icon { width: 16px; flex-shrink: 0; font-size: 0.72rem; text-align: center; }
+    .sl-num  { width: 22px; flex-shrink: 0; font-size: 0.72rem; color: var(--text-dim); text-align: right; }
+    .sl-sol  { flex: 1; }
+    .sl-dur  { font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; }
+    .sl-slot { font-size: 0.72rem; color: var(--text-dim); white-space: nowrap; }
+    .sl-row.sl-current .sl-dur  { color: var(--blue-dark); font-weight: 600; }
+    .sl-row.sl-current .sl-slot { color: var(--blue-dark); }
+
+    .done-banner {
+      text-align: center;
+      padding: 18px;
+      background: var(--green-bg);
+      border: 1.5px solid var(--green-border);
+      border-radius: var(--radius-lg);
+      color: var(--green-dark);
+      font-weight: 700;
+      font-size: 1.05rem;
+      margin-bottom: 14px;
+    }
+    .done-banner .done-sub {
+      font-size: 0.82rem;
+      font-weight: 400;
+      color: var(--green);
+      margin-top: 4px;
+    }
+
+    .validation-msg {
+      font-size: 0.78rem;
+      color: var(--red);
+      font-weight: 600;
+      min-height: 18px;
+      margin-bottom: 6px;
+    }
+
+    @media (max-width: 520px) {
+      .card { padding: 18px 14px; }
+      .countdown { font-size: 2.2rem; }
+      .proto-table th.col-slot,
+      .proto-row td.col-slot { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="lt-nav">
+  <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
+  <span class="lt-nav-sep">/</span>
+  <span class="lt-nav-page">Stain Timer</span>
+</nav>
+
+<div class="lt-page-body">
+<div class="card">
+
+  <h1 class="lt-tool-title">⏱ Stain Timer</h1>
+  <p class="lt-tool-subtitle">Configurable step-by-step staining protocol timer</p>
+
+  <!-- Step bar -->
+  <div class="step-bar">
+    <div class="step-pip active" id="pip1"><div class="dot">1</div>Protocol</div>
+    <div class="step-connector" id="conn1"></div>
+    <div class="step-pip" id="pip2"><div class="dot">2</div>Run</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       Panel 1 — Protocol Setup
+  ══════════════════════════════════════════════ -->
+  <div class="panel active" id="panel-setup">
+
+    <div class="lt-section-label lt-section-label--tight">Protocol Steps</div>
+
+    <table class="proto-table">
+      <thead>
+        <tr>
+          <th class="col-num">#</th>
+          <th class="col-sol">Solution</th>
+          <th class="col-dur">Duration</th>
+          <th class="col-slot">Slot</th>
+          <th class="col-acts"></th>
+        </tr>
+      </thead>
+      <tbody id="proto-body"></tbody>
+    </table>
+
+    <button class="add-step-btn" onclick="addStep()">＋ Add Step</button>
+
+    <div class="lt-section-label lt-section-label--tight">Settings</div>
+    <div class="settings-block">
+      <label class="alarm-row">
+        <input type="checkbox" id="alarm-toggle" checked />
+        <span>
+          <span class="alarm-row-label">Enable alarm buzzer</span>
+          <span class="alarm-row-sub"> — beeps when each step completes</span>
+        </span>
+      </label>
+    </div>
+
+    <div class="validation-msg" id="validation-msg"></div>
+    <div class="bottom-row">
+      <button class="btn-reset" onclick="exportProtocol()">⬇ Export Protocol</button>
+      <label class="btn-reset" style="cursor:pointer">
+        ⬆ Import Protocol
+        <input type="file" accept=".csv" id="import-input" style="display:none" onchange="importProtocol(event)"/>
+      </label>
+      <div class="spacer"></div>
+      <button class="btn-run" id="btn-run" onclick="goToRun()">Run Protocol →</button>
+    </div>
+
+  </div><!-- /panel-setup -->
+
+  <!-- ══════════════════════════════════════════════
+       Panel 2 — Run Timer
+  ══════════════════════════════════════════════ -->
+  <div class="panel" id="panel-run">
+
+    <div class="timer-header">
+      <button class="btn-back" onclick="goToSetup()">← Back to Protocol</button>
+    </div>
+
+    <!-- Current step display -->
+    <div class="current-step-block" id="current-block">
+      <div class="step-counter" id="step-counter">Step 1 of —</div>
+      <div class="step-slot-label" id="step-slot-label"></div>
+      <div class="step-solution" id="step-solution">—</div>
+      <div class="countdown" id="countdown">--:--</div>
+      <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="timer-controls">
+      <button class="btn-start" id="btn-start" onclick="toggleStartPause()">▶ Start</button>
+      <button class="btn-skip"  id="btn-skip"  onclick="skipStep()" disabled>⏭ Skip</button>
+      <button class="btn-reset-timer" id="btn-reset-timer" onclick="resetTimer()">↺ Reset</button>
+    </div>
+
+    <!-- Next step -->
+    <div class="next-step-strip" id="next-strip"></div>
+
+    <!-- All steps list -->
+    <div class="lt-section-label lt-section-label--tight">All Steps</div>
+    <div class="steps-list" id="steps-list"></div>
+
+    <!-- Done banner (hidden until finished) -->
+    <div class="done-banner" id="done-banner" style="display:none">
+      ✓ Protocol complete!
+      <div class="done-sub" id="done-sub"></div>
+    </div>
+
+    <div class="bottom-row">
+      <button class="btn-reset" id="btn-export-results" onclick="exportResults()" disabled>⬇ Export Results</button>
+    </div>
+
+  </div><!-- /panel-run -->
+
+</div>
+</div><!-- /lt-page-body -->
+
+<footer class="lt-footer">LabTools · Open source lab utilities</footer>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// Default protocol (Myelin Nissl staining)
+// ─────────────────────────────────────────────────────────────
+const DEFAULT_PROTOCOL = [
+  { solution: 'DD Water',     duration: 3,    slot: '1'  },
+  { solution: '70% EtOH',     duration: 3,    slot: '2'  },
+  { solution: '95% EtOH',     duration: 3,    slot: '3'  },
+  { solution: '95% EtOH',     duration: 3,    slot: '3'  },
+  { solution: '100% EtOH',    duration: 3,    slot: '4'  },
+  { solution: '100% EtOH',    duration: 3,    slot: '4'  },
+  { solution: 'Citrisolve',   duration: 10,   slot: '5'  },
+  { solution: 'Citrisolve',   duration: 10,   slot: '5'  },
+  { solution: '100% EtOH',    duration: 3,    slot: '6'  },
+  { solution: '100% EtOH',    duration: 3,    slot: '6'  },
+  { solution: '95% EtOH',     duration: 3,    slot: '7'  },
+  { solution: '95% EtOH',     duration: 3,    slot: '7'  },
+  { solution: '70% EtOH',     duration: 3,    slot: '8'  },
+  { solution: 'DD Water',     duration: 3,    slot: '9'  },
+  { solution: 'Myelin Stain', duration: 10,   slot: '10' },
+  { solution: 'DD Water',     duration: 1,    slot: '9'  },
+  { solution: 'Diff',         duration: 1.5,  slot: '11' },
+  { solution: 'DD Water',     duration: 1,    slot: '9'  },
+  { solution: 'Nissl',        duration: 20,   slot: '12' },
+  { solution: 'DD Water',     duration: 1,    slot: '9'  },
+  { solution: '95% EtOH',     duration: 1,    slot: '7'  },
+  { solution: '100% EtOH',    duration: 1,    slot: '6'  },
+  { solution: 'Citrisolve',   duration: 6,    slot: '5'  },
+];
+
+// ─────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────
+let protocol = DEFAULT_PROTOCOL.map(s => ({ ...s }));
+
+// Timer state
+let currentStep  = 0;       // 0-based index
+let timerState   = 'idle';  // idle | running | paused | done
+let stepEndTime  = null;    // absolute timestamp (ms)
+let pausedRemaining = null; // ms remaining when paused
+let tickInterval = null;
+
+// Results tracking
+let stepResults  = [];  // { solution, duration, slot, startedAt, actualMs }
+let stepStartTs  = null;
+
+// Audio
+let audioCtx = null;
+
+// ─────────────────────────────────────────────────────────────
+// Panel 1 — Protocol editor
+// ─────────────────────────────────────────────────────────────
+function renderProtoTable() {
+  const tbody = document.getElementById('proto-body');
+  tbody.innerHTML = '';
+  protocol.forEach((step, i) => {
+    const tr = document.createElement('tr');
+    tr.className = 'proto-row';
+    tr.innerHTML = `
+      <td class="col-num">${i + 1}</td>
+      <td class="col-sol">
+        <input type="text" placeholder="Solution name" value="${escHtml(step.solution)}"
+          oninput="updateStep(${i},'solution',this.value)" />
+      </td>
+      <td class="col-dur">
+        <div class="dur-wrap">
+          <input type="number" min="0.1" step="0.5" placeholder="min"
+            value="${step.duration !== '' ? step.duration : ''}"
+            oninput="updateStep(${i},'duration',this.value)" style="width:64px"/>
+          <span>min</span>
+        </div>
+      </td>
+      <td class="col-slot">
+        <input type="number" min="1" step="1" placeholder="—"
+          value="${step.slot !== '' ? step.slot : ''}"
+          oninput="updateStep(${i},'slot',this.value)" />
+      </td>
+      <td class="col-acts">
+        <div class="acts-cell">
+          <button class="act-btn" title="Move up"   onclick="moveStep(${i},-1)" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button class="act-btn" title="Move down"  onclick="moveStep(${i},+1)" ${i === protocol.length-1 ? 'disabled' : ''}>↓</button>
+          <button class="act-btn del" title="Delete" onclick="deleteStep(${i})">🗑</button>
+        </div>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateStep(i, field, val) {
+  if (field === 'duration') {
+    protocol[i][field] = val === '' ? '' : parseFloat(val);
+  } else if (field === 'slot') {
+    protocol[i][field] = val;
+  } else {
+    protocol[i][field] = val;
+  }
+  document.getElementById('validation-msg').textContent = '';
+}
+
+function addStep() {
+  protocol.push({ solution: '', duration: '', slot: '' });
+  renderProtoTable();
+  // Focus the new solution input
+  const rows = document.querySelectorAll('.proto-row');
+  const lastRow = rows[rows.length - 1];
+  if (lastRow) lastRow.querySelector('input[type="text"]').focus();
+}
+
+function deleteStep(i) {
+  if (protocol.length <= 1) return;
+  protocol.splice(i, 1);
+  renderProtoTable();
+}
+
+function moveStep(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= protocol.length) return;
+  [protocol[i], protocol[j]] = [protocol[j], protocol[i]];
+  renderProtoTable();
+}
+
+function validateProtocol() {
+  for (let i = 0; i < protocol.length; i++) {
+    if (!protocol[i].solution.trim()) {
+      return `Step ${i + 1}: solution name is required.`;
+    }
+    const d = parseFloat(protocol[i].duration);
+    if (isNaN(d) || d <= 0) {
+      return `Step ${i + 1}: duration must be a positive number.`;
+    }
+  }
+  if (protocol.length === 0) return 'Add at least one step.';
+  return null;
+}
+
+function goToRun() {
+  // Re-read current input values from the DOM before validating
+  const rows = document.querySelectorAll('.proto-row');
+  rows.forEach((tr, i) => {
+    const inputs = tr.querySelectorAll('input');
+    protocol[i].solution = inputs[0].value;
+    protocol[i].duration = inputs[1].value === '' ? '' : parseFloat(inputs[1].value);
+    protocol[i].slot     = inputs[2].value;
+  });
+
+  const err = validateProtocol();
+  if (err) {
+    document.getElementById('validation-msg').textContent = err;
+    return;
+  }
+
+  // Reset timer state
+  currentStep  = 0;
+  timerState   = 'idle';
+  stepEndTime  = null;
+  pausedRemaining = null;
+  stepResults  = protocol.map(s => ({
+    solution: s.solution, duration: s.duration, slot: s.slot,
+    startedAt: null, actualMs: null
+  }));
+  clearInterval(tickInterval);
+
+  renderRunPanel();
+  showPanel('run');
+}
+
+function goToSetup() {
+  clearInterval(tickInterval);
+  timerState = 'idle';
+  document.title = 'Stain Timer · LabTools';
+  showPanel('setup', true);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Panel navigation
+// ─────────────────────────────────────────────────────────────
+function showPanel(name, back) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  const target = document.getElementById('panel-' + name);
+  if (back) target.classList.add('slide-back');
+  else      target.classList.remove('slide-back');
+  target.classList.add('active');
+
+  const pip1 = document.getElementById('pip1');
+  const pip2 = document.getElementById('pip2');
+  const conn = document.getElementById('conn1');
+
+  if (name === 'setup') {
+    pip1.className = 'step-pip active';
+    pip2.className = 'step-pip';
+    conn.className = 'step-connector';
+  } else {
+    pip1.className = 'step-pip done';
+    pip2.className = 'step-pip active';
+    conn.className = 'step-connector done';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Timer core
+// ─────────────────────────────────────────────────────────────
+function toggleStartPause() {
+  if (timerState === 'idle' || timerState === 'step_complete') {
+    startStep();
+  } else if (timerState === 'running') {
+    pauseTimer();
+  } else if (timerState === 'paused') {
+    resumeTimer();
+  }
+}
+
+function startStep() {
+  ensureAudio();
+  const durationMs = parseFloat(protocol[currentStep].duration) * 60 * 1000;
+  const remaining = pausedRemaining !== null ? pausedRemaining : durationMs;
+  pausedRemaining = null;
+  stepEndTime = Date.now() + remaining;
+  stepStartTs = stepResults[currentStep].startedAt
+    ? stepStartTs   // keep original start if resuming
+    : Date.now();
+  if (!stepResults[currentStep].startedAt) {
+    stepResults[currentStep].startedAt = formatWallClock(stepStartTs);
+  }
+  timerState = 'running';
+  updateControls();
+  startTick();
+}
+
+function pauseTimer() {
+  clearInterval(tickInterval);
+  pausedRemaining = Math.max(0, stepEndTime - Date.now());
+  timerState = 'paused';
+  updateControls();
+  document.title = 'Paused — Stain Timer · LabTools';
+}
+
+function resumeTimer() {
+  startStep();
+}
+
+function skipStep() {
+  clearInterval(tickInterval);
+  stepResults[currentStep].actualMs = 0;
+  if (!stepResults[currentStep].startedAt) {
+    stepResults[currentStep].startedAt = formatWallClock(Date.now());
+  }
+  advanceStep();
+}
+
+function resetTimer() {
+  clearInterval(tickInterval);
+  currentStep = 0;
+  timerState = 'idle';
+  stepEndTime = null;
+  pausedRemaining = null;
+  stepStartTs = null;
+  stepResults = protocol.map(s => ({
+    solution: s.solution, duration: s.duration, slot: s.slot,
+    startedAt: null, actualMs: null
+  }));
+  document.getElementById('current-block').className = 'current-step-block';
+  document.getElementById('done-banner').style.display = 'none';
+  document.getElementById('btn-export-results').disabled = true;
+  document.title = 'Stain Timer · LabTools';
+  renderRunPanel();
+}
+
+function startTick() {
+  clearInterval(tickInterval);
+  tickInterval = setInterval(() => {
+    const remaining = Math.max(0, stepEndTime - Date.now());
+    renderCountdown(remaining);
+    updateTabTitle(remaining);
+    if (remaining === 0) {
+      clearInterval(tickInterval);
+      stepResults[currentStep].actualMs = Date.now() - stepStartTs;
+      playAlarm();
+      advanceStep();
+    }
+  }, 100);
+}
+
+function advanceStep() {
+  pausedRemaining = null;
+  stepStartTs = null;
+
+  if (currentStep < protocol.length - 1) {
+    currentStep++;
+    timerState = 'idle';
+    updateControls();
+    renderRunPanel();
+    // Auto-scroll current step into view
+    const rows = document.querySelectorAll('.sl-row');
+    if (rows[currentStep]) rows[currentStep].scrollIntoView({ block: 'nearest' });
+  } else {
+    // All done
+    timerState = 'done';
+    onAllDone();
+  }
+}
+
+function onAllDone() {
+  document.getElementById('current-block').classList.add('done-state');
+  document.getElementById('countdown').textContent = '✓';
+  document.getElementById('progress-fill').style.width = '100%';
+  document.getElementById('done-banner').style.display = 'block';
+  document.getElementById('btn-export-results').disabled = false;
+
+  const total = stepResults.reduce((s, r) => s + (r.actualMs || 0), 0);
+  document.getElementById('done-sub').textContent =
+    `Total time: ${formatDuration(total)}`;
+
+  document.title = '✓ Done — Stain Timer · LabTools';
+  updateControls();
+  renderStepsList();
+}
+
+// ─────────────────────────────────────────────────────────────
+// Render helpers
+// ─────────────────────────────────────────────────────────────
+function renderRunPanel() {
+  const step = protocol[currentStep];
+
+  document.getElementById('step-counter').textContent =
+    `Step ${currentStep + 1} of ${protocol.length}`;
+  document.getElementById('step-slot-label').textContent =
+    step.slot ? `Slot ${step.slot}` : '';
+  document.getElementById('step-solution').textContent = step.solution;
+
+  const durationMs = parseFloat(step.duration) * 60 * 1000;
+  renderCountdown(pausedRemaining !== null ? pausedRemaining : durationMs);
+  document.getElementById('progress-fill').style.width =
+    pausedRemaining !== null
+      ? ((1 - pausedRemaining / durationMs) * 100).toFixed(1) + '%'
+      : '0%';
+
+  renderNextStrip();
+  renderStepsList();
+  updateControls();
+}
+
+function renderCountdown(remainingMs) {
+  const totalSec = Math.ceil(remainingMs / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  document.getElementById('countdown').textContent =
+    String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+
+  const durationMs = parseFloat(protocol[currentStep].duration) * 60 * 1000;
+  const pct = durationMs > 0 ? ((1 - remainingMs / durationMs) * 100) : 100;
+  document.getElementById('progress-fill').style.width = Math.min(100, pct).toFixed(1) + '%';
+}
+
+function renderNextStrip() {
+  const strip = document.getElementById('next-strip');
+  if (timerState === 'done' || currentStep >= protocol.length - 1) {
+    strip.textContent = 'Last step.';
+    return;
+  }
+  const next = protocol[currentStep + 1];
+  const slotPart = next.slot ? ` · Slot ${next.slot}` : '';
+  strip.innerHTML = `<strong>Next:</strong> Step ${currentStep + 2}${slotPart} · ${escHtml(next.solution)} · ${next.duration} min`;
+}
+
+function renderStepsList() {
+  const list = document.getElementById('steps-list');
+  list.innerHTML = '';
+  protocol.forEach((step, i) => {
+    const div = document.createElement('div');
+    const isDone    = i < currentStep || timerState === 'done';
+    const isCurrent = i === currentStep && timerState !== 'done';
+    div.className = 'sl-row ' + (isDone ? 'sl-done' : isCurrent ? 'sl-current' : 'sl-upcoming');
+
+    const icon = isDone ? '✓' : isCurrent ? '→' : '';
+    const slotStr = step.slot ? `Slot ${step.slot}` : '';
+    const durStr = isCurrent && timerState === 'running'
+      ? document.getElementById('countdown').textContent + ' left'
+      : step.duration + ' min';
+
+    div.innerHTML = `
+      <span class="sl-icon">${icon}</span>
+      <span class="sl-num">${i + 1}</span>
+      <span class="sl-sol">${escHtml(step.solution)}</span>
+      <span class="sl-dur">${durStr}</span>
+      <span class="sl-slot">${slotStr}</span>`;
+    list.appendChild(div);
+  });
+}
+
+function updateControls() {
+  const btnStart = document.getElementById('btn-start');
+  const btnSkip  = document.getElementById('btn-skip');
+  const btnReset = document.getElementById('btn-reset-timer');
+
+  if (timerState === 'done') {
+    btnStart.textContent = '▶ Start';
+    btnStart.disabled    = true;
+    btnStart.className   = 'btn-start';
+    btnSkip.disabled     = true;
+    btnReset.disabled    = false;
+    return;
+  }
+  if (timerState === 'running') {
+    btnStart.textContent = '⏸ Pause';
+    btnStart.disabled    = false;
+    btnStart.className   = 'btn-start';
+    btnSkip.disabled     = false;
+  } else if (timerState === 'paused') {
+    btnStart.textContent = '▶ Resume';
+    btnStart.disabled    = false;
+    btnStart.className   = 'btn-start paused';
+    btnSkip.disabled     = false;
+  } else {
+    btnStart.textContent = '▶ Start';
+    btnStart.disabled    = false;
+    btnStart.className   = 'btn-start';
+    btnSkip.disabled     = true;
+  }
+  btnReset.disabled = false;
+}
+
+function updateTabTitle(remainingMs) {
+  const totalSec = Math.ceil(remainingMs / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  const ts = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  const sol = protocol[currentStep].solution;
+  document.title = `${ts} — ${sol} | Stain Timer`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Audio
+// ─────────────────────────────────────────────────────────────
+function ensureAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new AudioContext(); } catch(e) { audioCtx = null; }
+  }
+}
+
+function playAlarm() {
+  if (!document.getElementById('alarm-toggle').checked) return;
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  [0, 0.42, 0.84].forEach(t => {
+    try {
+      const osc  = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.28, audioCtx.currentTime + t);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + t + 0.38);
+      osc.start(audioCtx.currentTime + t);
+      osc.stop(audioCtx.currentTime + t + 0.4);
+    } catch(e) { /* ignore if context is closed */ }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Import / Export
+// ─────────────────────────────────────────────────────────────
+function exportProtocol() {
+  // Re-read from DOM first
+  const rows = document.querySelectorAll('.proto-row');
+  rows.forEach((tr, i) => {
+    const inputs = tr.querySelectorAll('input');
+    protocol[i].solution = inputs[0].value;
+    protocol[i].duration = inputs[1].value === '' ? '' : parseFloat(inputs[1].value);
+    protocol[i].slot     = inputs[2].value;
+  });
+
+  const header = 'Step,Solution,Duration (min),Slot';
+  const lines = protocol.map((s, i) =>
+    [i + 1, csvCell(s.solution), s.duration, s.slot].join(',')
+  );
+  downloadCsv([header, ...lines].join('\n'), 'stain-protocol.csv');
+}
+
+function importProtocol(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    const parsed = parseProtocolCsv(text);
+    if (parsed.error) {
+      document.getElementById('validation-msg').textContent = parsed.error;
+      return;
+    }
+    protocol = parsed.steps;
+    renderProtoTable();
+    document.getElementById('validation-msg').textContent = '';
+  };
+  reader.readAsText(file);
+  evt.target.value = '';
+}
+
+function parseProtocolCsv(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return { error: 'CSV must have a header row and at least one step.' };
+  const steps = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = splitCsvLine(lines[i]);
+    if (cols.length < 3) return { error: `Row ${i + 1}: expected at least 3 columns.` };
+    const solution = cols[1] ? cols[1].trim() : '';
+    const duration = parseFloat(cols[2]);
+    const slot     = cols[3] ? cols[3].trim() : '';
+    if (!solution) return { error: `Row ${i + 1}: solution name is empty.` };
+    if (isNaN(duration) || duration <= 0) return { error: `Row ${i + 1}: invalid duration.` };
+    steps.push({ solution, duration, slot });
+  }
+  return { steps };
+}
+
+function exportResults() {
+  const header = 'Step,Solution,Duration (min),Slot,Started At,Actual Duration (min)';
+  const lines = stepResults.map((r, i) => {
+    const actual = r.actualMs !== null ? (r.actualMs / 60000).toFixed(2) : '';
+    return [i + 1, csvCell(r.solution), r.duration, r.slot, r.startedAt || '', actual].join(',');
+  });
+  downloadCsv([header, ...lines].join('\n'), 'stain-results.csv');
+}
+
+// ─────────────────────────────────────────────────────────────
+// Utilities
+// ─────────────────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function csvCell(val) {
+  const s = String(val).replace(/"/g, '""');
+  return `"${s}"`;
+}
+
+function splitCsvLine(line) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (ch === ',' && !inQ) {
+      result.push(cur); cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  result.push(cur);
+  return result;
+}
+
+function downloadCsv(content, filename) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function formatWallClock(ts) {
+  const d = new Date(ts);
+  return d.toTimeString().slice(0, 8);
+}
+
+function formatDuration(ms) {
+  const totalSec = Math.round(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────
+renderProtoTable();
+</script>
+</body>
+</html>
