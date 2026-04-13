@@ -9,7 +9,7 @@ Part of the [LabTools](../../) collection.
 
 Enter your raw cell counts from the hemocytometer and the tool calculates:
 
-- **Final Density** — concentration of cells in your stock suspension (cells/mL)
+- **Final Concentration** — concentration of cells in your stock suspension (cells/mL)
 - **Total Live Cells** — total cells in your tube (requires resuspension volume)
 - **Viability %** — live cell fraction via Trypan Blue exclusion (optional)
 
@@ -50,9 +50,9 @@ The volume of media your cell pellet was resuspended in — i.e., the total volu
 ## Formulas
 
 ```
-Final Density (cells/mL) = avg_count × multiplier × DF × 10⁴
+Final Concentration (cells/mL) = avg_count × multiplier × DF × 10⁴
 
-Total Live Cells = Final Density × Resuspension Volume (mL)
+Total Live Cells = Final Concentration × Resuspension Volume (mL)
 ```
 
 Where `multiplier` depends on counting mode:

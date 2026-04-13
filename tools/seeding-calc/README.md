@@ -7,13 +7,13 @@ A guided two-step tool for counting cells and calculating the dilution needed to
 ## Workflow
 
 ### Step 1 — Cell Count
-Identical to the standalone Cell Count Calculator. Count your cells on the hemocytometer to obtain the **Final Density** (cells/mL) of your stock suspension.
+Identical to the standalone Cell Count Calculator. Count your cells on the hemocytometer to obtain the **Final Concentration** (cells/mL) of your stock suspension.
 
 - Select counting mode (all 25 small squares → single corner)
 - Enter Count 1, and optionally Count 2 (second chamber load)
 - Enter Dilution Factor and Resuspension Volume
 - Optionally enter dead cell counts for Trypan Blue viability
-- Click **Next: Dilution →** once a Final Density is calculated
+- Click **Next: Dilution →** once a Final Concentration is calculated
 
 ### Step 2 — Dilution (C₁V₁ = C₂V₂)
 C₁ is automatically carried over from Step 1. Provide any two of the remaining three values and the fourth is solved instantly.
@@ -31,7 +31,7 @@ The solved variable is highlighted in green. When solving for V₁ or V₂, a su
 
 ## Navigation
 
-- **Next: Dilution →** — enabled only when Step 1 has a valid Final Density. Carries C₁ to Step 2.
+- **Next: Dilution →** — enabled only when Step 1 has a valid Final Concentration. Carries C₁ to Step 2.
 - **← Back** — returns to Step 1 with all values preserved.
 - **↺ Reset dilution** — clears C₂, V₁, V₂ while keeping the C₁ prefill from Step 1.
 

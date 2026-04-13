@@ -64,7 +64,7 @@ Notion-inspired aesthetic driven by CSS custom properties. Key conventions:
 ## Counting Mode Formulas
 
 ```
-Final Density (cells/mL) = avg_count × multiplier × DF × 10⁴
+Final Concentration (cells/mL) = avg_count × multiplier × DF × 10⁴
 ```
 
 | Mode | Multiplier |

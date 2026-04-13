@@ -340,16 +340,17 @@
         <div class="r-unit"  id="res-via-note">from dead counts</div>
       </div>
       <div class="result-box hl-blue">
-        <div class="r-label">Final Density</div>
+        <div class="r-label">Final Concentration</div>
         <div class="r-value" id="res-density">—</div>
-        <div class="r-unit"  id="res-density-note">cells / mL</div>
+        <div class="r-unit"  id="res-density-note">cells/mL</div>
       </div>
       <div class="result-box hl-blue">
         <div class="r-label" id="res-total-label">Total Live Cells</div>
         <div class="r-value" id="res-total">—</div>
-        <div class="r-unit"  id="res-total-note">density × vol</div>
+        <div class="r-unit"  id="res-total-note">conc. × vol</div>
       </div>
     </div>
+    <div class="unit-legend">K = 1,000 &nbsp;·&nbsp; M = 1,000,000 &nbsp;·&nbsp; B = 1,000,000,000</div>
 
     <!-- Export + Nav row -->
     <div class="action-row">
@@ -531,6 +532,7 @@ let step1TotalVolML   = NaN; // resuspension volume from Step 1, in mL
 // ─────────────────────────────────────────────────────────────
 function buildModeSelector() {
   const container = document.getElementById('mode-selector');
+  container.innerHTML = '';
   MODES.forEach(m => {
     const div = document.createElement('div');
     div.className = 'mode-option' + (m.id === currentModeId ? ' active' : '');
@@ -679,7 +681,7 @@ function calcStep1() {
     document.getElementById('via-note').className        = 'via-note';
     document.getElementById('res-total-label').textContent = 'Total Cells';
     document.getElementById('res-density').textContent      = fmt(step1FinalDensity);
-    document.getElementById('res-density-note').textContent = !isNaN(step1FinalDensity) ? 'cells / mL (entered)' : 'cells / mL';
+    document.getElementById('res-density-note').textContent = !isNaN(step1FinalDensity) ? 'cells/mL (entered)' : 'cells/mL';
     document.getElementById('res-total').textContent        = '—';
     document.getElementById('res-total-note').textContent   = '—';
     document.getElementById('btn-next').disabled = isNaN(step1FinalDensity);
@@ -735,7 +737,7 @@ function calcStep1() {
   if (isAll) {
     document.getElementById('res-via').textContent      = 'N/A';
     document.getElementById('res-via-note').textContent = 'count-all mode';
-    document.getElementById('via-note').textContent     = 'Dead cell counting disabled.';
+    document.getElementById('via-note').textContent     = 'Dead cell counting disabled — all cells counted as live.';
     document.getElementById('via-note').className       = 'via-note';
   } else if (!isNaN(viability)) {
     document.getElementById('res-via').textContent      = viability.toFixed(1) + '%';
@@ -759,10 +761,10 @@ function calcStep1() {
 
   // density + total
   document.getElementById('res-density').textContent      = fmt(finalDensity);
-  document.getElementById('res-density-note').textContent = !isNaN(avgLive) ? mode.formulaNote : 'cells / mL';
+  document.getElementById('res-density-note').textContent = 'cells/mL';
   document.getElementById('res-total').textContent        = fmt(totalCells);
   document.getElementById('res-total-note').textContent   =
-    !isNaN(finalDensity) && !isNaN(vol) && vol > 0 ? `density × ${vol} mL`
+    !isNaN(finalDensity) && !isNaN(vol) && vol > 0 ? `conc. × ${vol} mL`
     : !isNaN(finalDensity) ? 'enter resuspension vol' : '—';
 
   // enable Next button only when we have a valid density
@@ -961,7 +963,7 @@ function calcDilution() {
 
   // C1 is always locked — it should never be empty
   if (emptyFields.includes('c1')) {
-    showDilError('C₁ is inherited from Step 1 — go back if the density needs updating.');
+    showDilError('C₁ is inherited from Step 1 — go back if the concentration needs updating.');
     ansBox.classList.add('hidden');
     mediaNote.classList.add('hidden');
     return;
@@ -1161,7 +1163,7 @@ function getCellCountRows() {
       ['=== Cell Count ===', ''],
       ['Mode',                            'Bypass — concentration entered directly'],
       ['Known concentration (cells/mL)',  document.getElementById('bypass-conc').value || ''],
-      ['Final density (cells/mL)',        document.getElementById('res-density').textContent],
+      ['Final concentration (cells/mL)', document.getElementById('res-density').textContent],
     ];
   }
   const mode  = MODES.find(m => m.id === currentModeId);
@@ -1179,7 +1181,7 @@ function getCellCountRows() {
     ['Resuspension volume (mL)',          document.getElementById('vol').value  || ''],
     ['Average live count',               document.getElementById('res-avg').textContent],
     ['Viability',                         document.getElementById('res-via').textContent],
-    ['Final density (cells/mL)',          document.getElementById('res-density').textContent],
+    ['Final concentration (cells/mL)',    document.getElementById('res-density').textContent],
     ['Total cells',                       document.getElementById('res-total').textContent],
   ];
 }
