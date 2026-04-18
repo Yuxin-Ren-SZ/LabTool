@@ -283,12 +283,12 @@
             </div>
 
             <div class="lt-toolbar-row">
-              <button class="btn-reset" id="save-preset-btn">Save In Browser</button>
+              <button class="btn-reset" id="save-preset-btn">Save In This Browser</button>
               <button class="btn-reset" id="clear-saved-presets-btn">Clear Saved Presets</button>
               <button class="btn-reset" id="copy-current-btn">Copy Current Settings</button>
               <button class="btn-reset" id="export-all-btn">Export All Presets</button>
             </div>
-            <div class="micro-note">Saving in the browser is immediate, but the site cannot rewrite repo files directly. Use “Copy Current Settings” or “Export All Presets” to merge the changes back into <code>tools/thermal-to-laser/preset-config.js</code>.</div>
+            <div class="micro-note">Saved presets stay only in this browser’s local storage until you clear them. They do not sync to other browsers or machines, and they do not rewrite <code>tools/thermal-to-laser/preset-config.js</code>. Use “Copy Current Settings” or “Export All Presets” to merge changes back into the repo file manually.</div>
             <textarea class="lt-input lt-textarea copy-fallback" id="copy-fallback" hidden></textarea>
           </div>
         </section>

@@ -1006,7 +1006,7 @@ async function saveCurrentPreset() {
   document.getElementById('preset-select').value = id;
   setStatus(
     'preset-status',
-    `Saved in this browser. To make it part of the shipped config, copy or export the preset and paste it into ${CONFIG_PATH}.`,
+    `Saved only in this browser. It will stay local until cleared, will not sync to other browsers or machines, and did not change ${CONFIG_PATH}.`,
     'success'
   );
   renderAll();
