@@ -102,13 +102,12 @@ function bindEvents() {
 
 async function onSourcePdfSelected(event) {
   const file = event.target.files && event.target.files[0];
-  clearSourceState();
 
   if (!file) {
-    renderAll();
     return;
   }
 
+  clearSourceState();
   state.sourceFile = file;
   setStatus('source-status', 'Reading PDF…', 'info');
   renderStepProgress();
