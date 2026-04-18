@@ -666,20 +666,21 @@ function renderSheetPages() {
 
       const labelNumber = labelIndexMap.get(globalIndex) || '';
       const cellNumber = globalIndex + 1;
-      const token = cellState.mode === 'use'
-        ? `L${labelNumber}`
+      const visibleToken = cellState.mode === 'use' && labelNumber ? `L${labelNumber}` : '';
+      const cellStateLabel = cellState.mode === 'use'
+        ? `label ${labelNumber || 'assigned'}`
         : cellState.mode === 'skip'
-          ? 'Skip'
+          ? 'skipped'
           : cellState.mode === 'past'
-            ? 'Used'
-            : 'Open';
+            ? 'already used before start'
+            : 'open';
 
       button.innerHTML = `
         <span class="lt-sheet-cell-id">Cell ${cellNumber}</span>
-        <span class="lt-sheet-cell-token">${token}</span>
+        ${visibleToken ? `<span class="lt-sheet-cell-token">${visibleToken}</span>` : ''}
       `;
       button.title = describeCellAction(cellState.mode, cellNumber);
-      button.setAttribute('aria-label', `Sheet ${sheetIndex + 1}, cell ${cellNumber}, ${token}`);
+      button.setAttribute('aria-label', `Sheet ${sheetIndex + 1}, cell ${cellNumber}, ${cellStateLabel}`);
       button.addEventListener('click', () => onSheetCellClick(globalIndex));
       overlay.appendChild(button);
     });
@@ -690,10 +691,10 @@ function renderSheetPages() {
       'beforeend',
       `
         <div class="lt-legend-row">
-          <span class="lt-legend-item"><span class="lt-legend-swatch lt-legend-swatch--use"></span>Label placed</span>
-          <span class="lt-legend-item"><span class="lt-legend-swatch lt-legend-swatch--skip"></span>Skipped cell</span>
-          <span class="lt-legend-item"><span class="lt-legend-swatch lt-legend-swatch--past"></span>Already used before start</span>
-          <span class="lt-legend-item"><span class="lt-legend-swatch lt-legend-swatch--open"></span>Open cell</span>
+          <span class="lt-legend-item"><span class="lt-legend-swatch lt-legend-swatch--use"></span>Placed label</span>
+          <span class="lt-legend-item"><span class="lt-legend-swatch lt-legend-swatch--skip"></span>Skipped slot</span>
+          <span class="lt-legend-item"><span class="lt-legend-swatch lt-legend-swatch--past"></span>Used before start</span>
+          <span class="lt-legend-item"><span class="lt-legend-swatch lt-legend-swatch--open"></span>Open slot</span>
         </div>
       `
     );
