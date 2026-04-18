@@ -16,6 +16,7 @@ Convert a multi-page thermal-printer label PDF into a laser-printer mailing-labe
 
 - Built-in presets ship from [preset-config.js](/Users/yuxinren/Code/LabTools/tools/thermal-to-laser/preset-config.js)
 - Browser-saved presets are stored locally with `localStorage`
+- `Clear Saved Presets` removes all browser-saved presets without affecting the built-in presets shipped in `preset-config.js`
 - The browser cannot rewrite repo files directly, so use:
   - `Copy Current Settings` to copy one preset as a snippet for manual pasting into `preset-config.js`
   - `Export All Presets` to download a replacement config file containing all built-in and browser-saved presets

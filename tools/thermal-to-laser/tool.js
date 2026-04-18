@@ -79,6 +79,7 @@ function bindEvents() {
   document.getElementById('source-pdf').addEventListener('change', onSourcePdfSelected);
   document.getElementById('preset-select').addEventListener('change', onPresetSelectChanged);
   document.getElementById('save-preset-btn').addEventListener('click', saveCurrentPreset);
+  document.getElementById('clear-saved-presets-btn').addEventListener('click', clearUserPresets);
   document.getElementById('copy-current-btn').addEventListener('click', copyCurrentPresetConfig);
   document.getElementById('export-all-btn').addEventListener('click', exportAllPresetConfigs);
   document.getElementById('reset-layout-btn').addEventListener('click', () => {
@@ -994,6 +995,39 @@ async function saveCurrentPreset() {
   setStatus(
     'preset-status',
     `Saved in this browser. To make it part of the shipped config, copy or export the preset and paste it into ${CONFIG_PATH}.`,
+    'success'
+  );
+  renderAll();
+}
+
+function clearUserPresets() {
+  if (!state.userPresets.length) {
+    document.getElementById('copy-fallback').hidden = true;
+    setStatus(
+      'preset-status',
+      `No browser-saved presets were found. Shipped presets in ${CONFIG_PATH} are unchanged.`,
+      'info'
+    );
+    renderAll();
+    return;
+  }
+
+  const activeUserPresetSelected = state.selectedPresetId
+    && state.userPresets.some((preset) => preset.id === state.selectedPresetId);
+
+  localStorage.removeItem(STORAGE_KEY);
+  state.userPresets = [];
+
+  if (activeUserPresetSelected) {
+    state.selectedPresetId = '__manual__';
+  }
+
+  document.getElementById('copy-fallback').hidden = true;
+  renderPresetOptions();
+  document.getElementById('preset-select').value = state.selectedPresetId || '';
+  setStatus(
+    'preset-status',
+    `Cleared browser-saved presets. Shipped presets in ${CONFIG_PATH} are unchanged.`,
     'success'
   );
   renderAll();
