@@ -624,11 +624,13 @@ function onDragStart(e) {
   e.currentTarget.classList.add('dragging');
   e.dataTransfer.effectAllowed = 'move';
 }
+/** Allow a drop on this row by preventing default; highlight it with .drag-over. */
 function onDragOver(e) {
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
   e.currentTarget.classList.add('drag-over');
 }
+/** Remove the .drag-over highlight when the dragged item leaves this row. */
 function onDragLeave(e) {
   e.currentTarget.classList.remove('drag-over');
 }
@@ -911,12 +913,14 @@ function collectSlotConflictWarnings() {
   return firstConflictSlot;
 }
 
+/** Clear validationWarnings sets and remove the .warning class from all protocol inputs. */
 function clearValidationWarnings() {
   validationWarnings.solution.clear();
   validationWarnings.slot.clear();
   document.querySelectorAll('.proto-row input.warning').forEach(el => el.classList.remove('warning'));
 }
 
+/** Add .warning to inputs whose index appears in validationWarnings.solution or .slot. */
 function applyValidationWarnings() {
   document.querySelectorAll('.proto-row').forEach((tr, i) => {
     if (validationWarnings.solution.has(i))
@@ -1050,6 +1054,7 @@ function pauseTimer() {
   document.title = 'Paused — Stain Timer · LabTools';
 }
 
+/** Resume a paused timer by re-entering startStep() with the saved pausedRemaining. */
 function resumeTimer() {
   startStep();
 }
@@ -1132,6 +1137,7 @@ function advanceStep() {
   }
 }
 
+/** Handle protocol completion: reveal done-banner, show total time, freeze controls, update tab title. */
 function onAllDone() {
   document.getElementById('current-block').classList.add('done-state');
   document.getElementById('countdown').textContent = '✓';
@@ -1197,6 +1203,7 @@ function renderCountdown(remainingMs) {
   document.getElementById('progress-fill').style.width = Math.min(100, pct).toFixed(1) + '%';
 }
 
+/** Update the #next-strip preview bar with the next step's solution, slot, and duration. */
 function renderNextStrip() {
   const strip = document.getElementById('next-strip');
   if (timerState === 'done' || currentStep >= protocol.length - 1) {
@@ -1281,6 +1288,7 @@ function renderSlotRack() {
   }
 }
 
+/** Sync the Start/Pause/Resume, Skip, and Reset button labels and disabled states to timerState. */
 function updateControls() {
   const btnStart = document.getElementById('btn-start');
   const btnSkip  = document.getElementById('btn-skip');
@@ -1313,6 +1321,7 @@ function updateControls() {
   btnReset.disabled = false;
 }
 
+/** Set the browser tab title to the current countdown and solution name (e.g. "02:30 — PBS | Stain Timer"). */
 function updateTabTitle(remainingMs) {
   const totalSec = Math.ceil(remainingMs / 1000);
   const m = Math.floor(totalSec / 60);
@@ -1465,6 +1474,7 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+/** Wrap a value in an RFC-4180 double-quoted CSV cell, escaping any internal double-quotes. */
 function csvCell(val) {
   const s = String(val).replace(/"/g, '""');
   return `"${s}"`;
@@ -1511,11 +1521,13 @@ function downloadCsv(content, filename) {
   URL.revokeObjectURL(url);
 }
 
+/** Format a Unix timestamp (ms) as an HH:MM:SS wall-clock string. */
 function formatWallClock(ts) {
   const d = new Date(ts);
   return d.toTimeString().slice(0, 8);
 }
 
+/** Format milliseconds as a compact human-readable string (e.g. "2m 5s" or "45s"). */
 function formatDuration(ms) {
   const totalSec = Math.round(ms / 1000);
   const m = Math.floor(totalSec / 60);
@@ -1536,6 +1548,7 @@ function getStepDurationMs(step) {
   return (min * 60 + sec) * 1000;
 }
 
+/** Format a step's durationMin + durationSec fields as a readable string (e.g. "1 min 30 sec"). */
 function formatStepDurationText(step) {
   const min = Number(step.durationMin);
   const sec = Number(step.durationSec);
@@ -1562,6 +1575,7 @@ function parseSlotNumber(slot) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+/** Return the highest slot number assigned across all protocol steps, or null if none are set. */
 function getMaxAssignedSlot() {
   let max = null;
   protocol.forEach(step => {
