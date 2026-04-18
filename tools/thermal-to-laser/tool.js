@@ -40,8 +40,7 @@ const state = {
   builtInPresets: [],
   userPresets: [],
   selectedPresetId: '',
-  sourceFile: null,
-  sourceBytes: null,
+  sourceDocuments: [],
   sourcePageCount: 0,
   sourcePageSizePts: null,
   sourceSizesUniform: true,
@@ -102,47 +101,19 @@ function bindEvents() {
 }
 
 async function onSourcePdfSelected(event) {
-  const file = event.target.files && event.target.files[0];
+  const files = Array.from(event.target.files || []);
+  event.target.value = '';
 
-  if (!file) {
+  if (!files.length) {
     return;
   }
 
-  clearSourceState();
-  state.sourceFile = file;
-  setStatus('source-status', 'Reading PDF…', 'info');
+  setStatus('source-status', files.length === 1 ? 'Reading PDF…' : `Reading ${files.length} PDFs…`, 'info');
   renderStepProgress();
 
   try {
-    const arrayBuffer = await labtoolsReadFileAsArrayBuffer(file);
-    const bytes = new Uint8Array(arrayBuffer);
-    const sourceDoc = await PDFLib.PDFDocument.load(bytes);
-    const pages = sourceDoc.getPages();
-
-    if (!pages.length) {
-      throw new Error('The uploaded PDF does not contain any pages.');
-    }
-
-    const sizes = pages.map((page) => page.getSize());
-    const first = sizes[0];
-    const widthMin = Math.min.apply(null, sizes.map((size) => size.width));
-    const widthMax = Math.max.apply(null, sizes.map((size) => size.width));
-    const heightMin = Math.min.apply(null, sizes.map((size) => size.height));
-    const heightMax = Math.max.apply(null, sizes.map((size) => size.height));
-
-    state.sourceBytes = bytes;
-    state.sourcePageCount = pages.length;
-    state.sourcePageSizePts = { width: first.width, height: first.height };
-    state.sourceSizesUniform =
-      widthMax - widthMin <= UNIFORM_SIZE_TOLERANCE_PT &&
-      heightMax - heightMin <= UNIFORM_SIZE_TOLERANCE_PT;
-    state.sourceSizeRangePts = {
-      widthMin,
-      widthMax,
-      heightMin,
-      heightMax,
-    };
-    state.detectedPresetIds = detectMatchingPresetIds(first.width, first.height);
+    const parsedSource = await parseSourceFiles(files);
+    applyParsedSource(parsedSource);
 
     if (!state.selectedPresetId && state.detectedPresetIds.length === 1) {
       const detected = findPresetById(state.detectedPresetIds[0]);
@@ -173,15 +144,80 @@ async function onSourcePdfSelected(event) {
     recalcPresetAndMaybePlan({ resetPlan: true });
     setStatus(
       'source-status',
-      `Loaded ${state.sourcePageCount} label page${state.sourcePageCount === 1 ? '' : 's'} from ${file.name}.`,
+      buildLoadedSourceMessage(),
       'success'
     );
   } catch (error) {
-    state.sourceParseError = error && error.message ? error.message : 'Unable to parse the uploaded PDF.';
-    setStatus('source-status', state.sourceParseError, 'danger');
+    setStatus(
+      'source-status',
+      error && error.message ? error.message : 'Unable to parse the selected PDF files.',
+      'danger'
+    );
   }
 
   renderAll();
+}
+
+async function parseSourceFiles(files) {
+  const sourceDocuments = [];
+  const allSizes = [];
+
+  for (const file of files) {
+    const arrayBuffer = await labtoolsReadFileAsArrayBuffer(file);
+    const bytes = new Uint8Array(arrayBuffer);
+    let sourceDoc;
+
+    try {
+      sourceDoc = await PDFLib.PDFDocument.load(bytes);
+    } catch (error) {
+      throw new Error(`Unable to parse "${file.name}" as a PDF.`);
+    }
+
+    const pages = sourceDoc.getPages();
+    if (!pages.length) {
+      throw new Error(`"${file.name}" does not contain any pages.`);
+    }
+
+    const sizes = pages.map((page) => page.getSize());
+    allSizes.push(...sizes);
+    sourceDocuments.push({
+      fileName: file.name,
+      bytes,
+      pageCount: pages.length,
+    });
+  }
+
+  const first = allSizes[0];
+  const widthMin = Math.min.apply(null, allSizes.map((size) => size.width));
+  const widthMax = Math.max.apply(null, allSizes.map((size) => size.width));
+  const heightMin = Math.min.apply(null, allSizes.map((size) => size.height));
+  const heightMax = Math.max.apply(null, allSizes.map((size) => size.height));
+
+  return {
+    sourceDocuments,
+    sourcePageCount: sourceDocuments.reduce((total, item) => total + item.pageCount, 0),
+    sourcePageSizePts: { width: first.width, height: first.height },
+    sourceSizesUniform:
+      widthMax - widthMin <= UNIFORM_SIZE_TOLERANCE_PT &&
+      heightMax - heightMin <= UNIFORM_SIZE_TOLERANCE_PT,
+    sourceSizeRangePts: {
+      widthMin,
+      widthMax,
+      heightMin,
+      heightMax,
+    },
+    detectedPresetIds: detectMatchingPresetIds(first.width, first.height),
+  };
+}
+
+function applyParsedSource(parsedSource) {
+  clearSourceState();
+  state.sourceDocuments = parsedSource.sourceDocuments;
+  state.sourcePageCount = parsedSource.sourcePageCount;
+  state.sourcePageSizePts = parsedSource.sourcePageSizePts;
+  state.sourceSizesUniform = parsedSource.sourceSizesUniform;
+  state.sourceSizeRangePts = parsedSource.sourceSizeRangePts;
+  state.detectedPresetIds = parsedSource.detectedPresetIds;
 }
 
 function onPresetSelectChanged(event) {
@@ -265,8 +301,7 @@ function recalcPresetAndMaybePlan(options) {
 }
 
 function clearSourceState() {
-  state.sourceFile = null;
-  state.sourceBytes = null;
+  state.sourceDocuments = [];
   state.sourcePageCount = 0;
   state.sourcePageSizePts = null;
   state.sourceSizesUniform = true;
@@ -482,8 +517,8 @@ function renderSourceSummary() {
     meta.innerHTML = `
       <div class="meta-card">
         <div class="meta-card-label">Waiting For Input</div>
-        <div class="meta-card-value">Upload a multi-page PDF</div>
-        <div class="meta-card-note">Each PDF page should be one thermal label.</div>
+        <div class="meta-card-value">Upload one or more PDFs</div>
+        <div class="meta-card-note">Each PDF page should be one thermal label. Files are combined in the order you select them.</div>
       </div>
     `;
     return;
@@ -502,9 +537,27 @@ function renderSourceSummary() {
       <div class="meta-card-note">Labels required on the mailing-label sheet.</div>
     </div>
     <div class="meta-card">
+      <div class="meta-card-label">Input Files</div>
+      <div class="meta-card-value">${state.sourceDocuments.length}</div>
+      <div class="meta-card-note">Processed in the order shown below for layout and export.</div>
+    </div>
+    <div class="meta-card">
       <div class="meta-card-label">Detected Label Size</div>
       <div class="meta-card-value">${formatDecimal(widthIn, 3)} × ${formatDecimal(heightIn, 3)} in</div>
       <div class="meta-card-note">${uniformText}</div>
+    </div>
+    <div class="meta-card meta-card--files">
+      <div class="meta-card-label">File Order</div>
+      <ol class="source-file-list">
+        ${state.sourceDocuments.map((item, index) => `
+          <li class="source-file-item">
+            <span class="source-file-order">${index + 1}.</span>
+            <span class="source-file-name">${escapeHtml(item.fileName)}</span>
+            <span class="source-file-pages">${item.pageCount} page${item.pageCount === 1 ? '' : 's'}</span>
+          </li>
+        `).join('')}
+      </ol>
+      <div class="meta-card-note">Labels are combined using this file order and each file’s original page order.</div>
     </div>
   `;
 }
@@ -532,7 +585,7 @@ function renderPresetSummary() {
     : 'Manual values';
   const detectedLine = detected.length
     ? `Detected matches: ${detected.map((item) => item.name).join(', ')}.`
-    : 'No matching preset was detected from the source PDF size.';
+    : 'No matching preset was detected from the first source label size.';
 
   summary.innerHTML = `
     <div class="meta-grid meta-grid--tight">
@@ -562,7 +615,7 @@ function renderLayoutSummary() {
   const summary = document.getElementById('layout-summary');
 
   if (!state.sourcePageCount) {
-    summary.innerHTML = '<div class="lt-alert lt-alert-info">Upload the source PDF to plan the label placement.</div>';
+    summary.innerHTML = '<div class="lt-alert lt-alert-info">Upload source PDFs to plan the label placement.</div>';
     return;
   }
 
@@ -712,7 +765,7 @@ function renderOutputSummary() {
   generateButton.disabled = !state.currentPreset || !state.sourcePageCount || state.isGenerating;
 
   if (!state.sourcePageCount || !state.currentPreset) {
-    summary.innerHTML = '<div class="lt-alert lt-alert-info">Export becomes available after the source PDF and sheet layout are ready.</div>';
+    summary.innerHTML = '<div class="lt-alert lt-alert-info">Export becomes available after the source PDFs and sheet layout are ready.</div>';
     preview.innerHTML = '';
     downloadButton.disabled = true;
     return;
@@ -1089,8 +1142,8 @@ function exportAllPresetConfigs() {
 }
 
 async function generateOutputPdf() {
-  if (!state.currentPreset || !state.sourceBytes || !state.sourcePageCount) {
-    setStatus('output-status', 'Load a source PDF and a valid preset before generating the output.', 'danger');
+  if (!state.currentPreset || !state.sourceDocuments.length || !state.sourcePageCount) {
+    setStatus('output-status', 'Load source PDFs and a valid preset before generating the output.', 'danger');
     return;
   }
 
@@ -1109,9 +1162,13 @@ async function generateOutputPdf() {
   renderAll();
 
   try {
-    const sourceDoc = await PDFLib.PDFDocument.load(state.sourceBytes);
     const outputDoc = await PDFLib.PDFDocument.create();
-    const embeddedPages = await outputDoc.embedPages(sourceDoc.getPages());
+    const embeddedPages = [];
+    for (const sourceDocument of state.sourceDocuments) {
+      const sourceDoc = await PDFLib.PDFDocument.load(sourceDocument.bytes);
+      const docPages = await outputDoc.embedPages(sourceDoc.getPages());
+      embeddedPages.push(...docPages);
+    }
     const cellsPerSheet = getCellsPerSheet();
     const geometry = buildSheetGeometry(state.currentPreset);
     const useIndices = getUseIndices();
@@ -1150,7 +1207,7 @@ async function generateOutputPdf() {
       });
     });
 
-    outputDoc.setTitle(`${state.sourceFile ? state.sourceFile.name : 'labels'} · laser layout`);
+    outputDoc.setTitle(`${buildSourceDocumentTitle()} · laser layout`);
     outputDoc.setProducer('LabTools');
     outputDoc.setCreator('LabTools thermal-to-laser');
 
@@ -1192,6 +1249,20 @@ function clearOutputPreview() {
     URL.revokeObjectURL(state.outputUrl);
     state.outputUrl = '';
   }
+}
+
+function buildLoadedSourceMessage() {
+  const pageLabel = `${state.sourcePageCount} label page${state.sourcePageCount === 1 ? '' : 's'}`;
+  if (state.sourceDocuments.length === 1) {
+    return `Loaded ${pageLabel} from ${state.sourceDocuments[0].fileName}.`;
+  }
+  return `Loaded ${pageLabel} from ${state.sourceDocuments.length} PDFs in the selected order.`;
+}
+
+function buildSourceDocumentTitle() {
+  if (!state.sourceDocuments.length) return 'labels';
+  if (state.sourceDocuments.length === 1) return state.sourceDocuments[0].fileName;
+  return `${state.sourceDocuments[0].fileName} + ${state.sourceDocuments.length - 1} more`;
 }
 
 function buildPresetConfigFileContent(presets) {

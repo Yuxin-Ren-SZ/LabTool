@@ -72,6 +72,44 @@
       line-height: 1.5;
     }
 
+    .meta-card--files {
+      grid-column: 1 / -1;
+    }
+
+    .source-file-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .source-file-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: baseline;
+      gap: 8px;
+      font-size: 0.78rem;
+      color: var(--text);
+    }
+
+    .source-file-order {
+      min-width: 1.25rem;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .source-file-name {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .source-file-pages {
+      white-space: nowrap;
+      color: var(--text-muted);
+    }
+
     .field-stack {
       display: flex;
       flex-direction: column;
@@ -207,7 +245,7 @@
     <div class="tool-shell">
       <div>
         <h1 class="lt-tool-title">🏷️ Thermal To Laser Label Converter</h1>
-        <p class="lt-tool-subtitle">Load a one-label-per-page thermal-printer PDF, map it onto a mailing-label sheet, and export a laser-printer-ready PDF with the exact sheet geometry.</p>
+        <p class="lt-tool-subtitle">Load one or more one-label-per-page thermal-printer PDFs, map them onto a mailing-label sheet, and export a laser-printer-ready PDF with the exact sheet geometry.</p>
       </div>
 
       <div class="step-bar">
@@ -233,12 +271,12 @@
           <div class="panel-surface">
             <div class="lt-toolbar-row">
               <label class="btn-reset file-btn">
-                <input id="source-pdf" type="file" accept="application/pdf" hidden />
-                Upload PDF
+                <input id="source-pdf" type="file" accept="application/pdf" multiple hidden />
+                Upload PDFs
               </label>
-              <span class="micro-note">The PDF should contain one label per page. The page count becomes the number of labels the layout must place.</span>
+              <span class="micro-note">Select one or more PDFs. Each page should be one thermal label, and files are combined in the order you choose them.</span>
             </div>
-            <div class="lt-alert lt-alert-info" id="source-status">Upload the thermal-printer PDF to begin.</div>
+            <div class="lt-alert lt-alert-info" id="source-status">Upload one or more thermal-printer PDFs to begin.</div>
             <div class="meta-grid" id="source-meta"></div>
           </div>
 

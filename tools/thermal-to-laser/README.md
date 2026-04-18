@@ -1,16 +1,18 @@
 # Thermal To Laser Label Converter
 
-Convert a multi-page thermal-printer label PDF into a laser-printer mailing-label sheet PDF.
+Convert one or more multi-page thermal-printer label PDFs into a laser-printer mailing-label sheet PDF.
 
 ## Workflow
 
-1. Upload a PDF where each page is one label.
+1. Upload one or more PDFs where each page is one label.
 2. Let the tool auto-detect a matching preset, or choose / enter the sheet geometry manually.
 3. Review the sheet preview and choose:
    - `Start Here` to reset the plan and fill cells sequentially from a chosen cell
    - `Use Cell` to force a label into a specific cell
    - `Skip Cell` to mark a cell unavailable and advance the next pending label
 4. Generate and download the output PDF.
+
+When multiple PDFs are selected, the tool combines them into one label stream using the file picker order.
 
 ## Presets
 
