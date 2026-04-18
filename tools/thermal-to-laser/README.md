@@ -27,6 +27,8 @@ When multiple PDFs are selected, the tool combines them into one label stream us
 
 ## Notes
 
+- In supporting browsers running in a secure context, the upload and save dialogs prefer the Downloads folder.
+- In unsupported browsers or non-secure contexts, the tool falls back to the browser’s normal file picker and download location behavior.
 - The output PDF uses the exact page size and cell geometry from the active preset.
 - Source PDF pages are embedded into the output PDF as PDF pages rather than raster images, so barcodes and text remain sharp.
 - Print the final PDF at `100%` scale on the target laser-label sheet.

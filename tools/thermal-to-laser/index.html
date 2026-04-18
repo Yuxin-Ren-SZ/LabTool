@@ -270,11 +270,9 @@
           <div class="lt-section-label">1. Source PDF</div>
           <div class="panel-surface">
             <div class="lt-toolbar-row">
-              <label class="btn-reset file-btn">
-                <input id="source-pdf" type="file" accept="application/pdf" multiple hidden />
-                Upload PDFs
-              </label>
-              <span class="micro-note">Select one or more PDFs. Each page should be one thermal label, and files are combined in the order you choose them.</span>
+              <button class="btn-reset file-btn" id="source-pdf-trigger" type="button">Upload PDFs</button>
+              <input id="source-pdf" type="file" accept="application/pdf" multiple hidden />
+              <span class="micro-note">Select one or more PDFs. Supporting browsers in secure contexts will start in Downloads; other browsers use the normal file picker. Files are combined in the order you choose them.</span>
             </div>
             <div class="lt-alert lt-alert-info" id="source-status">Upload one or more thermal-printer PDFs to begin.</div>
             <div class="meta-grid" id="source-meta"></div>
@@ -385,7 +383,7 @@
               <button class="lt-btn lt-btn-primary" id="generate-pdf-btn">Generate Output PDF</button>
               <button class="btn-reset" id="download-pdf-btn" disabled>Download PDF</button>
             </div>
-            <div class="lt-alert lt-alert-info" id="output-status">Generate the PDF after reviewing the sheet preview. Print the final PDF at 100% scale.</div>
+            <div class="lt-alert lt-alert-info" id="output-status">Generate the PDF after reviewing the sheet preview. Supporting browsers will prefer Downloads when saving; other browsers use their default download flow.</div>
             <div id="output-summary"></div>
             <div class="output-preview" id="output-preview"></div>
           </div>

@@ -75,6 +75,7 @@ function init() {
 }
 
 function bindEvents() {
+  document.getElementById('source-pdf-trigger').addEventListener('click', promptForSourceFiles);
   document.getElementById('source-pdf').addEventListener('change', onSourcePdfSelected);
   document.getElementById('preset-select').addEventListener('change', onPresetSelectChanged);
   document.getElementById('save-preset-btn').addEventListener('click', saveCurrentPreset);
@@ -100,6 +101,35 @@ function bindEvents() {
   });
 }
 
+async function promptForSourceFiles() {
+  if (!canUseOpenFilePicker()) {
+    document.getElementById('source-pdf').click();
+    return;
+  }
+
+  try {
+    const handles = await window.showOpenFilePicker({
+      id: 'thermal-to-laser-source-pdfs',
+      multiple: true,
+      startIn: 'downloads',
+      types: [
+        {
+          description: 'PDF documents',
+          accept: {
+            'application/pdf': ['.pdf'],
+          },
+        },
+      ],
+    });
+    const files = await Promise.all(handles.map((handle) => handle.getFile()));
+    if (!files.length) return;
+    await loadSourceFiles(files);
+  } catch (error) {
+    if (error && error.name === 'AbortError') return;
+    document.getElementById('source-pdf').click();
+  }
+}
+
 async function onSourcePdfSelected(event) {
   const files = Array.from(event.target.files || []);
   event.target.value = '';
@@ -108,6 +138,10 @@ async function onSourcePdfSelected(event) {
     return;
   }
 
+  await loadSourceFiles(files);
+}
+
+async function loadSourceFiles(files) {
   setStatus('source-status', files.length === 1 ? 'Reading PDF…' : `Reading ${files.length} PDFs…`, 'info');
   renderStepProgress();
 
@@ -1234,8 +1268,12 @@ async function generateOutputPdf() {
 function downloadOutputPdf() {
   if (!state.outputBytes) return;
   const blob = new Blob([state.outputBytes], { type: 'application/pdf' });
+  if (canUseSaveFilePicker()) {
+    saveOutputPdfWithPicker(blob);
+    return;
+  }
   labtoolsDownloadBlob('thermal-to-laser-output.pdf', blob);
-  setStatus('output-status', 'Output PDF downloaded.', 'success');
+  setStatus('output-status', 'Output PDF downloaded. Your browser controls the save location in this environment.', 'success');
 }
 
 function updateOutputPreview() {
@@ -1249,6 +1287,40 @@ function clearOutputPreview() {
     URL.revokeObjectURL(state.outputUrl);
     state.outputUrl = '';
   }
+}
+
+async function saveOutputPdfWithPicker(blob) {
+  try {
+    const handle = await window.showSaveFilePicker({
+      id: 'thermal-to-laser-output-pdf',
+      startIn: 'downloads',
+      suggestedName: 'thermal-to-laser-output.pdf',
+      types: [
+        {
+          description: 'PDF document',
+          accept: {
+            'application/pdf': ['.pdf'],
+          },
+        },
+      ],
+    });
+    const writable = await handle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    setStatus('output-status', 'Output PDF saved.', 'success');
+  } catch (error) {
+    if (error && error.name === 'AbortError') return;
+    labtoolsDownloadBlob('thermal-to-laser-output.pdf', blob);
+    setStatus('output-status', 'Output PDF downloaded. Your browser controls the save location in this environment.', 'success');
+  }
+}
+
+function canUseOpenFilePicker() {
+  return !!(window.isSecureContext && typeof window.showOpenFilePicker === 'function');
+}
+
+function canUseSaveFilePicker() {
+  return !!(window.isSecureContext && typeof window.showSaveFilePicker === 'function');
 }
 
 function buildLoadedSourceMessage() {
