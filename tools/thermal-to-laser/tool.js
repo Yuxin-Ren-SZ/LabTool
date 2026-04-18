@@ -1051,7 +1051,7 @@ async function copyCurrentPresetConfig() {
     return;
   }
 
-  const snippet = buildSinglePresetSnippet(normalizePreset({
+  const snippet = buildPresetPropertySnippet(normalizePreset({
     ...state.currentPreset,
     id: state.selectedPresetId && state.selectedPresetId !== '__manual__'
       ? state.selectedPresetId
@@ -1063,7 +1063,7 @@ async function copyCurrentPresetConfig() {
     document.getElementById('copy-fallback').hidden = true;
     setStatus(
       'preset-status',
-      `Current settings copied. Paste the snippet into the presets array in ${CONFIG_PATH}.`,
+      `Current settings copied as preset lines. Paste them into the presets array in ${CONFIG_PATH}.`,
       'success'
     );
   } catch (error) {
@@ -1216,7 +1216,17 @@ function buildPresetConfigFileContent(presets) {
 }
 
 function buildSinglePresetSnippet(preset, trailingComma) {
-  const lines = ['{'];
+  const lines = ['{', ...buildPresetPropertyLines(preset)];
+  lines.push(`}${trailingComma === false ? '' : ','}`);
+  return lines.join('\n');
+}
+
+function buildPresetPropertySnippet(preset) {
+  return buildPresetPropertyLines(preset).join('\n');
+}
+
+function buildPresetPropertyLines(preset) {
+  const lines = [];
   PRESET_FIELD_ORDER.forEach((field) => {
     if (preset[field] === '' || preset[field] == null) return;
     const value = typeof preset[field] === 'number'
@@ -1224,8 +1234,7 @@ function buildSinglePresetSnippet(preset, trailingComma) {
       : JSON.stringify(String(preset[field]));
     lines.push(`  ${field}: ${value},`);
   });
-  lines.push(`}${trailingComma === false ? '' : ','}`);
-  return lines.join('\n');
+  return lines;
 }
 
 function normalizePreset(preset) {
