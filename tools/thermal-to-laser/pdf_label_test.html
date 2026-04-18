@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mailing Label Table Test</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #eee;
+    }
+
+    .page {
+      position: relative;
+      width: 8.5in;
+      height: 11in;
+      margin: 16px auto;
+      background: white;
+      box-shadow: 0 0 6px rgba(0,0,0,0.2);
+      overflow: hidden;
+      page-break-after: always;
+    }
+
+    .page-title {
+      position: absolute;
+      left: 0.2in;
+      top: 0.08in;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .label-sheet {
+      position: absolute;
+      display: grid;
+    }
+
+    .label {
+      border: 1px solid black;
+      width: 100%;
+      height: 100%;
+    }
+
+    @media print {
+      body {
+        background: white;
+      }
+
+      .page {
+        margin: 0;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    const specs = [
+      {
+        catalogNo: "9125-0170",
+        pageWidth: 8.5,
+        pageHeight: 11,
+        topMargin: 0.24,
+        sideMargin: 0.77,
+        vertPitch: 0.63,
+        horizPitch: 1.40,
+        labelHeight: 0.50,
+        labelWidth: 1.28,
+        across: 5,
+        down: 17
+      },
+      {
+        catalogNo: "9125-0238",
+        pageWidth: 8.5,
+        pageHeight: 11,
+        topMargin: 0.24,
+        sideMargin: 0.56,
+        vertPitch: 0.63,
+        horizPitch: 1.07,
+        labelHeight: 0.50,
+        labelWidth: 0.94,
+        across: 7,
+        down: 17
+      }
+    ];
+
+    function inch(value) {
+      return `${value}in`;
+    }
+
+    function createPage(spec) {
+      const page = document.createElement("div");
+      page.className = "page";
+      page.style.width = inch(spec.pageWidth);
+      page.style.height = inch(spec.pageHeight);
+
+      const title = document.createElement("div");
+      title.className = "page-title";
+      title.textContent = `Catalog No. ${spec.catalogNo}`;
+      page.appendChild(title);
+
+      const sheet = document.createElement("div");
+      sheet.className = "label-sheet";
+
+      const totalGridWidth =
+        spec.labelWidth + (spec.across - 1) * spec.horizPitch;
+
+      const totalGridHeight =
+        spec.labelHeight + (spec.down - 1) * spec.vertPitch;
+
+      const columnGap = spec.horizPitch - spec.labelWidth;
+      const rowGap = spec.vertPitch - spec.labelHeight;
+
+      sheet.style.left = inch(spec.sideMargin);
+      sheet.style.top = inch(spec.topMargin);
+      sheet.style.width = inch(totalGridWidth);
+      sheet.style.height = inch(totalGridHeight);
+
+      sheet.style.gridTemplateColumns = `repeat(${spec.across}, ${inch(spec.labelWidth)})`;
+      sheet.style.gridTemplateRows = `repeat(${spec.down}, ${inch(spec.labelHeight)})`;
+      sheet.style.columnGap = inch(columnGap);
+      sheet.style.rowGap = inch(rowGap);
+
+      const totalLabels = spec.across * spec.down;
+      for (let i = 0; i < totalLabels; i++) {
+        const cell = document.createElement("div");
+        cell.className = "label";
+        sheet.appendChild(cell);
+      }
+
+      page.appendChild(sheet);
+      return page;
+    }
+
+    const app = document.getElementById("app");
+    specs.forEach(spec => app.appendChild(createPage(spec)));
+  </script>
+</body>
+</html>
