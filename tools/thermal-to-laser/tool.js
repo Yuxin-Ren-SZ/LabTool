@@ -218,7 +218,19 @@ function onPresetSelectChanged(event) {
 }
 
 function onPresetEditorInput(event) {
+  const selectedPreset = state.selectedPresetId ? findPresetById(state.selectedPresetId) : null;
   const resetPlan = GEOMETRY_FIELD_IDS.includes(event.target.id);
+
+  if (selectedPreset) {
+    state.selectedPresetId = '__manual__';
+    document.getElementById('preset-select').value = '__manual__';
+    setStatus(
+      'preset-status',
+      `Preset selection cleared. ${selectedPreset.name} is now being edited as custom parameters.`,
+      'info'
+    );
+  }
+
   recalcPresetAndMaybePlan({ resetPlan });
   if (resetPlan && state.sourcePageCount && state.currentPreset) {
     setStatus('layout-status', 'Layout refreshed to reflect the updated sheet geometry.', 'info');
