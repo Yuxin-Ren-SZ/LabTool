@@ -125,6 +125,14 @@ function bindEvents() {
   });
 }
 
+function getRequiredPresetEditorField(fieldId) {
+  const field = document.getElementById(fieldId);
+  if (!field) {
+    throw new Error(`Preset editor field "#${fieldId}" was not found in the DOM.`);
+  }
+  return field;
+}
+
 function getActiveGroup() {
   return state.sourceGroups[state.activeGroupIndex] || null;
 }
@@ -309,8 +317,20 @@ async function loadSourceFiles(files) {
   setStatus('source-status', files.length === 1 ? 'Reading PDF…' : `Reading ${files.length} PDFs…`, 'info');
   renderStepProgress();
 
+  let parsedSource;
   try {
-    const parsedSource = await parseSourceFiles(files);
+    parsedSource = await parseSourceFiles(files);
+  } catch (error) {
+    setStatus(
+      'source-status',
+      error && error.message ? error.message : 'Unable to parse the selected PDF files.',
+      'danger'
+    );
+    renderAll();
+    return;
+  }
+
+  try {
     applyParsedSource(parsedSource);
     renderPresetOptions();
     seedEditorFromGroup(getActiveGroup());
@@ -321,9 +341,10 @@ async function loadSourceFiles(files) {
       'success'
     );
   } catch (error) {
+    console.error('Unexpected thermal-to-laser UI error while loading source PDFs.', error);
     setStatus(
       'source-status',
-      error && error.message ? error.message : 'Unable to parse the selected PDF files.',
+      'The PDFs were read, but the tool could not refresh the preset editor. Reload the page and try again.',
       'danger'
     );
   }
@@ -564,20 +585,20 @@ function allPresets() {
 }
 
 function seedEditor(preset) {
-  document.getElementById('presetName').value = preset.name || '';
-  document.getElementById('presetVendor').value = preset.vendor || '';
-  document.getElementById('presetSku').value = preset.sku || '';
-  document.getElementById('pageWidth').value = valueOrEmpty(preset.pageWidth);
-  document.getElementById('pageHeight').value = valueOrEmpty(preset.pageHeight);
-  document.getElementById('topMargin').value = valueOrEmpty(preset.topMargin);
-  document.getElementById('leftMargin').value = valueOrEmpty(preset.leftMargin);
-  document.getElementById('horizontalPitch').value = valueOrEmpty(preset.horizontalPitch);
-  document.getElementById('verticalPitch').value = valueOrEmpty(preset.verticalPitch);
-  document.getElementById('labelWidth').value = valueOrEmpty(preset.labelWidth);
-  document.getElementById('labelHeight').value = valueOrEmpty(preset.labelHeight);
-  document.getElementById('columns').value = valueOrEmpty(preset.columns);
-  document.getElementById('rows').value = valueOrEmpty(preset.rows);
-  document.getElementById('presetNotes').value = preset.notes || '';
+  getRequiredPresetEditorField('presetName').value = preset.name || '';
+  getRequiredPresetEditorField('presetVendor').value = preset.vendor || '';
+  getRequiredPresetEditorField('presetSku').value = preset.sku || '';
+  getRequiredPresetEditorField('pageWidth').value = valueOrEmpty(preset.pageWidth);
+  getRequiredPresetEditorField('pageHeight').value = valueOrEmpty(preset.pageHeight);
+  getRequiredPresetEditorField('topMargin').value = valueOrEmpty(preset.topMargin);
+  getRequiredPresetEditorField('sideMargin').value = valueOrEmpty(preset.leftMargin);
+  getRequiredPresetEditorField('horizontalPitch').value = valueOrEmpty(preset.horizontalPitch);
+  getRequiredPresetEditorField('verticalPitch').value = valueOrEmpty(preset.verticalPitch);
+  getRequiredPresetEditorField('labelWidth').value = valueOrEmpty(preset.labelWidth);
+  getRequiredPresetEditorField('labelHeight').value = valueOrEmpty(preset.labelHeight);
+  getRequiredPresetEditorField('columns').value = valueOrEmpty(preset.columns);
+  getRequiredPresetEditorField('rows').value = valueOrEmpty(preset.rows);
+  getRequiredPresetEditorField('presetNotes').value = preset.notes || '';
 }
 
 function collectPresetFromEditor() {
@@ -587,20 +608,20 @@ function collectPresetFromEditor() {
       id: group && group.selectedPresetId && group.selectedPresetId !== '__manual__'
         ? group.selectedPresetId
         : '',
-      name: document.getElementById('presetName').value.trim(),
-      vendor: document.getElementById('presetVendor').value.trim(),
-      sku: document.getElementById('presetSku').value.trim(),
-      pageWidth: document.getElementById('pageWidth').value,
-      pageHeight: document.getElementById('pageHeight').value,
-      topMargin: document.getElementById('topMargin').value,
-      leftMargin: document.getElementById('leftMargin').value,
-      horizontalPitch: document.getElementById('horizontalPitch').value,
-      verticalPitch: document.getElementById('verticalPitch').value,
-      labelWidth: document.getElementById('labelWidth').value,
-      labelHeight: document.getElementById('labelHeight').value,
-      columns: document.getElementById('columns').value,
-      rows: document.getElementById('rows').value,
-      notes: document.getElementById('presetNotes').value.trim(),
+      name: getRequiredPresetEditorField('presetName').value.trim(),
+      vendor: getRequiredPresetEditorField('presetVendor').value.trim(),
+      sku: getRequiredPresetEditorField('presetSku').value.trim(),
+      pageWidth: getRequiredPresetEditorField('pageWidth').value,
+      pageHeight: getRequiredPresetEditorField('pageHeight').value,
+      topMargin: getRequiredPresetEditorField('topMargin').value,
+      leftMargin: getRequiredPresetEditorField('sideMargin').value,
+      horizontalPitch: getRequiredPresetEditorField('horizontalPitch').value,
+      verticalPitch: getRequiredPresetEditorField('verticalPitch').value,
+      labelWidth: getRequiredPresetEditorField('labelWidth').value,
+      labelHeight: getRequiredPresetEditorField('labelHeight').value,
+      columns: getRequiredPresetEditorField('columns').value,
+      rows: getRequiredPresetEditorField('rows').value,
+      notes: getRequiredPresetEditorField('presetNotes').value.trim(),
     },
     'editor',
     0
