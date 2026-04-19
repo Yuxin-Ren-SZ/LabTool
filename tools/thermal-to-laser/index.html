@@ -219,6 +219,42 @@
       background: var(--surface-subtle);
     }
 
+    .group-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      background: var(--surface-subtle);
+    }
+
+    .group-nav-controls {
+      display: inline-flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .group-nav-copy {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .group-nav-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .group-nav-note {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
     @media (max-width: 860px) {
       .field-span-2 {
         grid-column: span 1;
@@ -280,6 +316,17 @@
 
           <div class="lt-section-label">2. Preset And Sheet Geometry</div>
           <div class="panel-surface">
+            <div class="group-nav" id="group-navigation" hidden>
+              <div class="group-nav-controls">
+                <button class="btn-reset" id="group-prev-btn" type="button" aria-label="View previous label-size group">←</button>
+                <button class="btn-reset" id="group-next-btn" type="button" aria-label="View next label-size group">→</button>
+              </div>
+              <div class="group-nav-copy">
+                <div class="group-nav-title" id="group-nav-status">Group 1 of 1</div>
+                <div class="group-nav-note" id="group-nav-note"></div>
+              </div>
+            </div>
+
             <div class="lt-form-grid">
               <div class="field-stack field-span-2">
                 <label class="lt-label" for="preset-select">Preset Source</label>

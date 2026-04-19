@@ -39,17 +39,11 @@ const PRESET_FIELD_ORDER = [
 const state = {
   builtInPresets: [],
   userPresets: [],
-  selectedPresetId: '',
   sourceDocuments: [],
   sourcePageCount: 0,
-  sourcePageSizePts: null,
-  sourceSizesUniform: true,
-  sourceSizeRangePts: null,
+  sourceGroups: [],
+  activeGroupIndex: 0,
   sourceParseError: '',
-  detectedPresetIds: [],
-  currentPreset: null,
-  currentPresetErrors: [],
-  layoutCells: [],
   actionMode: 'start',
   outputBytes: null,
   outputUrl: '',
@@ -70,20 +64,23 @@ function init() {
   renderPresetOptions();
   seedEditor(makeBlankPreset());
   setActionMode('start');
-  recalcPresetAndMaybePlan({ resetPlan: true });
+  setDefaultPresetStatusForActiveGroup();
   renderAll();
 }
 
 function bindEvents() {
   document.getElementById('source-pdf-trigger').addEventListener('click', promptForSourceFiles);
   document.getElementById('source-pdf').addEventListener('change', onSourcePdfSelected);
+  document.getElementById('group-prev-btn').addEventListener('click', () => setActiveGroup(state.activeGroupIndex - 1));
+  document.getElementById('group-next-btn').addEventListener('click', () => setActiveGroup(state.activeGroupIndex + 1));
   document.getElementById('preset-select').addEventListener('change', onPresetSelectChanged);
   document.getElementById('save-preset-btn').addEventListener('click', saveCurrentPreset);
   document.getElementById('clear-saved-presets-btn').addEventListener('click', clearUserPresets);
   document.getElementById('copy-current-btn').addEventListener('click', copyCurrentPresetConfig);
   document.getElementById('export-all-btn').addEventListener('click', exportAllPresetConfigs);
   document.getElementById('reset-layout-btn').addEventListener('click', () => {
-    if (!state.currentPreset || !state.sourcePageCount) return;
+    const group = getActiveGroup();
+    if (!group || !group.currentPreset || !group.sourcePageCount) return;
     initializeSequentialPlan(0);
     state.outputDirty = true;
     setStatus('layout-status', 'Layout reset to start from cell 1.', 'info');
@@ -99,6 +96,185 @@ function bindEvents() {
   document.querySelectorAll('#preset-editor input, #preset-editor textarea').forEach((field) => {
     field.addEventListener('input', onPresetEditorInput);
   });
+}
+
+function getActiveGroup() {
+  return state.sourceGroups[state.activeGroupIndex] || null;
+}
+
+function getGroupLabel(group, index) {
+  const resolvedIndex = typeof index === 'number'
+    ? index
+    : state.sourceGroups.indexOf(group);
+  return `Group ${resolvedIndex + 1}`;
+}
+
+function formatGroupSize(group) {
+  if (!group) return '';
+  return `${formatDecimal(pointsToInches(group.widthPts), 3)} × ${formatDecimal(pointsToInches(group.heightPts), 3)} in`;
+}
+
+function clonePresetDraft(preset) {
+  return sanitizePreset({
+    id: preset.id || '',
+    name: preset.name || '',
+    vendor: preset.vendor || '',
+    sku: preset.sku || '',
+    pageWidth: valueOrEmpty(preset.pageWidth),
+    pageHeight: valueOrEmpty(preset.pageHeight),
+    topMargin: valueOrEmpty(preset.topMargin),
+    leftMargin: valueOrEmpty(preset.leftMargin),
+    horizontalPitch: valueOrEmpty(preset.horizontalPitch),
+    verticalPitch: valueOrEmpty(preset.verticalPitch),
+    labelWidth: valueOrEmpty(preset.labelWidth),
+    labelHeight: valueOrEmpty(preset.labelHeight),
+    columns: valueOrEmpty(preset.columns),
+    rows: valueOrEmpty(preset.rows),
+    notes: preset.notes || '',
+  }, 'editor', 0);
+}
+
+function createSourceGroup(seed, index) {
+  return {
+    id: `size-group-${index + 1}`,
+    widthPts: seed.widthPts,
+    heightPts: seed.heightPts,
+    widthMinPts: seed.widthPts,
+    widthMaxPts: seed.widthPts,
+    heightMinPts: seed.heightPts,
+    heightMaxPts: seed.heightPts,
+    firstOrder: seed.originalOrder,
+    pages: [],
+    sourceDocumentIndexes: new Set(),
+    sourcePageCount: 0,
+    sourceDocumentCount: 0,
+    detectedPresetIds: [],
+    selectedPresetId: '',
+    draftPreset: makeBlankPreset(),
+    currentPreset: null,
+    currentPresetErrors: [],
+    layoutCells: [],
+  };
+}
+
+function finalizeSourceGroup(group, index) {
+  const detectedPresetIds = detectMatchingPresetIds(group.widthPts, group.heightPts);
+  const autoPreset = detectedPresetIds.length === 1 ? findPresetById(detectedPresetIds[0]) : null;
+
+  group.id = `size-group-${index + 1}`;
+  group.pages.sort((left, right) => left.originalOrder - right.originalOrder);
+  group.sourcePageCount = group.pages.length;
+  group.sourceDocumentCount = group.sourceDocumentIndexes.size;
+  group.detectedPresetIds = detectedPresetIds;
+  group.selectedPresetId = autoPreset ? autoPreset.id : '';
+  group.draftPreset = autoPreset ? clonePresetDraft(autoPreset) : makeBlankPreset();
+  delete group.sourceDocumentIndexes;
+  recalcGroupPresetAndMaybePlan(group, { resetPlan: true });
+  return group;
+}
+
+function buildSourceGroups(pageEntries) {
+  const tolerancePts = UNIFORM_SIZE_TOLERANCE_PT;
+  const groups = [];
+
+  pageEntries.forEach((entry) => {
+    let match = null;
+
+    for (const group of groups) {
+      if (
+        Math.abs(group.widthPts - entry.widthPts) <= tolerancePts &&
+        Math.abs(group.heightPts - entry.heightPts) <= tolerancePts
+      ) {
+        match = group;
+        break;
+      }
+    }
+
+    if (!match) {
+      match = createSourceGroup(entry, groups.length);
+      groups.push(match);
+    }
+
+    match.pages.push(entry);
+    match.sourceDocumentIndexes.add(entry.sourceDocumentIndex);
+    match.widthMinPts = Math.min(match.widthMinPts, entry.widthPts);
+    match.widthMaxPts = Math.max(match.widthMaxPts, entry.widthPts);
+    match.heightMinPts = Math.min(match.heightMinPts, entry.heightPts);
+    match.heightMaxPts = Math.max(match.heightMaxPts, entry.heightPts);
+    match.firstOrder = Math.min(match.firstOrder, entry.originalOrder);
+  });
+
+  return groups
+    .sort((left, right) =>
+      (right.heightPts - left.heightPts)
+      || (right.widthPts - left.widthPts)
+      || (left.firstOrder - right.firstOrder)
+    )
+    .map((group, index) => finalizeSourceGroup(group, index));
+}
+
+function setDefaultPresetStatusForActiveGroup() {
+  const group = getActiveGroup();
+
+  if (!group) {
+    setStatus(
+      'preset-status',
+      `Built-in presets ship from ${CONFIG_PATH}. Browser-saved presets stay local until you copy or export them back into that file.`,
+      'info'
+    );
+    return;
+  }
+
+  const label = getGroupLabel(group);
+  if (group.selectedPresetId && group.selectedPresetId !== '__manual__') {
+    const selectedPreset = findPresetById(group.selectedPresetId);
+    if (selectedPreset) {
+      setStatus('preset-status', `${label} is using preset: ${selectedPreset.name}.`, 'info');
+      return;
+    }
+  }
+
+  if (group.detectedPresetIds.length === 1) {
+    const detected = findPresetById(group.detectedPresetIds[0]);
+    setStatus(
+      'preset-status',
+      `${label} auto-selected a matching preset from the uploaded labels: ${detected ? detected.name : 'detected match'}.`,
+      'success'
+    );
+    return;
+  }
+
+  if (!group.detectedPresetIds.length) {
+    setStatus(
+      'preset-status',
+      `${label} did not match a shipped or saved preset. Enter the sheet geometry manually or save a new preset for this label size.`,
+      'warn'
+    );
+    return;
+  }
+
+  setStatus(
+    'preset-status',
+    `${label} matches multiple presets. Pick the intended sheet geometry before exporting this size group.`,
+    'warn'
+  );
+}
+
+function seedEditorFromGroup(group) {
+  seedEditor(group ? group.draftPreset : makeBlankPreset());
+}
+
+function setActiveGroup(index) {
+  if (!state.sourceGroups.length) return;
+
+  const clamped = Math.max(0, Math.min(index, state.sourceGroups.length - 1));
+  if (clamped === state.activeGroupIndex) return;
+
+  state.activeGroupIndex = clamped;
+  seedEditorFromGroup(getActiveGroup());
+  renderPresetOptions();
+  setDefaultPresetStatusForActiveGroup();
+  renderAll();
 }
 
 async function promptForSourceFiles() {
@@ -148,34 +324,9 @@ async function loadSourceFiles(files) {
   try {
     const parsedSource = await parseSourceFiles(files);
     applyParsedSource(parsedSource);
-
-    if (!state.selectedPresetId && state.detectedPresetIds.length === 1) {
-      const detected = findPresetById(state.detectedPresetIds[0]);
-      if (detected) {
-        state.selectedPresetId = detected.id;
-        document.getElementById('preset-select').value = detected.id;
-        seedEditor(detected);
-        setStatus(
-          'preset-status',
-          `Detected a matching preset from the uploaded PDF: ${detected.name}.`,
-          'success'
-        );
-      }
-    } else if (!state.detectedPresetIds.length) {
-      setStatus(
-        'preset-status',
-        'No shipped or saved preset matches this PDF page size. Enter the sheet geometry manually or save a new preset.',
-        'warn'
-      );
-    } else if (state.detectedPresetIds.length > 1 && !state.selectedPresetId) {
-      setStatus(
-        'preset-status',
-        'Multiple presets match the uploaded PDF page size. Pick the intended sheet geometry before exporting.',
-        'warn'
-      );
-    }
-
-    recalcPresetAndMaybePlan({ resetPlan: true });
+    renderPresetOptions();
+    seedEditorFromGroup(getActiveGroup());
+    setDefaultPresetStatusForActiveGroup();
     setStatus(
       'source-status',
       buildLoadedSourceMessage(),
@@ -194,9 +345,10 @@ async function loadSourceFiles(files) {
 
 async function parseSourceFiles(files) {
   const sourceDocuments = [];
-  const allSizes = [];
+  const pageEntries = [];
 
-  for (const file of files) {
+  for (let sourceDocumentIndex = 0; sourceDocumentIndex < files.length; sourceDocumentIndex += 1) {
+    const file = files[sourceDocumentIndex];
     const arrayBuffer = await labtoolsReadFileAsArrayBuffer(file);
     const bytes = new Uint8Array(arrayBuffer);
     let sourceDoc;
@@ -212,35 +364,29 @@ async function parseSourceFiles(files) {
       throw new Error(`"${file.name}" does not contain any pages.`);
     }
 
-    const sizes = pages.map((page) => page.getSize());
-    allSizes.push(...sizes);
     sourceDocuments.push({
       fileName: file.name,
       bytes,
       pageCount: pages.length,
     });
-  }
 
-  const first = allSizes[0];
-  const widthMin = Math.min.apply(null, allSizes.map((size) => size.width));
-  const widthMax = Math.max.apply(null, allSizes.map((size) => size.width));
-  const heightMin = Math.min.apply(null, allSizes.map((size) => size.height));
-  const heightMax = Math.max.apply(null, allSizes.map((size) => size.height));
+    pages.forEach((page, pageIndex) => {
+      const size = page.getSize();
+      pageEntries.push({
+        sourceDocumentIndex,
+        pageIndex,
+        fileName: file.name,
+        widthPts: size.width,
+        heightPts: size.height,
+        originalOrder: pageEntries.length,
+      });
+    });
+  }
 
   return {
     sourceDocuments,
-    sourcePageCount: sourceDocuments.reduce((total, item) => total + item.pageCount, 0),
-    sourcePageSizePts: { width: first.width, height: first.height },
-    sourceSizesUniform:
-      widthMax - widthMin <= UNIFORM_SIZE_TOLERANCE_PT &&
-      heightMax - heightMin <= UNIFORM_SIZE_TOLERANCE_PT,
-    sourceSizeRangePts: {
-      widthMin,
-      widthMax,
-      heightMin,
-      heightMax,
-    },
-    detectedPresetIds: detectMatchingPresetIds(first.width, first.height),
+    sourcePageCount: pageEntries.length,
+    sourceGroups: buildSourceGroups(pageEntries),
   };
 }
 
@@ -248,101 +394,110 @@ function applyParsedSource(parsedSource) {
   clearSourceState();
   state.sourceDocuments = parsedSource.sourceDocuments;
   state.sourcePageCount = parsedSource.sourcePageCount;
-  state.sourcePageSizePts = parsedSource.sourcePageSizePts;
-  state.sourceSizesUniform = parsedSource.sourceSizesUniform;
-  state.sourceSizeRangePts = parsedSource.sourceSizeRangePts;
-  state.detectedPresetIds = parsedSource.detectedPresetIds;
+  state.sourceGroups = parsedSource.sourceGroups;
+  state.activeGroupIndex = 0;
 }
 
 function onPresetSelectChanged(event) {
+  const group = getActiveGroup();
+  if (!group) return;
+
   const selectedId = event.target.value;
-  state.selectedPresetId = selectedId;
+  group.selectedPresetId = selectedId;
 
   if (!selectedId) {
-    if (state.detectedPresetIds.length === 1) {
-      const detected = findPresetById(state.detectedPresetIds[0]);
+    if (group.detectedPresetIds.length === 1) {
+      const detected = findPresetById(group.detectedPresetIds[0]);
       if (detected) {
-        seedEditor(detected);
+        group.draftPreset = clonePresetDraft(detected);
+        seedEditorFromGroup(group);
       }
     }
-    recalcPresetAndMaybePlan({ resetPlan: true });
+    recalcGroupPresetAndMaybePlan(group, { resetPlan: true });
+    setDefaultPresetStatusForActiveGroup();
     renderAll();
     return;
   }
 
   if (selectedId === '__manual__') {
     if (!document.getElementById('presetName').value.trim()) {
-      seedEditor(makeBlankPreset());
+      group.draftPreset = makeBlankPreset();
+      seedEditorFromGroup(group);
     }
-    recalcPresetAndMaybePlan({ resetPlan: true });
+    group.draftPreset = collectPresetFromEditor();
+    recalcGroupPresetAndMaybePlan(group, { resetPlan: true });
+    setStatus('preset-status', `${getGroupLabel(group)} is now using custom parameters.`, 'info');
     renderAll();
     return;
   }
 
   const preset = findPresetById(selectedId);
   if (!preset) return;
-  seedEditor(preset);
-  recalcPresetAndMaybePlan({ resetPlan: true });
-  setStatus('preset-status', `Loaded preset: ${preset.name}.`, 'info');
+  group.draftPreset = clonePresetDraft(preset);
+  seedEditorFromGroup(group);
+  recalcGroupPresetAndMaybePlan(group, { resetPlan: true });
+  setStatus('preset-status', `Loaded preset for ${getGroupLabel(group)}: ${preset.name}.`, 'info');
   renderAll();
 }
 
 function onPresetEditorInput(event) {
-  const selectedPreset = state.selectedPresetId ? findPresetById(state.selectedPresetId) : null;
+  const group = getActiveGroup();
+  if (!group) return;
+
+  const selectedPreset = group.selectedPresetId ? findPresetById(group.selectedPresetId) : null;
   const resetPlan = GEOMETRY_FIELD_IDS.includes(event.target.id);
 
   if (selectedPreset) {
-    state.selectedPresetId = '__manual__';
+    group.selectedPresetId = '__manual__';
     document.getElementById('preset-select').value = '__manual__';
     setStatus(
       'preset-status',
-      `Preset selection cleared. ${selectedPreset.name} is now being edited as custom parameters.`,
+      `${getGroupLabel(group)} cleared the preset selection. ${selectedPreset.name} is now being edited as custom parameters.`,
       'info'
     );
   }
 
-  recalcPresetAndMaybePlan({ resetPlan });
-  if (resetPlan && state.sourcePageCount && state.currentPreset) {
+  group.draftPreset = collectPresetFromEditor();
+  recalcGroupPresetAndMaybePlan(group, { resetPlan });
+  if (resetPlan && group.sourcePageCount && group.currentPreset) {
     setStatus('layout-status', 'Layout refreshed to reflect the updated sheet geometry.', 'info');
   }
   renderAll();
 }
 
-function recalcPresetAndMaybePlan(options) {
-  const preset = collectPresetFromEditor();
-  const validation = validatePreset(preset);
-  state.currentPreset = validation.valid ? validation.preset : null;
-  state.currentPresetErrors = validation.errors;
+function recalcGroupPresetAndMaybePlan(group, options) {
+  if (!group) return;
+
+  const validation = validatePreset(group.draftPreset);
+  group.currentPreset = validation.valid ? validation.preset : null;
+  group.currentPresetErrors = validation.errors;
   state.outputDirty = true;
   clearOutputPreview();
 
-  if (!state.currentPreset) {
-    state.layoutCells = [];
+  if (!group.currentPreset) {
+    group.layoutCells = [];
     return;
   }
 
-  if (!state.sourcePageCount) {
-    state.layoutCells = [];
+  if (!group.sourcePageCount) {
+    group.layoutCells = [];
     return;
   }
 
   if (options && options.resetPlan) {
-    initializeSequentialPlan(0);
+    initializeSequentialPlan(0, group);
   } else {
-    ensureUseCount(0, -1);
-    trimUnusedTrailingSheets();
+    ensureUseCount(0, -1, group);
+    trimUnusedTrailingSheets(group);
   }
 }
 
 function clearSourceState() {
   state.sourceDocuments = [];
   state.sourcePageCount = 0;
-  state.sourcePageSizePts = null;
-  state.sourceSizesUniform = true;
-  state.sourceSizeRangePts = null;
+  state.sourceGroups = [];
+  state.activeGroupIndex = 0;
   state.sourceParseError = '';
-  state.detectedPresetIds = [];
-  state.layoutCells = [];
   state.outputDirty = true;
   clearOutputPreview();
 }
@@ -438,10 +593,11 @@ function seedEditor(preset) {
 }
 
 function collectPresetFromEditor() {
+  const group = getActiveGroup();
   return sanitizePreset(
     {
-      id: state.selectedPresetId && state.selectedPresetId !== '__manual__'
-        ? state.selectedPresetId
+      id: group && group.selectedPresetId && group.selectedPresetId !== '__manual__'
+        ? group.selectedPresetId
         : '',
       name: document.getElementById('presetName').value.trim(),
       vendor: document.getElementById('presetVendor').value.trim(),
@@ -504,10 +660,46 @@ function validatePreset(preset) {
 function renderAll() {
   renderStepProgress();
   renderSourceSummary();
+  renderGroupNavigation();
+  renderPresetOptions();
   renderPresetSummary();
   renderLayoutSummary();
   renderSheetPages();
   renderOutputSummary();
+}
+
+function renderGroupNavigation() {
+  const container = document.getElementById('group-navigation');
+  const status = document.getElementById('group-nav-status');
+  const note = document.getElementById('group-nav-note');
+  const previousButton = document.getElementById('group-prev-btn');
+  const nextButton = document.getElementById('group-next-btn');
+  const group = getActiveGroup();
+
+  if (!group) {
+    container.hidden = true;
+    return;
+  }
+
+  container.hidden = false;
+  previousButton.disabled = state.activeGroupIndex === 0;
+  nextButton.disabled = state.activeGroupIndex === state.sourceGroups.length - 1;
+  status.textContent = state.sourceGroups.length === 1
+    ? 'Single label-size group'
+    : `${getGroupLabel(group)} of ${state.sourceGroups.length}`;
+  note.textContent = `${formatGroupSize(group)} · ${group.sourcePageCount} label${group.sourcePageCount === 1 ? '' : 's'} · ${group.sourceDocumentCount} PDF${group.sourceDocumentCount === 1 ? '' : 's'} · export order runs taller to shorter labels.`;
+}
+
+function allGroupsReadyForExport() {
+  return state.sourceGroups.length > 0 && state.sourceGroups.every((group) =>
+    group.currentPreset && getUseIndices(group).length === group.sourcePageCount
+  );
+}
+
+function collectIncompleteGroups() {
+  return state.sourceGroups.filter((group) =>
+    !group.currentPreset || getUseIndices(group).length !== group.sourcePageCount
+  );
 }
 
 function renderStepProgress() {
@@ -529,7 +721,7 @@ function renderStepProgress() {
     step1.classList.add('active');
   }
 
-  if (state.sourcePageCount && state.currentPreset && getUseIndices().length === state.sourcePageCount) {
+  if (state.sourcePageCount && allGroupsReadyForExport()) {
     step2.classList.add('active');
     connector1.classList.add('done');
     if (state.outputBytes && !state.outputDirty) {
@@ -547,7 +739,7 @@ function renderSourceSummary() {
     return;
   }
 
-  if (!state.sourcePageCount || !state.sourcePageSizePts) {
+  if (!state.sourcePageCount || !state.sourceGroups.length) {
     meta.innerHTML = `
       <div class="meta-card">
         <div class="meta-card-label">Waiting For Input</div>
@@ -558,11 +750,9 @@ function renderSourceSummary() {
     return;
   }
 
-  const widthIn = pointsToInches(state.sourcePageSizePts.width);
-  const heightIn = pointsToInches(state.sourcePageSizePts.height);
-  const uniformText = state.sourceSizesUniform
-    ? 'All pages share the same size.'
-    : `Pages vary from ${formatDecimal(pointsToInches(state.sourceSizeRangePts.widthMin), 3)}–${formatDecimal(pointsToInches(state.sourceSizeRangePts.widthMax), 3)} in wide and ${formatDecimal(pointsToInches(state.sourceSizeRangePts.heightMin), 3)}–${formatDecimal(pointsToInches(state.sourceSizeRangePts.heightMax), 3)} in tall.`;
+  const groupSummaryNote = state.sourceGroups.length === 1
+    ? `All uploaded labels share one detected size: ${formatGroupSize(state.sourceGroups[0])}.`
+    : `${state.sourceGroups.length} label-size groups were detected. Export splits them automatically from taller labels to shorter labels.`;
 
   meta.innerHTML = `
     <div class="meta-card">
@@ -576,9 +766,22 @@ function renderSourceSummary() {
       <div class="meta-card-note">Processed in the order shown below for layout and export.</div>
     </div>
     <div class="meta-card">
-      <div class="meta-card-label">Detected Label Size</div>
-      <div class="meta-card-value">${formatDecimal(widthIn, 3)} × ${formatDecimal(heightIn, 3)} in</div>
-      <div class="meta-card-note">${uniformText}</div>
+      <div class="meta-card-label">Size Groups</div>
+      <div class="meta-card-value">${state.sourceGroups.length}</div>
+      <div class="meta-card-note">${escapeHtml(groupSummaryNote)}</div>
+    </div>
+    <div class="meta-card meta-card--files">
+      <div class="meta-card-label">Detected Label Sizes</div>
+      <ol class="source-file-list">
+        ${state.sourceGroups.map((group, index) => `
+          <li class="source-file-item">
+            <span class="source-file-order">${index + 1}.</span>
+            <span class="source-file-name">${escapeHtml(formatGroupSize(group))}</span>
+            <span class="source-file-pages">${group.sourcePageCount} label${group.sourcePageCount === 1 ? '' : 's'} · ${group.sourceDocumentCount} PDF${group.sourceDocumentCount === 1 ? '' : 's'}</span>
+          </li>
+        `).join('')}
+      </ol>
+      <div class="meta-card-note">Each size group gets its own preset, sheet preview, and export pages.</div>
     </div>
     <div class="meta-card meta-card--files">
       <div class="meta-card-label">File Order</div>
@@ -598,9 +801,10 @@ function renderSourceSummary() {
 
 function renderPresetSummary() {
   const summary = document.getElementById('preset-summary');
-  const detected = state.detectedPresetIds.map((id) => findPresetById(id)).filter(Boolean);
+  const group = getActiveGroup();
+  const detected = group ? group.detectedPresetIds.map((id) => findPresetById(id)).filter(Boolean) : [];
 
-  if (!state.currentPreset) {
+  if (!group) {
     summary.innerHTML = `
       <div class="lt-alert lt-alert-info">
         Enter or load a complete sheet preset to unlock the layout preview.
@@ -609,20 +813,34 @@ function renderPresetSummary() {
     return;
   }
 
-  const preset = state.currentPreset;
+  if (!group.currentPreset) {
+    summary.innerHTML = `
+      <div class="lt-alert lt-alert-info">
+        ${escapeHtml(getGroupLabel(group))}: enter or load a complete sheet preset to unlock this group’s layout preview.
+      </div>
+    `;
+    return;
+  }
+
+  const preset = group.currentPreset;
   const capacity = preset.columns * preset.rows;
-  const selectedPreset = state.selectedPresetId ? findPresetById(state.selectedPresetId) : null;
+  const selectedPreset = group.selectedPresetId ? findPresetById(group.selectedPresetId) : null;
   const sourceLabel = selectedPreset
     ? (presetsMatch(selectedPreset, preset)
         ? describePresetSource(selectedPreset)
         : `Edited from ${selectedPreset.name}`)
     : 'Manual values';
   const detectedLine = detected.length
-    ? `Detected matches: ${detected.map((item) => item.name).join(', ')}.`
-    : 'No matching preset was detected from the first source label size.';
+    ? `Detected matches for this label size: ${detected.map((item) => item.name).join(', ')}.`
+    : 'No matching preset was detected for this label size.';
 
   summary.innerHTML = `
     <div class="meta-grid meta-grid--tight">
+      <div class="meta-card">
+        <div class="meta-card-label">Active Group</div>
+        <div class="meta-card-value">${escapeHtml(getGroupLabel(group))}</div>
+        <div class="meta-card-note">${escapeHtml(formatGroupSize(group))} · ${group.sourcePageCount} label${group.sourcePageCount === 1 ? '' : 's'}</div>
+      </div>
       <div class="meta-card">
         <div class="meta-card-label">Active Sheet</div>
         <div class="meta-card-value">${escapeHtml(preset.name)}</div>
@@ -647,28 +865,29 @@ function renderPresetSummary() {
 
 function renderLayoutSummary() {
   const summary = document.getElementById('layout-summary');
+  const group = getActiveGroup();
 
   if (!state.sourcePageCount) {
     summary.innerHTML = '<div class="lt-alert lt-alert-info">Upload source PDFs to plan the label placement.</div>';
     return;
   }
 
-  if (!state.currentPreset) {
-    summary.innerHTML = `<div class="lt-alert lt-alert-warn">${escapeHtml(state.currentPresetErrors[0] || 'Enter a valid preset to continue.')}</div>`;
+  if (!group || !group.currentPreset) {
+    summary.innerHTML = `<div class="lt-alert lt-alert-warn">${escapeHtml(group ? (group.currentPresetErrors[0] || 'Enter a valid preset to continue.') : 'Enter a valid preset to continue.')}</div>`;
     return;
   }
 
-  const useCount = getUseIndices().length;
-  const skipCount = state.layoutCells.filter((cell) => cell.mode === 'skip').length;
-  const pastCount = state.layoutCells.filter((cell) => cell.mode === 'past').length;
-  const sheetCount = Math.max(1, Math.ceil(state.layoutCells.length / getCellsPerSheet()));
-  const remaining = Math.max(0, state.sourcePageCount - useCount);
+  const useCount = getUseIndices(group).length;
+  const skipCount = group.layoutCells.filter((cell) => cell.mode === 'skip').length;
+  const pastCount = group.layoutCells.filter((cell) => cell.mode === 'past').length;
+  const sheetCount = Math.max(1, Math.ceil(group.layoutCells.length / getCellsPerSheet(group)));
+  const remaining = Math.max(0, group.sourcePageCount - useCount);
 
   summary.innerHTML = `
     <div class="meta-grid meta-grid--tight">
       <div class="meta-card">
         <div class="meta-card-label">Assigned Labels</div>
-        <div class="meta-card-value">${useCount} / ${state.sourcePageCount}</div>
+        <div class="meta-card-value">${useCount} / ${group.sourcePageCount}</div>
         <div class="meta-card-note">${remaining ? `${remaining} label${remaining === 1 ? '' : 's'} still need cells.` : 'The layout is ready to export.'}</div>
       </div>
       <div class="meta-card">
@@ -687,9 +906,10 @@ function renderLayoutSummary() {
 
 function renderSheetPages() {
   const container = document.getElementById('sheet-pages');
+  const group = getActiveGroup();
   container.innerHTML = '';
 
-  if (!state.sourcePageCount || !state.currentPreset) {
+  if (!state.sourcePageCount || !group || !group.currentPreset) {
     container.innerHTML = `
       <div class="lt-preview-frame">
         <div class="lt-alert lt-alert-info">
@@ -700,14 +920,14 @@ function renderSheetPages() {
     return;
   }
 
-  const geometry = buildSheetGeometry(state.currentPreset);
+  const geometry = buildSheetGeometry(group.currentPreset);
   const cellsPerSheet = geometry.cells.length;
-  const labelIndexMap = buildLabelIndexMap();
-  const sheetCount = Math.max(1, Math.ceil(state.layoutCells.length / cellsPerSheet));
+  const labelIndexMap = buildLabelIndexMap(group);
+  const sheetCount = Math.max(1, Math.ceil(group.layoutCells.length / cellsPerSheet));
 
   for (let sheetIndex = 0; sheetIndex < sheetCount; sheetIndex += 1) {
     const sheetStart = sheetIndex * cellsPerSheet;
-    const sheetCells = state.layoutCells.slice(sheetStart, sheetStart + cellsPerSheet);
+    const sheetCells = group.layoutCells.slice(sheetStart, sheetStart + cellsPerSheet);
     const assignedOnSheet = sheetCells.filter((cell) => cell.mode === 'use').length;
 
     const card = document.createElement('section');
@@ -726,7 +946,7 @@ function renderSheetPages() {
 
     const stage = document.createElement('div');
     stage.className = 'lt-sheet-stage';
-    stage.style.setProperty('--sheet-aspect', `${state.currentPreset.pageWidth} / ${state.currentPreset.pageHeight}`);
+    stage.style.setProperty('--sheet-aspect', `${group.currentPreset.pageWidth} / ${group.currentPreset.pageHeight}`);
 
     const region = document.createElement('div');
     region.className = 'lt-sheet-grid-region';
@@ -741,8 +961,8 @@ function renderSheetPages() {
 
     geometry.cells.forEach((rect, cellIndex) => {
       const globalIndex = sheetStart + cellIndex;
-      ensureCellExists(globalIndex);
-      const cellState = state.layoutCells[globalIndex];
+      ensureCellExists(globalIndex, group);
+      const cellState = group.layoutCells[globalIndex];
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `lt-sheet-cell lt-sheet-cell--${cellState.mode}`;
@@ -796,9 +1016,9 @@ function renderOutputSummary() {
   const preview = document.getElementById('output-preview');
   const downloadButton = document.getElementById('download-pdf-btn');
   const generateButton = document.getElementById('generate-pdf-btn');
-  generateButton.disabled = !state.currentPreset || !state.sourcePageCount || state.isGenerating;
+  generateButton.disabled = !state.sourceGroups.length || !state.sourcePageCount || state.isGenerating;
 
-  if (!state.sourcePageCount || !state.currentPreset) {
+  if (!state.sourcePageCount || !state.sourceGroups.length) {
     summary.innerHTML = '<div class="lt-alert lt-alert-info">Export becomes available after the source PDFs and sheet layout are ready.</div>';
     preview.innerHTML = '';
     downloadButton.disabled = true;
@@ -806,9 +1026,12 @@ function renderOutputSummary() {
   }
 
   if (state.outputDirty || !state.outputBytes) {
+    const incompleteGroups = collectIncompleteGroups();
     summary.innerHTML = `
-      <div class="lt-alert lt-alert-info">
-        Generate a PDF after reviewing the sheet preview. The exported document uses the exact page and cell geometry from the active preset.
+      <div class="lt-alert lt-alert-${incompleteGroups.length ? 'warn' : 'info'}">
+        ${incompleteGroups.length
+          ? `Finish ${incompleteGroups.map((group) => `${getGroupLabel(group)} (${formatGroupSize(group)})`).join(', ')} before exporting. Each size group needs its own valid preset and complete sheet layout.`
+          : `Generate a PDF after reviewing the sheet previews. The exported document combines ${state.sourceGroups.length} size group${state.sourceGroups.length === 1 ? '' : 's'} in taller-to-shorter label order.`}
       </div>
     `;
     preview.innerHTML = '';
@@ -833,6 +1056,7 @@ function renderOutputSummary() {
 
 function renderPresetOptions() {
   const select = document.getElementById('preset-select');
+  const group = getActiveGroup();
   select.innerHTML = `
     <option value="">Auto-detect from PDF / manual entry</option>
     <optgroup label="Built-in presets"></optgroup>
@@ -855,7 +1079,7 @@ function renderPresetOptions() {
     userGroup.appendChild(option);
   }
 
-  select.value = state.selectedPresetId || '';
+  select.value = group ? (group.selectedPresetId || '') : '';
 }
 
 function makePresetOption(preset) {
@@ -880,17 +1104,18 @@ function setActionMode(mode) {
 }
 
 function onSheetCellClick(index) {
-  if (!state.currentPreset || !state.sourcePageCount) return;
+  const group = getActiveGroup();
+  if (!group || !group.currentPreset || !group.sourcePageCount) return;
 
   if (state.actionMode === 'start') {
-    initializeSequentialPlan(index);
-    setStatus('layout-status', `The layout now starts at cell ${index + 1}. Earlier cells are treated as already used.`, 'info');
+    initializeSequentialPlan(index, group);
+    setStatus('layout-status', `${getGroupLabel(group)} now starts at cell ${index + 1}. Earlier cells are treated as already used.`, 'info');
   } else if (state.actionMode === 'use') {
-    markCellForLabel(index);
-    setStatus('layout-status', `Cell ${index + 1} is now assigned to a label.`, 'info');
+    markCellForLabel(index, group);
+    setStatus('layout-status', `${getGroupLabel(group)} assigned a label to cell ${index + 1}.`, 'info');
   } else if (state.actionMode === 'skip') {
-    skipCellAndAdvance(index);
-    setStatus('layout-status', `Cell ${index + 1} was skipped and the next open cell picked up the label.`, 'info');
+    skipCellAndAdvance(index, group);
+    setStatus('layout-status', `${getGroupLabel(group)} skipped cell ${index + 1} and advanced the next label.`, 'info');
   }
 
   state.outputDirty = true;
@@ -898,127 +1123,139 @@ function onSheetCellClick(index) {
   renderAll();
 }
 
-function initializeSequentialPlan(startIndex) {
-  const cellsPerSheet = getCellsPerSheet();
+function initializeSequentialPlan(startIndex, group) {
+  const targetGroup = group || getActiveGroup();
+  const cellsPerSheet = getCellsPerSheet(targetGroup);
   if (!cellsPerSheet) return;
 
-  const requiredCellCount = startIndex + state.sourcePageCount;
+  const requiredCellCount = startIndex + targetGroup.sourcePageCount;
   const requiredSheets = Math.max(1, Math.ceil(requiredCellCount / cellsPerSheet));
   const totalCells = requiredSheets * cellsPerSheet;
 
-  state.layoutCells = Array.from({ length: totalCells }, (_, index) => {
+  targetGroup.layoutCells = Array.from({ length: totalCells }, (_, index) => {
     if (index < startIndex) return { mode: 'past' };
-    if (index < startIndex + state.sourcePageCount) return { mode: 'use' };
+    if (index < startIndex + targetGroup.sourcePageCount) return { mode: 'use' };
     return { mode: 'available' };
   });
 }
 
-function markCellForLabel(index) {
-  ensureCellExists(index);
-  const cell = state.layoutCells[index];
+function markCellForLabel(index, group) {
+  const targetGroup = group || getActiveGroup();
+  ensureCellExists(index, targetGroup);
+  const cell = targetGroup.layoutCells[index];
   if (cell.mode === 'past' || cell.mode === 'use') return;
   cell.mode = 'use';
-  ensureUseCount(index + 1, index);
+  ensureUseCount(index + 1, index, targetGroup);
 }
 
-function skipCellAndAdvance(index) {
-  ensureCellExists(index);
-  const cell = state.layoutCells[index];
+function skipCellAndAdvance(index, group) {
+  const targetGroup = group || getActiveGroup();
+  ensureCellExists(index, targetGroup);
+  const cell = targetGroup.layoutCells[index];
   if (cell.mode === 'past') return;
   cell.mode = 'skip';
-  ensureUseCount(index + 1, -1);
+  ensureUseCount(index + 1, -1, targetGroup);
 }
 
-function ensureUseCount(preferredFrom, lockedIndex) {
-  const target = state.sourcePageCount;
-  if (!target || !state.currentPreset) return;
+function ensureUseCount(preferredFrom, lockedIndex, group) {
+  const targetGroup = group || getActiveGroup();
+  const target = targetGroup ? targetGroup.sourcePageCount : 0;
+  if (!target || !targetGroup || !targetGroup.currentPreset) return;
 
-  while (getUseIndices().length < target) {
-    let nextIndex = findNextCellByMode('available', preferredFrom);
+  while (getUseIndices(targetGroup).length < target) {
+    let nextIndex = findNextCellByMode('available', preferredFrom, targetGroup);
     if (nextIndex === -1) {
-      expandByOneSheet();
-      nextIndex = findNextCellByMode('available', preferredFrom);
+      expandByOneSheet(targetGroup);
+      nextIndex = findNextCellByMode('available', preferredFrom, targetGroup);
     }
     if (nextIndex === -1) break;
-    state.layoutCells[nextIndex].mode = 'use';
+    targetGroup.layoutCells[nextIndex].mode = 'use';
   }
 
-  while (getUseIndices().length > target) {
-    const removeIndex = findLastUseCandidate(lockedIndex, preferredFrom);
+  while (getUseIndices(targetGroup).length > target) {
+    const removeIndex = findLastUseCandidate(lockedIndex, preferredFrom, targetGroup);
     if (removeIndex === -1) break;
-    state.layoutCells[removeIndex].mode = 'available';
+    targetGroup.layoutCells[removeIndex].mode = 'available';
   }
 
-  trimUnusedTrailingSheets();
+  trimUnusedTrailingSheets(targetGroup);
 }
 
-function expandByOneSheet() {
-  const cellsPerSheet = getCellsPerSheet();
+function expandByOneSheet(group) {
+  const targetGroup = group || getActiveGroup();
+  const cellsPerSheet = getCellsPerSheet(targetGroup);
   if (!cellsPerSheet) return;
   for (let i = 0; i < cellsPerSheet; i += 1) {
-    state.layoutCells.push({ mode: 'available' });
+    targetGroup.layoutCells.push({ mode: 'available' });
   }
 }
 
-function findNextCellByMode(mode, preferredFrom) {
-  for (let index = Math.max(0, preferredFrom); index < state.layoutCells.length; index += 1) {
-    if (state.layoutCells[index].mode === mode) return index;
+function findNextCellByMode(mode, preferredFrom, group) {
+  const targetGroup = group || getActiveGroup();
+  for (let index = Math.max(0, preferredFrom); index < targetGroup.layoutCells.length; index += 1) {
+    if (targetGroup.layoutCells[index].mode === mode) return index;
   }
 
   for (let index = 0; index < Math.max(0, preferredFrom); index += 1) {
-    if (state.layoutCells[index].mode === mode) return index;
+    if (targetGroup.layoutCells[index].mode === mode) return index;
   }
 
   return -1;
 }
 
-function findLastUseCandidate(lockedIndex, preferredFrom) {
-  for (let index = state.layoutCells.length - 1; index >= preferredFrom; index -= 1) {
-    if (state.layoutCells[index].mode === 'use' && index !== lockedIndex) return index;
+function findLastUseCandidate(lockedIndex, preferredFrom, group) {
+  const targetGroup = group || getActiveGroup();
+  for (let index = targetGroup.layoutCells.length - 1; index >= preferredFrom; index -= 1) {
+    if (targetGroup.layoutCells[index].mode === 'use' && index !== lockedIndex) return index;
   }
 
-  for (let index = state.layoutCells.length - 1; index >= 0; index -= 1) {
-    if (state.layoutCells[index].mode === 'use' && index !== lockedIndex) return index;
+  for (let index = targetGroup.layoutCells.length - 1; index >= 0; index -= 1) {
+    if (targetGroup.layoutCells[index].mode === 'use' && index !== lockedIndex) return index;
   }
 
   return -1;
 }
 
-function ensureCellExists(index) {
-  const cellsPerSheet = getCellsPerSheet();
+function ensureCellExists(index, group) {
+  const targetGroup = group || getActiveGroup();
+  const cellsPerSheet = getCellsPerSheet(targetGroup);
   if (!cellsPerSheet) return;
-  while (state.layoutCells.length <= index) {
-    expandByOneSheet();
+  while (targetGroup.layoutCells.length <= index) {
+    expandByOneSheet(targetGroup);
   }
 }
 
-function trimUnusedTrailingSheets() {
-  const cellsPerSheet = getCellsPerSheet();
-  if (!cellsPerSheet || !state.layoutCells.length) return;
+function trimUnusedTrailingSheets(group) {
+  const targetGroup = group || getActiveGroup();
+  const cellsPerSheet = getCellsPerSheet(targetGroup);
+  if (!cellsPerSheet || !targetGroup.layoutCells.length) return;
 
   let lastRelevant = -1;
-  state.layoutCells.forEach((cell, index) => {
+  targetGroup.layoutCells.forEach((cell, index) => {
     if (cell.mode !== 'available') lastRelevant = index;
   });
 
   const sheetsToKeep = Math.max(1, Math.ceil((lastRelevant + 1) / cellsPerSheet));
-  state.layoutCells = state.layoutCells.slice(0, sheetsToKeep * cellsPerSheet);
+  targetGroup.layoutCells = targetGroup.layoutCells.slice(0, sheetsToKeep * cellsPerSheet);
 }
 
-function getCellsPerSheet() {
-  if (!state.currentPreset) return 0;
-  return state.currentPreset.columns * state.currentPreset.rows;
+function getCellsPerSheet(group) {
+  const targetGroup = group || getActiveGroup();
+  if (!targetGroup || !targetGroup.currentPreset) return 0;
+  return targetGroup.currentPreset.columns * targetGroup.currentPreset.rows;
 }
 
-function getUseIndices() {
-  return state.layoutCells
+function getUseIndices(group) {
+  const targetGroup = group || getActiveGroup();
+  if (!targetGroup) return [];
+  return targetGroup.layoutCells
     .map((cell, index) => (cell.mode === 'use' ? index : -1))
     .filter((index) => index !== -1);
 }
 
-function buildLabelIndexMap() {
+function buildLabelIndexMap(group) {
   const map = new Map();
-  getUseIndices().forEach((cellIndex, labelIndex) => {
+  getUseIndices(group).forEach((cellIndex, labelIndex) => {
     map.set(cellIndex, labelIndex + 1);
   });
   return map;
@@ -1066,19 +1303,20 @@ function detectMatchingPresetIds(widthPts, heightPts) {
 }
 
 async function saveCurrentPreset() {
-  if (!state.currentPreset) {
-    setStatus('preset-status', state.currentPresetErrors[0] || 'The preset is incomplete.', 'danger');
+  const group = getActiveGroup();
+  if (!group || !group.currentPreset) {
+    setStatus('preset-status', group ? (group.currentPresetErrors[0] || 'The preset is incomplete.') : 'The preset is incomplete.', 'danger');
     return;
   }
 
-  const sourceId = state.selectedPresetId;
+  const sourceId = group.selectedPresetId;
   const isUpdatingUserPreset = sourceId && state.userPresets.some((preset) => preset.id === sourceId);
   const id = isUpdatingUserPreset
     ? sourceId
-    : `user-${slugify(state.currentPreset.name || 'preset')}-${Date.now()}`;
+    : `user-${slugify(group.currentPreset.name || 'preset')}-${Date.now()}`;
 
   const presetToSave = sanitizePreset({
-    ...state.currentPreset,
+    ...group.currentPreset,
     id,
   }, 'user', state.userPresets.length);
 
@@ -1089,7 +1327,9 @@ async function saveCurrentPreset() {
   }
 
   persistUserPresets();
-  state.selectedPresetId = id;
+  group.selectedPresetId = id;
+  group.draftPreset = clonePresetDraft(presetToSave);
+  group.currentPreset = sanitizePreset(presetToSave, 'editor', 0);
   renderPresetOptions();
   document.getElementById('preset-select').value = id;
   setStatus(
@@ -1112,19 +1352,19 @@ function clearUserPresets() {
     return;
   }
 
-  const activeUserPresetSelected = state.selectedPresetId
-    && state.userPresets.some((preset) => preset.id === state.selectedPresetId);
+  const removedPresetIds = new Set(state.userPresets.map((preset) => preset.id));
 
   localStorage.removeItem(STORAGE_KEY);
   state.userPresets = [];
 
-  if (activeUserPresetSelected) {
-    state.selectedPresetId = '__manual__';
-  }
+  state.sourceGroups.forEach((group) => {
+    if (removedPresetIds.has(group.selectedPresetId)) {
+      group.selectedPresetId = '__manual__';
+    }
+  });
 
   document.getElementById('copy-fallback').hidden = true;
   renderPresetOptions();
-  document.getElementById('preset-select').value = state.selectedPresetId || '';
   setStatus(
     'preset-status',
     `Cleared browser-saved presets. Shipped presets in ${CONFIG_PATH} are unchanged.`,
@@ -1134,16 +1374,17 @@ function clearUserPresets() {
 }
 
 async function copyCurrentPresetConfig() {
-  if (!state.currentPreset) {
+  const group = getActiveGroup();
+  if (!group || !group.currentPreset) {
     setStatus('preset-status', 'Enter a valid preset before copying the config snippet.', 'danger');
     return;
   }
 
   const snippet = buildPresetPropertySnippet(normalizePreset({
-    ...state.currentPreset,
-    id: state.selectedPresetId && state.selectedPresetId !== '__manual__'
-      ? state.selectedPresetId
-      : `custom-${slugify(state.currentPreset.name || 'preset')}`,
+    ...group.currentPreset,
+    id: group.selectedPresetId && group.selectedPresetId !== '__manual__'
+      ? group.selectedPresetId
+      : `custom-${slugify(group.currentPreset.name || 'preset')}`,
   }));
 
   try {
@@ -1176,16 +1417,16 @@ function exportAllPresetConfigs() {
 }
 
 async function generateOutputPdf() {
-  if (!state.currentPreset || !state.sourceDocuments.length || !state.sourcePageCount) {
-    setStatus('output-status', 'Load source PDFs and a valid preset before generating the output.', 'danger');
+  if (!state.sourceGroups.length || !state.sourceDocuments.length || !state.sourcePageCount) {
+    setStatus('output-status', 'Load source PDFs and complete each size group before generating the output.', 'danger');
     return;
   }
 
-  const assigned = getUseIndices().length;
-  if (assigned !== state.sourcePageCount) {
+  const incompleteGroups = collectIncompleteGroups();
+  if (incompleteGroups.length) {
     setStatus(
       'output-status',
-      `The sheet plan currently assigns ${assigned} of ${state.sourcePageCount} labels. Finish the layout before exporting.`,
+      `Finish ${incompleteGroups.map((group) => `${getGroupLabel(group)} (${formatGroupSize(group)})`).join(', ')} before exporting.`,
       'danger'
     );
     return;
@@ -1197,47 +1438,56 @@ async function generateOutputPdf() {
 
   try {
     const outputDoc = await PDFLib.PDFDocument.create();
-    const embeddedPages = [];
+    const embeddedPagesByDocument = [];
     for (const sourceDocument of state.sourceDocuments) {
       const sourceDoc = await PDFLib.PDFDocument.load(sourceDocument.bytes);
-      const docPages = await outputDoc.embedPages(sourceDoc.getPages());
-      embeddedPages.push(...docPages);
-    }
-    const cellsPerSheet = getCellsPerSheet();
-    const geometry = buildSheetGeometry(state.currentPreset);
-    const useIndices = getUseIndices();
-    const maxUseIndex = useIndices[useIndices.length - 1];
-    const outputSheetCount = Math.floor(maxUseIndex / cellsPerSheet) + 1;
-    const pageWidthPts = inchesToPoints(state.currentPreset.pageWidth);
-    const pageHeightPts = inchesToPoints(state.currentPreset.pageHeight);
-
-    const outputPages = [];
-    for (let pageIndex = 0; pageIndex < outputSheetCount; pageIndex += 1) {
-      outputPages.push(outputDoc.addPage([pageWidthPts, pageHeightPts]));
+      embeddedPagesByDocument.push(await outputDoc.embedPages(sourceDoc.getPages()));
     }
 
-    useIndices.forEach((cellIndex, labelIndex) => {
-      const sheetIndex = Math.floor(cellIndex / cellsPerSheet);
-      const cellRect = geometry.cells[cellIndex % cellsPerSheet];
-      const page = outputPages[sheetIndex];
-      const embedded = embeddedPages[labelIndex];
-      const fitted = fitWithinBox(
-        embedded.width,
-        embedded.height,
-        inchesToPoints(cellRect.widthIn),
-        inchesToPoints(cellRect.heightIn)
-      );
+    let totalOutputSheetCount = 0;
+    const groupPageSummaries = [];
 
-      const boxX = inchesToPoints(cellRect.xIn);
-      const boxY = pageHeightPts - inchesToPoints(cellRect.yIn) - inchesToPoints(cellRect.heightIn);
-      const drawX = boxX + (inchesToPoints(cellRect.widthIn) - fitted.width) / 2;
-      const drawY = boxY + (inchesToPoints(cellRect.heightIn) - fitted.height) / 2;
+    state.sourceGroups.forEach((group) => {
+      const cellsPerSheet = getCellsPerSheet(group);
+      const geometry = buildSheetGeometry(group.currentPreset);
+      const useIndices = getUseIndices(group);
+      const maxUseIndex = useIndices[useIndices.length - 1];
+      const outputSheetCount = Math.floor(maxUseIndex / cellsPerSheet) + 1;
+      const pageWidthPts = inchesToPoints(group.currentPreset.pageWidth);
+      const pageHeightPts = inchesToPoints(group.currentPreset.pageHeight);
+      const outputPages = [];
 
-      page.drawPage(embedded, {
-        x: drawX,
-        y: drawY,
-        width: fitted.width,
-        height: fitted.height,
+      totalOutputSheetCount += outputSheetCount;
+      groupPageSummaries.push(`${getGroupLabel(group)} ${formatGroupSize(group)}: ${outputSheetCount} page${outputSheetCount === 1 ? '' : 's'}`);
+
+      for (let pageIndex = 0; pageIndex < outputSheetCount; pageIndex += 1) {
+        outputPages.push(outputDoc.addPage([pageWidthPts, pageHeightPts]));
+      }
+
+      useIndices.forEach((cellIndex, labelIndex) => {
+        const sheetIndex = Math.floor(cellIndex / cellsPerSheet);
+        const cellRect = geometry.cells[cellIndex % cellsPerSheet];
+        const page = outputPages[sheetIndex];
+        const sourcePage = group.pages[labelIndex];
+        const embedded = embeddedPagesByDocument[sourcePage.sourceDocumentIndex][sourcePage.pageIndex];
+        const fitted = fitWithinBox(
+          embedded.width,
+          embedded.height,
+          inchesToPoints(cellRect.widthIn),
+          inchesToPoints(cellRect.heightIn)
+        );
+
+        const boxX = inchesToPoints(cellRect.xIn);
+        const boxY = pageHeightPts - inchesToPoints(cellRect.yIn) - inchesToPoints(cellRect.heightIn);
+        const drawX = boxX + (inchesToPoints(cellRect.widthIn) - fitted.width) / 2;
+        const drawY = boxY + (inchesToPoints(cellRect.heightIn) - fitted.height) / 2;
+
+        page.drawPage(embedded, {
+          x: drawX,
+          y: drawY,
+          width: fitted.width,
+          height: fitted.height,
+        });
       });
     });
 
@@ -1250,7 +1500,7 @@ async function generateOutputPdf() {
     updateOutputPreview();
     setStatus(
       'output-status',
-      `Generated ${outputSheetCount} output page${outputSheetCount === 1 ? '' : 's'}. Print at 100% scale on the target label sheet.`,
+      `Generated ${totalOutputSheetCount} output page${totalOutputSheetCount === 1 ? '' : 's'} across ${state.sourceGroups.length} size group${state.sourceGroups.length === 1 ? '' : 's'} (${groupPageSummaries.join('; ')}). Print at 100% scale on the target label sheet.`,
       'success'
     );
   } catch (error) {
@@ -1325,6 +1575,9 @@ function canUseSaveFilePicker() {
 
 function buildLoadedSourceMessage() {
   const pageLabel = `${state.sourcePageCount} label page${state.sourcePageCount === 1 ? '' : 's'}`;
+  if (state.sourceGroups.length > 1) {
+    return `Loaded ${pageLabel} from ${state.sourceDocuments.length} PDFs across ${state.sourceGroups.length} detected label sizes. Groups will export from taller labels to shorter labels.`;
+  }
   if (state.sourceDocuments.length === 1) {
     return `Loaded ${pageLabel} from ${state.sourceDocuments[0].fileName}.`;
   }

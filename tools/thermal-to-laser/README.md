@@ -5,14 +5,16 @@ Convert one or more multi-page thermal-printer label PDFs into a laser-printer m
 ## Workflow
 
 1. Upload one or more PDFs where each page is one label.
-2. Let the tool auto-detect a matching preset, or choose / enter the sheet geometry manually.
-3. Review the sheet preview and choose:
+2. If the uploaded PDFs contain different physical label sizes, the tool automatically splits them into size groups ordered from taller labels to shorter labels.
+3. For each size group, let the tool auto-detect a matching preset, or choose / enter the sheet geometry manually.
+4. Review the active group’s sheet preview and choose:
    - `Start Here` to reset the plan and fill cells sequentially from a chosen cell
    - `Use Cell` to force a label into a specific cell
    - `Skip Cell` to mark a cell unavailable and advance the next pending label
-4. Generate and download the output PDF.
+5. Use the arrow buttons in `Preset And Sheet Geometry` to move between size groups when multiple label sizes were detected.
+6. Generate and download the output PDF.
 
-When multiple PDFs are selected, the tool combines them into one label stream using the file picker order.
+When multiple PDFs are selected, the tool preserves file order and page order within each detected size group. The final output PDF places the larger-height label groups first.
 
 ## Presets
 
@@ -29,6 +31,8 @@ When multiple PDFs are selected, the tool combines them into one label stream us
 
 - In supporting browsers running in a secure context, the upload and save dialogs prefer the Downloads folder.
 - In unsupported browsers or non-secure contexts, the tool falls back to the browser’s normal file picker and download location behavior.
-- The output PDF uses the exact page size and cell geometry from the active preset.
+- Each detected label-size group has its own preset, validation state, sheet preview, and output pages.
+- Export is blocked until every detected size group has a valid preset and a complete sheet layout.
+- The output PDF uses the exact page size and cell geometry from each group’s active preset.
 - Source PDF pages are embedded into the output PDF as PDF pages rather than raster images, so barcodes and text remain sharp.
 - Print the final PDF at `100%` scale on the target laser-label sheet.
