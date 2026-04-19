@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Cell Seeding Calculator · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
-  <!-- Shared pure-function utilities (avgTwo, fmt, fmtSig, calcCellDensity, makeDiagram, MODES …) -->
+  <!-- Shared pure-function utilities: avgTwo, fmt, fmtSig, calcCellDensity, calcTotalCells,
+       calcViabilityPct, bestVolumeDisplay, autoBestConcUnit, restrictToNumeric, makeDiagram, MODES -->
   <script src="../../assets/js/labtools-calc.js"></script>
   <style>
     /* ── Card width (base styles live in labtools.css .card) ── */
@@ -479,8 +480,9 @@
 
 // ─────────────────────────────────────────────────────────────
 // State
-// (makeDiagram, MODES, avgTwo, fmt, fmtSig, calcCellDensity,
-//  calcTotalCells, calcViabilityPct are from labtools-calc.js)
+// (avgTwo, fmt, fmtSig, calcCellDensity, calcTotalCells, calcViabilityPct,
+//  bestVolumeDisplay, autoBestConcUnit, restrictToNumeric, makeDiagram, MODES
+//  are all from labtools-calc.js)
 // ─────────────────────────────────────────────────────────────
 
 /** Currently selected counting mode ID (1–4, matching MODES[].id). */

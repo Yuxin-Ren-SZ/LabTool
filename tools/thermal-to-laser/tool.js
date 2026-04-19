@@ -1,3 +1,30 @@
+/**
+ * tool.js — Thermal-to-Laser Label Converter
+ *
+ * Converts one or more thermal-printer label PDFs (one label per page) into a
+ * laser-printer mailing-label sheet PDF. Key workflow:
+ *
+ *   1. User uploads PDFs → pages are parsed and grouped by physical label size
+ *      (buildSourceGroups / applyParsedSource).
+ *   2. For each size group the user selects a sheet-geometry preset — either
+ *      auto-matched, chosen from the dropdown, or entered manually
+ *      (onPresetSelectChanged / onPresetEditorInput / recalcGroupPresetAndMaybePlan).
+ *   3. The sheet preview lets the user place labels into specific cells or skip
+ *      cells; the plan is stored per-group inside state.sourceGroups[i].plan.
+ *   4. Once every group has a valid preset and complete plan, the user generates
+ *      the output PDF (generateOutput via pdf-lib).
+ *
+ * Key data structures:
+ *   state            — singleton object (defined below) holding all runtime state
+ *   state.sourceGroups[] — one entry per detected label size; each has:
+ *                          { heightPt, widthPt, pages[], preset, plan, … }
+ *   state.sourceDocuments[] — raw PDFDocument objects (one per uploaded file)
+ *
+ * Top-level entry points:
+ *   init()           — called on DOMContentLoaded; loads presets, binds events
+ *   renderAll()      — full UI refresh; call after any state change
+ *   generateOutput() — builds and downloads the final PDF
+ */
 'use strict';
 
 const STORAGE_KEY = 'labtools:thermal-to-laser:user-presets:v1';

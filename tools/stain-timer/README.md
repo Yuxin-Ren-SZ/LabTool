@@ -26,7 +26,7 @@ Build your protocol by editing the step list:
 **Export Protocol** downloads a plain-text CSV you can reload later.
 **Import Protocol** reads a previously exported CSV to restore a saved protocol.
 
-The default protocol pre-loaded is the **Myelin Nissl staining** sequence (23 steps, 12 slots).
+The default protocol pre-loaded is a short 3-step placeholder so the table is not empty on first open. Replace it with your own steps or use **Import Protocol** to reload a previously saved CSV.
 
 ### Page 2 — Run Timer
 
@@ -70,25 +70,3 @@ Step,Solution,Duration Min,Duration Sec,Slot,Started At,Actual Duration (min)
 ...
 ```
 
-## Default Protocol — Myelin Nissl
-
-| # | Solution | Duration | Slot |
-|---|---|---|---|
-| 1 | DD Water | 3 min | 1 |
-| 2 | 70% EtOH | 3 min | 2 |
-| 3–4 | 95% EtOH | 3 min × 2 | 3 |
-| 5–6 | 100% EtOH | 3 min × 2 | 4 |
-| 7–8 | Citrisolve | 10 min × 2 | 5 |
-| 9–10 | 100% EtOH | 3 min × 2 | 6 |
-| 11–12 | 95% EtOH | 3 min × 2 | 7 |
-| 13 | 70% EtOH | 3 min | 8 |
-| 14 | DD Water | 3 min | 9 |
-| 15 | Myelin Stain | 10 min | 10 |
-| 16 | DD Water | 1 min | 9 |
-| 17 | Diff | 1 min 30 sec | 11 |
-| 18 | DD Water | 1 min | 9 |
-| 19 | Nissl | 20 min | 12 |
-| 20 | DD Water | 1 min | 9 |
-| 21 | 95% EtOH | 1 min | 7 |
-| 22 | 100% EtOH | 1 min | 6 |
-| 23 | Citrisolve | 6 min | 5 |

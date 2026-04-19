@@ -18,7 +18,7 @@ When multiple PDFs are selected, the tool preserves file order and page order wi
 
 ## Presets
 
-- Built-in presets ship from [preset-config.js](/Users/yuxinren/Code/LabTools/tools/thermal-to-laser/preset-config.js)
+- Built-in presets ship from [preset-config.js](./preset-config.js)
 - Browser-saved presets are stored only in this browser with `localStorage`
 - They persist locally until cleared and do not sync to other browsers or machines
 - Saving in the browser does not rewrite `preset-config.js`
