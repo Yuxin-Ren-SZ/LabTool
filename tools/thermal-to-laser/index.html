@@ -255,9 +255,150 @@
       line-height: 1.5;
     }
 
+    .preset-summary-panel {
+      --preset-summary-accent: var(--blue-dark);
+      --preset-summary-bg: var(--blue-bg);
+      --preset-summary-border: var(--blue-border);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 16px 18px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--preset-summary-border);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0)) padding-box,
+        var(--preset-summary-bg);
+    }
+
+    .preset-summary-panel--info {
+      --preset-summary-accent: var(--blue-dark);
+      --preset-summary-bg: var(--blue-bg);
+      --preset-summary-border: var(--blue-border);
+    }
+
+    .preset-summary-panel--success {
+      --preset-summary-accent: var(--green-dark);
+      --preset-summary-bg: var(--green-bg);
+      --preset-summary-border: var(--green-border);
+    }
+
+    .preset-summary-panel--warn {
+      --preset-summary-accent: var(--yellow-dark);
+      --preset-summary-bg: var(--yellow-bg);
+      --preset-summary-border: var(--yellow-border);
+    }
+
+    .preset-summary-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .preset-summary-eyebrow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--preset-summary-accent);
+    }
+
+    .preset-summary-title {
+      font-size: 1.16rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+      margin-bottom: 4px;
+    }
+
+    .preset-summary-subtitle {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .preset-summary-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      min-height: 28px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(255,255,255,0.82);
+      color: var(--preset-summary-accent);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .preset-summary-facts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+    }
+
+    .preset-summary-fact {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+      padding-top: 10px;
+      border-top: 1px solid rgba(55, 53, 47, 0.08);
+    }
+
+    .preset-summary-fact-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+
+    .preset-summary-fact-value {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .preset-summary-fact-note {
+      font-size: 0.77rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .preset-summary-match-note {
+      font-size: 0.77rem;
+      color: var(--text-secondary);
+      line-height: 1.55;
+      padding-top: 2px;
+    }
+
+    .preset-status-shell {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
     @media (max-width: 860px) {
       .field-span-2 {
         grid-column: span 1;
+      }
+
+      .preset-summary-top {
+        flex-direction: column;
+      }
+
+      .preset-summary-chip {
+        align-self: flex-start;
       }
     }
 
@@ -265,6 +406,8 @@
       .card { padding: 18px 14px; }
       .panel-surface { padding: 14px; }
       .output-embed { min-height: 420px; }
+      .preset-summary-panel { padding: 14px; }
+      .preset-summary-facts { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -327,6 +470,8 @@
               </div>
             </div>
 
+            <div id="preset-summary"></div>
+
             <div class="lt-form-grid">
               <div class="field-stack field-span-2">
                 <label class="lt-label" for="preset-select">Preset Source</label>
@@ -346,9 +491,6 @@
               </div>
             </div>
 
-            <div class="lt-alert lt-alert-info" id="preset-status">Built-in presets ship from <code>tools/thermal-to-laser/preset-config.js</code>. Browser-saved presets stay local until you copy or export them back into that file.</div>
-            <div id="preset-summary"></div>
-
             <div class="lt-form-grid" id="preset-editor">
               <div class="field-stack">
                 <label class="lt-label" for="pageWidth">Page Width (in)</label>
@@ -363,8 +505,8 @@
                 <input class="lt-input lt-input-float" id="topMargin" type="number" inputmode="decimal" min="0" step="0.01"/>
               </div>
               <div class="field-stack">
-                <label class="lt-label" for="leftMargin">Left Margin (in)</label>
-                <input class="lt-input lt-input-float" id="leftMargin" type="number" inputmode="decimal" min="0" step="0.01"/>
+                <label class="lt-label" for="sideMargin">Left Margin (in)</label>
+                <input class="lt-input lt-input-float" id="sideMargin" type="number" inputmode="decimal" min="0" step="0.01"/>
               </div>
               <div class="field-stack">
                 <label class="lt-label" for="horizontalPitch">Horizontal Pitch (in)</label>
@@ -402,7 +544,10 @@
               <button class="btn-reset" id="copy-current-btn">Copy Current Settings</button>
               <button class="btn-reset" id="export-all-btn">Export All Presets</button>
             </div>
-            <div class="micro-note">Saved presets stay only in this browser’s local storage until you clear them. They do not sync to other browsers or machines, and they do not rewrite <code>tools/thermal-to-laser/preset-config.js</code>. Use “Copy Current Settings” or “Export All Presets” to merge changes back into the repo file manually.</div>
+            <div class="preset-status-shell">
+              <div class="lt-alert lt-alert-info" id="preset-status">Built-in presets ship from <code>tools/thermal-to-laser/preset-config.js</code>. Browser-saved presets stay local until you copy or export them back into that file.</div>
+              <div class="micro-note">Saved presets stay only in this browser’s local storage until you clear them. They do not sync to other browsers or machines, and they do not rewrite <code>tools/thermal-to-laser/preset-config.js</code>. Use “Copy Current Settings” or “Export All Presets” to merge changes back into the repo file manually.</div>
+            </div>
             <textarea class="lt-input lt-textarea copy-fallback" id="copy-fallback" hidden></textarea>
           </div>
         </section>

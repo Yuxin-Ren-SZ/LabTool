@@ -9,7 +9,7 @@ const GEOMETRY_FIELD_IDS = [
   'pageWidth',
   'pageHeight',
   'topMargin',
-  'leftMargin',
+  'sideMargin',
   'horizontalPitch',
   'verticalPitch',
   'labelWidth',
@@ -26,7 +26,7 @@ const PRESET_FIELD_ORDER = [
   'pageWidth',
   'pageHeight',
   'topMargin',
-  'leftMargin',
+  'sideMargin',
   'verticalPitch',
   'horizontalPitch',
   'labelHeight',
@@ -123,7 +123,7 @@ function clonePresetDraft(preset) {
     pageWidth: valueOrEmpty(preset.pageWidth),
     pageHeight: valueOrEmpty(preset.pageHeight),
     topMargin: valueOrEmpty(preset.topMargin),
-    leftMargin: valueOrEmpty(preset.leftMargin),
+    sideMargin: valueOrEmpty(preset.leftMargin),
     horizontalPitch: valueOrEmpty(preset.horizontalPitch),
     verticalPitch: valueOrEmpty(preset.verticalPitch),
     labelWidth: valueOrEmpty(preset.labelWidth),
@@ -215,49 +215,10 @@ function buildSourceGroups(pageEntries) {
 
 function setDefaultPresetStatusForActiveGroup() {
   const group = getActiveGroup();
-
-  if (!group) {
-    setStatus(
-      'preset-status',
-      `Built-in presets ship from ${CONFIG_PATH}. Browser-saved presets stay local until you copy or export them back into that file.`,
-      'info'
-    );
-    return;
-  }
-
-  const label = getGroupLabel(group);
-  if (group.selectedPresetId && group.selectedPresetId !== '__manual__') {
-    const selectedPreset = findPresetById(group.selectedPresetId);
-    if (selectedPreset) {
-      setStatus('preset-status', `${label} is using preset: ${selectedPreset.name}.`, 'info');
-      return;
-    }
-  }
-
-  if (group.detectedPresetIds.length === 1) {
-    const detected = findPresetById(group.detectedPresetIds[0]);
-    setStatus(
-      'preset-status',
-      `${label} auto-selected a matching preset from the uploaded labels: ${detected ? detected.name : 'detected match'}.`,
-      'success'
-    );
-    return;
-  }
-
-  if (!group.detectedPresetIds.length) {
-    setStatus(
-      'preset-status',
-      `${label} did not match a shipped or saved preset. Enter the sheet geometry manually or save a new preset for this label size.`,
-      'warn'
-    );
-    return;
-  }
-
-  setStatus(
-    'preset-status',
-    `${label} matches multiple presets. Pick the intended sheet geometry before exporting this size group.`,
-    'warn'
-  );
+  const message = group
+    ? `${getGroupLabel(group)} can use a shipped preset, a browser-saved preset, or custom geometry. Browser-saved changes stay local until you copy or export them back into ${CONFIG_PATH}.`
+    : `Built-in presets ship from ${CONFIG_PATH}. Browser-saved presets stay local until you copy or export them back into that file.`;
+  setStatus('preset-status', message, 'info');
 }
 
 function seedEditorFromGroup(group) {
@@ -806,17 +767,54 @@ function renderPresetSummary() {
 
   if (!group) {
     summary.innerHTML = `
-      <div class="lt-alert lt-alert-info">
-        Enter or load a complete sheet preset to unlock the layout preview.
+      <div class="preset-summary-panel preset-summary-panel--info">
+        <div class="preset-summary-top">
+          <div>
+            <div class="preset-summary-eyebrow">Preset Summary</div>
+            <div class="preset-summary-title">Enter or load a sheet preset</div>
+            <div class="preset-summary-subtitle">Upload PDFs, then choose a shipped preset or enter custom geometry to unlock the layout preview.</div>
+          </div>
+          <span class="preset-summary-chip">Waiting</span>
+        </div>
       </div>
     `;
     return;
   }
 
   if (!group.currentPreset) {
+    const hasMultipleMatches = detected.length > 1;
+    const needsCustomEntry = !detected.length;
+    const badge = hasMultipleMatches
+      ? 'Multiple matches'
+      : needsCustomEntry
+        ? 'No match'
+        : 'Custom';
+    const panelVariant = group.currentPresetErrors.length ? 'warn' : 'info';
+    const title = hasMultipleMatches
+      ? 'Choose the intended preset'
+      : needsCustomEntry
+        ? 'No preset matched this label size'
+        : (group.draftPreset.name || 'Finish the custom geometry');
+    const subtitle = group.currentPresetErrors[0]
+      || (hasMultipleMatches
+        ? 'Pick one preset or finish entering custom geometry before the sheet preview can be generated.'
+        : 'Enter the remaining geometry fields to unlock this group’s layout preview.');
+    const matchNote = hasMultipleMatches
+      ? `Matching presets for ${formatGroupSize(group)}: ${detected.map((item) => item.name).join(', ')}.`
+      : needsCustomEntry
+        ? `No shipped or browser-saved preset matched ${formatGroupSize(group)}.`
+        : '';
     summary.innerHTML = `
-      <div class="lt-alert lt-alert-info">
-        ${escapeHtml(getGroupLabel(group))}: enter or load a complete sheet preset to unlock this group’s layout preview.
+      <div class="preset-summary-panel preset-summary-panel--${panelVariant}">
+        <div class="preset-summary-top">
+          <div>
+            <div class="preset-summary-eyebrow">${escapeHtml(getGroupLabel(group))} <span>•</span> <span>${escapeHtml(formatGroupSize(group))}</span></div>
+            <div class="preset-summary-title">${escapeHtml(title)}</div>
+            <div class="preset-summary-subtitle">${escapeHtml(subtitle)}</div>
+          </div>
+          <span class="preset-summary-chip">${escapeHtml(badge)}</span>
+        </div>
+        ${matchNote ? `<div class="preset-summary-match-note">${escapeHtml(matchNote)}</div>` : ''}
       </div>
     `;
     return;
@@ -825,40 +823,65 @@ function renderPresetSummary() {
   const preset = group.currentPreset;
   const capacity = preset.columns * preset.rows;
   const selectedPreset = group.selectedPresetId ? findPresetById(group.selectedPresetId) : null;
+  const exactDetectedPreset = group.detectedPresetIds.length === 1
+    ? findPresetById(group.detectedPresetIds[0])
+    : null;
+  const autoDetected = !!(
+    exactDetectedPreset
+    && presetsMatch(exactDetectedPreset, preset)
+    && (!selectedPreset || selectedPreset.id === exactDetectedPreset.id)
+  );
   const sourceLabel = selectedPreset
     ? (presetsMatch(selectedPreset, preset)
         ? describePresetSource(selectedPreset)
         : `Edited from ${selectedPreset.name}`)
-    : 'Manual values';
-  const detectedLine = detected.length
-    ? `Detected matches for this label size: ${detected.map((item) => item.name).join(', ')}.`
-    : 'No matching preset was detected for this label size.';
+    : autoDetected && exactDetectedPreset
+      ? describePresetSource(exactDetectedPreset)
+      : 'Manual values';
+  const badge = autoDetected
+    ? 'Auto-detected'
+    : selectedPreset
+      ? 'Selected preset'
+      : 'Custom';
+  const panelVariant = autoDetected ? 'success' : 'info';
+  const matchNote = group.detectedPresetIds.length > 1
+    ? `Other matching presets for this label size: ${detected.map((item) => item.name).join(', ')}.`
+    : !group.detectedPresetIds.length
+      ? (selectedPreset
+          ? `This label size did not auto-match a preset, so ${preset.name} is being used manually.`
+          : 'This label size did not match any shipped or browser-saved preset, so the current sheet geometry is custom.')
+      : autoDetected
+        ? `Matched the uploaded PDF to ${preset.name}.`
+        : '';
 
   summary.innerHTML = `
-    <div class="meta-grid meta-grid--tight">
-      <div class="meta-card">
-        <div class="meta-card-label">Active Group</div>
-        <div class="meta-card-value">${escapeHtml(getGroupLabel(group))}</div>
-        <div class="meta-card-note">${escapeHtml(formatGroupSize(group))} · ${group.sourcePageCount} label${group.sourcePageCount === 1 ? '' : 's'}</div>
+    <div class="preset-summary-panel preset-summary-panel--${panelVariant}">
+      <div class="preset-summary-top">
+        <div>
+          <div class="preset-summary-eyebrow">${escapeHtml(getGroupLabel(group))} <span>•</span> <span>${escapeHtml(formatGroupSize(group))}</span></div>
+          <div class="preset-summary-title">${escapeHtml(preset.name)}</div>
+          <div class="preset-summary-subtitle">${escapeHtml(sourceLabel)}</div>
+        </div>
+        <span class="preset-summary-chip">${escapeHtml(badge)}</span>
       </div>
-      <div class="meta-card">
-        <div class="meta-card-label">Active Sheet</div>
-        <div class="meta-card-value">${escapeHtml(preset.name)}</div>
-        <div class="meta-card-note">${escapeHtml(sourceLabel)}</div>
+      <div class="preset-summary-facts">
+        <div class="preset-summary-fact">
+          <div class="preset-summary-fact-label">Sheet Capacity</div>
+          <div class="preset-summary-fact-value">${capacity}</div>
+          <div class="preset-summary-fact-note">${preset.columns} columns × ${preset.rows} rows</div>
+        </div>
+        <div class="preset-summary-fact">
+          <div class="preset-summary-fact-label">Geometry</div>
+          <div class="preset-summary-fact-value">${formatDecimal(preset.labelWidth, 3)} × ${formatDecimal(preset.labelHeight, 3)} in</div>
+          <div class="preset-summary-fact-note">${group.sourcePageCount} label${group.sourcePageCount === 1 ? '' : 's'} in this size group</div>
+        </div>
+        <div class="preset-summary-fact">
+          <div class="preset-summary-fact-label">Pitch</div>
+          <div class="preset-summary-fact-value">${formatDecimal(preset.horizontalPitch, 3)} × ${formatDecimal(preset.verticalPitch, 3)} in</div>
+          <div class="preset-summary-fact-note">Page ${formatDecimal(preset.pageWidth, 3)} × ${formatDecimal(preset.pageHeight, 3)} in · margins ${formatDecimal(preset.leftMargin, 3)} / ${formatDecimal(preset.topMargin, 3)} in</div>
+        </div>
       </div>
-      <div class="meta-card">
-        <div class="meta-card-label">Sheet Capacity</div>
-        <div class="meta-card-value">${capacity}</div>
-        <div class="meta-card-note">${preset.columns} columns × ${preset.rows} rows</div>
-      </div>
-      <div class="meta-card">
-        <div class="meta-card-label">Geometry</div>
-        <div class="meta-card-value">${formatDecimal(preset.labelWidth, 3)} × ${formatDecimal(preset.labelHeight, 3)} in</div>
-        <div class="meta-card-note">Pitch ${formatDecimal(preset.horizontalPitch, 3)} × ${formatDecimal(preset.verticalPitch, 3)} in</div>
-      </div>
-    </div>
-    <div class="lt-alert lt-alert-info tool-alert-inline">
-      ${escapeHtml(detectedLine)}
+      ${matchNote ? `<div class="preset-summary-match-note">${escapeHtml(matchNote)}</div>` : ''}
     </div>
   `;
 }
