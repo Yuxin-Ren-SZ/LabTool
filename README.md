@@ -11,6 +11,7 @@ No installation required — open any tool directly in a browser or visit the Gi
 | [Cell Seeding Calculator](tools/seeding-calc/) | Two-step workflow for cell counting and C₁V₁ = C₂V₂ dilution planning, with optional direct concentration entry |
 | [Stain Timer](tools/stain-timer/) | Configurable multi-step staining protocol timer with countdown, slot tracking, CSV import/export, and audio alarms |
 | [Thermal to Laser Label Converter](tools/thermal-to-laser/) | Convert thermal-printer label PDFs to laser-printer mailing-label sheet PDFs, with preset management and sheet preview |
+| [Drug Dosage Calculator](tools/drug-dosage/) | Save named multi-drug dosing protocols and calculate min/exact/max per-animal dose amounts from body weight |
 
 ## Structure
 
@@ -33,6 +34,11 @@ LabTools/
 │   ├── stain-timer/
 │   │   ├── index.html
 │   │   └── README.md
+│   ├── drug-dosage/
+│   │   ├── index.html
+│   │   ├── README.md
+│   │   ├── tool.js
+│   │   └── protocol-config.js
 │   └── thermal-to-laser/
 │       ├── index.html
 │       ├── README.md
