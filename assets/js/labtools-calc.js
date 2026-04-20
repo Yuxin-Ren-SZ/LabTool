@@ -126,6 +126,49 @@ function bestVolumeDisplay(mL) {
 }
 
 /**
+ * Convert an animal body weight between grams and kilograms.
+ *
+ * @param {number} value
+ * @param {string} fromUnit  'g' | 'kg'
+ * @param {string} toUnit    'g' | 'kg'
+ * @returns {number} Converted weight, or NaN for invalid input
+ *
+ * @example
+ *   convertBodyWeight(25, 'g', 'kg')    // → 0.025
+ *   convertBodyWeight(0.25, 'kg', 'g')  // → 250
+ */
+function convertBodyWeight(value, fromUnit, toUnit) {
+  if (isNaN(value) || value <= 0) return NaN;
+  if (!fromUnit || !toUnit) return NaN;
+  if (fromUnit === toUnit) return value;
+  if (fromUnit === 'g' && toUnit === 'kg') return value / 1000;
+  if (fromUnit === 'kg' && toUnit === 'g') return value * 1000;
+  return NaN;
+}
+
+/**
+ * Calculate a final drug amount from a dose-per-body-weight value.
+ *
+ * Formula: doseValue × convertedBodyWeight
+ *
+ * @param {number} doseValue
+ * @param {string} doseWeightUnit   'g' | 'kg' from the protocol row
+ * @param {number} bodyWeightValue
+ * @param {string} bodyWeightUnit   'g' | 'kg' from the animal input
+ * @returns {number} Final amount in the numerator unit, or NaN if invalid
+ *
+ * @example
+ *   calcDoseFromBodyWeight(5, 'kg', 25, 'g')      // → 0.125
+ *   calcDoseFromBodyWeight(10, 'kg', 0.25, 'kg')  // → 2.5
+ */
+function calcDoseFromBodyWeight(doseValue, doseWeightUnit, bodyWeightValue, bodyWeightUnit) {
+  if (isNaN(doseValue) || doseValue <= 0) return NaN;
+  const convertedWeight = convertBodyWeight(bodyWeightValue, bodyWeightUnit, doseWeightUnit);
+  if (isNaN(convertedWeight)) return NaN;
+  return doseValue * convertedWeight;
+}
+
+/**
  * Choose the best concentration unit scale for a raw cells/mL value.
  *
  * @param {number} cellsPerML
