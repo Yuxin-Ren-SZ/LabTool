@@ -11,6 +11,69 @@
   <style>
     .card { max-width: 1120px; }
 
+    /* ── Step progress indicator ── */
+    .step-progress {
+      display: flex;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+
+    .step-pip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      color: var(--text-muted);
+      padding: 6px 0;
+    }
+
+    .step-pip-dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .step-pip.active .step-pip-dot {
+      border-color: var(--blue);
+      background: var(--blue-bg);
+      color: var(--blue-dark);
+    }
+
+    .step-pip.done .step-pip-dot {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #fff;
+    }
+
+    .step-pip.active .step-pip-label,
+    .step-pip.done .step-pip-label {
+      color: var(--text);
+    }
+
+    .step-connector {
+      flex: 1;
+      height: 2px;
+      background: var(--border-subtle);
+      margin: 0 8px;
+    }
+
+    .step-connector.done { background: var(--blue); }
+
+    /* ── Panel switching ── */
+    .step-panel { display: none; }
+    .step-panel.active { display: block; }
+
+    /* ── Shared layout ── */
     .lead-stack {
       display: grid;
       gap: 10px;
@@ -109,6 +172,7 @@
       line-height: 1.5;
     }
 
+    /* ── Protocol editor table ── */
     .table-shell {
       overflow-x: auto;
       border: 1px solid var(--border-subtle);
@@ -177,9 +241,7 @@
       border-radius: var(--radius-sm);
     }
 
-    .drag-handle:active {
-      cursor: grabbing;
-    }
+    .drag-handle:active { cursor: grabbing; }
 
     .drag-handle:hover {
       background: var(--surface-hover);
@@ -199,21 +261,10 @@
       font-size: 0.84rem;
     }
 
-    .dose-input {
-      width: 110px;
-    }
-
-    .name-input {
-      min-width: 180px;
-    }
-
-    .notes-input {
-      min-width: 180px;
-    }
-
-    .unit-cell {
-      min-width: 240px;
-    }
+    .dose-input  { width: 110px; }
+    .name-input  { min-width: 180px; }
+    .notes-input { min-width: 180px; }
+    .unit-cell   { min-width: 240px; }
 
     .unit-stack {
       display: grid;
@@ -233,9 +284,7 @@
       text-align: center;
     }
 
-    .custom-unit-input[hidden] {
-      display: none;
-    }
+    .custom-unit-input[hidden] { display: none; }
 
     .acts-cell {
       display: flex;
@@ -275,6 +324,7 @@
       color: var(--red) !important;
     }
 
+    /* ── Results / calculated doses ── */
     .results-stack {
       display: grid;
       gap: 12px;
@@ -354,20 +404,96 @@
       line-height: 1.5;
     }
 
-    .copy-fallback {
+    .checkbox-cell { vertical-align: middle !important; }
+
+    .checkbox-wrap {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .checkbox-label {
+      font-size: var(--fs-sm);
+      color: var(--text-secondary);
+    }
+
+    .result-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .actual-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .actual-label {
+      font-size: var(--fs-sm);
+      font-weight: 700;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .actual-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .actual-unit {
+      font-size: var(--fs-sm);
+      color: var(--text-secondary);
+    }
+
+    /* ── Entries log table ── */
+    .entries-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      min-width: 820px;
+    }
+
+    .entries-table th {
+      background: var(--surface-subtle);
+      padding: 8px 10px;
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+      white-space: nowrap;
+    }
+
+    .entries-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: top;
+    }
+
+    .entries-table tbody tr:last-child td { border-bottom: none; }
+
+    .entries-empty {
+      padding: 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      margin: 0;
     }
 
     @media (max-width: 860px) {
-      .weight-field-row {
-        grid-template-columns: 1fr;
-      }
+      .weight-field-row { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 520px) {
-      .card {
-        padding: 22px 14px 18px;
-      }
+      .card { padding: 22px 14px 18px; }
     }
   </style>
 </head>
@@ -381,112 +507,238 @@
 
 <div class="lt-page-body">
   <div class="card">
-    <div class="lead-stack">
-      <div>
-        <h1 class="lt-tool-title">💊 Drug Dosage Calculator</h1>
-        <p class="lt-tool-subcopy">
-          Save named multi-drug dosing protocols, enter one animal’s body weight, and calculate
-          live minimum, exact, and maximum output amounts in the protocol’s numerator units.
-        </p>
+
+    <!-- Step progress indicator -->
+    <div class="step-progress">
+      <div class="step-pip" id="pip-setup">
+        <div class="step-pip-dot">1</div>
+        <span class="step-pip-label">Protocol Setup</span>
       </div>
-      <div class="lt-alert lt-alert-warn">
-        This tool only performs protocol math. Verify every dose and administration plan against your approved protocol before use.
+      <div class="step-connector" id="conn-setup-operation"></div>
+      <div class="step-pip" id="pip-operation">
+        <div class="step-pip-dot">2</div>
+        <span class="step-pip-label">Calculate &amp; Log</span>
       </div>
     </div>
 
-    <section class="panel-block">
-      <div class="lt-section-label">1. Animal</div>
-      <div class="panel-surface">
-        <div class="weight-field-row">
-          <div class="field-stack">
-            <label class="lt-label" for="animalWeight">Body Weight</label>
-            <input class="lt-input lt-input-float" id="animalWeight" type="number" inputmode="decimal" min="0" step="0.001" placeholder="e.g. 25 or 0.25"/>
-          </div>
-          <div class="field-stack">
-            <label class="lt-label" for="animalWeightUnit">Weight Unit</label>
-            <select class="lt-select" id="animalWeightUnit">
-              <option value="g">g</option>
-              <option value="kg">kg</option>
-            </select>
-          </div>
-        </div>
-        <div class="summary-grid" id="animal-summary"></div>
-      </div>
-    </section>
+    <!-- ═══════════════════════════════════════
+         STEP 1 — Protocol Setup
+         ═══════════════════════════════════════ -->
+    <div id="panel-setup" class="step-panel active">
 
-    <section class="panel-block">
-      <div class="lt-section-label">2. Protocol Library</div>
-      <div class="panel-surface">
-        <div class="lt-form-grid">
-          <div class="field-stack field-span-2">
-            <label class="lt-label" for="protocol-select">Load Protocol</label>
-            <select class="lt-select" id="protocol-select"></select>
-          </div>
-          <div class="field-stack">
-            <label class="lt-label" for="protocolName">Protocol Name</label>
-            <input class="lt-input" id="protocolName" type="text" placeholder="e.g. Mouse post-op analgesia"/>
-          </div>
-          <div class="field-stack field-span-full">
-            <label class="lt-label" for="protocolNotes">Protocol Notes</label>
-            <textarea class="lt-input lt-textarea" id="protocolNotes" placeholder="Optional notes about species, route, timing, or approval context."></textarea>
-          </div>
+      <div class="lead-stack">
+        <div>
+          <h1 class="lt-tool-title">💊 Drug Dosage Calculator</h1>
+          <p class="lt-tool-subcopy">
+            Build a named multi-drug dosing protocol in Step 1, then calculate live
+            minimum, exact, and maximum output amounts for each animal in Step 2.
+          </p>
         </div>
-
-        <div class="lt-toolbar-row" style="margin-top: 12px;">
-          <button class="btn-reset" id="new-draft-btn">New Blank Protocol</button>
-          <button class="btn-reset" id="save-protocol-btn">Save In This Browser</button>
-          <button class="btn-reset" id="clear-saved-btn">Clear Saved Protocols</button>
-          <button class="btn-reset" id="copy-current-btn">Copy Current Protocol</button>
-          <button class="btn-reset" id="export-all-btn">Export All Protocols</button>
-        </div>
-
-        <div class="summary-grid" id="draft-summary"></div>
-        <div class="micro-note">
-          Saved protocols stay only in your current browser.
-        </div>
-        <textarea class="lt-input lt-textarea copy-fallback" id="copy-fallback" hidden></textarea>
-      </div>
-    </section>
-
-    <section class="panel-block">
-      <div class="lt-section-label">3. Protocol Editor</div>
-      <div class="panel-surface">
-        <div class="lt-toolbar-row">
-          <button class="btn-reset" id="add-drug-btn">＋ Add Drug</button>
-        </div>
-
-        <div class="table-shell">
-          <table class="proto-table">
-            <thead>
-              <tr>
-                <th class="col-drag"></th>
-                <th class="col-num">#</th>
-                <th>Drug</th>
-                <th>Min</th>
-                <th>Exact</th>
-                <th>Max</th>
-                <th>Unit</th>
-                <th>Notes</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="proto-body"></tbody>
-          </table>
-        </div>
-
-        <div class="lt-alert lt-alert-info" id="validation-status" style="margin-top: 12px;">
-          Add at least one drug row to start calculating doses.
+        <div class="lt-alert lt-alert-warn">
+          This tool only performs protocol math. Verify every dose and administration
+          plan against your approved protocol before use.
         </div>
       </div>
-    </section>
 
-    <section class="panel-block">
-      <div class="lt-section-label">4. Results</div>
-      <div class="panel-surface">
-        <div class="summary-grid" id="results-summary"></div>
-        <div class="results-stack" id="results-list"></div>
+      <!-- Protocol Library -->
+      <section class="panel-block">
+        <div class="lt-section-label">Protocol Library</div>
+        <div class="panel-surface">
+          <div class="lt-form-grid">
+            <div class="field-stack field-span-full">
+              <label class="lt-label" for="protocol-select">Load Protocol</label>
+              <select class="lt-select" id="protocol-select"></select>
+              <p class="micro-note" id="protocol-select-note"></p>
+            </div>
+            <div class="field-stack">
+              <label class="lt-label" for="protocolName">Protocol Name</label>
+              <input class="lt-input" id="protocolName" type="text"
+                     placeholder="e.g. Mouse post-op analgesia"/>
+            </div>
+            <div class="field-stack">
+              <label class="lt-label" for="iacucProtocolId">IACUC Protocol ID</label>
+              <input class="lt-input" id="iacucProtocolId" type="text"
+                     placeholder="e.g. 12345"/>
+            </div>
+            <div class="field-stack field-span-full">
+              <label class="lt-label" for="protocolNotes">Protocol Notes</label>
+              <textarea class="lt-input lt-textarea" id="protocolNotes"
+                        placeholder="Optional notes about species, route, timing, or approval context."></textarea>
+            </div>
+          </div>
+
+          <div class="lt-toolbar-row" style="margin-top: 12px;">
+            <button class="btn-reset" id="new-draft-btn">New Blank Protocol</button>
+            <button class="btn-reset" id="save-protocol-btn">Save In This Browser</button>
+            <button class="btn-reset" id="clear-saved-btn">Clear Saved Protocols</button>
+            <button class="btn-reset" id="copy-current-btn">Copy Current Protocol</button>
+            <button class="btn-reset" id="export-all-btn">Export All Protocols</button>
+          </div>
+
+          <div class="summary-grid" id="draft-summary"></div>
+          <div class="micro-note">Saved protocols stay only in your current browser.</div>
+
+          <div class="lt-alert lt-alert-info" id="protocol-status" style="margin-top: 12px;"></div>
+        </div>
+      </section>
+
+      <!-- Protocol Editor -->
+      <section class="panel-block">
+        <div class="lt-section-label">Drug Protocol</div>
+        <div class="panel-surface">
+          <div class="lt-toolbar-row">
+            <button class="btn-reset" id="add-drug-btn">＋ Add Drug</button>
+          </div>
+
+          <div class="table-shell">
+            <table class="proto-table">
+              <thead>
+                <tr>
+                  <th class="col-drag"></th>
+                  <th class="col-num">#</th>
+                  <th>Drug</th>
+                  <th>Route</th>
+                  <th>Controlled</th>
+                  <th>Min</th>
+                  <th>Exact</th>
+                  <th>Max</th>
+                  <th>Unit</th>
+                  <th>Notes</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="proto-body"></tbody>
+            </table>
+          </div>
+
+          <div class="lt-alert lt-alert-info" id="setup-status" style="margin-top: 12px;">
+            Add at least one drug row to start calculating doses.
+          </div>
+
+          <div class="lt-toolbar-row" style="margin-top: 14px;">
+            <button class="lt-btn lt-btn-primary" id="btn-to-operation">
+              Continue to Step 2 →
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /panel-setup -->
+
+    <!-- ═══════════════════════════════════════
+         STEP 2 — Calculate & Log
+         ═══════════════════════════════════════ -->
+    <div id="panel-operation" class="step-panel">
+
+      <div class="lt-toolbar-row" style="margin-bottom: 16px;">
+        <button class="btn-reset" id="btn-back-to-setup">← Back to Setup</button>
       </div>
-    </section>
+
+      <!-- Protocol summary -->
+      <section class="panel-block">
+        <div class="lt-section-label">Protocol</div>
+        <div class="panel-surface">
+          <div class="summary-grid" id="operation-protocol-summary"></div>
+        </div>
+      </section>
+
+      <!-- Animal & Operator -->
+      <section class="panel-block">
+        <div class="lt-section-label">Animal &amp; Operator</div>
+        <div class="panel-surface">
+          <div class="lt-form-grid">
+            <div class="field-stack">
+              <label class="lt-label" for="animalId">Animal ID</label>
+              <input class="lt-input" id="animalId" type="text" placeholder="e.g. M-001"/>
+            </div>
+            <div class="field-stack">
+              <label class="lt-label" for="animalWeight">Body Weight</label>
+              <div class="weight-field-row">
+                <input class="lt-input lt-input-float" id="animalWeight" type="number"
+                       inputmode="decimal" min="0" step="0.001" placeholder="e.g. 25"/>
+                <select class="lt-select" id="animalWeightUnit">
+                  <option value="g">g</option>
+                  <option value="kg">kg</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-stack">
+              <label class="lt-label" for="operatorName">Operator Name</label>
+              <input class="lt-input" id="operatorName" type="text" placeholder="Optional"/>
+            </div>
+            <div class="field-stack">
+              <label class="lt-label" for="operatorId">Operator ID</label>
+              <input class="lt-input" id="operatorId" type="text" placeholder="Optional"/>
+            </div>
+          </div>
+          <div class="summary-grid" id="operation-summary"></div>
+        </div>
+      </section>
+
+      <!-- Calculated doses -->
+      <section class="panel-block">
+        <div class="lt-section-label">Calculated Doses</div>
+        <div class="panel-surface">
+          <div class="lt-alert lt-alert-info" id="operation-status" style="margin-bottom: 12px;">
+            Enter animal weight to calculate doses.
+          </div>
+          <div class="summary-grid" id="results-summary"></div>
+          <div class="results-stack" id="results-list"></div>
+        </div>
+      </section>
+
+      <!-- Log entries -->
+      <section class="panel-block">
+        <div class="lt-section-label">Log Entries</div>
+        <div class="panel-surface">
+
+          <div id="log-save-required" hidden>
+            <div class="lt-alert lt-alert-warn" style="margin-bottom: 10px;">
+              <span id="log-save-required-note"></span>
+              <button class="btn-reset" id="save-protocol-from-log-btn"
+                      style="margin-left: 10px;">Save Protocol Now</button>
+            </div>
+          </div>
+
+          <div class="lt-alert lt-alert-info" id="log-status" style="margin-bottom: 12px;">
+            Saved entries stay only in your current browser until you clear or export them.
+          </div>
+
+          <div class="lt-toolbar-row" style="margin-bottom: 12px;">
+            <button class="btn-reset" id="save-entry-btn">Save Entry</button>
+            <button class="btn-reset" id="copy-entries-btn">Copy as Plain Text</button>
+            <button class="btn-reset" id="export-entries-btn">Export CSV</button>
+            <button class="btn-reset" id="clear-entries-btn">Clear Entries</button>
+          </div>
+
+          <div class="summary-grid" id="entries-summary"></div>
+
+          <div class="table-shell" id="entries-table-shell" hidden>
+            <table class="entries-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Animal</th>
+                  <th>Weight</th>
+                  <th>Drug</th>
+                  <th>Planned</th>
+                  <th>Actual</th>
+                  <th>Route</th>
+                  <th>Operator</th>
+                  <th>Controlled</th>
+                </tr>
+              </thead>
+              <tbody id="entries-body"></tbody>
+            </table>
+          </div>
+
+          <p class="entries-empty" id="entries-empty">No saved entries yet.</p>
+
+        </div>
+      </section>
+
+    </div><!-- /panel-operation -->
+
   </div>
 </div>
 
