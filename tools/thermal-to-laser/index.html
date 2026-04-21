@@ -152,8 +152,52 @@
       min-height: 120px;
     }
 
-    .lt-sheet-stage {
+    .sheet-preview-ruler-wrap {
+      position: relative;
+      width: calc(100% - 56px);
       max-width: 420px;
+      margin: 22px auto 0;
+      aspect-ratio: var(--sheet-aspect, 8.5 / 11);
+    }
+
+    .sheet-preview-ruler-wrap .lt-sheet-stage {
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    .sheet-axis-label {
+      position: absolute;
+      z-index: 3;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 0.48rem;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: 0;
+      pointer-events: none;
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .sheet-axis-label--column {
+      top: -16px;
+      height: 12px;
+      min-width: 10px;
+      padding: 0 1px;
+    }
+
+    .sheet-axis-label--row {
+      left: -24px;
+      width: 16px;
+      min-height: 8px;
     }
 
     .lt-sheet-cell {
