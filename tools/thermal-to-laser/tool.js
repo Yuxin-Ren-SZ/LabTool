@@ -1015,9 +1015,13 @@ function renderSheetPages() {
     const frame = document.createElement('div');
     frame.className = 'lt-preview-frame';
 
+    const rulerWrap = document.createElement('div');
+    rulerWrap.className = 'sheet-preview-ruler-wrap';
+
     const stage = document.createElement('div');
     stage.className = 'lt-sheet-stage';
     stage.style.setProperty('--sheet-aspect', `${group.currentPreset.pageWidth} / ${group.currentPreset.pageHeight}`);
+    rulerWrap.style.setProperty('--sheet-aspect', `${group.currentPreset.pageWidth} / ${group.currentPreset.pageHeight}`);
 
     const region = document.createElement('div');
     region.className = 'lt-sheet-grid-region';
@@ -1026,6 +1030,7 @@ function renderSheetPages() {
     region.style.width = `${geometry.gridWidthPct}%`;
     region.style.height = `${geometry.gridHeightPct}%`;
     stage.appendChild(region);
+    appendSheetRulers(rulerWrap, geometry, group.currentPreset);
 
     const overlay = document.createElement('div');
     overlay.className = 'lt-sheet-grid';
@@ -1044,6 +1049,8 @@ function renderSheetPages() {
 
       const labelNumber = labelIndexMap.get(globalIndex) || '';
       const cellNumber = globalIndex + 1;
+      const rowNumber = Math.floor(cellIndex / group.currentPreset.columns) + 1;
+      const columnNumber = (cellIndex % group.currentPreset.columns) + 1;
       const visibleToken = cellState.mode === 'use' && labelNumber ? `L${labelNumber}` : '';
       const cellStateLabel = cellState.mode === 'use'
         ? `label ${labelNumber || 'assigned'}`
@@ -1058,13 +1065,14 @@ function renderSheetPages() {
         ${visibleToken ? `<span class="lt-sheet-cell-token">${visibleToken}</span>` : ''}
       `;
       button.title = describeCellAction(cellState.mode, cellNumber);
-      button.setAttribute('aria-label', `Sheet ${sheetIndex + 1}, cell ${cellNumber}, ${cellStateLabel}`);
+      button.setAttribute('aria-label', `Sheet ${sheetIndex + 1}, row ${rowNumber}, column ${columnNumber}, cell ${cellNumber}, ${cellStateLabel}`);
       button.addEventListener('click', () => onSheetCellClick(globalIndex));
       overlay.appendChild(button);
     });
 
     stage.appendChild(overlay);
-    frame.appendChild(stage);
+    rulerWrap.appendChild(stage);
+    frame.appendChild(rulerWrap);
     frame.insertAdjacentHTML(
       'beforeend',
       `
@@ -1079,6 +1087,30 @@ function renderSheetPages() {
 
     card.appendChild(frame);
     container.appendChild(card);
+  }
+}
+
+function appendSheetRulers(rulerWrap, geometry, preset) {
+  for (let column = 0; column < preset.columns; column += 1) {
+    const rect = geometry.cells[column];
+    const label = document.createElement('span');
+    label.className = 'sheet-axis-label sheet-axis-label--column';
+    label.textContent = String(column + 1);
+    label.setAttribute('aria-hidden', 'true');
+    label.style.left = `${rect.leftPct}%`;
+    label.style.width = `${rect.widthPct}%`;
+    rulerWrap.appendChild(label);
+  }
+
+  for (let row = 0; row < preset.rows; row += 1) {
+    const rect = geometry.cells[row * preset.columns];
+    const label = document.createElement('span');
+    label.className = 'sheet-axis-label sheet-axis-label--row';
+    label.textContent = String(row + 1);
+    label.setAttribute('aria-hidden', 'true');
+    label.style.top = `${rect.topPct}%`;
+    label.style.height = `${rect.heightPct}%`;
+    rulerWrap.appendChild(label);
   }
 }
 
