@@ -86,13 +86,16 @@
     }
 
     .plate-stage {
-      display: flex;
+      display: inline-flex;
       align-items: flex-start;
       justify-content: flex-start;
+      justify-self: start;
       background: var(--surface-subtle);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-lg);
       padding: 18px;
+      width: max-content;
+      max-width: 100%;
       overflow: auto;
     }
 
@@ -100,9 +103,11 @@
       --plate-frame-border: #d3d0c9;
       --plate-cut-size: 44px;
       display: inline-block;
+      flex: none;
       position: relative;
-      width: max-content;
-      padding: 22px 24px 24px;
+      width: 524px;
+      height: 351px;
+      padding: 0;
       background: transparent;
       isolation: isolate;
     }
@@ -136,54 +141,19 @@
     }
 
     .plate-grid {
-      --plate-cols: 12;
-      --plate-rows: 8;
-      --well-size: 30px;
-      --well-gap: 4px;
-      display: grid;
-      grid-template-columns: 30px repeat(var(--plate-cols), var(--well-size));
-      grid-template-rows: 24px repeat(var(--plate-rows), var(--well-size));
-      gap: var(--well-gap);
-      align-items: center;
-      justify-content: start;
+      width: 100%;
+      height: 100%;
       user-select: none;
       position: relative;
       z-index: 2;
     }
 
-    .plate-grid[data-plate="6"] {
-      --well-size: 86px;
-      --well-gap: 10px;
-    }
-
-    .plate-grid[data-plate="12"] {
-      --well-size: 70px;
-      --well-gap: 9px;
-    }
-
-    .plate-grid[data-plate="24"] {
-      --well-size: 54px;
-      --well-gap: 7px;
-    }
-
-    .plate-grid[data-plate="48"] {
-      --well-size: 40px;
-      --well-gap: 5px;
-    }
-
-    .plate-grid[data-plate="96"] {
-      --well-size: 31px;
-      --well-gap: 4px;
-    }
-
-    .plate-grid[data-plate="384"] {
-      --well-size: 21px;
-      --well-gap: 2px;
-    }
-
     .axis-cell {
-      height: 100%;
-      min-width: 0;
+      position: absolute;
+      transform: translate(-50%, -50%);
+      min-width: 18px;
+      min-height: 18px;
+      padding: 0 4px;
       border: 0;
       background: transparent;
       color: var(--text-muted);
@@ -197,6 +167,7 @@
       cursor: pointer;
       border-radius: var(--radius-sm);
       transition: background 0.12s, color 0.12s;
+      z-index: 3;
     }
 
     .axis-cell:hover {
@@ -207,8 +178,8 @@
     .well {
       --well-color: var(--surface);
       --well-text: var(--text);
-      width: var(--well-size);
-      height: var(--well-size);
+      width: var(--well-size, 30px);
+      height: var(--well-size, 30px);
       border-radius: 50%;
       border: 1.5px solid #d8d6d0;
       background: var(--surface);
@@ -222,13 +193,16 @@
       gap: 1px;
       min-width: 0;
       line-height: 1.05;
-      position: relative;
+      position: absolute;
+      left: var(--well-x, 0px);
+      top: var(--well-y, 0px);
+      transform: translate(-50%, -50%);
       transition: transform 0.1s, border-color 0.12s, box-shadow 0.12s, background 0.12s;
     }
 
     .well:hover {
       border-color: var(--blue);
-      transform: translateY(-1px);
+      transform: translate(-50%, -50%) scale(1.03);
     }
 
     .well.assigned {
@@ -248,15 +222,15 @@
     }
 
     @keyframes pastePulse {
-      0% { transform: scale(0.88); }
-      60% { transform: scale(1.08); }
-      100% { transform: scale(1); }
+      0% { transform: translate(-50%, -50%) scale(0.88); }
+      60% { transform: translate(-50%, -50%) scale(1.08); }
+      100% { transform: translate(-50%, -50%) scale(1); }
     }
 
     .well-id {
       display: none;
       font-family: var(--font-mono);
-      font-size: 0.62rem;
+      font-size: var(--well-id-size, 0.62rem);
       font-weight: 800;
       letter-spacing: 0;
     }
@@ -267,13 +241,13 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 0.58rem;
+      font-size: var(--well-label-size, 0.58rem);
       font-weight: 700;
     }
 
     .well-initials {
       display: none;
-      font-size: 0.62rem;
+      font-size: var(--well-initials-size, 0.62rem);
       font-weight: 800;
       letter-spacing: 0;
     }
@@ -477,7 +451,6 @@
 
       .plate-frame {
         --plate-cut-size: 36px;
-        padding: 18px;
       }
 
       .control-strip {
@@ -538,6 +511,8 @@
         border: 0;
         background: #fff;
         padding: 0;
+        width: auto;
+        max-width: none;
       }
 
       .plate-frame {
@@ -664,12 +639,60 @@
 'use strict';
 
 const PLATES = {
-  '6':   { label: '6-well plate', rows: 2, cols: 3 },
-  '12':  { label: '12-well plate', rows: 3, cols: 4 },
-  '24':  { label: '24-well plate', rows: 4, cols: 6 },
-  '48':  { label: '48-well plate', rows: 6, cols: 8 },
-  '96':  { label: '96-well plate', rows: 8, cols: 12 },
-  '384': { label: '384-well plate', rows: 16, cols: 24 },
+  '6': {
+    label: '6-well plate',
+    rows: 2,
+    cols: 3,
+    a1RowOffsetMm: 23.16,
+    a1ColOffsetMm: 24.76,
+    pitchMm: 39.12,
+    wellDiameterMm: 35.43,
+  },
+  '12': {
+    label: '12-well plate',
+    rows: 3,
+    cols: 4,
+    a1RowOffsetMm: 16.79,
+    a1ColOffsetMm: 24.94,
+    pitchMm: 26.01,
+    wellDiameterMm: 22.73,
+  },
+  '24': {
+    label: '24-well plate',
+    rows: 4,
+    cols: 6,
+    a1RowOffsetMm: 13.78,
+    a1ColOffsetMm: 17.46,
+    pitchMm: 19.3,
+    wellDiameterMm: 16.26,
+  },
+  '48': {
+    label: '48-well plate',
+    rows: 6,
+    cols: 8,
+    a1RowOffsetMm: 10.08,
+    a1ColOffsetMm: 18.16,
+    pitchMm: 13.08,
+    wellDiameterMm: 11.56,
+  },
+  '96': {
+    label: '96-well plate',
+    rows: 8,
+    cols: 12,
+    a1RowOffsetMm: 11.2,
+    a1ColOffsetMm: 14.3,
+    pitchMm: 9.0,
+    wellDiameterMm: 6.86,
+  },
+  '384': {
+    label: '384-well plate',
+    rows: 16,
+    cols: 24,
+    a1RowOffsetMm: 8.99,
+    a1ColOffsetMm: 12.12,
+    pitchMm: 4.5,
+    wellDiameterMm: 3.63,
+  },
 };
 
 const CORNERS = [
@@ -693,6 +716,11 @@ const GROUP_COLORS = [
   '#9333ea',
   '#9f1239',
 ];
+
+const OUTER_PLATE_MM = { width: 127.8, height: 85.5 };
+const PLATE_RENDER_SCALE = 4.1;
+const LABEL_GAP_MM = 4.5;
+const LABEL_EDGE_MIN_MM = 5.5;
 
 let plateType = '96';
 let groups = [
@@ -809,38 +837,25 @@ function renderAll() {
 
 function renderPlate() {
   const plate = PLATES[plateType];
-  els.plateGrid.style.setProperty('--plate-cols', plate.cols);
-  els.plateGrid.style.setProperty('--plate-rows', plate.rows);
+  const metrics = getPlateMetrics(plate);
   els.plateGrid.dataset.plate = plateType;
-  els.plateGrid.dataset.labelMode = getLabelMode();
+  els.plateGrid.dataset.labelMode = getLabelMode(metrics.wellDiameterPx);
+  els.plateFrame.style.width = px(metrics.frameWidthPx);
+  els.plateFrame.style.height = px(metrics.frameHeightPx);
+  els.plateGrid.style.setProperty('--well-id-size', px(metrics.wellIdFontPx));
+  els.plateGrid.style.setProperty('--well-label-size', px(metrics.wellLabelFontPx));
+  els.plateGrid.style.setProperty('--well-initials-size', px(metrics.wellInitialsFontPx));
   els.plateGrid.innerHTML = '';
 
-  const emptyCorner = document.createElement('div');
-  emptyCorner.className = 'axis-cell';
-  emptyCorner.setAttribute('aria-hidden', 'true');
-  els.plateGrid.appendChild(emptyCorner);
-
   for (let col = 0; col < plate.cols; col++) {
-    const colButton = document.createElement('button');
-    colButton.className = 'axis-cell';
-    colButton.type = 'button';
-    colButton.textContent = String(col + 1);
-    colButton.title = `Select column ${col + 1}`;
-    colButton.addEventListener('click', () => selectColumn(col));
-    els.plateGrid.appendChild(colButton);
+    els.plateGrid.appendChild(createColumnButton(plate, metrics, col));
   }
 
   for (let row = 0; row < plate.rows; row++) {
-    const rowButton = document.createElement('button');
-    rowButton.className = 'axis-cell';
-    rowButton.type = 'button';
-    rowButton.textContent = rowLabel(row);
-    rowButton.title = `Select row ${rowLabel(row)}`;
-    rowButton.addEventListener('click', () => selectRow(row));
-    els.plateGrid.appendChild(rowButton);
+    els.plateGrid.appendChild(createRowButton(plate, metrics, row));
 
     for (let col = 0; col < plate.cols; col++) {
-      els.plateGrid.appendChild(createWellButton(row, col));
+      els.plateGrid.appendChild(createWellButton(plate, metrics, row, col));
     }
   }
 
@@ -848,7 +863,35 @@ function renderPlate() {
   renderPlateFrameCorners();
 }
 
-function createWellButton(row, col) {
+function createColumnButton(plate, metrics, col) {
+  const button = document.createElement('button');
+  button.className = 'axis-cell axis-cell--col';
+  button.type = 'button';
+  button.textContent = String(col + 1);
+  button.title = `Select column ${col + 1}`;
+  button.style.left = px(getWellCenterXPx(plate, col));
+  button.style.top = px(metrics.columnHeaderYpx);
+  button.style.width = px(metrics.columnHeaderWidthPx);
+  button.style.height = px(metrics.headerHeightPx);
+  button.addEventListener('click', () => selectColumn(col));
+  return button;
+}
+
+function createRowButton(plate, metrics, row) {
+  const button = document.createElement('button');
+  button.className = 'axis-cell axis-cell--row';
+  button.type = 'button';
+  button.textContent = rowLabel(row);
+  button.title = `Select row ${rowLabel(row)}`;
+  button.style.left = px(metrics.rowHeaderXpx);
+  button.style.top = px(getWellCenterYPx(plate, row));
+  button.style.width = px(metrics.rowHeaderWidthPx);
+  button.style.height = px(metrics.headerHeightPx);
+  button.addEventListener('click', () => selectRow(row));
+  return button;
+}
+
+function createWellButton(plate, metrics, row, col) {
   const wellId = getWellId(row, col);
   const group = getGroup(assignments[wellId]);
   const button = document.createElement('button');
@@ -859,6 +902,9 @@ function createWellButton(row, col) {
   button.dataset.col = String(col);
   button.setAttribute('role', 'gridcell');
   button.setAttribute('aria-label', group ? `${wellId}, ${group.name}` : `${wellId}, unassigned`);
+  button.style.setProperty('--well-size', px(metrics.wellDiameterPx));
+  button.style.setProperty('--well-x', px(getWellCenterXPx(plate, col)));
+  button.style.setProperty('--well-y', px(getWellCenterYPx(plate, row)));
   button.innerHTML = `
     <span class="well-id">${wellId}</span>
     <span class="well-label">${group ? escHtml(group.name) : ''}</span>
@@ -1117,6 +1163,41 @@ function renderSelectionOnly() {
   renderSelectionState();
 }
 
+function getPlateMetrics(plate) {
+  const frameWidthPx = mmToPx(OUTER_PLATE_MM.width);
+  const frameHeightPx = mmToPx(OUTER_PLATE_MM.height);
+  const pitchPx = mmToPx(plate.pitchMm);
+  const wellDiameterPx = mmToPx(plate.wellDiameterMm);
+  const rowHeaderXpx = mmToPx(Math.max(LABEL_EDGE_MIN_MM, plate.a1ColOffsetMm - (plate.wellDiameterMm / 2) - LABEL_GAP_MM));
+  const columnHeaderYpx = mmToPx(Math.max(LABEL_GAP_MM, plate.a1RowOffsetMm - (plate.wellDiameterMm / 2) - LABEL_GAP_MM));
+  const headerHeightPx = clamp(pitchPx * 0.85, 18, 30);
+  const columnHeaderWidthPx = clamp(pitchPx + 8, 20, 34);
+  const rowHeaderWidthPx = clamp(pitchPx + 4, 20, 30);
+
+  return {
+    frameWidthPx,
+    frameHeightPx,
+    pitchPx,
+    wellDiameterPx,
+    rowHeaderXpx,
+    columnHeaderYpx,
+    headerHeightPx,
+    columnHeaderWidthPx,
+    rowHeaderWidthPx,
+    wellIdFontPx: clamp(wellDiameterPx * 0.18, 8.5, 18),
+    wellLabelFontPx: clamp(wellDiameterPx * 0.11, 7, 15),
+    wellInitialsFontPx: clamp(wellDiameterPx * 0.2, 8.5, 16),
+  };
+}
+
+function getWellCenterXPx(plate, col) {
+  return mmToPx(plate.a1ColOffsetMm + (col * plate.pitchMm));
+}
+
+function getWellCenterYPx(plate, row) {
+  return mmToPx(plate.a1RowOffsetMm + (row * plate.pitchMm));
+}
+
 function setActiveGroup(groupId) {
   activeGroupId = groupId;
   els.groupList.querySelectorAll('.group-row').forEach((row) => {
@@ -1333,10 +1414,10 @@ function sortedWellIds(wellIds) {
   });
 }
 
-function getLabelMode() {
-  if (plateType === '384') return 'color';
-  if (plateType === '96') return 'compact';
-  return 'rich';
+function getLabelMode(wellDiameterPx) {
+  if (wellDiameterPx >= 40) return 'rich';
+  if (wellDiameterPx >= 26) return 'compact';
+  return 'color';
 }
 
 function getWellId(row, col) {
@@ -1391,6 +1472,22 @@ function contrastText(hex) {
 
 function csvCell(value) {
   return `"${String(value).replace(/"/g, '""')}"`;
+}
+
+function mmToPx(mm) {
+  return roundPx(mm * PLATE_RENDER_SCALE);
+}
+
+function roundPx(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function px(value) {
+  return `${roundPx(value)}px`;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function fallbackDownloadText(filename, content) {
