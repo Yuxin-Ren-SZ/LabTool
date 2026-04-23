@@ -9,6 +9,7 @@ No installation required — open any tool directly in a browser or visit the Gi
 |---|---|
 | [Cell Count Calculator](tools/cell-count/) | Hemocytometer counting with Trypan Blue viability, 4 counting modes, and optional dual-chamber averaging |
 | [Cell Seeding Calculator](tools/seeding-calc/) | Two-step workflow for cell counting and C₁V₁ = C₂V₂ dilution planning, with optional direct concentration entry |
+| [Well Plate Map Generator](tools/experiment-layout/) | Multi-well plate layout planner for assigning groups to 6-, 12-, 24-, 48-, 96-, and 384-well plates |
 | [Stain Timer](tools/stain-timer/) | Configurable multi-step staining protocol timer with countdown, slot tracking, CSV import/export, and audio alarms |
 | [Thermal to Laser Label Converter](tools/thermal-to-laser/) | Convert thermal-printer label PDFs to laser-printer mailing-label sheet PDFs, with preset management and sheet preview |
 
@@ -22,12 +23,15 @@ LabTools/
 │   ├── css/labtools.css      # Shared design system
 │   └── js/
 │       ├── labtools-calc.js  # Shared pure calculation helpers
-│       └── labtools-common.js# Shared DOM utilities (used by thermal-to-laser)
+│       └── labtools-common.js# Shared DOM utilities
 ├── tools/
 │   ├── cell-count/
 │   │   ├── index.html
 │   │   └── README.md
 │   ├── seeding-calc/
+│   │   ├── index.html
+│   │   └── README.md
+│   ├── experiment-layout/
 │   │   ├── index.html
 │   │   └── README.md
 │   ├── stain-timer/
