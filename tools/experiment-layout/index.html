@@ -86,6 +86,12 @@
     }
 
     .plate-stage {
+      min-width: 0;
+      width: 100%;
+      overflow: auto;
+    }
+
+    .plate-stage-shell {
       display: inline-flex;
       align-items: flex-start;
       justify-content: flex-start;
@@ -95,8 +101,7 @@
       border-radius: var(--radius-lg);
       padding: 18px;
       width: max-content;
-      max-width: 100%;
-      overflow: auto;
+      max-width: none;
     }
 
     .plate-frame {
@@ -445,7 +450,7 @@
         padding: 18px 14px;
       }
 
-      .plate-stage {
+      .plate-stage-shell {
         padding: 12px;
       }
 
@@ -508,11 +513,14 @@
       .plate-stage {
         display: block;
         overflow: visible;
+      }
+
+      .plate-stage-shell {
+        display: block;
         border: 0;
         background: #fff;
         padding: 0;
         width: auto;
-        max-width: none;
       }
 
       .plate-frame {
@@ -581,13 +589,15 @@
   <div class="print-summary" id="print-summary"></div>
 
   <div class="workspace">
-    <div class="plate-stage">
-      <div class="plate-frame" id="plate-frame">
-        <div class="plate-shell" id="plate-shell" aria-hidden="true"></div>
-        <svg class="plate-outline" id="plate-outline" aria-hidden="true" focusable="false">
-          <path id="plate-outline-path"></path>
-        </svg>
-        <div class="plate-grid" id="plate-grid" role="grid" aria-label="Well plate layout"></div>
+    <div class="plate-stage" id="plate-stage">
+      <div class="plate-stage-shell" id="plate-stage-shell">
+        <div class="plate-frame" id="plate-frame">
+          <div class="plate-shell" id="plate-shell" aria-hidden="true"></div>
+          <svg class="plate-outline" id="plate-outline" aria-hidden="true" focusable="false">
+            <path id="plate-outline-path"></path>
+          </svg>
+          <div class="plate-grid" id="plate-grid" role="grid" aria-label="Well plate layout"></div>
+        </div>
       </div>
     </div>
 
@@ -638,7 +648,7 @@
 <script>
 'use strict';
 
-const PLATES = {
+const PLATE_REFERENCE_MM = {
   '6': {
     label: '6-well plate',
     rows: 2,
@@ -679,8 +689,8 @@ const PLATES = {
     label: '96-well plate',
     rows: 8,
     cols: 12,
-    a1RowOffsetMm: 11.2,
-    a1ColOffsetMm: 14.3,
+    a1RowOffsetMm: 11.24,
+    a1ColOffsetMm: 14.38,
     pitchMm: 9.0,
     wellDiameterMm: 6.86,
   },
@@ -689,7 +699,7 @@ const PLATES = {
     rows: 16,
     cols: 24,
     a1RowOffsetMm: 8.99,
-    a1ColOffsetMm: 12.12,
+    a1ColOffsetMm: 12.13,
     pitchMm: 4.5,
     wellDiameterMm: 3.63,
   },
@@ -717,10 +727,12 @@ const GROUP_COLORS = [
   '#9f1239',
 ];
 
-const OUTER_PLATE_MM = { width: 127.8, height: 85.5 };
-const PLATE_RENDER_SCALE = 4.1;
-const LABEL_GAP_MM = 4.5;
-const LABEL_EDGE_MIN_MM = 5.5;
+const PLATE_UI_MM = {
+  outerWidth: 127.76,
+  outerHeight: 85.48,
+};
+const PLATE_SCALE_LIMITS = { min: 2.6, max: 6.0 };
+const VIEWPORT_HEIGHT_RESERVE_PX = 96;
 
 let plateType = '96';
 let groups = [
@@ -736,6 +748,8 @@ let clipboard = null;
 let groupSeq = 3;
 let cutCorners = new Set(['top-left']);
 let plateFrameObserver = null;
+let plateStageObserver = null;
+let plateRenderRaf = 0;
 
 const els = {};
 
@@ -743,7 +757,7 @@ document.addEventListener('DOMContentLoaded', init);
 
 function init() {
   cacheElements();
-  setupPlateFrameObserver();
+  setupLayoutObservers();
   renderPlateOptions();
   renderCornerToggles();
   renderAll();
@@ -754,6 +768,8 @@ function cacheElements() {
   els.plateType = document.getElementById('plate-type');
   els.plateSummary = document.getElementById('plate-summary');
   els.cornerToggles = document.getElementById('corner-toggles');
+  els.plateStage = document.getElementById('plate-stage');
+  els.plateStageShell = document.getElementById('plate-stage-shell');
   els.plateFrame = document.getElementById('plate-frame');
   els.plateShell = document.getElementById('plate-shell');
   els.plateOutline = document.getElementById('plate-outline');
@@ -773,10 +789,34 @@ function cacheElements() {
   els.printSummary = document.getElementById('print-summary');
 }
 
-function setupPlateFrameObserver() {
-  if (typeof ResizeObserver !== 'function') return;
-  plateFrameObserver = new ResizeObserver(() => renderPlateFrameCorners());
-  plateFrameObserver.observe(els.plateFrame);
+function setupLayoutObservers() {
+  if (typeof ResizeObserver === 'function') {
+    plateFrameObserver = new ResizeObserver(() => renderPlateFrameCorners());
+    plateFrameObserver.observe(els.plateFrame);
+
+    plateStageObserver = new ResizeObserver(() => schedulePlateRender());
+    plateStageObserver.observe(els.plateStage);
+  }
+
+  window.addEventListener('resize', schedulePlateRender, { passive: true });
+  window.addEventListener('beforeprint', syncPlateRender);
+  window.addEventListener('afterprint', syncPlateRender);
+}
+
+function schedulePlateRender() {
+  if (plateRenderRaf) return;
+  plateRenderRaf = window.requestAnimationFrame(() => {
+    plateRenderRaf = 0;
+    renderPlate();
+  });
+}
+
+function syncPlateRender() {
+  if (plateRenderRaf) {
+    window.cancelAnimationFrame(plateRenderRaf);
+    plateRenderRaf = 0;
+  }
+  renderPlate();
 }
 
 function wireEvents() {
@@ -800,8 +840,8 @@ function wireEvents() {
 }
 
 function renderPlateOptions() {
-  els.plateType.innerHTML = Object.keys(PLATES).map((key) => {
-    const plate = PLATES[key];
+  els.plateType.innerHTML = Object.keys(PLATE_REFERENCE_MM).map((key) => {
+    const plate = PLATE_REFERENCE_MM[key];
     const selected = key === plateType ? ' selected' : '';
     return `<option value="${key}"${selected}>${plate.label} (${plate.rows} x ${plate.cols})</option>`;
   }).join('');
@@ -836,7 +876,7 @@ function renderAll() {
 }
 
 function renderPlate() {
-  const plate = PLATES[plateType];
+  const plate = PLATE_REFERENCE_MM[plateType];
   const metrics = getPlateMetrics(plate);
   els.plateGrid.dataset.plate = plateType;
   els.plateGrid.dataset.labelMode = getLabelMode(metrics.wellDiameterPx);
@@ -869,8 +909,8 @@ function createColumnButton(plate, metrics, col) {
   button.type = 'button';
   button.textContent = String(col + 1);
   button.title = `Select column ${col + 1}`;
-  button.style.left = px(getWellCenterXPx(plate, col));
-  button.style.top = px(metrics.columnHeaderYpx);
+  button.style.left = px(getWellCenterXPx(plate, metrics, col));
+  button.style.top = px(metrics.colLabelCenterYpx);
   button.style.width = px(metrics.columnHeaderWidthPx);
   button.style.height = px(metrics.headerHeightPx);
   button.addEventListener('click', () => selectColumn(col));
@@ -883,8 +923,8 @@ function createRowButton(plate, metrics, row) {
   button.type = 'button';
   button.textContent = rowLabel(row);
   button.title = `Select row ${rowLabel(row)}`;
-  button.style.left = px(metrics.rowHeaderXpx);
-  button.style.top = px(getWellCenterYPx(plate, row));
+  button.style.left = px(metrics.rowLabelCenterXpx);
+  button.style.top = px(getWellCenterYPx(plate, metrics, row));
   button.style.width = px(metrics.rowHeaderWidthPx);
   button.style.height = px(metrics.headerHeightPx);
   button.addEventListener('click', () => selectRow(row));
@@ -903,8 +943,8 @@ function createWellButton(plate, metrics, row, col) {
   button.setAttribute('role', 'gridcell');
   button.setAttribute('aria-label', group ? `${wellId}, ${group.name}` : `${wellId}, unassigned`);
   button.style.setProperty('--well-size', px(metrics.wellDiameterPx));
-  button.style.setProperty('--well-x', px(getWellCenterXPx(plate, col)));
-  button.style.setProperty('--well-y', px(getWellCenterYPx(plate, row)));
+  button.style.setProperty('--well-x', px(getWellCenterXPx(plate, metrics, col)));
+  button.style.setProperty('--well-y', px(getWellCenterYPx(plate, metrics, row)));
   button.innerHTML = `
     <span class="well-id">${wellId}</span>
     <span class="well-label">${group ? escHtml(group.name) : ''}</span>
@@ -1039,7 +1079,7 @@ function renderSelectionState() {
 }
 
 function renderPrintSummary() {
-  const plate = PLATES[plateType];
+  const plate = PLATE_REFERENCE_MM[plateType];
   const corners = Array.from(cutCorners).map(cornerLabel).join(', ') || 'none';
   const used = Object.keys(assignments).length;
   const groupLines = groups
@@ -1056,7 +1096,7 @@ function onPlateTypeChange() {
   plateType = els.plateType.value;
   trimAssignmentsAndSelectionToPlate();
   renderAll();
-  setStatus(`Switched to ${PLATES[plateType].label}.`, 'info');
+  setStatus(`Switched to ${PLATE_REFERENCE_MM[plateType].label}.`, 'info');
 }
 
 function onPlatePointerDown(event) {
@@ -1116,7 +1156,7 @@ function onDocumentKeyDown(event) {
 }
 
 function selectRow(row) {
-  const plate = PLATES[plateType];
+  const plate = PLATE_REFERENCE_MM[plateType];
   selectedWells = new Set();
   for (let col = 0; col < plate.cols; col++) {
     selectedWells.add(getWellId(row, col));
@@ -1126,7 +1166,7 @@ function selectRow(row) {
 }
 
 function selectColumn(col) {
-  const plate = PLATES[plateType];
+  const plate = PLATE_REFERENCE_MM[plateType];
   selectedWells = new Set();
   for (let row = 0; row < plate.rows; row++) {
     selectedWells.add(getWellId(row, col));
@@ -1164,23 +1204,38 @@ function renderSelectionOnly() {
 }
 
 function getPlateMetrics(plate) {
-  const frameWidthPx = mmToPx(OUTER_PLATE_MM.width);
-  const frameHeightPx = mmToPx(OUTER_PLATE_MM.height);
-  const pitchPx = mmToPx(plate.pitchMm);
-  const wellDiameterPx = mmToPx(plate.wellDiameterMm);
-  const rowHeaderXpx = mmToPx(Math.max(LABEL_EDGE_MIN_MM, plate.a1ColOffsetMm - (plate.wellDiameterMm / 2) - LABEL_GAP_MM));
-  const columnHeaderYpx = mmToPx(Math.max(LABEL_GAP_MM, plate.a1RowOffsetMm - (plate.wellDiameterMm / 2) - LABEL_GAP_MM));
-  const headerHeightPx = clamp(pitchPx * 0.85, 18, 30);
-  const columnHeaderWidthPx = clamp(pitchPx + 8, 20, 34);
-  const rowHeaderWidthPx = clamp(pitchPx + 4, 20, 30);
+  const available = getAvailableFrameSpacePx();
+  const pxPerMm = clamp(
+    Math.min(
+      available.width / PLATE_UI_MM.outerWidth,
+      available.height / PLATE_UI_MM.outerHeight
+    ),
+    PLATE_SCALE_LIMITS.min,
+    PLATE_SCALE_LIMITS.max
+  );
+  const frameWidthPx = mmToPx(PLATE_UI_MM.outerWidth, pxPerMm);
+  const frameHeightPx = mmToPx(PLATE_UI_MM.outerHeight, pxPerMm);
+  const wellDiameterPx = roundPx(plate.wellDiameterMm * pxPerMm);
+  const pitchPx = roundPx(plate.pitchMm * pxPerMm);
+
+  const topMarginPx = (plate.a1RowOffsetMm - plate.wellDiameterMm / 2) * pxPerMm;
+  const leftMarginPx = (plate.a1ColOffsetMm - plate.wellDiameterMm / 2) * pxPerMm;
+
+  const colLabelCenterYpx = topMarginPx / 2;
+  const rowLabelCenterXpx = leftMarginPx / 2;
+
+  const headerHeightPx = clamp(pitchPx * 0.72, 10, 26);
+  const columnHeaderWidthPx = clamp(pitchPx * 0.9, 16, 36);
+  const rowHeaderWidthPx = clamp(leftMarginPx * 0.85, 14, 34);
 
   return {
     frameWidthPx,
     frameHeightPx,
+    pxPerMm,
     pitchPx,
     wellDiameterPx,
-    rowHeaderXpx,
-    columnHeaderYpx,
+    colLabelCenterYpx,
+    rowLabelCenterXpx,
     headerHeightPx,
     columnHeaderWidthPx,
     rowHeaderWidthPx,
@@ -1190,12 +1245,27 @@ function getPlateMetrics(plate) {
   };
 }
 
-function getWellCenterXPx(plate, col) {
-  return mmToPx(plate.a1ColOffsetMm + (col * plate.pitchMm));
+function getAvailableFrameSpacePx() {
+  const minWidthPx = PLATE_UI_MM.outerWidth * PLATE_SCALE_LIMITS.min;
+  const minHeightPx = PLATE_UI_MM.outerHeight * PLATE_SCALE_LIMITS.min;
+  const shellStyle = getComputedStyle(els.plateStageShell);
+  const shellInsetX = (parseFloat(shellStyle.paddingLeft) || 0) + (parseFloat(shellStyle.paddingRight) || 0);
+  const shellInsetY = (parseFloat(shellStyle.paddingTop) || 0) + (parseFloat(shellStyle.paddingBottom) || 0);
+  const width = Math.max(minWidthPx, els.plateStage.clientWidth - shellInsetX);
+  const viewportHeight = window.innerHeight || minHeightPx;
+  const stageTop = els.plateStage.getBoundingClientRect().top;
+  const height = Math.max(minHeightPx, viewportHeight - stageTop - VIEWPORT_HEIGHT_RESERVE_PX - shellInsetY);
+
+  return { width, height };
 }
 
-function getWellCenterYPx(plate, row) {
-  return mmToPx(plate.a1RowOffsetMm + (row * plate.pitchMm));
+
+function getWellCenterXPx(plate, metrics, col) {
+  return roundPx((plate.a1ColOffsetMm + col * plate.pitchMm) * metrics.pxPerMm);
+}
+
+function getWellCenterYPx(plate, metrics, row) {
+  return roundPx((plate.a1RowOffsetMm + row * plate.pitchMm) * metrics.pxPerMm);
 }
 
 function setActiveGroup(groupId) {
@@ -1298,7 +1368,7 @@ function pasteClipboardAtSelection() {
   }
 
   ensureClipboardGroups();
-  const plate = PLATES[plateType];
+  const plate = PLATE_REFERENCE_MM[plateType];
   const pasted = [];
   let skipped = 0;
 
@@ -1351,7 +1421,7 @@ function pasteAnchorPosition() {
 }
 
 function exportCsv() {
-  const plate = PLATES[plateType];
+  const plate = PLATE_REFERENCE_MM[plateType];
   const rows = [['plate_type', 'row', 'column', 'well', 'group']];
 
   for (let row = 0; row < plate.rows; row++) {
@@ -1383,7 +1453,7 @@ function resetPlate() {
 }
 
 function trimAssignmentsAndSelectionToPlate() {
-  const plate = PLATES[plateType];
+  const plate = PLATE_REFERENCE_MM[plateType];
   Object.keys(assignments).forEach((wellId) => {
     const pos = wellPosition(wellId);
     if (pos.row >= plate.rows || pos.col >= plate.cols) delete assignments[wellId];
@@ -1474,8 +1544,8 @@ function csvCell(value) {
   return `"${String(value).replace(/"/g, '""')}"`;
 }
 
-function mmToPx(mm) {
-  return roundPx(mm * PLATE_RENDER_SCALE);
+function mmToPx(mm, scale) {
+  return roundPx(mm * scale);
 }
 
 function roundPx(value) {
