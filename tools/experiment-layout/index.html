@@ -162,7 +162,7 @@
       border: 0;
       background: transparent;
       color: var(--text-muted);
-      font-size: var(--fs-2xs);
+      font-size: var(--axis-label-font, var(--fs-2xs));
       font-weight: 700;
       font-family: var(--font-mono);
       line-height: 1;
@@ -730,6 +730,10 @@ const GROUP_COLORS = [
 const PLATE_UI_MM = {
   outerWidth: 127.76,
   outerHeight: 85.48,
+  colLabelBandMm: 3.5,
+  rowLabelBandMm: 6.5,
+  wellAreaRightMarginMm: 3,
+  wellAreaBottomMarginMm: 3,
 };
 const PLATE_SCALE_LIMITS = { min: 2.6, max: 6.0 };
 const VIEWPORT_HEIGHT_RESERVE_PX = 96;
@@ -885,6 +889,7 @@ function renderPlate() {
   els.plateGrid.style.setProperty('--well-id-size', px(metrics.wellIdFontPx));
   els.plateGrid.style.setProperty('--well-label-size', px(metrics.wellLabelFontPx));
   els.plateGrid.style.setProperty('--well-initials-size', px(metrics.wellInitialsFontPx));
+  els.plateGrid.style.setProperty('--axis-label-font', px(metrics.axisLabelFontPx));
   els.plateGrid.innerHTML = '';
 
   for (let col = 0; col < plate.cols; col++) {
@@ -1215,18 +1220,27 @@ function getPlateMetrics(plate) {
   );
   const frameWidthPx = mmToPx(PLATE_UI_MM.outerWidth, pxPerMm);
   const frameHeightPx = mmToPx(PLATE_UI_MM.outerHeight, pxPerMm);
-  const wellDiameterPx = roundPx(plate.wellDiameterMm * pxPerMm);
-  const pitchPx = roundPx(plate.pitchMm * pxPerMm);
 
-  const topMarginPx = (plate.a1RowOffsetMm - plate.wellDiameterMm / 2) * pxPerMm;
-  const leftMarginPx = (plate.a1ColOffsetMm - plate.wellDiameterMm / 2) * pxPerMm;
+  const colLabelBandPx = PLATE_UI_MM.colLabelBandMm * pxPerMm;
+  const rowLabelBandPx = PLATE_UI_MM.rowLabelBandMm * pxPerMm;
 
-  const colLabelCenterYpx = topMarginPx / 2;
-  const rowLabelCenterXpx = leftMarginPx / 2;
+  const colLabelCenterYpx = colLabelBandPx / 2;
+  const rowLabelCenterXpx = rowLabelBandPx / 2;
 
-  const headerHeightPx = clamp(pitchPx * 0.72, 10, 26);
+  const wellAreaLeftPx = rowLabelBandPx;
+  const wellAreaTopPx = colLabelBandPx;
+  const wellAreaWidthPx = frameWidthPx - rowLabelBandPx - PLATE_UI_MM.wellAreaRightMarginMm * pxPerMm;
+  const wellAreaHeightPx = frameHeightPx - colLabelBandPx - PLATE_UI_MM.wellAreaBottomMarginMm * pxPerMm;
+
+  const pitchPx = Math.min(wellAreaWidthPx / plate.cols, wellAreaHeightPx / plate.rows);
+  const wellDiameterPx = pitchPx * (plate.wellDiameterMm / plate.pitchMm);
+
+  const gridOffsetXpx = wellAreaLeftPx + (wellAreaWidthPx - pitchPx * plate.cols) / 2;
+  const gridOffsetYpx = wellAreaTopPx + (wellAreaHeightPx - pitchPx * plate.rows) / 2;
+
+  const headerHeightPx = clamp(Math.min(pitchPx * 0.72, colLabelBandPx * 0.9), 10, 26);
   const columnHeaderWidthPx = clamp(pitchPx * 0.9, 16, 36);
-  const rowHeaderWidthPx = clamp(leftMarginPx * 0.85, 14, 34);
+  const rowHeaderWidthPx = clamp(rowLabelBandPx * 0.85, 14, 34);
 
   return {
     frameWidthPx,
@@ -1234,11 +1248,14 @@ function getPlateMetrics(plate) {
     pxPerMm,
     pitchPx,
     wellDiameterPx,
+    gridOffsetXpx,
+    gridOffsetYpx,
     colLabelCenterYpx,
     rowLabelCenterXpx,
     headerHeightPx,
     columnHeaderWidthPx,
     rowHeaderWidthPx,
+    axisLabelFontPx: clamp(pxPerMm * 2.2, 9, 13),
     wellIdFontPx: clamp(wellDiameterPx * 0.18, 8.5, 18),
     wellLabelFontPx: clamp(wellDiameterPx * 0.11, 7, 15),
     wellInitialsFontPx: clamp(wellDiameterPx * 0.2, 8.5, 16),
@@ -1261,11 +1278,11 @@ function getAvailableFrameSpacePx() {
 
 
 function getWellCenterXPx(plate, metrics, col) {
-  return roundPx((plate.a1ColOffsetMm + col * plate.pitchMm) * metrics.pxPerMm);
+  return roundPx(metrics.gridOffsetXpx + (col + 0.5) * metrics.pitchPx);
 }
 
 function getWellCenterYPx(plate, metrics, row) {
-  return roundPx((plate.a1RowOffsetMm + row * plate.pitchMm) * metrics.pxPerMm);
+  return roundPx(metrics.gridOffsetYpx + (row + 0.5) * metrics.pitchPx);
 }
 
 function setActiveGroup(groupId) {
