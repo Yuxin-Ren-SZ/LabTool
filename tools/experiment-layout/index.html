@@ -3,10 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <script src="../../assets/js/labtools-theme.js"></script>
   <title>Well Plate Map Generator - LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <script src="../../assets/js/labtools-common.js"></script>
   <style>
+    /* ── Tool-local design tokens ── */
+    :root {
+      --plate-inset-bright: rgba(255, 255, 255, 0.8);
+      --plate-inset-shadow: rgba(55, 53, 47, 0.035);
+      --well-assigned-border: rgba(0, 0, 0, 0.22);
+      --well-selected-glow: 0 0 0 3px rgba(51, 102, 204, 0.18);
+      --swatch-border: rgba(0, 0, 0, 0.16);
+    }
+    [data-theme="dark"] {
+      --plate-inset-bright: rgba(255, 255, 255, 0.03);
+      --plate-inset-shadow: rgba(0, 0, 0, 0.25);
+      --well-assigned-border: rgba(255, 255, 255, 0.20);
+      --well-selected-glow: 0 0 0 3px rgba(103, 144, 224, 0.30);
+      --swatch-border: rgba(255, 255, 255, 0.20);
+    }
+
     .card {
       max-width: 1320px;
       padding: 24px;
@@ -105,7 +122,7 @@
     }
 
     .plate-frame {
-      --plate-frame-border: #d3d0c9;
+      --plate-frame-border: var(--border);
       --plate-cut-size: 44px;
       display: inline-block;
       flex: none;
@@ -120,8 +137,8 @@
     .plate-shell {
       position: absolute;
       inset: 0;
-      background: #fffefb;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), inset 0 -12px 28px rgba(55, 53, 47, 0.035);
+      background: var(--surface);
+      box-shadow: inset 0 1px 0 var(--plate-inset-bright), inset 0 -12px 28px var(--plate-inset-shadow);
       pointer-events: none;
       z-index: 0;
     }
@@ -186,7 +203,7 @@
       width: var(--well-size, 30px);
       height: var(--well-size, 30px);
       border-radius: 50%;
-      border: 1.5px solid #d8d6d0;
+      border: 1.5px solid var(--border);
       background: var(--surface);
       color: var(--text-dim);
       font-family: var(--font);
@@ -212,13 +229,13 @@
 
     .well.assigned {
       background: var(--well-color);
-      border-color: rgba(0, 0, 0, 0.22);
+      border-color: var(--well-assigned-border);
       color: var(--well-text);
     }
 
     .well.selected {
       border-color: var(--blue-dark);
-      box-shadow: 0 0 0 3px rgba(51, 102, 204, 0.18);
+      box-shadow: var(--well-selected-glow);
       z-index: 2;
     }
 
@@ -366,7 +383,7 @@
       width: 14px;
       height: 14px;
       border-radius: 50%;
-      border: 1px solid rgba(0, 0, 0, 0.16);
+      border: 1px solid var(--swatch-border);
       padding: 0;
       flex-shrink: 0;
       cursor: pointer;
@@ -469,7 +486,7 @@
 
     @media print {
       body {
-        background: #fff;
+        background: var(--surface);
       }
 
       .lt-nav,
@@ -518,7 +535,7 @@
       .plate-stage-shell {
         display: block;
         border: 0;
-        background: #fff;
+        background: var(--surface);
         padding: 0;
         width: auto;
       }

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <script src="../assets/js/labtools-theme.js"></script>
   <title>Hemocytometer Counting Modes</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -101,6 +102,40 @@
       line-height: 1.55;
       border-top: 1px solid #f0efed;
       padding-top: 10px;
+    }
+
+    /* ── Dark Mode ── */
+    [data-theme="dark"] body {
+      background: #191918;
+      color: #e6e6e4;
+    }
+    [data-theme="dark"] .page-sub {
+      color: #787875;
+    }
+    [data-theme="dark"] .mode-card {
+      background: #2b2b2a;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.45);
+    }
+    [data-theme="dark"] .mode-num {
+      color: #787875;
+      background: #3a3a38;
+    }
+    [data-theme="dark"] .meta-box {
+      background: #333332;
+    }
+    [data-theme="dark"] .meta-label {
+      color: #5a5a58;
+    }
+    [data-theme="dark"] .meta-value {
+      color: #e6e6e4;
+    }
+    [data-theme="dark"] .meta-value code {
+      background: #424240;
+      color: #e6e6e4;
+    }
+    [data-theme="dark"] .mode-note {
+      color: #787875;
+      border-top-color: #383836;
     }
   </style>
 </head>

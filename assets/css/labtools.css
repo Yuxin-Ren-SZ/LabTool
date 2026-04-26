@@ -81,6 +81,7 @@
 
   /* Red */
   --red:              #e03e3e;
+  --red-dark:         #b02c2c;
   --red-bg:           #fffafa;
   --red-border:       #fde8e8;
   --red-border-input: #fad4d4;
@@ -93,6 +94,13 @@
   --shadow-card:  0 2px 12px rgba(0,0,0,0.08);
   --shadow-sm:    0 1px 4px rgba(0,0,0,0.10);
   --shadow-hover: 0 4px 20px rgba(0,0,0,0.12);
+
+  /* ── Chrome ─────────────────────────────────────────────────
+   * nav and sheet stage backgrounds that need semi-transparency
+   */
+  --nav-bg: rgba(247,247,245,0.88);
+  --sheet-stage-bg: linear-gradient(180deg, #ffffff 0%, #fbfbfa 100%);
+  --sheet-region-bg: linear-gradient(180deg, rgba(92,141,255,0.05), rgba(92,141,255,0.02));
 
   /* ── Radii ───────────────────────────────────────────────────
    * Four-step scale: xs (badges) → sm → md (inputs, buttons) → lg (cards)
@@ -146,7 +154,7 @@ a { color: inherit; text-decoration: none; }
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(247,247,245,0.88);
+  background: var(--nav-bg);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border-subtle);
@@ -1050,7 +1058,7 @@ a { color: inherit; text-decoration: none; }
   max-width: 360px;
   margin: 0 auto;
   aspect-ratio: var(--sheet-aspect, 8.5 / 11);
-  background: linear-gradient(180deg, #ffffff 0%, #fbfbfa 100%);
+  background: var(--sheet-stage-bg);
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow-card);
@@ -1066,8 +1074,7 @@ a { color: inherit; text-decoration: none; }
   position: absolute;
   border: 1px dashed var(--border);
   border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(92, 141, 255, 0.05), rgba(92, 141, 255, 0.02));
+  background: var(--sheet-region-bg);
 }
 
 .lt-sheet-cell {
@@ -1080,7 +1087,7 @@ a { color: inherit; text-decoration: none; }
   padding: 4px 5px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: rgba(255,255,255,0.96);
+  background: var(--surface);
   color: var(--text-secondary);
   font-size: 0.60rem;
   font-weight: 700;
@@ -1109,7 +1116,7 @@ a { color: inherit; text-decoration: none; }
   color: var(--text-dim);
 }
 .lt-sheet-cell--available {
-  background: rgba(255,255,255,0.96);
+  background: var(--surface);
 }
 .lt-sheet-cell--locked {
   pointer-events: none;
@@ -1157,5 +1164,144 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 860px) {
   .lt-workspace-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   Dark Mode
+   Activated by <html data-theme="dark">
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="dark"] {
+
+  /* ── Backgrounds ──────────────────────────────────────────── */
+  --bg:              #191918;
+  --surface:         #2b2b2a;
+  --surface-subtle:  #222221;
+  --surface-hover:   #333332;
+  --tag-bg:          #3a3a38;
+
+  /* ── Text ─────────────────────────────────────────────────── */
+  --text:             #e6e6e4;
+  --text-secondary:   #a0a09c;
+  --text-muted:       #787875;
+  --text-dim:         #5a5a58;
+  --text-placeholder: #4a4a48;
+
+  /* ── Borders ──────────────────────────────────────────────── */
+  --border:        #424240;
+  --border-subtle: #383836;
+
+  /* ── Blue ─────────────────────────────────────────────────── */
+  --blue:        #8ab4f8;
+  --blue-dark:   #4d85e0;
+  --blue-bg:     #1e2733;
+  --blue-border: #2d3f5a;
+
+  /* ── Green ────────────────────────────────────────────────── */
+  --green:        #5bbf5e;
+  --green-dark:   #4a9f4d;
+  --green-bg:     #182a18;
+  --green-border: #2a4a2a;
+
+  /* ── Yellow ───────────────────────────────────────────────── */
+  --yellow:        #d9a84a;
+  --yellow-dark:   #e8c46a;
+  --yellow-bg:     #2a2410;
+  --yellow-border: #4a4020;
+
+  /* ── Red ──────────────────────────────────────────────────── */
+  --red:              #e06565;
+  --red-dark:         #f28b8b;
+  --red-bg:           #2a1515;
+  --red-border:       #4a2828;
+  --red-border-input: #5a3030;
+
+  /* ── Shadows (stronger on dark surfaces) ──────────────────── */
+  --shadow-card:  0 2px 12px rgba(0,0,0,0.45);
+  --shadow-sm:    0 1px 4px  rgba(0,0,0,0.50);
+  --shadow-hover: 0 4px 20px rgba(0,0,0,0.55);
+
+  /* ── Chrome ───────────────────────────────────────────────── */
+  --nav-bg: rgba(25,25,24,0.92);
+  --sheet-stage-bg: linear-gradient(180deg, #3a3a38 0%, #333332 100%);
+  --sheet-region-bg: linear-gradient(180deg, rgba(103,144,224,0.12), rgba(103,144,224,0.06));
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   Theme Toggle Button
+   Injected into .lt-nav by labtools-theme.js
+   ═══════════════════════════════════════════════════════════════ */
+.lt-theme-toggle {
+  margin-left: auto;
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 9px;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.lt-theme-toggle:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+  background: var(--surface-hover);
+}
+
+.lt-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  transition: color 0.15s;
+  line-height: 1;
+}
+.lt-nav-icon:hover {
+  color: var(--text);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   Print — force light palette regardless of theme
+   ═══════════════════════════════════════════════════════════════ */
+@media print {
+  [data-theme="dark"] {
+    --bg: #f7f7f5;
+    --surface: #ffffff;
+    --surface-subtle: #fafafa;
+    --surface-hover: #f7f6f3;
+    --tag-bg: #f1f1ef;
+    --text: #37352f;
+    --text-secondary: #6b6b6b;
+    --text-muted: #9b9a97;
+    --text-dim: #b6b5b2;
+    --text-placeholder: #c4c4c0;
+    --border: #e3e2df;
+    --border-subtle: #f0efed;
+    --blue: #5c8dff;
+    --blue-dark: #3366cc;
+    --blue-bg: #eef3ff;
+    --blue-border: #c8d9ff;
+    --green: #57a85a;
+    --green-dark: #2d7a2d;
+    --green-bg: #efffef;
+    --green-border: #b8e8b8;
+    --yellow: #d97706;
+    --yellow-dark: #92400e;
+    --yellow-bg: #fffbeb;
+    --yellow-border: #fcd34d;
+    --red: #e03e3e;
+    --red-dark: #b02c2c;
+    --red-bg: #fffafa;
+    --red-border: #fde8e8;
+    --red-border-input: #fad4d4;
+    --shadow-card: none;
+    --shadow-sm: none;
+    --shadow-hover: none;
+    --nav-bg: rgba(247,247,245,0.88);
+    --sheet-stage-bg: linear-gradient(180deg, #ffffff 0%, #fbfbfa 100%);
+    --sheet-region-bg: linear-gradient(180deg, rgba(92,141,255,0.05), rgba(92,141,255,0.02));
   }
 }

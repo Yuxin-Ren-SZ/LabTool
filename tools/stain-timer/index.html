@@ -3,10 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <script src="../../assets/js/labtools-theme.js"></script>
   <title>Stain Timer · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <script src="../../assets/js/labtools-calc.js"></script>
   <style>
+    /* ── Tool-local tokens ── */
+    :root {
+      --slot-blue-glow: 0 0 0 3px rgba(62, 114, 201, 0.15);
+      --slot-green-glow: 0 0 0 3px rgba(52, 135, 94, 0.14);
+    }
+    [data-theme="dark"] {
+      --slot-blue-glow: 0 0 0 3px rgba(103, 144, 224, 0.30);
+      --slot-green-glow: 0 0 0 3px rgba(91, 191, 94, 0.30);
+    }
+
     /* ── Card width (base styles live in labtools.css .card) ── */
     .card { max-width: 660px; }
 
@@ -285,13 +296,13 @@
       background: var(--blue-dark);
       border-color: var(--blue-dark);
       color: #fff;
-      box-shadow: 0 0 0 3px rgba(62, 114, 201, 0.15);
+      box-shadow: var(--slot-blue-glow);
       animation: slotPulse 1.35s ease-in-out infinite;
     }
     .done-state .slot-box.active {
       background: var(--green-dark);
       border-color: var(--green-dark);
-      box-shadow: 0 0 0 3px rgba(52, 135, 94, 0.14);
+      box-shadow: var(--slot-green-glow);
     }
     @keyframes slotPulse {
       0%, 100% { transform: scale(1); }
