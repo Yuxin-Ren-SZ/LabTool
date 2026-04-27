@@ -1,160 +1,73 @@
 'use strict';
 
-/**
- * LabTools — navigation extras and shared theme state.
- *
- * Load this script in <head> before the stylesheet. It applies the theme
- * immediately, then injects nav controls after the document is ready.
- */
 (function () {
-  var KEY = 'labtools:theme:v1';
-  var THEME_PARAM = 'theme';
-  var DARK = 'dark';
-  var LIGHT = 'light';
+  var KEY        = 'labtools:theme:v1';
   var GITHUB_URL = 'https://github.com/yuxin-ren-sz/LabTool';
 
-  var MOON = '🌙';
-  var SUN = '☀️';
+  /* ── Storage helpers ────────────────────────────────────────────
+   * localStorage is the primary store (works for HTTP/HTTPS and
+   * Chrome's file:// which treats all file:// as one origin).
+   *
+   * Firefox isolates localStorage per-file on file:// — writing
+   * succeeds silently but the value is invisible from other pages.
+   * window.name survives same-tab navigation across any origin, so
+   * we use it as a supplementary channel when on file://.
+   * ────────────────────────────────────────────────────────────── */
 
-  function validTheme(value) {
-    return value === DARK || value === LIGHT ? value : null;
-  }
+  function isFile() { return location.protocol === 'file:'; }
 
-  function getStored() {
-    try { return validTheme(window.localStorage.getItem(KEY)); } catch (_) { return null; }
-  }
-
-  function setStored(theme) {
-    try { window.localStorage.setItem(KEY, theme); } catch (_) {}
-  }
-
-  function getUrlTheme() {
-    try {
-      return validTheme(new URL(window.location.href).searchParams.get(THEME_PARAM));
-    } catch (_) {
-      return null;
+  function persist(theme) {
+    try { localStorage.setItem(KEY, theme); } catch (_) {}
+    if (isFile()) {
+      try { window.name = JSON.stringify({ t: theme }); } catch (_) {}
     }
   }
 
-  function systemTheme() {
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return DARK;
-    }
-    return LIGHT;
+  /* ── Core ───────────────────────────────────────────────────── */
+
+  function enableDarkmode() {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    persist('dark');
+    updateButton(true);
   }
 
-  function resolveTheme() {
-    return getUrlTheme() || getStored() || systemTheme();
-  }
-
-  function currentTheme() {
-    return validTheme(document.documentElement.getAttribute('data-theme')) || LIGHT;
-  }
-
-  function applyTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-  }
-
-  function updateButton(theme) {
-    var btn = document.getElementById('lt-theme-toggle');
-    var isDark = theme === DARK;
-    if (!btn) return;
-    btn.textContent = isDark ? SUN : MOON;
-    btn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
-    btn.setAttribute('title', isDark ? 'Switch to light mode' : 'Switch to dark mode');
-    btn.setAttribute('aria-pressed', isDark ? 'true' : 'false');
-  }
-
-  function syncCurrentUrl(theme) {
-    if (!window.history || !window.history.replaceState) return;
-    try {
-      var url = new URL(window.location.href);
-      url.searchParams.set(THEME_PARAM, theme);
-      window.history.replaceState(window.history.state, '', url.href);
-    } catch (_) {}
-  }
-
-  function isPageHref(url) {
-    var path = url.pathname;
-    return path === '' || path.endsWith('/') || path.endsWith('.html');
-  }
-
-  function isSameSiteUrl(url) {
-    if (window.location.protocol === 'file:') return url.protocol === 'file:';
-    return url.origin === window.location.origin;
-  }
-
-  function shouldDecorateLink(anchor) {
-    var raw = anchor.getAttribute('href');
-    var url;
-
-    if (!raw) return false;
-    raw = raw.trim();
-    if (
-      raw === '' ||
-      raw.charAt(0) === '#' ||
-      /^(?:blob|data|javascript|mailto|tel):/i.test(raw) ||
-      anchor.hasAttribute('download')
-    ) {
-      return false;
-    }
-
-    try {
-      url = new URL(raw, window.location.href);
-    } catch (_) {
-      return false;
-    }
-
-    if (!isSameSiteUrl(url)) return false;
-    if (!isPageHref(url)) return false;
-    return true;
-  }
-
-  function decorateLinks(theme) {
-    var links = document.querySelectorAll('a[href]');
-    links.forEach(function (anchor) {
-      if (!shouldDecorateLink(anchor)) return;
-
-      try {
-        var url = new URL(anchor.getAttribute('href'), window.location.href);
-        url.searchParams.set(THEME_PARAM, theme);
-        anchor.href = url.href;
-      } catch (_) {}
-    });
-  }
-
-  function setTheme(theme, options) {
-    var opts = options || {};
-    var next = validTheme(theme) || LIGHT;
-
-    applyTheme(next);
-    if (opts.persist !== false) setStored(next);
-    if (opts.syncUrl) syncCurrentUrl(next);
-    updateButton(next);
-    decorateLinks(next);
+  function disableDarkmode() {
+    document.documentElement.setAttribute('data-theme', 'light');
+    persist('light');
+    updateButton(false);
   }
 
   function toggleTheme() {
-    setTheme(currentTheme() === DARK ? LIGHT : DARK, { syncUrl: true });
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    isDark ? disableDarkmode() : enableDarkmode();
   }
+
+  /* ── Button state ───────────────────────────────────────────── */
+
+  function updateButton(isDark) {
+    var btn = document.getElementById('lt-theme-toggle');
+    if (!btn) return;
+    btn.textContent = isDark ? '☀️' : '🌙';
+    btn.setAttribute('aria-label',   isDark ? 'Switch to light mode' : 'Switch to dark mode');
+    btn.setAttribute('title',        isDark ? 'Switch to light mode' : 'Switch to dark mode');
+    btn.setAttribute('aria-pressed', String(isDark));
+  }
+
+  /* ── Nav injection ──────────────────────────────────────────── */
 
   function injectNavExtras() {
     var nav = document.querySelector('.lt-nav');
-    var spacer;
-    var gh;
-    var btn;
-
     if (!nav) return;
 
     if (!document.getElementById('lt-nav-spacer')) {
-      spacer = document.createElement('span');
+      var spacer = document.createElement('span');
       spacer.id = 'lt-nav-spacer';
       spacer.style.flex = '1';
       nav.appendChild(spacer);
     }
 
     if (!document.getElementById('lt-github-link')) {
-      gh = document.createElement('a');
+      var gh = document.createElement('a');
       gh.id = 'lt-github-link';
       gh.className = 'lt-nav-icon';
       gh.href = GITHUB_URL;
@@ -166,7 +79,7 @@
     }
 
     if (!document.getElementById('lt-theme-toggle')) {
-      btn = document.createElement('button');
+      var btn = document.createElement('button');
       btn.id = 'lt-theme-toggle';
       btn.className = 'lt-theme-toggle';
       btn.type = 'button';
@@ -177,11 +90,43 @@
 
   function initDom() {
     injectNavExtras();
-    updateButton(currentTheme());
-    decorateLinks(currentTheme());
+    updateButton(document.documentElement.getAttribute('data-theme') === 'dark');
   }
 
-  setTheme(resolveTheme(), { persist: !!getUrlTheme() });
+  function currentTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  }
+
+  function withThemeParam(href) {
+    try {
+      var u = new URL(href, location.href);
+      if (u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'file:') {
+        u.searchParams.set('theme', currentTheme());
+      }
+      return u.href;
+    } catch (_) {
+      return href;
+    }
+  }
+
+  function patchLinkClicks() {
+    document.addEventListener('click', function (e) {
+      var a = e.target && e.target.closest ? e.target.closest('a') : null;
+      if (!a) return;
+      if (a.target && a.target !== '_self') return;
+      if (a.hasAttribute('download')) return;
+      if (!a.getAttribute('href')) return;
+
+      var href = a.getAttribute('href');
+      // Ignore pure hashes and external links
+      if (href[0] === '#') return;
+
+      var next = withThemeParam(href);
+      if (next && next !== href) {
+        a.href = next;
+      }
+    }, true);
+  }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initDom);
@@ -189,9 +134,25 @@
     initDom();
   }
 
-  window.addEventListener('storage', function (event) {
-    var theme = validTheme(event.newValue);
-    if (event.key !== KEY || !theme) return;
-    setTheme(theme, { persist: false, syncUrl: true });
+  patchLinkClicks();
+
+  /* ── Cross-tab sync (localStorage storage event) ────────────── */
+  window.addEventListener('storage', function (e) {
+    if (e.key !== KEY) return;
+    if (e.newValue === 'dark') enableDarkmode();
+    else if (e.newValue === 'light') disableDarkmode();
   });
+
+  /* ── Live OS theme change (only when no saved override) ─────── */
+  var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+  if (mq && mq.addEventListener) {
+    mq.addEventListener('change', function (e) {
+      var stored;
+      try { stored = localStorage.getItem(KEY); } catch (_) {}
+      if (stored) return;
+      if (isFile()) { try { if (JSON.parse(window.name || '{}').t) return; } catch (_) {} }
+      if (e.matches) enableDarkmode();
+      else disableDarkmode();
+    });
+  }
 })();

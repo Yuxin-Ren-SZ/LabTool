@@ -3,9 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <script src="assets/js/labtools-theme.js"></script>
+  <meta name="color-scheme" content="light dark">
+  <style>
+    html { background: #f7f7f5; color: #37352f; }
+    html[data-theme="dark"] { background: #191918; color: #e6e6e4; }
+    body { background: inherit; color: inherit; }
+  </style>
+  <script>(function(){try{var q=null;try{q=new URL(location.href).searchParams.get('theme');}catch(_){}var s;if(q==='dark'||q==='light'){s=q;}else{try{s=localStorage.getItem('labtools:theme:v1');}catch(_){}if(!s&&location.protocol==='file:')try{s=JSON.parse(window.name||'{}').t;}catch(_){}s=(s==='dark'||s==='light')?s:(window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light';}document.documentElement.setAttribute('data-theme',s);}catch(_){}})();</script>
   <title>LabTools</title>
   <link rel="stylesheet" href="assets/css/labtools.css"/>
+  <script defer src="assets/js/labtools-theme.js"></script>
   <style>
     body {
       display: flex;

@@ -12,6 +12,7 @@
 
 /* ─── Design Tokens ─────────────────────────────────────────── */
 :root {
+  color-scheme: light;
 
   /* ── Backgrounds ────────────────────────────────────────────
    * Surface layers from outermost page fill to card-level white.
@@ -1173,6 +1174,7 @@ a { color: inherit; text-decoration: none; }
    Activated by <html data-theme="dark">
    ═══════════════════════════════════════════════════════════════ */
 [data-theme="dark"] {
+  color-scheme: dark;
 
   /* ── Backgrounds ──────────────────────────────────────────── */
   --bg:              #191918;
@@ -1268,6 +1270,7 @@ a { color: inherit; text-decoration: none; }
    ═══════════════════════════════════════════════════════════════ */
 @media print {
   [data-theme="dark"] {
+    color-scheme: light;
     --bg: #f7f7f5;
     --surface: #ffffff;
     --surface-subtle: #fafafa;
