@@ -108,7 +108,6 @@
 
     .plate-frame {
       --plate-frame-border: #d3d0c9;
-      --plate-cut-size: 44px;
       display: inline-block;
       flex: none;
       position: relative;
@@ -467,10 +466,6 @@
         padding: 12px;
       }
 
-      .plate-frame {
-        --plate-cut-size: 36px;
-      }
-
       .control-strip {
         gap: 10px;
       }
@@ -743,6 +738,7 @@ const GROUP_COLORS = [
 const PLATE_UI_MM = {
   outerWidth: 127.8,
   outerHeight: 85.5,
+  cornerCutMm: 8.5,
   colLabelBandMm: 3.5,
   rowLabelBandMm: 6.5,
   wellAreaRightMarginMm: 3,
@@ -767,6 +763,7 @@ let cutCorners = new Set(['top-left']);
 let plateFrameObserver = null;
 let plateStageObserver = null;
 let plateRenderRaf = 0;
+let currentPlatePxPerMm = PLATE_SCALE_LIMITS.min;
 
 const els = {};
 
@@ -895,6 +892,7 @@ function renderAll() {
 function renderPlate() {
   const plate = PLATE_REFERENCE_MM[plateType];
   const metrics = getPlateMetrics(plate);
+  currentPlatePxPerMm = metrics.pxPerMm;
   els.plateGrid.dataset.plate = plateType;
   els.plateGrid.dataset.labelMode = getLabelMode(metrics.wellDiameterPx);
   els.plateFrame.style.width = px(metrics.frameWidthPx);
@@ -995,7 +993,7 @@ function renderPlateFrameCorners() {
 }
 
 function getPlateCutSize(width, height) {
-  const requested = parseFloat(getComputedStyle(els.plateFrame).getPropertyValue('--plate-cut-size')) || 44;
+  const requested = PLATE_UI_MM.cornerCutMm * currentPlatePxPerMm;
   const safeMax = Math.max(18, Math.min((width / 2) - 8, (height / 2) - 8));
   return Math.round(Math.min(requested, safeMax));
 }
