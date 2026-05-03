@@ -12,6 +12,7 @@ No installation required — open any tool directly in a browser or visit the Gi
 | [Well Plate Map Generator](tools/experiment-layout/) | Multi-well plate layout planner for assigning groups to 6-, 12-, 24-, 48-, 96-, and 384-well plates |
 | [Stain Timer](tools/stain-timer/) | Configurable multi-step staining protocol timer with countdown, slot tracking, CSV import/export, and audio alarms |
 | [Thermal to Laser Label Converter](tools/thermal-to-laser/) | Convert thermal-printer label PDFs to laser-printer mailing-label sheet PDFs, with preset management and sheet preview |
+| [Drug Dosage Calculator](tools/drug-dosage/) | Save named multi-drug dosing protocols and calculate min/exact/max per-animal dose amounts from body weight |
 
 ## Structure
 
@@ -37,6 +38,11 @@ LabTools/
 │   ├── stain-timer/
 │   │   ├── index.html
 │   │   └── README.md
+│   ├── drug-dosage/
+│   │   ├── index.html
+│   │   ├── README.md
+│   │   ├── tool.js
+│   │   └── protocol-config.js
 │   └── thermal-to-laser/
 │       ├── index.html
 │       ├── README.md

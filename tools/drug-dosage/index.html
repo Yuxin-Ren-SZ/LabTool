@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Drug Dosage Calculator · LabTools</title>
+  <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
+  <script src="./protocol-config.js"></script>
+  <style>
+    .card { max-width: 1120px; }
+
+    /* ── Step progress indicator ── */
+    .step-progress {
+      display: flex;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+
+    .step-pip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      color: var(--text-muted);
+      padding: 6px 0;
+    }
+
+    .step-pip-dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .step-pip.active .step-pip-dot {
+      border-color: var(--blue);
+      background: var(--blue-bg);
+      color: var(--blue-dark);
+    }
+
+    .step-pip.done .step-pip-dot {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #fff;
+    }
+
+    .step-pip.active .step-pip-label,
+    .step-pip.done .step-pip-label {
+      color: var(--text);
+    }
+
+    .step-connector {
+      flex: 1;
+      height: 2px;
+      background: var(--border-subtle);
+      margin: 0 8px;
+    }
+
+    .step-connector.done { background: var(--blue); }
+
+    /* ── Panel switching ── */
+    .step-panel { display: none; }
+    .step-panel.active { display: block; }
+
+    /* ── Shared layout ── */
+    .lead-stack {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .tool-subcopy {
+      color: var(--text-secondary);
+      font-size: 0.92rem;
+      line-height: 1.55;
+      max-width: 74ch;
+    }
+
+    .panel-block {
+      margin-top: 18px;
+    }
+
+    .panel-surface {
+      background: var(--surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      padding: 16px;
+    }
+
+    .field-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-span-2 {
+      grid-column: span 2;
+    }
+
+    .field-span-full {
+      grid-column: 1 / -1;
+    }
+
+    .lt-label {
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .weight-field-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 110px;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .summary-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface-subtle);
+      padding: 12px 13px;
+    }
+
+    .summary-label {
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .summary-value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .summary-note {
+      margin-top: 6px;
+      font-size: var(--fs-sm);
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+
+    .micro-note {
+      margin-top: 10px;
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* ── Protocol editor table ── */
+    .table-shell {
+      overflow-x: auto;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      background: var(--surface-subtle);
+      margin-top: 12px;
+    }
+
+    .proto-table {
+      width: 100%;
+      min-width: 940px;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+    }
+
+    .proto-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--surface-subtle);
+      padding: 10px 8px;
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+      white-space: nowrap;
+    }
+
+    .proto-table tbody td {
+      padding: 8px;
+      vertical-align: top;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .proto-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .proto-row.drag-over {
+      outline: 2px solid var(--blue);
+      outline-offset: -2px;
+    }
+
+    .proto-row.dragging {
+      opacity: 0.45;
+    }
+
+    .col-drag {
+      width: 28px;
+      padding-right: 0 !important;
+    }
+
+    .drag-handle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 28px;
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      cursor: grab;
+      user-select: none;
+      border-radius: var(--radius-sm);
+    }
+
+    .drag-handle:active { cursor: grabbing; }
+
+    .drag-handle:hover {
+      background: var(--surface-hover);
+      color: var(--text);
+    }
+
+    .col-num {
+      width: 38px;
+      text-align: center;
+      color: var(--text-dim);
+      font-weight: 700;
+    }
+
+    .proto-table .lt-input,
+    .proto-table .lt-select {
+      min-height: 38px;
+      font-size: 0.84rem;
+    }
+
+    .dose-input  { width: 110px; }
+    .name-input  { min-width: 180px; }
+    .notes-input { min-width: 180px; }
+    .unit-cell   { min-width: 240px; }
+
+    .unit-stack {
+      display: grid;
+      gap: 8px;
+    }
+
+    .unit-inline {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto 88px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .unit-divider {
+      color: var(--text-dim);
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .custom-unit-input[hidden] { display: none; }
+
+    .acts-cell {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .act-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+      padding: 5px 6px;
+      line-height: 1;
+      border-radius: var(--radius-sm);
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .act-btn:hover {
+      background: var(--surface-hover);
+      color: var(--text);
+    }
+
+    .act-btn.del:hover {
+      background: var(--red-bg);
+      color: var(--red);
+    }
+
+    .act-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .error {
+      border-color: var(--red-border-input) !important;
+      background: var(--red-bg) !important;
+      color: var(--red) !important;
+    }
+
+    /* ── Results / calculated doses ── */
+    .results-stack {
+      display: grid;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .result-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: linear-gradient(180deg, #ffffff 0%, #fafaf8 100%);
+      padding: 14px 15px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .result-card-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .result-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .result-source-line {
+      color: var(--text-secondary);
+      font-size: var(--fs-sm);
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+
+    .dose-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+    }
+
+    .dose-chip {
+      border: 1px solid var(--blue-border);
+      background: var(--blue-bg);
+      border-radius: var(--radius-md);
+      padding: 10px 11px;
+    }
+
+    .dose-chip-label {
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--blue-dark);
+      margin-bottom: 4px;
+    }
+
+    .dose-chip-value {
+      font-size: 1.02rem;
+      font-weight: 700;
+      color: var(--blue-dark);
+      line-height: 1.2;
+    }
+
+    .dose-chip-sub {
+      margin-top: 5px;
+      font-size: var(--fs-sm);
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .result-note {
+      margin-top: 10px;
+      font-size: var(--fs-sm);
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .checkbox-cell { vertical-align: middle !important; }
+
+    .checkbox-wrap {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .checkbox-label {
+      font-size: var(--fs-sm);
+      color: var(--text-secondary);
+    }
+
+    .result-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .actual-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .actual-label {
+      font-size: var(--fs-sm);
+      font-weight: 700;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .actual-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .actual-unit {
+      font-size: var(--fs-sm);
+      color: var(--text-secondary);
+    }
+
+    /* ── Entries log table ── */
+    .entries-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      min-width: 820px;
+    }
+
+    .entries-table th {
+      background: var(--surface-subtle);
+      padding: 8px 10px;
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+      white-space: nowrap;
+    }
+
+    .entries-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: top;
+    }
+
+    .entries-table tbody tr:last-child td { border-bottom: none; }
+
+    .entries-empty {
+      padding: 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      margin: 0;
+    }
+
+    @media (max-width: 860px) {
+      .weight-field-row { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 520px) {
+      .card { padding: 22px 14px 18px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="lt-nav">
+  <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
+  <span class="lt-nav-sep">/</span>
+  <span class="lt-nav-page">Drug Dosage Calculator</span>
+</nav>
+
+<div class="lt-page-body">
+  <div class="card">
+
+    <!-- Step progress indicator -->
+    <div class="step-progress">
+      <div class="step-pip" id="pip-setup">
+        <div class="step-pip-dot">1</div>
+        <span class="step-pip-label">Protocol Setup</span>
+      </div>
+      <div class="step-connector" id="conn-setup-operation"></div>
+      <div class="step-pip" id="pip-operation">
+        <div class="step-pip-dot">2</div>
+        <span class="step-pip-label">Calculate &amp; Log</span>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════
+         STEP 1 — Protocol Setup
+         ═══════════════════════════════════════ -->
+    <div id="panel-setup" class="step-panel active">
+
+      <div class="lead-stack">
+        <div>
+          <h1 class="lt-tool-title">💊 Drug Dosage Calculator</h1>
+          <p class="lt-tool-subcopy">
+            Build a named multi-drug dosing protocol in Step 1, then calculate live
+            minimum, exact, and maximum output amounts for each animal in Step 2.
+          </p>
+        </div>
+        <div class="lt-alert lt-alert-warn">
+          This tool only performs protocol math. Verify every dose and administration
+          plan against your approved protocol before use.
+        </div>
+      </div>
+
+      <!-- Protocol Library -->
+      <section class="panel-block">
+        <div class="lt-section-label">Protocol Library</div>
+        <div class="panel-surface">
+          <div class="lt-form-grid">
+            <div class="field-stack field-span-full">
+              <label class="lt-label" for="protocol-select">Load Protocol</label>
+              <select class="lt-select" id="protocol-select"></select>
+              <p class="micro-note" id="protocol-select-note"></p>
+            </div>
+            <div class="field-stack">
+              <label class="lt-label" for="protocolName">Protocol Name</label>
+              <input class="lt-input" id="protocolName" type="text"
+                     placeholder="e.g. Mouse post-op analgesia"/>
+            </div>
+            <div class="field-stack">
+              <label class="lt-label" for="iacucProtocolId">IACUC Protocol ID</label>
+              <input class="lt-input" id="iacucProtocolId" type="text"
+                     placeholder="e.g. 12345"/>
+            </div>
+            <div class="field-stack field-span-full">
+              <label class="lt-label" for="protocolNotes">Protocol Notes</label>
+              <textarea class="lt-input lt-textarea" id="protocolNotes"
+                        placeholder="Optional notes about species, route, timing, or approval context."></textarea>
+            </div>
+          </div>
+
+          <div class="lt-toolbar-row" style="margin-top: 12px;">
+            <button class="btn-reset" id="new-draft-btn">New Blank Protocol</button>
+            <button class="btn-reset" id="save-protocol-btn">Save In This Browser</button>
+            <button class="btn-reset" id="clear-saved-btn">Clear Saved Protocols</button>
+            <button class="btn-reset" id="copy-current-btn">Copy Current Protocol</button>
+            <button class="btn-reset" id="export-all-btn">Export All Protocols</button>
+          </div>
+
+          <div class="summary-grid" id="draft-summary"></div>
+          <div class="micro-note">Saved protocols stay only in your current browser.</div>
+
+          <div class="lt-alert lt-alert-info" id="protocol-status" style="margin-top: 12px;"></div>
+        </div>
+      </section>
+
+      <!-- Protocol Editor -->
+      <section class="panel-block">
+        <div class="lt-section-label">Drug Protocol</div>
+        <div class="panel-surface">
+          <div class="lt-toolbar-row">
+            <button class="btn-reset" id="add-drug-btn">＋ Add Drug</button>
+          </div>
+
+          <div class="table-shell">
+            <table class="proto-table">
+              <thead>
+                <tr>
+                  <th class="col-drag"></th>
+                  <th class="col-num">#</th>
+                  <th>Drug</th>
+                  <th>Route</th>
+                  <th>Controlled</th>
+                  <th>Min</th>
+                  <th>Exact</th>
+                  <th>Max</th>
+                  <th>Unit</th>
+                  <th>Notes</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="proto-body"></tbody>
+            </table>
+          </div>
+
+          <div class="lt-alert lt-alert-info" id="setup-status" style="margin-top: 12px;">
+            Add at least one drug row to start calculating doses.
+          </div>
+
+          <div class="lt-toolbar-row" style="margin-top: 14px;">
+            <button class="lt-btn lt-btn-primary" id="btn-to-operation">
+              Continue to Step 2 →
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /panel-setup -->
+
+    <!-- ═══════════════════════════════════════
+         STEP 2 — Calculate & Log
+         ═══════════════════════════════════════ -->
+    <div id="panel-operation" class="step-panel">
+
+      <div class="lt-toolbar-row" style="margin-bottom: 16px;">
+        <button class="btn-reset" id="btn-back-to-setup">← Back to Setup</button>
+      </div>
+
+      <!-- Protocol summary -->
+      <section class="panel-block">
+        <div class="lt-section-label">Protocol</div>
+        <div class="panel-surface">
+          <div class="summary-grid" id="operation-protocol-summary"></div>
+        </div>
+      </section>
+
+      <!-- Animal & Operator -->
+      <section class="panel-block">
+        <div class="lt-section-label">Animal &amp; Operator</div>
+        <div class="panel-surface">
+          <div class="lt-form-grid">
+            <div class="field-stack">
+              <label class="lt-label" for="animalId">Animal ID</label>
+              <input class="lt-input" id="animalId" type="text" placeholder="e.g. M-001"/>
+            </div>
+            <div class="field-stack">
+              <label class="lt-label" for="animalWeight">Body Weight</label>
+              <div class="weight-field-row">
+                <input class="lt-input lt-input-float" id="animalWeight" type="number"
+                       inputmode="decimal" min="0" step="0.001" placeholder="e.g. 25"/>
+                <select class="lt-select" id="animalWeightUnit">
+                  <option value="g">g</option>
+                  <option value="kg">kg</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-stack">
+              <label class="lt-label" for="operatorName">Operator Name</label>
+              <input class="lt-input" id="operatorName" type="text" placeholder="Optional"/>
+            </div>
+            <div class="field-stack">
+              <label class="lt-label" for="operatorId">Operator ID</label>
+              <input class="lt-input" id="operatorId" type="text" placeholder="Optional"/>
+            </div>
+          </div>
+          <div class="summary-grid" id="operation-summary"></div>
+        </div>
+      </section>
+
+      <!-- Calculated doses -->
+      <section class="panel-block">
+        <div class="lt-section-label">Calculated Doses</div>
+        <div class="panel-surface">
+          <div class="lt-alert lt-alert-info" id="operation-status" style="margin-bottom: 12px;">
+            Enter animal weight to calculate doses.
+          </div>
+          <div class="summary-grid" id="results-summary"></div>
+          <div class="results-stack" id="results-list"></div>
+        </div>
+      </section>
+
+      <!-- Log entries -->
+      <section class="panel-block">
+        <div class="lt-section-label">Log Entries</div>
+        <div class="panel-surface">
+
+          <div id="log-save-required" hidden>
+            <div class="lt-alert lt-alert-warn" style="margin-bottom: 10px;">
+              <span id="log-save-required-note"></span>
+              <button class="btn-reset" id="save-protocol-from-log-btn"
+                      style="margin-left: 10px;">Save Protocol Now</button>
+            </div>
+          </div>
+
+          <div class="lt-alert lt-alert-info" id="log-status" style="margin-bottom: 12px;">
+            Saved entries stay only in your current browser until you clear or export them.
+          </div>
+
+          <div class="lt-toolbar-row" style="margin-bottom: 12px;">
+            <button class="btn-reset" id="save-entry-btn">Save Entry</button>
+            <button class="btn-reset" id="copy-entries-btn">Copy as Plain Text</button>
+            <button class="btn-reset" id="export-entries-btn">Export CSV</button>
+            <button class="btn-reset" id="clear-entries-btn">Clear Entries</button>
+          </div>
+
+          <div class="summary-grid" id="entries-summary"></div>
+
+          <div class="table-shell" id="entries-table-shell" hidden>
+            <table class="entries-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Animal</th>
+                  <th>Weight</th>
+                  <th>Drug</th>
+                  <th>Planned</th>
+                  <th>Actual</th>
+                  <th>Route</th>
+                  <th>Operator</th>
+                  <th>Controlled</th>
+                </tr>
+              </thead>
+              <tbody id="entries-body"></tbody>
+            </table>
+          </div>
+
+          <p class="entries-empty" id="entries-empty">No saved entries yet.</p>
+
+        </div>
+      </section>
+
+    </div><!-- /panel-operation -->
+
+  </div>
+</div>
+
+<footer class="lt-footer">LabTools · Open source lab utilities</footer>
+
+<script src="./tool.js"></script>
+
+</body>
+</html>
