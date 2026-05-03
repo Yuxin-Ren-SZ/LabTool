@@ -8,7 +8,8 @@
   <script src="../../assets/js/labtools-common.js"></script>
   <style>
     .card {
-      max-width: 1320px;
+      width: fit-content;
+      max-width: calc(100vw - 32px);
       padding: 24px;
     }
 
@@ -29,9 +30,10 @@
 
     .control-strip {
       display: grid;
-      grid-template-columns: minmax(180px, 240px) minmax(220px, 1fr) auto;
+      grid-template-columns: minmax(180px, 240px) minmax(220px, max-content) auto;
       gap: 14px;
       align-items: end;
+      justify-content: start;
       margin-bottom: 16px;
     }
 
@@ -83,6 +85,7 @@
       flex-wrap: nowrap;
       gap: 18px;
       align-items: start;
+      justify-content: center;
     }
 
     .plate-stage {
@@ -761,7 +764,6 @@ let clipboard = null;
 let groupSeq = 3;
 let cutCorners = new Set(['top-left']);
 let plateFrameObserver = null;
-let plateStageObserver = null;
 let plateRenderRaf = 0;
 let currentPlatePxPerMm = PLATE_SCALE_LIMITS.min;
 
@@ -807,9 +809,6 @@ function setupLayoutObservers() {
   if (typeof ResizeObserver === 'function') {
     plateFrameObserver = new ResizeObserver(() => renderPlateFrameCorners());
     plateFrameObserver.observe(els.plateFrame);
-
-    plateStageObserver = new ResizeObserver(() => schedulePlateRender());
-    plateStageObserver.observe(els.plateStage);
   }
 
   window.addEventListener('resize', schedulePlateRender, { passive: true });
@@ -1276,10 +1275,22 @@ function getAvailableFrameSpacePx() {
   const isStacked = workspaceStyle.flexDirection === 'column';
   const sidePanel = workspace.querySelector('.side-panel');
   const sidePanelWidth = isStacked || !sidePanel ? 0 : sidePanel.getBoundingClientRect().width + workspaceGap;
+  const pageBody = workspace.closest('.lt-page-body');
+  const pageBodyStyle = pageBody ? getComputedStyle(pageBody) : null;
+  const pageInsetX = pageBodyStyle
+    ? (parseFloat(pageBodyStyle.paddingLeft) || 0) + (parseFloat(pageBodyStyle.paddingRight) || 0)
+    : 0;
+  const card = workspace.closest('.card');
+  const cardStyle = card ? getComputedStyle(card) : null;
+  const cardInsetX = cardStyle
+    ? (parseFloat(cardStyle.paddingLeft) || 0) + (parseFloat(cardStyle.paddingRight) || 0)
+    : 0;
   const shellStyle = getComputedStyle(els.plateStageShell);
   const shellInsetX = (parseFloat(shellStyle.paddingLeft) || 0) + (parseFloat(shellStyle.paddingRight) || 0);
   const shellInsetY = (parseFloat(shellStyle.paddingTop) || 0) + (parseFloat(shellStyle.paddingBottom) || 0);
-  const width = Math.max(minWidthPx, workspace.clientWidth - sidePanelWidth - shellInsetX);
+  const viewportWidth = document.documentElement.clientWidth || window.innerWidth || minWidthPx;
+  const maxContentWidth = viewportWidth - pageInsetX - cardInsetX;
+  const width = Math.max(minWidthPx, maxContentWidth - sidePanelWidth - shellInsetX);
   const viewportHeight = window.innerHeight || minHeightPx;
   const stageTop = els.plateStage.getBoundingClientRect().top;
   const height = Math.max(minHeightPx, viewportHeight - stageTop - VIEWPORT_HEIGHT_RESERVE_PX - shellInsetY);
