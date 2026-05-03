@@ -79,15 +79,17 @@
     }
 
     .workspace {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 318px;
+      display: flex;
+      flex-wrap: nowrap;
       gap: 18px;
       align-items: start;
     }
 
     .plate-stage {
+      flex: 0 1 auto;
       min-width: 0;
-      width: 100%;
+      width: fit-content;
+      max-width: calc(100% - 336px);
       overflow: auto;
     }
 
@@ -270,6 +272,7 @@
     }
 
     .side-panel {
+      flex: 0 0 318px;
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-lg);
       background: var(--surface-subtle);
@@ -435,12 +438,22 @@
         justify-content: flex-start;
       }
 
-      .control-strip,
-      .workspace {
+      .control-strip {
         grid-template-columns: 1fr;
       }
 
+      .workspace {
+        flex-direction: column;
+      }
+
+      .plate-stage {
+        width: 100%;
+        max-width: 100%;
+      }
+
       .side-panel {
+        flex: none;
+        width: 100%;
         order: -1;
       }
     }
@@ -1259,10 +1272,16 @@ function getPlateMetrics(plate) {
 function getAvailableFrameSpacePx() {
   const minWidthPx = PLATE_UI_MM.outerWidth * PLATE_SCALE_LIMITS.min;
   const minHeightPx = PLATE_UI_MM.outerHeight * PLATE_SCALE_LIMITS.min;
+  const workspace = els.plateStage.parentElement;
+  const workspaceStyle = getComputedStyle(workspace);
+  const workspaceGap = parseFloat(workspaceStyle.columnGap || workspaceStyle.gap) || 0;
+  const isStacked = workspaceStyle.flexDirection === 'column';
+  const sidePanel = workspace.querySelector('.side-panel');
+  const sidePanelWidth = isStacked || !sidePanel ? 0 : sidePanel.getBoundingClientRect().width + workspaceGap;
   const shellStyle = getComputedStyle(els.plateStageShell);
   const shellInsetX = (parseFloat(shellStyle.paddingLeft) || 0) + (parseFloat(shellStyle.paddingRight) || 0);
   const shellInsetY = (parseFloat(shellStyle.paddingTop) || 0) + (parseFloat(shellStyle.paddingBottom) || 0);
-  const width = Math.max(minWidthPx, els.plateStage.clientWidth - shellInsetX);
+  const width = Math.max(minWidthPx, workspace.clientWidth - sidePanelWidth - shellInsetX);
   const viewportHeight = window.innerHeight || minHeightPx;
   const stageTop = els.plateStage.getBoundingClientRect().top;
   const height = Math.max(minHeightPx, viewportHeight - stageTop - VIEWPORT_HEIGHT_RESERVE_PX - shellInsetY);
