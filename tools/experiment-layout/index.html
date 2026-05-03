@@ -1221,16 +1221,16 @@ function getPlateMetrics(plate) {
   const frameWidthPx = mmToPx(PLATE_UI_MM.outerWidth, pxPerMm);
   const frameHeightPx = mmToPx(PLATE_UI_MM.outerHeight, pxPerMm);
 
-  const colLabelBandPx = Math.max(plate.a1RowOffsetMm * 0.62 * pxPerMm, PLATE_UI_MM.colLabelBandMm * pxPerMm);
-  const rowLabelBandPx = Math.max(plate.a1ColOffsetMm * 0.45 * pxPerMm, PLATE_UI_MM.rowLabelBandMm * pxPerMm);
-
-  const colLabelCenterYpx = colLabelBandPx / 2;
-  const rowLabelCenterXpx = rowLabelBandPx / 2;
-
   const pitchPx = plate.pitchMm * pxPerMm;
   const wellDiameterPx = plate.wellDiameterMm * pxPerMm;
+  const wellRadiusPx = wellDiameterPx / 2;
   const gridOffsetXpx = plate.a1ColOffsetMm * pxPerMm;
   const gridOffsetYpx = plate.a1RowOffsetMm * pxPerMm;
+  const colLabelBandPx = Math.max(gridOffsetYpx - wellRadiusPx, PLATE_UI_MM.colLabelBandMm * pxPerMm);
+  const rowLabelBandPx = Math.max(gridOffsetXpx - wellRadiusPx, PLATE_UI_MM.rowLabelBandMm * pxPerMm);
+
+  const colLabelCenterYpx = Math.max(8, colLabelBandPx / 2);
+  const rowLabelCenterXpx = Math.max(8, rowLabelBandPx / 2);
 
   const headerHeightPx = clamp(Math.min(pitchPx * 0.72, colLabelBandPx * 0.9), 10, 26);
   const columnHeaderWidthPx = clamp(pitchPx * 0.9, 16, 36);
