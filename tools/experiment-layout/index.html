@@ -656,7 +656,7 @@ const PLATE_REFERENCE_MM = {
     a1RowOffsetMm: 23.16,
     a1ColOffsetMm: 24.76,
     pitchMm: 39.12,
-    wellDiameterMm: 35.43,
+    wellDiameterMm: 34.8,
   },
   '12': {
     label: '12-well plate',
@@ -665,7 +665,7 @@ const PLATE_REFERENCE_MM = {
     a1RowOffsetMm: 16.79,
     a1ColOffsetMm: 24.94,
     pitchMm: 26.01,
-    wellDiameterMm: 22.73,
+    wellDiameterMm: 22.11,
   },
   '24': {
     label: '24-well plate',
@@ -674,7 +674,7 @@ const PLATE_REFERENCE_MM = {
     a1RowOffsetMm: 13.78,
     a1ColOffsetMm: 17.46,
     pitchMm: 19.3,
-    wellDiameterMm: 16.26,
+    wellDiameterMm: 15.62,
   },
   '48': {
     label: '48-well plate',
@@ -683,25 +683,25 @@ const PLATE_REFERENCE_MM = {
     a1RowOffsetMm: 10.08,
     a1ColOffsetMm: 18.16,
     pitchMm: 13.08,
-    wellDiameterMm: 11.56,
+    wellDiameterMm: 11.05,
   },
   '96': {
     label: '96-well plate',
     rows: 8,
     cols: 12,
-    a1RowOffsetMm: 11.24,
-    a1ColOffsetMm: 14.38,
+    a1RowOffsetMm: 11.2,
+    a1ColOffsetMm: 14.3,
     pitchMm: 9.0,
-    wellDiameterMm: 6.86,
+    wellDiameterMm: 6.35,
   },
   '384': {
     label: '384-well plate',
     rows: 16,
     cols: 24,
     a1RowOffsetMm: 8.99,
-    a1ColOffsetMm: 12.13,
+    a1ColOffsetMm: 12.12,
     pitchMm: 4.5,
-    wellDiameterMm: 3.63,
+    wellDiameterMm: 2.67,
   },
 };
 
@@ -728,8 +728,8 @@ const GROUP_COLORS = [
 ];
 
 const PLATE_UI_MM = {
-  outerWidth: 127.76,
-  outerHeight: 85.48,
+  outerWidth: 127.8,
+  outerHeight: 85.5,
   colLabelBandMm: 3.5,
   rowLabelBandMm: 6.5,
   wellAreaRightMarginMm: 3,
@@ -1221,22 +1221,16 @@ function getPlateMetrics(plate) {
   const frameWidthPx = mmToPx(PLATE_UI_MM.outerWidth, pxPerMm);
   const frameHeightPx = mmToPx(PLATE_UI_MM.outerHeight, pxPerMm);
 
-  const colLabelBandPx = PLATE_UI_MM.colLabelBandMm * pxPerMm;
-  const rowLabelBandPx = PLATE_UI_MM.rowLabelBandMm * pxPerMm;
+  const colLabelBandPx = Math.max(plate.a1RowOffsetMm * 0.62 * pxPerMm, PLATE_UI_MM.colLabelBandMm * pxPerMm);
+  const rowLabelBandPx = Math.max(plate.a1ColOffsetMm * 0.45 * pxPerMm, PLATE_UI_MM.rowLabelBandMm * pxPerMm);
 
   const colLabelCenterYpx = colLabelBandPx / 2;
   const rowLabelCenterXpx = rowLabelBandPx / 2;
 
-  const wellAreaLeftPx = rowLabelBandPx;
-  const wellAreaTopPx = colLabelBandPx;
-  const wellAreaWidthPx = frameWidthPx - rowLabelBandPx - PLATE_UI_MM.wellAreaRightMarginMm * pxPerMm;
-  const wellAreaHeightPx = frameHeightPx - colLabelBandPx - PLATE_UI_MM.wellAreaBottomMarginMm * pxPerMm;
-
-  const pitchPx = Math.min(wellAreaWidthPx / plate.cols, wellAreaHeightPx / plate.rows);
-  const wellDiameterPx = pitchPx * (plate.wellDiameterMm / plate.pitchMm);
-
-  const gridOffsetXpx = wellAreaLeftPx + (wellAreaWidthPx - pitchPx * plate.cols) / 2;
-  const gridOffsetYpx = wellAreaTopPx + (wellAreaHeightPx - pitchPx * plate.rows) / 2;
+  const pitchPx = plate.pitchMm * pxPerMm;
+  const wellDiameterPx = plate.wellDiameterMm * pxPerMm;
+  const gridOffsetXpx = plate.a1ColOffsetMm * pxPerMm;
+  const gridOffsetYpx = plate.a1RowOffsetMm * pxPerMm;
 
   const headerHeightPx = clamp(Math.min(pitchPx * 0.72, colLabelBandPx * 0.9), 10, 26);
   const columnHeaderWidthPx = clamp(pitchPx * 0.9, 16, 36);
@@ -1278,11 +1272,11 @@ function getAvailableFrameSpacePx() {
 
 
 function getWellCenterXPx(plate, metrics, col) {
-  return roundPx(metrics.gridOffsetXpx + (col + 0.5) * metrics.pitchPx);
+  return roundPx(metrics.gridOffsetXpx + col * metrics.pitchPx);
 }
 
 function getWellCenterYPx(plate, metrics, row) {
-  return roundPx(metrics.gridOffsetYpx + (row + 0.5) * metrics.pitchPx);
+  return roundPx(metrics.gridOffsetYpx + row * metrics.pitchPx);
 }
 
 function setActiveGroup(groupId) {
