@@ -213,7 +213,7 @@
     }
 
     .well[data-shape="square"] {
-      border-radius: var(--radius-sm);
+      border-radius: calc(var(--well-size, 30px) * 0.18);
     }
 
     .well:hover {
@@ -725,6 +725,16 @@ const PLATE_REFERENCE_MM = {
     a1ColOffsetMm: 12.12,
     pitchMm: 4.5,
     wellDiameterMm: 2.67,
+    shape: 'square',
+  },
+  '1536': {
+    label: '1536-well plate',
+    rows: 32,
+    cols: 48,
+    a1RowOffsetMm: 7.86,
+    a1ColOffsetMm: 11.0,
+    pitchMm: 2.25,
+    wellDiameterMm: 1.63,
     shape: 'square',
   },
 };
@@ -1548,14 +1558,23 @@ function getWellId(row, col) {
 }
 
 function rowLabel(row) {
-  return String.fromCharCode(65 + row);
+  let label = '';
+  let index = row;
+  do {
+    label = String.fromCharCode(65 + (index % 26)) + label;
+    index = Math.floor(index / 26) - 1;
+  } while (index >= 0);
+  return label;
 }
 
 function wellPosition(wellId) {
   const match = /^([A-Z]+)(\d+)$/.exec(wellId);
   if (!match) return { row: 0, col: 0 };
+  const row = match[1].split('').reduce((value, char) => {
+    return value * 26 + char.charCodeAt(0) - 64;
+  }, 0) - 1;
   return {
-    row: match[1].charCodeAt(0) - 65,
+    row,
     col: parseInt(match[2], 10) - 1,
   };
 }

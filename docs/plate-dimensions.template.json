@@ -52,6 +52,14 @@
       "firstWellCenterToLeftEdge": 12.12,
       "wellDiameter": 2.67,
       "centerToCenterDistance": 4.50
+    },
+    "1536": {
+      "rows": 32,
+      "columns": 48,
+      "firstWellCenterToTopEdge": 7.86,
+      "firstWellCenterToLeftEdge": 11.00,
+      "wellDiameter": 1.63,
+      "centerToCenterDistance": 2.25
     }
   }
 }

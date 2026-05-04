@@ -12,8 +12,9 @@ Use this tool to assign named treatment groups to common plate formats:
 - 48-well plate: 6 x 8
 - 96-well plate: 8 x 12
 - 384-well plate: 16 x 24
+- 1536-well plate: 32 x 48
 
-The plate map uses color to distinguish groups. Larger wells show well IDs and group names, 96-well plates show compact group initials, and 384-well plates use color only.
+The plate map uses color to distinguish groups. Larger wells show well IDs and group names, 96-well plates show compact group initials, and 384- and 1536-well plates use color only.
 
 ## Workflow
 
