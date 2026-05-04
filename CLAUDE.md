@@ -1,78 +1,103 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-LabTools is a collection of zero-dependency, static HTML tools for cell biology bench work. No build step, no bundler, no framework — each tool is a self-contained HTML file with inline CSS and shared assets for common styling and pure calculation utilities.
+LabTools is a collection of zero-dependency, static HTML tools for cell biology bench work. There is no build step, bundler, package manager, or framework. Each tool is browser-runnable and mostly self-contained, with shared assets for common styling, pure calculation utilities, and small browser helpers.
 
-## Deployment
+## Development And Deployment
 
-Hosted on GitHub Pages. Opening any `index.html` directly in a browser is all that's needed for development. There are no dev servers, package managers, or build commands.
+Hosted on GitHub Pages from the `dev` branch. Open any `index.html` directly in a browser for development. An optional `python3 -m http.server` can be used when testing browser navigation or secure-context behavior is not required.
 
 ## Architecture
 
-```
+```text
 LabTools/
-├── index.html                    # Hub landing page — add new tools here
+├── index.html                         # Hub page; add new tools here
 ├── assets/
-│   ├── css/labtools.css          # Shared design system (CSS custom properties + component classes)
-│   └── js/labtools-calc.js       # Shared pure-function utilities (no DOM, testable in any console)
-├── tools/                        # One folder per tool, each with index.html + README.md
-│   ├── cell-count/index.html     # Standalone hemocytometer calculator
-│   ├── seeding-calc/index.html   # Cell count → dilution workflow with optional bypass
-│   └── stain-timer/index.html    # Configurable staining protocol timer
+│   ├── css/labtools.css               # Shared design system
+│   └── js/
+│       ├── labtools-calc.js           # Shared pure-function utilities
+│       └── labtools-common.js         # Shared browser utilities
+├── tools/
+│   ├── cell-count/index.html          # Hemocytometer calculator
+│   ├── seeding-calc/index.html        # Count-to-dilution workflow
+│   ├── experiment-layout/index.html   # Multi-well plate mapper
+│   ├── stain-timer/index.html         # Staining protocol timer
+│   ├── thermal-to-laser/index.html    # Thermal PDF to laser sheet converter
+│   └── drug-dosage/index.html         # Per-animal dose calculator and log
 └── docs/
-    └── counting-modes.html       # Reference diagrams for hemocytometer counting modes
+    ├── counting-modes.html            # Hemocytometer mode reference
+    └── plate-dimensions.template.json # Plate geometry reference template
 ```
 
-### Shared library: `assets/js/labtools-calc.js`
+## Shared Calculation Library
 
-Shared calculation and formatting helpers live here as plain globals (no modules). Tools load it via `<script src="../../assets/js/labtools-calc.js">` when needed. Key exports:
+`assets/js/labtools-calc.js` exposes plain globals and has no DOM dependency. Tools load it with a relative script tag when needed.
 
-- `avgTwo(a, b)` — average two optional counts (handles NaN)
-- `fmt(n)` — integer with thousands commas, `'—'` for NaN
-- `fmtSig(n)` — significant-figure-aware display formatting
-- `bestVolumeDisplay(mL)` / `autoBestConcUnit(cellsPerML)` — smart unit selection
-- `restrictToNumeric(input)` — limits an `<input>` to numeric characters
-- `calcCellDensity(count, multiplier, df)` — core hemocytometer formula
-- `calcTotalCells(density, volML)` / `calcViabilityPct(live, dead)`
-- `makeDiagram(largeHL, smallHL)` — generates SVG hemocytometer diagrams
-- `MODES` / `SMALL_ALL` / `SMALL_5` — counting mode definitions
+Key exports include:
 
-Quick tests can be run by pasting calls into any browser console (e.g. `calcCellDensity(80, 0.25, 20)` → `4000000`).
+- `avgTwo(a, b)`, `fmt(n)`, and `fmtSig(n)`
+- `bestVolumeDisplay(mL)` and `autoBestConcUnit(cellsPerML)`
+- `convertBodyWeight(value, fromUnit, toUnit)`
+- `calcDoseFromBodyWeight(doseValue, doseWeightUnit, bodyWeightValue, bodyWeightUnit)`
+- `restrictToNumeric(event)`
+- `calcCellDensity(count, multiplier, df)`, `calcTotalCells(density, volML)`, and `calcViabilityPct(live, dead)`
+- `makeDiagram(largeHL, smallHL)`
+- `MODES`, `SMALL_ALL`, and `SMALL_5`
 
-### Shared design system: `assets/css/labtools.css`
+Quick console checks:
 
-Notion-inspired aesthetic driven by CSS custom properties. Key conventions:
-
-- Use `var(--token)` for all colors, spacing, and radii — never hardcode values
-- Use `lt-` prefixed classes for layout/structural components (`.lt-card`, `.lt-btn`, `.lt-badge`, `.lt-label`, `.lt-nav`, `.lt-footer`, `.lt-divider`)
-- Tool-specific overrides go in a `<style>` block inside each tool's `index.html`
-- Shared component classes (counting mode selector, result boxes, group blocks) live in the lower half of `labtools.css` and are reused across tools without renaming
-
-### Independence between tools
-
-`tools/seeding-calc/` contains its own copy of the cell count UI and does **not** import from `tools/cell-count/`. `tools/stain-timer/` uses the shared CSS but is otherwise self-contained. Shared utilities should stay DOM-free so tools remain loosely coupled.
-
-## Adding a New Tool
-
-1. Create `tools/<tool-name>/index.html` — link `../../assets/css/labtools.css` and `../../assets/js/labtools-calc.js`
-2. Add a tool card entry to the grid in the root `index.html`
-3. Add a README at `tools/<tool-name>/README.md`
-4. Use existing CSS custom properties and `lt-` component classes; add tool-specific styles inline
-
-## Counting Mode Formulas
-
+```js
+calcCellDensity(80, 0.25, 20)  // 4000000
+calcDoseFromBodyWeight(5, 'kg', 25, 'g')  // 0.125
 ```
-Final Concentration (cells/mL) = avg_count × multiplier × DF × 10⁴
+
+## Shared Browser Utilities
+
+`assets/js/labtools-common.js` contains DOM/browser helpers used by larger tools:
+
+- `labtoolsDownloadBlob(filename, blob)`
+- `labtoolsDownloadText(filename, content, mimeType)`
+- `labtoolsReadFileAsArrayBuffer(file)`
+- `labtoolsCopyText(text)`
+- `labtoolsSafeJsonParse(raw, fallback)`
+
+Keep these generic and dependency-free.
+
+## Shared Design System
+
+`assets/css/labtools.css` defines CSS custom properties and `lt-` prefixed component classes such as `.lt-card`, `.lt-btn`, `.lt-badge`, `.lt-label`, `.lt-nav`, `.lt-footer`, `.lt-divider`, alerts, segmented controls, sheet previews, and result blocks.
+
+Use `var(--token)` for colors, spacing, and radii. Tool-specific overrides belong in a `<style>` block inside the tool page unless the pattern is shared across tools.
+
+## Tool Independence
+
+Tools should not import from each other. For example, `tools/seeding-calc/` contains its own count UI instead of importing from `tools/cell-count/`. Shared logic belongs in `assets/js/labtools-calc.js` or `assets/js/labtools-common.js` only when it is genuinely reusable.
+
+Browser-saved presets, protocols, and logs use `localStorage`. Built-in config files are normal checked-in JavaScript files, but browser save actions do not rewrite them directly.
+
+## Adding A New Tool
+
+1. Create `tools/<tool-name>/index.html`.
+2. Link `../../assets/css/labtools.css` and any shared JS needed.
+3. Add a card to root `index.html`.
+4. Add `tools/<tool-name>/README.md`.
+5. Update top-level docs and GitHub issue-template tool lists.
+6. Manually verify the page in a browser and check the console.
+
+## Counting Mode Formula
+
+```text
+Final Concentration (cells/mL) = avg_count x multiplier x DF x 10^4
 ```
 
 | Mode | Multiplier |
-|---|---|
-| All 25 small squares | × 1 |
-| 5 small squares | × 5 |
-| 4 corner squares | ÷ 4 |
-| 1 corner square | × 1 |
+|---|---:|
+| All 25 small squares | 1 |
+| 5 small squares | 5 |
+| 4 corner squares | 0.25 |
+| 1 corner square | 1 |
 
-The `× 10⁴` factor comes from the hemocytometer large-square volume of 0.1 µL = 10⁻⁴ mL.
+The `10^4` factor comes from the hemocytometer large-square volume of 0.1 uL = 10^-4 mL.

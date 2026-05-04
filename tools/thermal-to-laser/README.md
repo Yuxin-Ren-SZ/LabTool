@@ -1,38 +1,53 @@
 # Thermal To Laser Label Converter
 
-Convert one or more multi-page thermal-printer label PDFs into a laser-printer mailing-label sheet PDF.
+Convert one or more one-label-per-page thermal-printer PDFs into a laser-printer mailing-label sheet PDF. Part of the [LabTools](../../) collection.
 
 ## Workflow
 
-1. Upload one or more PDFs where each page is one label.
-2. If the uploaded PDFs contain different physical label sizes, the tool automatically splits them into size groups ordered from taller labels to shorter labels.
-3. For each size group, let the tool auto-detect a matching preset, or choose / enter the sheet geometry manually.
-4. Review the active group’s sheet preview and choose:
-   - `Start Here` to reset the plan and fill cells sequentially from a chosen cell
-   - `Use Cell` to force a label into a specific cell
-   - `Skip Cell` to mark a cell unavailable and advance the next pending label
-5. Use the arrow buttons in `Preset And Sheet Geometry` to move between size groups when multiple label sizes were detected.
-6. Generate and download the output PDF.
+1. Upload one or more source PDFs.
+2. The tool reads every page as one label.
+3. If uploaded labels have different physical sizes, pages are split into size groups ordered from taller labels to shorter labels.
+4. For each size group, use an auto-detected preset, select a preset, or enter custom sheet geometry.
+5. Review the sheet preview and adjust placement.
+6. Generate the output PDF.
+7. Download or save the generated PDF and print it at 100% scale.
 
-When multiple PDFs are selected, the tool preserves file order and page order within each detected size group. The final output PDF places the larger-height label groups first.
+When multiple PDFs are selected, file order and page order are preserved within each detected size group. The final PDF exports size groups from taller labels to shorter labels.
 
-## Presets
+## Presets And Geometry
 
-- Built-in presets ship from [preset-config.js](./preset-config.js)
-- Browser-saved presets are stored only in this browser with `localStorage`
-- They persist locally until cleared and do not sync to other browsers or machines
-- Saving in the browser does not rewrite `preset-config.js`
-- `Clear Saved Presets` removes all browser-saved presets without affecting the built-in presets shipped in `preset-config.js`
-- The browser cannot rewrite repo files directly, so use:
-  - `Copy Current Settings` to copy one preset as a snippet for manual pasting into `preset-config.js`
-  - `Export All Presets` to download a replacement config file containing all built-in and browser-saved presets
+Built-in presets ship from [preset-config.js](./preset-config.js). Browser-saved presets use `localStorage` and stay only in the current browser.
 
-## Notes
+Preset fields describe the target laser-label sheet:
 
-- In supporting browsers running in a secure context, the upload and save dialogs prefer the Downloads folder.
-- In unsupported browsers or non-secure contexts, the tool falls back to the browser’s normal file picker and download location behavior.
-- Each detected label-size group has its own preset, validation state, sheet preview, and output pages.
-- Export is blocked until every detected size group has a valid preset and a complete sheet layout.
-- The output PDF uses the exact page size and cell geometry from each group’s active preset.
-- Source PDF pages are embedded into the output PDF as PDF pages rather than raster images, so barcodes and text remain sharp.
-- Print the final PDF at `100%` scale on the target laser-label sheet.
+- Page width and height
+- Top and side margins
+- Horizontal and vertical pitch
+- Label width and height
+- Column and row count
+- Optional vendor, SKU, and notes
+
+Auto-detection matches uploaded label page size against built-in and browser-saved presets. If multiple presets match, choose the intended one. If none match, enter custom geometry.
+
+## Sheet Layout
+
+The layout mode controls what clicking a sheet cell does:
+
+| Mode | Behavior |
+|---|---|
+| Start Here | Resets the plan and fills labels sequentially from the clicked cell. Earlier cells are treated as already used. |
+| Use Cell | Forces a pending label into the clicked cell. |
+| Skip Cell | Marks a cell unavailable and advances the next pending label. |
+
+More sheet previews appear automatically when labels do not fit on the currently planned sheets.
+
+## Export And Persistence
+
+- `Save In This Browser` stores the current preset locally.
+- `Clear Saved Presets` removes browser-saved presets only.
+- `Copy Current Settings` copies a preset snippet for manual review.
+- `Export All Presets` downloads a replacement preset config file containing built-in and browser-saved presets.
+- `Generate Output PDF` embeds source PDF pages into a new PDF so text and barcodes remain sharp.
+- `Download PDF` saves `thermal-to-laser-output.pdf`.
+
+In browsers that support the File System Access API in a secure context, upload/save dialogs prefer Downloads. Other browsers use normal file picker and download behavior.

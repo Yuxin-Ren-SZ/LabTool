@@ -1,4 +1,5 @@
 {
+  "description": "Reference template for standard multi-well plate dimensions used by LabTools plate-map documentation and tooling. Values are in millimeters.",
   "unit": "mm",
   "plate": {
     "width": 127.8,

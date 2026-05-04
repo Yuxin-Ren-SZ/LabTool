@@ -21,7 +21,7 @@ body:
     attributes:
       label: Location
       description: File path or URL of the affected documentation.
-      placeholder: "e.g. docs/counting-modes.html or tools/seeding-calc/README.md"
+      placeholder: "e.g. docs/counting-modes.html, tools/seeding-calc/README.md, or AGENTS.md"
     validations:
       required: true
 

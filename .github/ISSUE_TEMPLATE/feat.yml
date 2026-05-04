@@ -55,6 +55,22 @@ body:
     validations:
       required: false
 
+  - type: dropdown
+    id: related_tool
+    attributes:
+      label: Related existing tool
+      description: Choose the closest current tool if this feature builds on one.
+      options:
+        - Not related to an existing tool
+        - cell-count
+        - seeding-calc
+        - experiment-layout
+        - stain-timer
+        - thermal-to-laser
+        - drug-dosage
+    validations:
+      required: false
+
   - type: textarea
     id: reference
     attributes:

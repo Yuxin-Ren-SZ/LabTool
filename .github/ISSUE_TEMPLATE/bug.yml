@@ -23,6 +23,10 @@ body:
       options:
         - cell-count
         - seeding-calc
+        - experiment-layout
+        - stain-timer
+        - thermal-to-laser
+        - drug-dosage
         - other
     validations:
       required: true
