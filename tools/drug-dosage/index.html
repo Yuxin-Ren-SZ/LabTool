@@ -495,9 +495,22 @@
     @media (max-width: 520px) {
       .card { padding: 22px 14px 18px; }
     }
+
+    .drug-dosage-disabled .card > :not(.disabled-notice) {
+      display: none;
+    }
+
+    .disabled-notice {
+      display: grid;
+      gap: 14px;
+    }
+
+    .disabled-notice .lt-tool-subcopy {
+      margin-bottom: 0;
+    }
   </style>
 </head>
-<body>
+<body class="drug-dosage-disabled">
 
 <nav class="lt-nav">
   <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
@@ -507,6 +520,16 @@
 
 <div class="lt-page-body">
   <div class="card">
+
+    <div class="disabled-notice">
+      <h1 class="lt-tool-title">Drug Dosage Calculator Temporarily Disabled</h1>
+      <p class="lt-tool-subcopy">
+        This calculator is currently unavailable while it is being reviewed.
+      </p>
+      <div>
+        <a class="lt-btn lt-btn-primary" href="../../index.html">Back to LabTools</a>
+      </div>
+    </div>
 
     <!-- Step progress indicator -->
     <div class="step-progress">

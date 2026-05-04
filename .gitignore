@@ -4,6 +4,12 @@ TODO.md
 # Claude
 .remember/
 
+# Codex
+.codex
+
+# OpenCode
+.opencode/
+
 # macOS
 .DS_Store
 .AppleDouble

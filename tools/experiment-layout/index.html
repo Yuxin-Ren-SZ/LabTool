@@ -1,0 +1,1662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Well Plate Map Generator - LabTools</title>
+  <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <script src="../../assets/js/labtools-common.js"></script>
+  <style>
+    .card {
+      width: fit-content;
+      max-width: calc(100vw - 32px);
+      padding: 24px;
+    }
+
+    .layout-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .layout-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .control-strip {
+      display: grid;
+      grid-template-columns: minmax(180px, 240px) minmax(220px, max-content) auto;
+      gap: 14px;
+      align-items: end;
+      justify-content: start;
+      margin-bottom: 16px;
+    }
+
+    .field-block {
+      min-width: 0;
+    }
+
+    .field-block .lt-label {
+      margin-bottom: 6px;
+    }
+
+    .corner-toggles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .corner-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 7px 9px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none;
+      transition: border-color 0.14s, background 0.14s, color 0.14s;
+    }
+
+    .corner-toggle:hover {
+      border-color: var(--blue);
+      background: var(--blue-bg);
+      color: var(--blue-dark);
+    }
+
+    .corner-toggle input {
+      width: 14px;
+      height: 14px;
+      accent-color: var(--blue-dark);
+      margin: 0;
+    }
+
+    .workspace {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 18px;
+      align-items: start;
+      justify-content: center;
+    }
+
+    .plate-stage {
+      flex: 0 1 auto;
+      min-width: 0;
+      width: fit-content;
+      max-width: calc(100% - 336px);
+      overflow: auto;
+    }
+
+    .plate-stage-shell {
+      display: inline-flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+      justify-self: start;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      width: max-content;
+      max-width: none;
+    }
+
+    .plate-frame {
+      --plate-frame-border: #d3d0c9;
+      display: inline-block;
+      flex: none;
+      position: relative;
+      width: 524px;
+      height: 351px;
+      padding: 0;
+      background: transparent;
+      isolation: isolate;
+    }
+
+    .plate-shell {
+      position: absolute;
+      inset: 0;
+      background: #fffefb;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), inset 0 -12px 28px rgba(55, 53, 47, 0.035);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .plate-outline {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .plate-outline path {
+      fill: none;
+      stroke: var(--plate-frame-border);
+      stroke-width: 2;
+      stroke-linejoin: miter;
+      vector-effect: non-scaling-stroke;
+      shape-rendering: geometricPrecision;
+    }
+
+    .plate-grid {
+      width: 100%;
+      height: 100%;
+      user-select: none;
+      position: relative;
+      z-index: 2;
+    }
+
+    .axis-cell {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      min-width: 18px;
+      min-height: 18px;
+      padding: 0 4px;
+      border: 0;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: var(--axis-label-font, var(--fs-2xs));
+      font-weight: 700;
+      font-family: var(--font-mono);
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      transition: background 0.12s, color 0.12s;
+      z-index: 3;
+    }
+
+    .axis-cell:hover {
+      background: var(--blue-bg);
+      color: var(--blue-dark);
+    }
+
+    .well {
+      --well-color: var(--surface);
+      --well-text: var(--text);
+      width: var(--well-size, 30px);
+      height: var(--well-size, 30px);
+      border: 1.5px solid #d8d6d0;
+      background: var(--surface);
+      color: var(--text-dim);
+      font-family: var(--font);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      min-width: 0;
+      line-height: 1.05;
+      position: absolute;
+      left: var(--well-x, 0px);
+      top: var(--well-y, 0px);
+      transform: translate(-50%, -50%);
+      transition: transform 0.1s, border-color 0.12s, box-shadow 0.12s, background 0.12s;
+    }
+
+    .well[data-shape="round"] {
+      border-radius: 50%;
+    }
+
+    .well[data-shape="square"] {
+      border-radius: calc(var(--well-size, 30px) * 0.18);
+    }
+
+    .well:hover {
+      border-color: var(--blue);
+      transform: translate(-50%, -50%) scale(1.03);
+    }
+
+    .well.assigned {
+      background: var(--well-color);
+      border-color: rgba(0, 0, 0, 0.22);
+      color: var(--well-text);
+    }
+
+    .well.selected {
+      border-color: var(--blue-dark);
+      box-shadow: 0 0 0 3px rgba(51, 102, 204, 0.18);
+      z-index: 2;
+    }
+
+    .well.pasted {
+      animation: pastePulse 0.52s ease-out;
+    }
+
+    @keyframes pastePulse {
+      0% { transform: translate(-50%, -50%) scale(0.88); }
+      60% { transform: translate(-50%, -50%) scale(1.08); }
+      100% { transform: translate(-50%, -50%) scale(1); }
+    }
+
+    .well-id {
+      display: none;
+      font-family: var(--font-mono);
+      font-size: var(--well-id-size, 0.62rem);
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .well-label {
+      display: none;
+      max-width: 90%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: var(--well-label-size, 0.58rem);
+      font-weight: 700;
+    }
+
+    .well-initials {
+      display: none;
+      font-size: var(--well-initials-size, 0.62rem);
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .plate-grid[data-label-mode="rich"] .well-id {
+      display: block;
+    }
+
+    .plate-grid[data-label-mode="rich"] .well.assigned .well-label {
+      display: block;
+    }
+
+    .plate-grid[data-label-mode="compact"] .well.assigned .well-initials {
+      display: block;
+    }
+
+    .side-panel {
+      flex: 0 0 318px;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      background: var(--surface-subtle);
+      padding: 14px;
+    }
+
+    .side-section + .side-section {
+      border-top: 1px solid var(--border-subtle);
+      margin-top: 14px;
+      padding-top: 14px;
+    }
+
+    .selection-meter {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .meter-box {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      padding: 10px 11px;
+    }
+
+    .meter-label {
+      color: var(--text-muted);
+      font-size: var(--fs-2xs);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 3px;
+    }
+
+    .meter-value {
+      color: var(--text);
+      font-size: 1.05rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .button-grid .lt-btn,
+    .button-grid .btn-reset {
+      width: 100%;
+      padding-left: 10px;
+      padding-right: 10px;
+    }
+
+    .side-panel button:disabled {
+      opacity: 0.38;
+      cursor: not-allowed;
+    }
+
+    .group-create {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .group-list {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .group-row {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      padding: 7px;
+      transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
+    }
+
+    .group-row.active {
+      border-color: var(--blue-dark);
+      box-shadow: 0 0 0 2px var(--blue-border);
+      background: var(--blue-bg);
+    }
+
+    .group-swatch {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, 0.16);
+      padding: 0;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    .group-name {
+      min-width: 0;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.84rem;
+      font-weight: 700;
+      outline: none;
+    }
+
+    .group-delete {
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .group-delete:hover {
+      background: var(--red-bg);
+      color: var(--red);
+    }
+
+    .legend-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      margin-top: 8px;
+    }
+
+    .legend-count {
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .status-line {
+      margin-top: 14px;
+      min-height: 40px;
+    }
+
+    .print-summary {
+      display: none;
+      margin-bottom: 14px;
+    }
+
+    @media (max-width: 980px) {
+      .layout-top {
+        flex-direction: column;
+      }
+
+      .layout-actions {
+        justify-content: flex-start;
+      }
+
+      .control-strip {
+        grid-template-columns: 1fr;
+      }
+
+      .workspace {
+        flex-direction: column;
+      }
+
+      .plate-stage {
+        width: 100%;
+        max-width: 100%;
+      }
+
+      .side-panel {
+        flex: none;
+        width: 100%;
+        order: -1;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .card {
+        padding: 18px 14px;
+      }
+
+      .plate-stage-shell {
+        padding: 12px;
+      }
+
+      .control-strip {
+        gap: 10px;
+      }
+
+      .button-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .lt-nav,
+      .lt-footer,
+      .layout-actions,
+      .control-strip,
+      .side-panel,
+      .status-line {
+        display: none !important;
+      }
+
+      .lt-page-body {
+        display: block;
+        padding: 0;
+      }
+
+      .card {
+        max-width: none;
+        box-shadow: none;
+        border-radius: 0;
+        padding: 0;
+      }
+
+      .layout-top {
+        display: block;
+        margin-bottom: 10px;
+      }
+
+      .lt-tool-title {
+        margin-bottom: 4px;
+      }
+
+      .lt-tool-subtitle {
+        margin-bottom: 12px;
+      }
+
+      .workspace {
+        display: block;
+      }
+
+      .plate-stage {
+        display: block;
+        overflow: visible;
+      }
+
+      .plate-stage-shell {
+        display: block;
+        border: 0;
+        background: #fff;
+        padding: 0;
+        width: auto;
+      }
+
+      .plate-frame {
+        min-width: 0;
+        --plate-frame-border: #999;
+        break-inside: avoid;
+      }
+
+      .plate-shell {
+        box-shadow: none;
+      }
+
+      .print-summary {
+        display: block;
+        font-size: 0.8rem;
+        color: #333;
+      }
+
+      .well {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="lt-nav">
+  <a class="lt-nav-brand" href="../../index.html">&#128300; LabTools</a>
+  <span class="lt-nav-sep">/</span>
+  <span class="lt-nav-page">Well Plate Map Generator</span>
+</nav>
+
+<div class="lt-page-body">
+<div class="card">
+
+  <div class="layout-top">
+    <div>
+      <h1 class="lt-tool-title">Well Plate Map Generator</h1>
+      <p class="lt-tool-subtitle">Map treatment groups onto standard multi-well plates.</p>
+    </div>
+    <div class="layout-actions">
+      <button class="btn-reset" type="button" id="export-csv-btn">Export CSV</button>
+      <button class="btn-reset" type="button" id="print-btn">Print Layout</button>
+      <button class="btn-reset" type="button" id="reset-btn">Reset Plate</button>
+    </div>
+  </div>
+
+  <div class="control-strip">
+    <div class="field-block">
+      <label class="lt-label" for="plate-type">Plate</label>
+      <select class="lt-select" id="plate-type"></select>
+    </div>
+
+    <div class="field-block">
+      <div class="lt-label">Orientation Corners</div>
+      <div class="corner-toggles" id="corner-toggles"></div>
+    </div>
+
+    <div class="field-block">
+      <div class="lt-label">Plate Summary</div>
+      <div class="lt-badge lt-badge-blue" id="plate-summary">96 wells</div>
+    </div>
+  </div>
+
+  <div class="print-summary" id="print-summary"></div>
+
+  <div class="workspace">
+    <div class="plate-stage" id="plate-stage">
+      <div class="plate-stage-shell" id="plate-stage-shell">
+        <div class="plate-frame" id="plate-frame">
+          <div class="plate-shell" id="plate-shell" aria-hidden="true"></div>
+          <svg class="plate-outline" id="plate-outline" aria-hidden="true" focusable="false">
+            <path id="plate-outline-path"></path>
+          </svg>
+          <div class="plate-grid" id="plate-grid" role="grid" aria-label="Well plate layout"></div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="side-panel" aria-label="Layout controls">
+      <div class="side-section">
+        <div class="lt-section-label lt-section-label--tight">Selection</div>
+        <div class="selection-meter">
+          <div class="meter-box">
+            <div class="meter-label">Wells</div>
+            <div class="meter-value" id="selected-count">0</div>
+          </div>
+          <div class="meter-box">
+            <div class="meter-label">Copied</div>
+            <div class="meter-value" id="clipboard-count">0</div>
+          </div>
+        </div>
+        <div class="button-grid">
+          <button class="lt-btn lt-btn-primary" type="button" id="assign-btn">Assign</button>
+          <button class="btn-reset" type="button" id="clear-btn">Clear</button>
+          <button class="btn-reset" type="button" id="copy-btn">Copy</button>
+          <button class="btn-reset" type="button" id="paste-btn">Paste</button>
+        </div>
+      </div>
+
+      <div class="side-section">
+        <div class="lt-section-label lt-section-label--tight">Groups</div>
+        <div class="group-create">
+          <input class="lt-input" id="new-group-name" type="text" maxlength="32" placeholder="Group name" />
+          <button class="btn-reset" type="button" id="add-group-btn">Add</button>
+        </div>
+        <div class="group-list" id="group-list"></div>
+      </div>
+
+      <div class="side-section">
+        <div class="lt-section-label lt-section-label--tight">Legend</div>
+        <div id="legend-list"></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="lt-alert lt-alert-info status-line" id="status-line">Ready.</div>
+
+</div>
+</div>
+
+<footer class="lt-footer">LabTools · Open source lab utilities</footer>
+
+<script>
+'use strict';
+
+const PLATE_REFERENCE_MM = {
+  '6': {
+    label: '6-well plate',
+    rows: 2,
+    cols: 3,
+    a1RowOffsetMm: 23.16,
+    a1ColOffsetMm: 24.76,
+    pitchMm: 39.12,
+    wellDiameterMm: 34.8,
+    shape: 'round',
+  },
+  '12': {
+    label: '12-well plate',
+    rows: 3,
+    cols: 4,
+    a1RowOffsetMm: 16.79,
+    a1ColOffsetMm: 24.94,
+    pitchMm: 26.01,
+    wellDiameterMm: 22.11,
+    shape: 'round',
+  },
+  '24': {
+    label: '24-well plate',
+    rows: 4,
+    cols: 6,
+    a1RowOffsetMm: 13.78,
+    a1ColOffsetMm: 17.46,
+    pitchMm: 19.3,
+    wellDiameterMm: 15.62,
+    shape: 'round',
+  },
+  '48': {
+    label: '48-well plate',
+    rows: 6,
+    cols: 8,
+    a1RowOffsetMm: 10.08,
+    a1ColOffsetMm: 18.16,
+    pitchMm: 13.08,
+    wellDiameterMm: 11.05,
+    shape: 'round',
+  },
+  '96': {
+    label: '96-well plate',
+    rows: 8,
+    cols: 12,
+    a1RowOffsetMm: 11.2,
+    a1ColOffsetMm: 14.3,
+    pitchMm: 9.0,
+    wellDiameterMm: 6.35,
+    shape: 'round',
+  },
+  '384': {
+    label: '384-well plate',
+    rows: 16,
+    cols: 24,
+    a1RowOffsetMm: 8.99,
+    a1ColOffsetMm: 12.12,
+    pitchMm: 4.5,
+    wellDiameterMm: 2.67,
+    shape: 'square',
+  },
+  '1536': {
+    label: '1536-well plate',
+    rows: 32,
+    cols: 48,
+    a1RowOffsetMm: 7.86,
+    a1ColOffsetMm: 11.0,
+    pitchMm: 2.25,
+    wellDiameterMm: 1.63,
+    shape: 'square',
+  },
+};
+
+const CORNERS = [
+  { id: 'top-left', label: 'TL' },
+  { id: 'top-right', label: 'TR' },
+  { id: 'bottom-left', label: 'BL' },
+  { id: 'bottom-right', label: 'BR' },
+];
+
+const GROUP_COLORS = [
+  '#3366cc',
+  '#2d7a2d',
+  '#c2410c',
+  '#7c3aed',
+  '#0f766e',
+  '#b45309',
+  '#be123c',
+  '#4b5563',
+  '#2563eb',
+  '#15803d',
+  '#9333ea',
+  '#9f1239',
+];
+
+const PLATE_UI_MM = {
+  outerWidth: 127.8,
+  outerHeight: 85.5,
+  cornerCutMm: 8.5,
+  colLabelBandMm: 3.5,
+  rowLabelBandMm: 6.5,
+  wellAreaRightMarginMm: 3,
+  wellAreaBottomMarginMm: 3,
+};
+const PLATE_SCALE_LIMITS = { min: 2.6, max: 6.0 };
+const VIEWPORT_HEIGHT_RESERVE_PX = 96;
+
+let plateType = '96';
+let groups = [
+  { id: 'g1', name: 'Control', color: GROUP_COLORS[0] },
+  { id: 'g2', name: 'Treatment', color: GROUP_COLORS[1] },
+];
+let activeGroupId = 'g1';
+let assignments = {};
+let selectedWells = new Set();
+let selectionAnchor = null;
+let dragState = null;
+let clipboard = null;
+let groupSeq = 3;
+let cutCorners = new Set(['top-left']);
+let plateFrameObserver = null;
+let plateRenderRaf = 0;
+let currentPlatePxPerMm = PLATE_SCALE_LIMITS.min;
+
+const els = {};
+
+document.addEventListener('DOMContentLoaded', init);
+
+function init() {
+  cacheElements();
+  setupLayoutObservers();
+  renderPlateOptions();
+  renderCornerToggles();
+  renderAll();
+  wireEvents();
+}
+
+function cacheElements() {
+  els.plateType = document.getElementById('plate-type');
+  els.plateSummary = document.getElementById('plate-summary');
+  els.cornerToggles = document.getElementById('corner-toggles');
+  els.plateStage = document.getElementById('plate-stage');
+  els.plateStageShell = document.getElementById('plate-stage-shell');
+  els.plateFrame = document.getElementById('plate-frame');
+  els.plateShell = document.getElementById('plate-shell');
+  els.plateOutline = document.getElementById('plate-outline');
+  els.plateOutlinePath = document.getElementById('plate-outline-path');
+  els.plateGrid = document.getElementById('plate-grid');
+  els.selectedCount = document.getElementById('selected-count');
+  els.clipboardCount = document.getElementById('clipboard-count');
+  els.assignBtn = document.getElementById('assign-btn');
+  els.clearBtn = document.getElementById('clear-btn');
+  els.copyBtn = document.getElementById('copy-btn');
+  els.pasteBtn = document.getElementById('paste-btn');
+  els.addGroupBtn = document.getElementById('add-group-btn');
+  els.newGroupName = document.getElementById('new-group-name');
+  els.groupList = document.getElementById('group-list');
+  els.legendList = document.getElementById('legend-list');
+  els.statusLine = document.getElementById('status-line');
+  els.printSummary = document.getElementById('print-summary');
+}
+
+function setupLayoutObservers() {
+  if (typeof ResizeObserver === 'function') {
+    plateFrameObserver = new ResizeObserver(() => renderPlateFrameCorners());
+    plateFrameObserver.observe(els.plateFrame);
+  }
+
+  window.addEventListener('resize', schedulePlateRender, { passive: true });
+  window.addEventListener('beforeprint', syncPlateRender);
+  window.addEventListener('afterprint', syncPlateRender);
+}
+
+function schedulePlateRender() {
+  if (plateRenderRaf) return;
+  plateRenderRaf = window.requestAnimationFrame(() => {
+    plateRenderRaf = 0;
+    renderPlate();
+  });
+}
+
+function syncPlateRender() {
+  if (plateRenderRaf) {
+    window.cancelAnimationFrame(plateRenderRaf);
+    plateRenderRaf = 0;
+  }
+  renderPlate();
+}
+
+function wireEvents() {
+  els.plateType.addEventListener('change', onPlateTypeChange);
+  els.plateGrid.addEventListener('pointerdown', onPlatePointerDown);
+  els.plateGrid.addEventListener('pointerover', onPlatePointerOver);
+  document.addEventListener('pointerup', endDragSelection);
+  document.addEventListener('keydown', onDocumentKeyDown);
+
+  els.assignBtn.addEventListener('click', assignSelectedToActiveGroup);
+  els.clearBtn.addEventListener('click', clearSelectedWells);
+  els.copyBtn.addEventListener('click', copySelectedWells);
+  els.pasteBtn.addEventListener('click', pasteClipboardAtSelection);
+  els.addGroupBtn.addEventListener('click', addGroupFromInput);
+  els.newGroupName.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') addGroupFromInput();
+  });
+  document.getElementById('export-csv-btn').addEventListener('click', exportCsv);
+  document.getElementById('print-btn').addEventListener('click', () => window.print());
+  document.getElementById('reset-btn').addEventListener('click', resetPlate);
+}
+
+function renderPlateOptions() {
+  els.plateType.innerHTML = Object.keys(PLATE_REFERENCE_MM).map((key) => {
+    const plate = PLATE_REFERENCE_MM[key];
+    const selected = key === plateType ? ' selected' : '';
+    return `<option value="${key}"${selected}>${plate.label} (${plate.rows} x ${plate.cols})</option>`;
+  }).join('');
+}
+
+function renderCornerToggles() {
+  els.cornerToggles.innerHTML = CORNERS.map((corner) => {
+    const checked = cutCorners.has(corner.id) ? ' checked' : '';
+    return `
+      <label class="corner-toggle" title="${cornerLabel(corner.id)} corner">
+        <input type="checkbox" data-corner="${corner.id}"${checked} />
+        <span>${corner.label}</span>
+      </label>`;
+  }).join('');
+
+  els.cornerToggles.querySelectorAll('input[data-corner]').forEach((input) => {
+    input.addEventListener('change', () => {
+      if (input.checked) cutCorners.add(input.dataset.corner);
+      else cutCorners.delete(input.dataset.corner);
+      renderPlateFrameCorners();
+      renderPrintSummary();
+    });
+  });
+}
+
+function renderAll() {
+  renderPlate();
+  renderGroups();
+  renderLegend();
+  renderSelectionState();
+  renderPrintSummary();
+}
+
+function renderPlate() {
+  const plate = PLATE_REFERENCE_MM[plateType];
+  const metrics = getPlateMetrics(plate);
+  currentPlatePxPerMm = metrics.pxPerMm;
+  els.plateGrid.dataset.plate = plateType;
+  els.plateGrid.dataset.labelMode = getLabelMode(metrics.wellDiameterPx);
+  els.plateFrame.style.width = px(metrics.frameWidthPx);
+  els.plateFrame.style.height = px(metrics.frameHeightPx);
+  els.plateGrid.style.setProperty('--well-id-size', px(metrics.wellIdFontPx));
+  els.plateGrid.style.setProperty('--well-label-size', px(metrics.wellLabelFontPx));
+  els.plateGrid.style.setProperty('--well-initials-size', px(metrics.wellInitialsFontPx));
+  els.plateGrid.style.setProperty('--axis-label-font', px(metrics.axisLabelFontPx));
+  els.plateGrid.innerHTML = '';
+
+  for (let col = 0; col < plate.cols; col++) {
+    els.plateGrid.appendChild(createColumnButton(plate, metrics, col));
+  }
+
+  for (let row = 0; row < plate.rows; row++) {
+    els.plateGrid.appendChild(createRowButton(plate, metrics, row));
+
+    for (let col = 0; col < plate.cols; col++) {
+      els.plateGrid.appendChild(createWellButton(plate, metrics, row, col));
+    }
+  }
+
+  els.plateSummary.textContent = `${plateType} wells`;
+  renderPlateFrameCorners();
+}
+
+function createColumnButton(plate, metrics, col) {
+  const button = document.createElement('button');
+  button.className = 'axis-cell axis-cell--col';
+  button.type = 'button';
+  button.textContent = String(col + 1);
+  button.title = `Select column ${col + 1}`;
+  button.style.left = px(getWellCenterXPx(plate, metrics, col));
+  button.style.top = px(metrics.colLabelCenterYpx);
+  button.style.width = px(metrics.columnHeaderWidthPx);
+  button.style.height = px(metrics.headerHeightPx);
+  button.addEventListener('click', () => selectColumn(col));
+  return button;
+}
+
+function createRowButton(plate, metrics, row) {
+  const button = document.createElement('button');
+  button.className = 'axis-cell axis-cell--row';
+  button.type = 'button';
+  button.textContent = rowLabel(row);
+  button.title = `Select row ${rowLabel(row)}`;
+  button.style.left = px(metrics.rowLabelCenterXpx);
+  button.style.top = px(getWellCenterYPx(plate, metrics, row));
+  button.style.width = px(metrics.rowHeaderWidthPx);
+  button.style.height = px(metrics.headerHeightPx);
+  button.addEventListener('click', () => selectRow(row));
+  return button;
+}
+
+function createWellButton(plate, metrics, row, col) {
+  const wellId = getWellId(row, col);
+  const group = getGroup(assignments[wellId]);
+  const button = document.createElement('button');
+  button.className = 'well';
+  button.type = 'button';
+  button.dataset.well = wellId;
+  button.dataset.row = String(row);
+  button.dataset.col = String(col);
+  button.dataset.shape = plate.shape || 'round';
+  button.setAttribute('role', 'gridcell');
+  button.setAttribute('aria-label', group ? `${wellId}, ${group.name}` : `${wellId}, unassigned`);
+  button.style.setProperty('--well-size', px(metrics.wellDiameterPx));
+  button.style.setProperty('--well-x', px(getWellCenterXPx(plate, metrics, col)));
+  button.style.setProperty('--well-y', px(getWellCenterYPx(plate, metrics, row)));
+  button.innerHTML = `
+    <span class="well-id">${wellId}</span>
+    <span class="well-label">${group ? escHtml(group.name) : ''}</span>
+    <span class="well-initials">${group ? escHtml(groupInitials(group.name)) : ''}</span>
+  `;
+
+  if (group) {
+    button.classList.add('assigned');
+    button.style.setProperty('--well-color', group.color);
+    button.style.setProperty('--well-text', contrastText(group.color));
+  }
+  if (selectedWells.has(wellId)) button.classList.add('selected');
+  return button;
+}
+
+function renderPlateFrameCorners() {
+  const width = Math.round(els.plateFrame.clientWidth);
+  const height = Math.round(els.plateFrame.clientHeight);
+  if (!width || !height) return;
+
+  const cutSize = getPlateCutSize(width, height);
+  const points = buildPlateFramePoints(width, height, cutSize);
+  const polygon = points.map(([x, y]) => `${x}px ${y}px`).join(', ');
+  const pathData = points.map(([x, y], index) => `${index === 0 ? 'M' : 'L'}${x} ${y}`).join(' ') + ' Z';
+
+  els.plateShell.style.clipPath = `polygon(${polygon})`;
+  els.plateOutline.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  els.plateOutline.setAttribute('preserveAspectRatio', 'none');
+  els.plateOutlinePath.setAttribute('d', pathData);
+}
+
+function getPlateCutSize(width, height) {
+  const requested = PLATE_UI_MM.cornerCutMm * currentPlatePxPerMm;
+  const safeMax = Math.max(18, Math.min((width / 2) - 8, (height / 2) - 8));
+  return Math.round(Math.min(requested, safeMax));
+}
+
+function buildPlateFramePoints(width, height, cutSize) {
+  const points = [];
+  const hasTopLeft = cutCorners.has('top-left');
+  const hasTopRight = cutCorners.has('top-right');
+  const hasBottomRight = cutCorners.has('bottom-right');
+  const hasBottomLeft = cutCorners.has('bottom-left');
+
+  points.push(hasTopLeft ? [cutSize, 0] : [0, 0]);
+
+  if (hasTopRight) {
+    points.push([width - cutSize, 0], [width, cutSize]);
+  } else {
+    points.push([width, 0]);
+  }
+
+  if (hasBottomRight) {
+    points.push([width, height - cutSize], [width - cutSize, height]);
+  } else {
+    points.push([width, height]);
+  }
+
+  if (hasBottomLeft) {
+    points.push([cutSize, height], [0, height - cutSize]);
+  } else {
+    points.push([0, height]);
+  }
+
+  if (hasTopLeft) points.push([0, cutSize]);
+  return points;
+}
+
+function renderGroups() {
+  if (groups.length === 0) {
+    els.groupList.innerHTML = '<div class="lt-alert lt-alert-info">No groups.</div>';
+  } else {
+    els.groupList.innerHTML = '';
+    groups.forEach((group) => {
+      const row = document.createElement('div');
+      row.className = `group-row${group.id === activeGroupId ? ' active' : ''}`;
+      row.dataset.groupId = group.id;
+      row.innerHTML = `
+        <button class="group-swatch" type="button" title="Set active group"></button>
+        <input class="group-name" type="text" maxlength="32" value="${escAttr(group.name)}" aria-label="Group name" />
+        <button class="group-delete" type="button" title="Delete group" aria-label="Delete group">&times;</button>
+      `;
+      const swatch = row.querySelector('.group-swatch');
+      swatch.style.background = group.color;
+      swatch.addEventListener('click', () => setActiveGroup(group.id));
+      row.addEventListener('click', (event) => {
+        if (event.target.classList.contains('group-delete')) return;
+        if (event.target.classList.contains('group-name')) return;
+        setActiveGroup(group.id);
+      });
+      row.querySelector('.group-name').addEventListener('input', (event) => {
+        group.name = event.target.value.trim() || 'Unnamed group';
+        renderPlate();
+        renderLegend();
+        renderPrintSummary();
+      });
+      row.querySelector('.group-name').addEventListener('focus', () => setActiveGroup(group.id));
+      row.querySelector('.group-delete').addEventListener('click', () => deleteGroup(group.id));
+      els.groupList.appendChild(row);
+    });
+  }
+
+  els.assignBtn.disabled = !activeGroupId || selectedWells.size === 0;
+}
+
+function renderLegend() {
+  if (groups.length === 0) {
+    els.legendList.innerHTML = '<div class="lt-alert lt-alert-info">No assigned groups.</div>';
+    return;
+  }
+
+  els.legendList.innerHTML = '';
+  groups.forEach((group) => {
+    const count = countAssignedWells(group.id);
+    const row = document.createElement('div');
+    row.className = 'legend-row';
+    row.innerHTML = `
+      <span><span class="group-swatch" style="background:${group.color}"></span> ${escHtml(group.name)}</span>
+      <span class="legend-count">${count}</span>
+    `;
+    els.legendList.appendChild(row);
+  });
+}
+
+function renderSelectionState() {
+  els.selectedCount.textContent = String(selectedWells.size);
+  els.clipboardCount.textContent = clipboard ? String(clipboard.cells.length) : '0';
+  els.assignBtn.disabled = !activeGroupId || selectedWells.size === 0;
+  els.clearBtn.disabled = selectedWells.size === 0;
+  els.copyBtn.disabled = selectedWells.size === 0;
+  els.pasteBtn.disabled = !clipboard;
+}
+
+function renderPrintSummary() {
+  const plate = PLATE_REFERENCE_MM[plateType];
+  const corners = Array.from(cutCorners).map(cornerLabel).join(', ') || 'none';
+  const used = Object.keys(assignments).length;
+  const groupLines = groups
+    .filter((group) => countAssignedWells(group.id) > 0)
+    .map((group) => `${escHtml(group.name)} (${countAssignedWells(group.id)})`)
+    .join('; ');
+  els.printSummary.innerHTML = `
+    <strong>${plate.label}</strong> - ${plate.rows} x ${plate.cols}; ${used} assigned wells; corner marks: ${escHtml(corners)}.
+    ${groupLines ? `<br>${groupLines}` : ''}
+  `;
+}
+
+function onPlateTypeChange() {
+  plateType = els.plateType.value;
+  trimAssignmentsAndSelectionToPlate();
+  renderAll();
+  setStatus(`Switched to ${PLATE_REFERENCE_MM[plateType].label}.`, 'info');
+}
+
+function onPlatePointerDown(event) {
+  const well = event.target.closest('.well');
+  if (!well) return;
+  event.preventDefault();
+  const position = wellPosition(well.dataset.well);
+
+  if (event.shiftKey && selectionAnchor) {
+    selectRectangle(wellPosition(selectionAnchor), position);
+    return;
+  }
+
+  if (event.metaKey || event.ctrlKey) {
+    toggleWellSelection(well.dataset.well);
+    selectionAnchor = well.dataset.well;
+    return;
+  }
+
+  dragState = { start: position };
+  selectionAnchor = well.dataset.well;
+  selectedWells = new Set([well.dataset.well]);
+  renderSelectionOnly();
+}
+
+function onPlatePointerOver(event) {
+  if (!dragState) return;
+  const well = event.target.closest('.well');
+  if (!well) return;
+  selectRectangle(dragState.start, wellPosition(well.dataset.well), false);
+}
+
+function endDragSelection() {
+  dragState = null;
+}
+
+function onDocumentKeyDown(event) {
+  const tag = event.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'c') {
+    event.preventDefault();
+    copySelectedWells();
+  } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'v') {
+    event.preventDefault();
+    pasteClipboardAtSelection();
+  } else if (event.key === 'Delete' || event.key === 'Backspace') {
+    if (selectedWells.size > 0) {
+      event.preventDefault();
+      clearSelectedWells();
+    }
+  } else if (event.key === 'Escape') {
+    selectedWells.clear();
+    renderSelectionOnly();
+    setStatus('Selection cleared.', 'info');
+  }
+}
+
+function selectRow(row) {
+  const plate = PLATE_REFERENCE_MM[plateType];
+  selectedWells = new Set();
+  for (let col = 0; col < plate.cols; col++) {
+    selectedWells.add(getWellId(row, col));
+  }
+  selectionAnchor = getWellId(row, 0);
+  renderSelectionOnly();
+}
+
+function selectColumn(col) {
+  const plate = PLATE_REFERENCE_MM[plateType];
+  selectedWells = new Set();
+  for (let row = 0; row < plate.rows; row++) {
+    selectedWells.add(getWellId(row, col));
+  }
+  selectionAnchor = getWellId(0, col);
+  renderSelectionOnly();
+}
+
+function selectRectangle(start, end, announce = true) {
+  const minRow = Math.min(start.row, end.row);
+  const maxRow = Math.max(start.row, end.row);
+  const minCol = Math.min(start.col, end.col);
+  const maxCol = Math.max(start.col, end.col);
+  selectedWells = new Set();
+  for (let row = minRow; row <= maxRow; row++) {
+    for (let col = minCol; col <= maxCol; col++) {
+      selectedWells.add(getWellId(row, col));
+    }
+  }
+  if (announce) setStatus(`${selectedWells.size} wells selected.`, 'info');
+  renderSelectionOnly();
+}
+
+function toggleWellSelection(wellId) {
+  if (selectedWells.has(wellId)) selectedWells.delete(wellId);
+  else selectedWells.add(wellId);
+  renderSelectionOnly();
+}
+
+function renderSelectionOnly() {
+  els.plateGrid.querySelectorAll('.well').forEach((well) => {
+    well.classList.toggle('selected', selectedWells.has(well.dataset.well));
+  });
+  renderSelectionState();
+}
+
+function getPlateMetrics(plate) {
+  const available = getAvailableFrameSpacePx();
+  const pxPerMm = clamp(
+    Math.min(
+      available.width / PLATE_UI_MM.outerWidth,
+      available.height / PLATE_UI_MM.outerHeight
+    ),
+    PLATE_SCALE_LIMITS.min,
+    PLATE_SCALE_LIMITS.max
+  );
+  const frameWidthPx = mmToPx(PLATE_UI_MM.outerWidth, pxPerMm);
+  const frameHeightPx = mmToPx(PLATE_UI_MM.outerHeight, pxPerMm);
+
+  const pitchPx = plate.pitchMm * pxPerMm;
+  const wellDiameterPx = plate.wellDiameterMm * pxPerMm;
+  const wellRadiusPx = wellDiameterPx / 2;
+  const gridOffsetXpx = plate.a1ColOffsetMm * pxPerMm;
+  const gridOffsetYpx = plate.a1RowOffsetMm * pxPerMm;
+  const colLabelBandPx = Math.max(gridOffsetYpx - wellRadiusPx, PLATE_UI_MM.colLabelBandMm * pxPerMm);
+  const rowLabelBandPx = Math.max(gridOffsetXpx - wellRadiusPx, PLATE_UI_MM.rowLabelBandMm * pxPerMm);
+
+  const colLabelCenterYpx = Math.max(8, colLabelBandPx / 2);
+  const rowLabelCenterXpx = Math.max(8, rowLabelBandPx / 2);
+
+  const headerHeightPx = clamp(Math.min(pitchPx * 0.72, colLabelBandPx * 0.9), 10, 26);
+  const columnHeaderWidthPx = clamp(pitchPx * 0.9, 16, 36);
+  const rowHeaderWidthPx = clamp(rowLabelBandPx * 0.85, 14, 34);
+
+  return {
+    frameWidthPx,
+    frameHeightPx,
+    pxPerMm,
+    pitchPx,
+    wellDiameterPx,
+    gridOffsetXpx,
+    gridOffsetYpx,
+    colLabelCenterYpx,
+    rowLabelCenterXpx,
+    headerHeightPx,
+    columnHeaderWidthPx,
+    rowHeaderWidthPx,
+    axisLabelFontPx: clamp(pxPerMm * 2.2, 9, 13),
+    wellIdFontPx: clamp(wellDiameterPx * 0.18, 8.5, 18),
+    wellLabelFontPx: clamp(wellDiameterPx * 0.11, 7, 15),
+    wellInitialsFontPx: clamp(wellDiameterPx * 0.2, 8.5, 16),
+  };
+}
+
+function getAvailableFrameSpacePx() {
+  const minWidthPx = PLATE_UI_MM.outerWidth * PLATE_SCALE_LIMITS.min;
+  const minHeightPx = PLATE_UI_MM.outerHeight * PLATE_SCALE_LIMITS.min;
+  const workspace = els.plateStage.parentElement;
+  const workspaceStyle = getComputedStyle(workspace);
+  const workspaceGap = parseFloat(workspaceStyle.columnGap || workspaceStyle.gap) || 0;
+  const isStacked = workspaceStyle.flexDirection === 'column';
+  const sidePanel = workspace.querySelector('.side-panel');
+  const sidePanelWidth = isStacked || !sidePanel ? 0 : sidePanel.getBoundingClientRect().width + workspaceGap;
+  const pageBody = workspace.closest('.lt-page-body');
+  const pageBodyStyle = pageBody ? getComputedStyle(pageBody) : null;
+  const pageInsetX = pageBodyStyle
+    ? (parseFloat(pageBodyStyle.paddingLeft) || 0) + (parseFloat(pageBodyStyle.paddingRight) || 0)
+    : 0;
+  const card = workspace.closest('.card');
+  const cardStyle = card ? getComputedStyle(card) : null;
+  const cardInsetX = cardStyle
+    ? (parseFloat(cardStyle.paddingLeft) || 0) + (parseFloat(cardStyle.paddingRight) || 0)
+    : 0;
+  const shellStyle = getComputedStyle(els.plateStageShell);
+  const shellInsetX = (parseFloat(shellStyle.paddingLeft) || 0) + (parseFloat(shellStyle.paddingRight) || 0);
+  const shellInsetY = (parseFloat(shellStyle.paddingTop) || 0) + (parseFloat(shellStyle.paddingBottom) || 0);
+  const viewportWidth = document.documentElement.clientWidth || window.innerWidth || minWidthPx;
+  const maxContentWidth = viewportWidth - pageInsetX - cardInsetX;
+  const width = Math.max(minWidthPx, maxContentWidth - sidePanelWidth - shellInsetX);
+  const viewportHeight = window.innerHeight || minHeightPx;
+  const stageTop = els.plateStage.getBoundingClientRect().top;
+  const height = Math.max(minHeightPx, viewportHeight - stageTop - VIEWPORT_HEIGHT_RESERVE_PX - shellInsetY);
+
+  return { width, height };
+}
+
+
+function getWellCenterXPx(plate, metrics, col) {
+  return roundPx(metrics.gridOffsetXpx + col * metrics.pitchPx);
+}
+
+function getWellCenterYPx(plate, metrics, row) {
+  return roundPx(metrics.gridOffsetYpx + row * metrics.pitchPx);
+}
+
+function setActiveGroup(groupId) {
+  activeGroupId = groupId;
+  els.groupList.querySelectorAll('.group-row').forEach((row) => {
+    row.classList.toggle('active', row.dataset.groupId === groupId);
+  });
+  renderSelectionState();
+}
+
+function addGroupFromInput() {
+  const name = els.newGroupName.value.trim() || `Group ${groupSeq}`;
+  const id = `g${Date.now().toString(36)}${groupSeq}`;
+  const color = GROUP_COLORS[(groupSeq - 1) % GROUP_COLORS.length];
+  groupSeq += 1;
+  groups.push({ id, name, color });
+  activeGroupId = id;
+  els.newGroupName.value = '';
+  renderGroups();
+  renderLegend();
+  renderPrintSummary();
+  setStatus(`Added ${name}.`, 'success');
+}
+
+function deleteGroup(groupId) {
+  const group = getGroup(groupId);
+  if (!group) return;
+  groups = groups.filter((item) => item.id !== groupId);
+  Object.keys(assignments).forEach((wellId) => {
+    if (assignments[wellId] === groupId) delete assignments[wellId];
+  });
+  if (activeGroupId === groupId) activeGroupId = groups[0] ? groups[0].id : null;
+  renderAll();
+  setStatus(`Deleted ${group.name} and cleared its wells.`, 'info');
+}
+
+function assignSelectedToActiveGroup() {
+  const group = getGroup(activeGroupId);
+  if (!group || selectedWells.size === 0) return;
+  selectedWells.forEach((wellId) => {
+    assignments[wellId] = group.id;
+  });
+  renderPlate();
+  renderLegend();
+  renderSelectionState();
+  renderPrintSummary();
+  setStatus(`Assigned ${selectedWells.size} wells to ${group.name}.`, 'success');
+}
+
+function clearSelectedWells() {
+  if (selectedWells.size === 0) return;
+  selectedWells.forEach((wellId) => {
+    delete assignments[wellId];
+  });
+  renderPlate();
+  renderLegend();
+  renderSelectionState();
+  renderPrintSummary();
+  setStatus(`Cleared ${selectedWells.size} wells.`, 'info');
+}
+
+function copySelectedWells() {
+  if (selectedWells.size === 0) {
+    setStatus('Select wells before copying.', 'danger');
+    return;
+  }
+
+  const wells = sortedSelectedPositions();
+  const minRow = Math.min(...wells.map((well) => well.row));
+  const minCol = Math.min(...wells.map((well) => well.col));
+  const usedGroupIds = new Set();
+  const cells = wells.map((well) => {
+    const groupId = assignments[well.id] || null;
+    if (groupId) usedGroupIds.add(groupId);
+    return {
+      dr: well.row - minRow,
+      dc: well.col - minCol,
+      groupId,
+    };
+  });
+
+  clipboard = {
+    cells,
+    groups: groups.filter((group) => usedGroupIds.has(group.id)).map((group) => ({ ...group })),
+  };
+  renderSelectionState();
+  setStatus(`Copied ${clipboard.cells.length} wells.`, 'success');
+}
+
+function pasteClipboardAtSelection() {
+  if (!clipboard) {
+    setStatus('Copy wells before pasting.', 'danger');
+    return;
+  }
+
+  const anchor = pasteAnchorPosition();
+  if (!anchor) {
+    setStatus('Select a destination well before pasting.', 'danger');
+    return;
+  }
+
+  ensureClipboardGroups();
+  const plate = PLATE_REFERENCE_MM[plateType];
+  const pasted = [];
+  let skipped = 0;
+
+  clipboard.cells.forEach((cell) => {
+    const row = anchor.row + cell.dr;
+    const col = anchor.col + cell.dc;
+    if (row < 0 || col < 0 || row >= plate.rows || col >= plate.cols) {
+      skipped += 1;
+      return;
+    }
+    const wellId = getWellId(row, col);
+    if (cell.groupId) assignments[wellId] = cell.groupId;
+    else delete assignments[wellId];
+    pasted.push(wellId);
+  });
+
+  selectedWells = new Set(pasted);
+  selectionAnchor = pasted[0] || selectionAnchor;
+  renderPlate();
+  renderGroups();
+  renderLegend();
+  renderSelectionState();
+  renderPrintSummary();
+  markPastedWells(pasted);
+
+  const suffix = skipped > 0 ? ` ${skipped} out-of-bounds wells skipped.` : '';
+  setStatus(`Pasted ${pasted.length} wells.${suffix}`, skipped > 0 ? 'warn' : 'success');
+}
+
+function ensureClipboardGroups() {
+  clipboard.groups.forEach((copiedGroup) => {
+    if (!getGroup(copiedGroup.id)) groups.push({ ...copiedGroup });
+  });
+  if (!activeGroupId && groups[0]) activeGroupId = groups[0].id;
+}
+
+function markPastedWells(wellIds) {
+  wellIds.forEach((wellId) => {
+    const node = els.plateGrid.querySelector(`[data-well="${wellId}"]`);
+    if (!node) return;
+    node.classList.add('pasted');
+    setTimeout(() => node.classList.remove('pasted'), 560);
+  });
+}
+
+function pasteAnchorPosition() {
+  const sorted = sortedWellIds(Array.from(selectedWells));
+  const anchorWell = sorted[0] || selectionAnchor;
+  return anchorWell ? wellPosition(anchorWell) : null;
+}
+
+function exportCsv() {
+  const plate = PLATE_REFERENCE_MM[plateType];
+  const rows = [['plate_type', 'row', 'column', 'well', 'group']];
+
+  for (let row = 0; row < plate.rows; row++) {
+    for (let col = 0; col < plate.cols; col++) {
+      const wellId = getWellId(row, col);
+      const group = getGroup(assignments[wellId]);
+      rows.push([plateType, rowLabel(row), String(col + 1), wellId, group ? group.name : '']);
+    }
+  }
+
+  const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n');
+  const filename = `experiment-layout-${plateType}-well.csv`;
+  if (typeof labtoolsDownloadText === 'function') {
+    labtoolsDownloadText(filename, csv, 'text/csv;charset=utf-8');
+  } else {
+    fallbackDownloadText(filename, csv);
+  }
+  setStatus(`Exported ${filename}.`, 'success');
+}
+
+function resetPlate() {
+  if (!confirm('Reset this plate layout?')) return;
+  assignments = {};
+  selectedWells.clear();
+  selectionAnchor = null;
+  clipboard = null;
+  renderAll();
+  setStatus('Plate reset.', 'info');
+}
+
+function trimAssignmentsAndSelectionToPlate() {
+  const plate = PLATE_REFERENCE_MM[plateType];
+  Object.keys(assignments).forEach((wellId) => {
+    const pos = wellPosition(wellId);
+    if (pos.row >= plate.rows || pos.col >= plate.cols) delete assignments[wellId];
+  });
+  selectedWells = new Set(Array.from(selectedWells).filter((wellId) => {
+    const pos = wellPosition(wellId);
+    return pos.row < plate.rows && pos.col < plate.cols;
+  }));
+  if (selectionAnchor) {
+    const pos = wellPosition(selectionAnchor);
+    if (pos.row >= plate.rows || pos.col >= plate.cols) selectionAnchor = null;
+  }
+}
+
+function sortedSelectedPositions() {
+  return sortedWellIds(Array.from(selectedWells)).map((wellId) => ({
+    id: wellId,
+    ...wellPosition(wellId),
+  }));
+}
+
+function sortedWellIds(wellIds) {
+  return wellIds.slice().sort((a, b) => {
+    const pa = wellPosition(a);
+    const pb = wellPosition(b);
+    if (pa.row !== pb.row) return pa.row - pb.row;
+    return pa.col - pb.col;
+  });
+}
+
+function getLabelMode(wellDiameterPx) {
+  if (wellDiameterPx >= 40) return 'rich';
+  if (wellDiameterPx >= 26) return 'compact';
+  return 'color';
+}
+
+function getWellId(row, col) {
+  return `${rowLabel(row)}${col + 1}`;
+}
+
+function rowLabel(row) {
+  let label = '';
+  let index = row;
+  do {
+    label = String.fromCharCode(65 + (index % 26)) + label;
+    index = Math.floor(index / 26) - 1;
+  } while (index >= 0);
+  return label;
+}
+
+function wellPosition(wellId) {
+  const match = /^([A-Z]+)(\d+)$/.exec(wellId);
+  if (!match) return { row: 0, col: 0 };
+  const row = match[1].split('').reduce((value, char) => {
+    return value * 26 + char.charCodeAt(0) - 64;
+  }, 0) - 1;
+  return {
+    row,
+    col: parseInt(match[2], 10) - 1,
+  };
+}
+
+function getGroup(groupId) {
+  return groups.find((group) => group.id === groupId) || null;
+}
+
+function countAssignedWells(groupId) {
+  return Object.values(assignments).filter((id) => id === groupId).length;
+}
+
+function groupInitials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+}
+
+function cornerLabel(cornerId) {
+  return cornerId.split('-').map((part) => part[0].toUpperCase() + part.slice(1)).join(' ');
+}
+
+function setStatus(message, type) {
+  els.statusLine.textContent = message;
+  els.statusLine.className = `lt-alert status-line lt-alert-${type || 'info'}`;
+}
+
+function contrastText(hex) {
+  const rgb = hex.replace('#', '');
+  const r = parseInt(rgb.slice(0, 2), 16);
+  const g = parseInt(rgb.slice(2, 4), 16);
+  const b = parseInt(rgb.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.58 ? '#37352f' : '#ffffff';
+}
+
+function csvCell(value) {
+  return `"${String(value).replace(/"/g, '""')}"`;
+}
+
+function mmToPx(mm, scale) {
+  return roundPx(mm * scale);
+}
+
+function roundPx(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function px(value) {
+  return `${roundPx(value)}px`;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function fallbackDownloadText(filename, content) {
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function escHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escAttr(value) {
+  return escHtml(value);
+}
+</script>
+
+</body>
+</html>

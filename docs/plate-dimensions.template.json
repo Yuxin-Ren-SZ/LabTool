@@ -1,0 +1,66 @@
+{
+  "description": "Reference template for standard multi-well plate dimensions used by LabTools plate-map documentation and tooling. Values are in millimeters.",
+  "unit": "mm",
+  "plate": {
+    "width": 127.8,
+    "height": 85.5
+  },
+  "formats": {
+    "6": {
+      "rows": 2,
+      "columns": 3,
+      "firstWellCenterToTopEdge": 23.16,
+      "firstWellCenterToLeftEdge": 24.76,
+      "wellDiameter": 34.80,
+      "centerToCenterDistance": 39.12
+    },
+    "12": {
+      "rows": 3,
+      "columns": 4,
+      "firstWellCenterToTopEdge": 16.79,
+      "firstWellCenterToLeftEdge": 24.94,
+      "wellDiameter": 22.11,
+      "centerToCenterDistance": 26.01
+    },
+    "24": {
+      "rows": 4,
+      "columns": 6,
+      "firstWellCenterToTopEdge": 13.78,
+      "firstWellCenterToLeftEdge": 17.46,
+      "wellDiameter": 15.62,
+      "centerToCenterDistance": 19.30
+    },
+    "48": {
+      "rows": 6,
+      "columns": 8,
+      "firstWellCenterToTopEdge": 10.08,
+      "firstWellCenterToLeftEdge": 18.16,
+      "wellDiameter": 11.05,
+      "centerToCenterDistance": 13.08
+    },
+    "96": {
+      "rows": 8,
+      "columns": 12,
+      "firstWellCenterToTopEdge": 11.20,
+      "firstWellCenterToLeftEdge": 14.30,
+      "wellDiameter": 6.35,
+      "centerToCenterDistance": 9.00
+    },
+    "384": {
+      "rows": 16,
+      "columns": 24,
+      "firstWellCenterToTopEdge": 8.99,
+      "firstWellCenterToLeftEdge": 12.12,
+      "wellDiameter": 2.67,
+      "centerToCenterDistance": 4.50
+    },
+    "1536": {
+      "rows": 32,
+      "columns": 48,
+      "firstWellCenterToTopEdge": 7.86,
+      "firstWellCenterToLeftEdge": 11.00,
+      "wellDiameter": 1.63,
+      "centerToCenterDistance": 2.25
+    }
+  }
+}
