@@ -189,7 +189,6 @@
       --well-text: var(--text);
       width: var(--well-size, 30px);
       height: var(--well-size, 30px);
-      border-radius: 50%;
       border: 1.5px solid #d8d6d0;
       background: var(--surface);
       color: var(--text-dim);
@@ -207,6 +206,14 @@
       top: var(--well-y, 0px);
       transform: translate(-50%, -50%);
       transition: transform 0.1s, border-color 0.12s, box-shadow 0.12s, background 0.12s;
+    }
+
+    .well[data-shape="round"] {
+      border-radius: 50%;
+    }
+
+    .well[data-shape="square"] {
+      border-radius: var(--radius-sm);
     }
 
     .well:hover {
@@ -668,6 +675,7 @@ const PLATE_REFERENCE_MM = {
     a1ColOffsetMm: 24.76,
     pitchMm: 39.12,
     wellDiameterMm: 34.8,
+    shape: 'round',
   },
   '12': {
     label: '12-well plate',
@@ -677,6 +685,7 @@ const PLATE_REFERENCE_MM = {
     a1ColOffsetMm: 24.94,
     pitchMm: 26.01,
     wellDiameterMm: 22.11,
+    shape: 'round',
   },
   '24': {
     label: '24-well plate',
@@ -686,6 +695,7 @@ const PLATE_REFERENCE_MM = {
     a1ColOffsetMm: 17.46,
     pitchMm: 19.3,
     wellDiameterMm: 15.62,
+    shape: 'round',
   },
   '48': {
     label: '48-well plate',
@@ -695,6 +705,7 @@ const PLATE_REFERENCE_MM = {
     a1ColOffsetMm: 18.16,
     pitchMm: 13.08,
     wellDiameterMm: 11.05,
+    shape: 'round',
   },
   '96': {
     label: '96-well plate',
@@ -704,6 +715,7 @@ const PLATE_REFERENCE_MM = {
     a1ColOffsetMm: 14.3,
     pitchMm: 9.0,
     wellDiameterMm: 6.35,
+    shape: 'round',
   },
   '384': {
     label: '384-well plate',
@@ -713,6 +725,7 @@ const PLATE_REFERENCE_MM = {
     a1ColOffsetMm: 12.12,
     pitchMm: 4.5,
     wellDiameterMm: 2.67,
+    shape: 'square',
   },
 };
 
@@ -955,6 +968,7 @@ function createWellButton(plate, metrics, row, col) {
   button.dataset.well = wellId;
   button.dataset.row = String(row);
   button.dataset.col = String(col);
+  button.dataset.shape = plate.shape || 'round';
   button.setAttribute('role', 'gridcell');
   button.setAttribute('aria-label', group ? `${wellId}, ${group.name}` : `${wellId}, unassigned`);
   button.style.setProperty('--well-size', px(metrics.wellDiameterPx));
