@@ -428,6 +428,23 @@
       white-space: nowrap;
     }
 
+    .legend-abbrev {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      margin-left: 6px;
+      padding: 2px 5px;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      background: var(--surface-subtle);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: var(--fs-2xs);
+      font-weight: 800;
+      line-height: 1;
+    }
+
     .status-line {
       margin-top: 14px;
       min-height: 40px;
@@ -436,6 +453,65 @@
     .print-summary {
       display: none;
       margin-bottom: 14px;
+    }
+
+    .print-legend {
+      display: none;
+      margin-bottom: 14px;
+      break-inside: avoid;
+    }
+
+    .print-legend-title {
+      margin-bottom: 6px;
+      color: #333;
+      font-size: 0.8rem;
+      font-weight: 800;
+    }
+
+    .print-legend-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+      gap: 6px 12px;
+    }
+
+    .print-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      color: #333;
+      font-size: 0.76rem;
+    }
+
+    .print-legend-swatch {
+      width: 12px;
+      height: 12px;
+      border: 1px solid rgba(0, 0, 0, 0.28);
+      border-radius: 50%;
+      flex: 0 0 auto;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .print-legend-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 700;
+    }
+
+    .print-legend-abbrev {
+      flex: 0 0 auto;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 800;
+    }
+
+    .print-legend-count {
+      flex: 0 0 auto;
+      color: #666;
+      font-variant-numeric: tabular-nums;
     }
 
     @media (max-width: 980px) {
@@ -557,6 +633,10 @@
         color: #333;
       }
 
+      .print-legend {
+        display: block;
+      }
+
       .well {
         print-color-adjust: exact;
         -webkit-print-color-adjust: exact;
@@ -605,6 +685,7 @@
   </div>
 
   <div class="print-summary" id="print-summary"></div>
+  <div class="print-legend" id="print-legend" aria-label="Printed group legend"></div>
 
   <div class="workspace">
     <div class="plate-stage" id="plate-stage">
@@ -826,6 +907,7 @@ function cacheElements() {
   els.legendList = document.getElementById('legend-list');
   els.statusLine = document.getElementById('status-line');
   els.printSummary = document.getElementById('print-summary');
+  els.printLegend = document.getElementById('print-legend');
 }
 
 function setupLayoutObservers() {
@@ -1097,12 +1179,15 @@ function renderLegend() {
 
   els.legendList.innerHTML = '';
   groups.forEach((group) => {
-    const count = countAssignedWells(group.id);
+    const display = getGroupDisplayInfo(group);
+    const abbreviation = display.abbreviationUsed
+      ? `<span class="legend-abbrev">${escHtml(display.abbreviation)}</span>`
+      : '';
     const row = document.createElement('div');
     row.className = 'legend-row';
     row.innerHTML = `
-      <span><span class="group-swatch" style="background:${group.color}"></span> ${escHtml(group.name)}</span>
-      <span class="legend-count">${count}</span>
+      <span><span class="group-swatch" style="background:${display.color}"></span> ${escHtml(display.name)}${abbreviation}</span>
+      <span class="legend-count">${display.count}</span>
     `;
     els.legendList.appendChild(row);
   });
@@ -1121,13 +1206,39 @@ function renderPrintSummary() {
   const plate = PLATE_REFERENCE_MM[plateType];
   const corners = Array.from(cutCorners).map(cornerLabel).join(', ') || 'none';
   const used = Object.keys(assignments).length;
-  const groupLines = groups
-    .filter((group) => countAssignedWells(group.id) > 0)
-    .map((group) => `${escHtml(group.name)} (${countAssignedWells(group.id)})`)
+  const groupLines = getAssignedGroupDisplayInfo()
+    .map((group) => `${escHtml(group.name)} (${group.count})`)
     .join('; ');
   els.printSummary.innerHTML = `
     <strong>${plate.label}</strong> - ${plate.rows} x ${plate.cols}; ${used} assigned wells; corner marks: ${escHtml(corners)}.
     ${groupLines ? `<br>${groupLines}` : ''}
+  `;
+  renderPrintLegend();
+}
+
+function renderPrintLegend() {
+  const assignedGroups = getAssignedGroupDisplayInfo();
+  if (assignedGroups.length === 0) {
+    els.printLegend.innerHTML = '';
+    return;
+  }
+
+  const rows = assignedGroups.map((group) => {
+    const abbreviation = group.abbreviationUsed
+      ? `<span class="print-legend-abbrev">${escHtml(group.abbreviation)} =</span>`
+      : '';
+    return `
+      <div class="print-legend-item">
+        <span class="print-legend-swatch" style="background:${group.color}"></span>
+        ${abbreviation}
+        <span class="print-legend-name">${escHtml(group.name)}</span>
+        <span class="print-legend-count">(${group.count})</span>
+      </div>`;
+  }).join('');
+
+  els.printLegend.innerHTML = `
+    <div class="print-legend-title">Group Legend</div>
+    <div class="print-legend-grid">${rows}</div>
   `;
 }
 
@@ -1485,13 +1596,22 @@ function pasteAnchorPosition() {
 
 function exportCsv() {
   const plate = PLATE_REFERENCE_MM[plateType];
-  const rows = [['plate_type', 'row', 'column', 'well', 'group']];
+  const rows = [['plate_type', 'row', 'column', 'well', 'group', 'group_abbreviation', 'group_color']];
 
   for (let row = 0; row < plate.rows; row++) {
     for (let col = 0; col < plate.cols; col++) {
       const wellId = getWellId(row, col);
       const group = getGroup(assignments[wellId]);
-      rows.push([plateType, rowLabel(row), String(col + 1), wellId, group ? group.name : '']);
+      const display = group ? getGroupDisplayInfo(group) : null;
+      rows.push([
+        plateType,
+        rowLabel(row),
+        String(col + 1),
+        wellId,
+        display ? display.name : '',
+        display && display.abbreviationUsed ? display.abbreviation : '',
+        display ? display.color : '',
+      ]);
     }
   }
 
@@ -1585,6 +1705,28 @@ function getGroup(groupId) {
 
 function countAssignedWells(groupId) {
   return Object.values(assignments).filter((id) => id === groupId).length;
+}
+
+function getAssignedGroupDisplayInfo() {
+  return groups
+    .map(getGroupDisplayInfo)
+    .filter((group) => group.count > 0);
+}
+
+function getGroupDisplayInfo(group) {
+  const abbreviation = groupInitials(group.name);
+  return {
+    id: group.id,
+    name: group.name,
+    color: group.color,
+    abbreviation,
+    abbreviationUsed: getCurrentLabelMode() === 'compact' && abbreviation !== '',
+    count: countAssignedWells(group.id),
+  };
+}
+
+function getCurrentLabelMode() {
+  return els.plateGrid ? els.plateGrid.dataset.labelMode || '' : '';
 }
 
 function groupInitials(name) {
