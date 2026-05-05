@@ -41,8 +41,8 @@ window.LABEL_GENERATOR_PRESET_CONFIG = {
     {
       id: 'laser-avery-5160', name: 'Avery 5160 (30-up)', mode: 'laser-sheet',
       vendor: 'Avery', sku: '5160',
-      labelWidth: 1.0, labelHeight: 2.625, pageWidth: 8.5, pageHeight: 11.0,
-      topMargin: 0.5, leftMargin: 0.19,
+      labelWidth: 2.625, labelHeight: 1.0, pageWidth: 8.5, pageHeight: 11.0,
+      topMargin: 0.5, leftMargin: 0.1875,
       horizontalPitch: 2.75, verticalPitch: 1.0,
       columns: 3, rows: 10,
       notes: '30 address labels per sheet.'
@@ -50,8 +50,8 @@ window.LABEL_GENERATOR_PRESET_CONFIG = {
     {
       id: 'laser-avery-5167', name: 'Avery 5167 (80-up)', mode: 'laser-sheet',
       vendor: 'Avery', sku: '5167',
-      labelWidth: 0.5, labelHeight: 1.75, pageWidth: 8.5, pageHeight: 11.0,
-      topMargin: 0.5, leftMargin: 0.69,
+      labelWidth: 1.75, labelHeight: 0.5, pageWidth: 8.5, pageHeight: 11.0,
+      topMargin: 0.5, leftMargin: 0.3125,
       horizontalPitch: 1.75, verticalPitch: 0.5,
       columns: 4, rows: 20,
       notes: '80 return address labels per sheet.'
@@ -59,7 +59,7 @@ window.LABEL_GENERATOR_PRESET_CONFIG = {
     {
       id: 'laser-avery-5163', name: 'Avery 5163 (10-up)', mode: 'laser-sheet',
       vendor: 'Avery', sku: '5163',
-      labelWidth: 2.0, labelHeight: 4.0, pageWidth: 8.5, pageHeight: 11.0,
+      labelWidth: 4.0, labelHeight: 2.0, pageWidth: 8.5, pageHeight: 11.0,
       topMargin: 0.5, leftMargin: 0.25,
       horizontalPitch: 4.0, verticalPitch: 2.0,
       columns: 2, rows: 5,
@@ -68,9 +68,9 @@ window.LABEL_GENERATOR_PRESET_CONFIG = {
     {
       id: 'laser-avery-5164', name: 'Avery 5164 (6-up)', mode: 'laser-sheet',
       vendor: 'Avery', sku: '5164',
-      labelWidth: 3.33, labelHeight: 4.0, pageWidth: 8.5, pageHeight: 11.0,
-      topMargin: 0.5, leftMargin: 0.69,
-      horizontalPitch: 3.5, verticalPitch: 4.0,
+      labelWidth: 4.0, labelHeight: 3.33, pageWidth: 8.5, pageHeight: 11.0,
+      topMargin: 0.5, leftMargin: 0.156,
+      horizontalPitch: 4.0, verticalPitch: 3.33,
       columns: 2, rows: 3,
       notes: '6 large shipping labels per sheet.'
     },

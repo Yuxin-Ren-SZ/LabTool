@@ -1,25 +1,8 @@
 'use strict';
 
-const STORAGE_KEY = 'labtools:label-generator:user-presets:v1';
-
-const BARCODE_SIZES = {
-  'S': { scale: 3, label: 'Small (2 mm)' },
-  'M': { scale: 5, label: 'Medium (4 mm)' },
-  'L': { scale: 8, label: 'Large (6 mm)' },
-};
-
-const GEOMETRY_FIELD_IDS = [
-  'pageWidth', 'pageHeight', 'topMargin', 'leftMargin',
-  'horizontalPitch', 'verticalPitch', 'labelWidth', 'labelHeight',
-  'columns', 'rows',
-];
-
-const PRESET_FIELD_ORDER = [
-  'id', 'name', 'mode', 'vendor', 'sku',
-  'labelWidth', 'labelHeight', 'pageWidth', 'pageHeight',
-  'topMargin', 'leftMargin', 'horizontalPitch', 'verticalPitch',
-  'columns', 'rows', 'notes',
-];
+const POINTS_PER_INCH = 72;
+const CUSTOM_LASER_ID = '__custom_laser__';
+const CUSTOM_THERMAL_ID = '__custom_thermal__';
 
 const state = {
   csvText: '',
@@ -27,44 +10,71 @@ const state = {
   csvHeaders: [],
   csvDelimiter: ',',
   csvFirstRowHeader: true,
-
-  barcodeCol: 0,
-  textLines: [-1, -1, -1, -1],
-
-  barcodeSize: 'M',
-
-  layoutMode: 'thermal',
-  labelWidth: 1.28,
-  labelHeight: 0.5,
-  showBorder: true,
-
-  builtInPresets: [],
-  userPresets: [],
-  selectedPresetId: '',
-  draftPreset: null,
-  currentPreset: null,
-  currentPresetErrors: [],
+  presets: [],
+  laserPresets: [],
+  thermalPresets: [],
+  outputMode: 'laser-sheet',
+  selectedLaserPresetId: 'laser-avery-5160',
+  selectedThermalPresetId: 'thermal-cryo-128x05',
+  customLaserPreset: {
+    id: CUSTOM_LASER_ID,
+    name: 'Custom laser sheet',
+    mode: 'laser-sheet',
+    pageWidth: 8.5,
+    pageHeight: 11,
+    topMargin: 0.5,
+    leftMargin: 0.1875,
+    horizontalPitch: 2.75,
+    verticalPitch: 1,
+    labelWidth: 2.625,
+    labelHeight: 1,
+    columns: 3,
+    rows: 10,
+  },
+  customThermalPreset: {
+    id: CUSTOM_THERMAL_ID,
+    name: 'Custom thermal label',
+    mode: 'thermal',
+    labelWidth: 1.28,
+    labelHeight: 0.5,
+    pageWidth: 1.28,
+    pageHeight: 0.5,
+    topMargin: 0,
+    leftMargin: 0,
+    horizontalPitch: 1.28,
+    verticalPitch: 0.5,
+    columns: 1,
+    rows: 1,
+  },
+  template: {
+    grid: { cols: 12, rows: 6 },
+    fields: [],
+  },
+  selectedFieldId: '',
   layoutCells: [],
-
+  placementMode: 'start',
+  showBorder: true,
   outputBytes: null,
   outputUrl: '',
   outputDirty: true,
   isGenerating: false,
 };
 
-let _barcodeCanvas = null;
+let barcodeCanvas = null;
+let dragState = null;
 
 document.addEventListener('DOMContentLoaded', init);
 
 function init() {
-  state.builtInPresets = sanitizePresetList(
-    (window.LABEL_GENERATOR_PRESET_CONFIG && window.LABEL_GENERATOR_PRESET_CONFIG.presets) || [],
-    'builtin'
-  );
-  state.userPresets = loadUserPresets();
-  state.draftPreset = makeBlankPreset();
-
+  state.presets = sanitizePresetList((window.LABEL_GENERATOR_PRESET_CONFIG && window.LABEL_GENERATOR_PRESET_CONFIG.presets) || []);
+  state.laserPresets = state.presets.filter(function (preset) { return preset.mode === 'laser-sheet'; });
+  state.thermalPresets = state.presets.filter(function (preset) { return preset.mode === 'thermal'; });
+  if (!findLaserPreset(state.selectedLaserPresetId) && state.laserPresets[0]) state.selectedLaserPresetId = state.laserPresets[0].id;
+  if (!findThermalPreset(state.selectedThermalPresetId) && state.thermalPresets[0]) state.selectedThermalPresetId = state.thermalPresets[0].id;
+  initializeDefaultTemplate();
+  recomputeGrid(true);
   bindEvents();
+  initializeSequentialPlan(0);
   renderAll();
 }
 
@@ -74,70 +84,112 @@ function bindEvents() {
   });
   document.getElementById('csv-file-input').addEventListener('change', onCsvFileUpload);
   document.getElementById('csv-textarea').addEventListener('input', onCsvTextInput);
-
-  document.getElementById('barcode-col-select').addEventListener('change', onBarcodeColChange);
-  for (var i = 0; i < 4; i++) {
-    (function (idx) {
-      document.getElementById('text-line-' + (idx + 1) + '-select').addEventListener('change', function (e) {
-        onTextLineChange(idx, e);
-      });
-    })(i);
-  }
-
-  document.getElementById('barcode-size-select').addEventListener('change', function (e) {
-    state.barcodeSize = e.target.value;
-    state.outputDirty = true;
+  document.getElementById('add-datamatrix-btn').addEventListener('click', addDataMatrixField);
+  document.getElementById('add-csv-text-btn').addEventListener('click', addCsvTextField);
+  document.getElementById('add-static-text-btn').addEventListener('click', addStaticTextField);
+  document.getElementById('field-label-input').addEventListener('input', updateSelectedFieldFromEditor);
+  document.getElementById('field-source-select').addEventListener('change', updateSelectedFieldFromEditor);
+  document.getElementById('field-static-input').addEventListener('input', updateSelectedFieldFromEditor);
+  document.getElementById('field-align-select').addEventListener('change', updateSelectedFieldFromEditor);
+  document.getElementById('field-font-scale').addEventListener('input', updateSelectedFieldFromEditor);
+  document.getElementById('remove-field-btn').addEventListener('click', removeSelectedField);
+  document.getElementById('mode-laser-btn').addEventListener('click', function () { setOutputMode('laser-sheet'); });
+  document.getElementById('mode-thermal-btn').addEventListener('click', function () { setOutputMode('thermal'); });
+  document.getElementById('laser-preset-select').addEventListener('change', onLaserPresetChange);
+  document.getElementById('thermal-preset-select').addEventListener('change', onThermalPresetChange);
+  document.getElementById('show-border').addEventListener('change', function (event) {
+    state.showBorder = event.target.checked;
+    markOutputDirty();
+    renderAll();
   });
 
-  document.getElementById('layout-mode-thermal').addEventListener('click', function () { onLayoutModeChange('thermal'); });
-  document.getElementById('layout-mode-laser').addEventListener('click', function () { onLayoutModeChange('laser-sheet'); });
-
-  document.getElementById('thermal-label-width').addEventListener('input', onThermalSizeInput);
-  document.getElementById('thermal-label-height').addEventListener('input', onThermalSizeInput);
-  document.getElementById('show-border').addEventListener('change', function (e) {
-    state.showBorder = e.target.checked;
-    state.outputDirty = true;
+  ['pageWidth', 'pageHeight', 'leftMargin', 'topMargin', 'labelWidth', 'labelHeight', 'horizontalPitch', 'verticalPitch', 'columns', 'rows'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', onCustomLaserInput);
+  });
+  ['thermal-label-width', 'thermal-label-height'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', onCustomThermalInput);
   });
 
-  document.getElementById('preset-select').addEventListener('change', onPresetSelectChanged);
-  document.getElementById('save-preset-btn').addEventListener('click', saveCurrentPreset);
-  document.getElementById('clear-saved-presets-btn').addEventListener('click', clearUserPresets);
-  document.getElementById('copy-current-btn').addEventListener('click', copyCurrentPresetConfig);
-  document.getElementById('export-all-btn').addEventListener('click', exportAllPresetConfigs);
-
-  var editorFields = document.querySelectorAll('#preset-editor input, #preset-editor textarea');
-  for (var j = 0; j < editorFields.length; j++) {
-    editorFields[j].addEventListener('input', onPresetEditorInput);
-  }
-
+  document.querySelectorAll('[data-placement-mode]').forEach(function (button) {
+    button.addEventListener('click', function () { setPlacementMode(button.dataset.placementMode); });
+  });
+  document.getElementById('reset-placement-btn').addEventListener('click', function () {
+    initializeSequentialPlan(0);
+    markOutputDirty();
+    renderAll();
+  });
   document.getElementById('generate-btn').addEventListener('click', generatePdf);
   document.getElementById('download-btn').addEventListener('click', downloadPdf);
 }
 
-function makeBlankPreset() {
-  return {
-    id: '',
-    name: '',
-    mode: '',
-    vendor: '',
-    sku: '',
-    pageWidth: 8.5,
-    pageHeight: 11,
-    topMargin: '',
-    leftMargin: '',
-    verticalPitch: '',
-    horizontalPitch: '',
-    labelHeight: '',
-    labelWidth: '',
-    columns: '',
-    rows: '',
-    notes: '',
-  };
+function sanitizePresetList(rawPresets) {
+  return rawPresets.map(function (preset) {
+    return {
+      id: String(preset.id || ''),
+      name: String(preset.name || preset.id || 'Preset'),
+      mode: preset.mode === 'thermal' ? 'thermal' : 'laser-sheet',
+      vendor: String(preset.vendor || ''),
+      sku: String(preset.sku || ''),
+      labelWidth: numberOrDefault(preset.labelWidth, 0),
+      labelHeight: numberOrDefault(preset.labelHeight, 0),
+      pageWidth: numberOrDefault(preset.pageWidth, preset.labelWidth || 0),
+      pageHeight: numberOrDefault(preset.pageHeight, preset.labelHeight || 0),
+      topMargin: numberOrDefault(preset.topMargin, 0),
+      leftMargin: numberOrDefault(preset.leftMargin, 0),
+      horizontalPitch: numberOrDefault(preset.horizontalPitch, preset.labelWidth || 0),
+      verticalPitch: numberOrDefault(preset.verticalPitch, preset.labelHeight || 0),
+      columns: Math.max(1, Math.round(numberOrDefault(preset.columns, 1))),
+      rows: Math.max(1, Math.round(numberOrDefault(preset.rows, 1))),
+      notes: String(preset.notes || ''),
+    };
+  }).filter(function (preset) {
+    return preset.id && preset.labelWidth > 0 && preset.labelHeight > 0;
+  });
 }
 
-function populateEditorField(id, value) {
-  var el = document.getElementById(id);
-  if (el) el.value = valueOrEmpty(value);
+function initializeDefaultTemplate() {
+  state.template.fields = [
+    {
+      id: makeFieldId(),
+      type: 'datamatrix',
+      label: 'DataMatrix',
+      sourceColumn: 0,
+      staticText: '',
+      colStart: 1,
+      rowStart: 1,
+      colEnd: 5,
+      rowEnd: 5,
+      align: 'center',
+      fontScale: 1,
+    },
+    {
+      id: makeFieldId(),
+      type: 'csvText',
+      label: 'Sample ID',
+      sourceColumn: 0,
+      staticText: '',
+      colStart: 5,
+      rowStart: 1,
+      colEnd: 13,
+      rowEnd: 3,
+      align: 'left',
+      fontScale: 1.1,
+    },
+    {
+      id: makeFieldId(),
+      type: 'staticText',
+      label: 'Static Text',
+      sourceColumn: 0,
+      staticText: 'LabTools',
+      colStart: 5,
+      rowStart: 3,
+      colEnd: 13,
+      rowEnd: 5,
+      align: 'left',
+      fontScale: 0.9,
+    },
+  ];
+  state.selectedFieldId = state.template.fields[0].id;
 }
 
 function parseCSV(text) {
@@ -149,85 +201,81 @@ function parseCSV(text) {
     return;
   }
 
-  var lines = text.split(/\r?\n/);
-  var nonEmptyLines = [];
-  for (var i = 0; i < lines.length; i++) {
-    if (lines[i].trim() !== '') nonEmptyLines.push(lines[i]);
-  }
-  if (nonEmptyLines.length === 0) {
+  var rowsByDelimiter = [',', '\t', ';'].map(function (delimiter) {
+    var parsed = parseDelimitedRows(text, delimiter).filter(function (row) {
+      return row.some(function (cell) { return cell.trim() !== ''; });
+    });
+    var width = parsed.length ? parsed[0].length : 0;
+    var sameWidth = parsed.every(function (row) { return row.length === width; });
+    return { delimiter: delimiter, rows: parsed, score: (sameWidth ? 1000 : 0) + width * 10 + parsed.length };
+  }).sort(function (left, right) { return right.score - left.score; });
+
+  var best = rowsByDelimiter[0];
+  state.csvDelimiter = best.delimiter;
+  if (!best.rows.length) {
     state.csvRows = [];
     state.csvHeaders = [];
-    state.csvDelimiter = ',';
     state.csvFirstRowHeader = true;
     return;
   }
 
-  var delimiters = ['\t', ';', ','];
-  var bestDelimiter = ',';
-  var bestScore = 0;
-
-  for (var d = 0; d < delimiters.length; d++) {
-    var delim = delimiters[d];
-    var colCounts = [];
-    for (var li = 0; li < nonEmptyLines.length; li++) {
-      colCounts.push(nonEmptyLines[li].split(delim).length);
-    }
-    var allSame = true;
-    for (var ci = 1; ci < colCounts.length; ci++) {
-      if (colCounts[ci] !== colCounts[0]) { allSame = false; break; }
-    }
-    var score = allSame ? colCounts[0] * 100 + colCounts.length : colCounts[0];
-    if (score > bestScore) {
-      bestScore = score;
-      bestDelimiter = delim;
-    }
-  }
-
-  state.csvDelimiter = bestDelimiter;
-
-  var parsedRows = [];
-  for (var ri = 0; ri < nonEmptyLines.length; ri++) {
-    parsedRows.push(nonEmptyLines[ri].split(bestDelimiter));
-  }
-
-  var hasHeader = false;
-  if (parsedRows.length >= 1) {
-    var firstRowAllNonNumeric = true;
-    for (var fi = 0; fi < parsedRows[0].length; fi++) {
-      var cell = parsedRows[0][fi].trim();
-      if (cell !== '' && !isNaN(Number(cell))) {
-        firstRowAllNonNumeric = false;
-        break;
-      }
-    }
-    hasHeader = firstRowAllNonNumeric;
-  }
-
-  if (hasHeader && parsedRows.length >= 1) {
-    state.csvHeaders = parsedRows[0];
-    state.csvRows = parsedRows.slice(1);
+  var firstRow = best.rows[0];
+  var firstLooksLikeHeader = firstRow.every(function (cell) { return cell.trim() === '' || isNaN(Number(cell)); });
+  if (firstLooksLikeHeader && best.rows.length > 1) {
+    state.csvHeaders = firstRow.map(function (cell, index) { return cell.trim() || 'Column ' + (index + 1); });
+    state.csvRows = best.rows.slice(1);
     state.csvFirstRowHeader = true;
   } else {
-    state.csvRows = parsedRows;
-    var maxCols = 0;
-    for (var m = 0; m < parsedRows.length; m++) {
-      if (parsedRows[m].length > maxCols) maxCols = parsedRows[m].length;
-    }
-    state.csvHeaders = [];
-    for (var h = 0; h < maxCols; h++) {
-      state.csvHeaders.push('Col ' + (h + 1));
-    }
+    var maxCols = best.rows.reduce(function (max, row) { return Math.max(max, row.length); }, 0);
+    state.csvHeaders = Array.from({ length: maxCols }, function (_, index) { return 'Col ' + (index + 1); });
+    state.csvRows = best.rows;
     state.csvFirstRowHeader = false;
   }
+
+  state.template.fields.forEach(function (field) {
+    field.sourceColumn = clamp(field.sourceColumn, 0, Math.max(0, state.csvHeaders.length - 1));
+  });
+}
+
+function parseDelimitedRows(text, delimiter) {
+  var rows = [];
+  var row = [];
+  var cell = '';
+  var inQuotes = false;
+
+  for (var i = 0; i < text.length; i++) {
+    var ch = text[i];
+    var next = text[i + 1];
+    if (ch === '"') {
+      if (inQuotes && next === '"') {
+        cell += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === delimiter && !inQuotes) {
+      row.push(cell);
+      cell = '';
+    } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+      if (ch === '\r' && next === '\n') i++;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = '';
+    } else {
+      cell += ch;
+    }
+  }
+  row.push(cell);
+  rows.push(row);
+  return rows;
 }
 
 function onCsvTextInput() {
-  var textarea = document.getElementById('csv-textarea');
-  state.csvText = textarea.value;
+  state.csvText = document.getElementById('csv-textarea').value;
   parseCSV(state.csvText);
-  state.outputDirty = true;
-  state.layoutCells = [];
-  computeLayoutCells();
+  initializeSequentialPlan(0);
+  markOutputDirty();
   renderAll();
 }
 
@@ -236,1172 +284,834 @@ function onCsvFileUpload(event) {
   if (!file) return;
   var reader = new FileReader();
   reader.onload = function () {
-    document.getElementById('csv-textarea').value = reader.result;
+    document.getElementById('csv-textarea').value = String(reader.result || '');
     onCsvTextInput();
   };
-  reader.onerror = function () {
-    setStatus('csv-status', 'Unable to read the selected file.', 'danger');
-  };
   reader.readAsText(file);
-  event.target.value = '';
 }
 
-function onBarcodeColChange(event) {
-  state.barcodeCol = parseInt(event.target.value, 10) || 0;
-  state.outputDirty = true;
+function addDataMatrixField() {
+  if (state.template.fields.some(function (field) { return field.type === 'datamatrix'; })) return;
+  addField({ type: 'datamatrix', label: 'DataMatrix', colStart: 1, rowStart: 1, colEnd: 5, rowEnd: 5, align: 'center', fontScale: 1 });
 }
 
-function onTextLineChange(lineIndex, event) {
-  state.textLines[lineIndex] = parseInt(event.target.value, 10) || -1;
-  state.outputDirty = true;
+function addCsvTextField() {
+  addField({ type: 'csvText', label: nextCsvLabel(), colStart: 5, rowStart: 1, colEnd: state.template.grid.cols + 1, rowEnd: 3, align: 'left', fontScale: 1 });
 }
 
-function onLayoutModeChange(mode) {
-  state.layoutMode = mode;
-  state.outputDirty = true;
-  state.layoutCells = [];
-
-  document.getElementById('layout-mode-thermal').classList.toggle('active', mode === 'thermal');
-  document.getElementById('layout-mode-laser').classList.toggle('active', mode === 'laser-sheet');
-
-  if (mode === 'laser-sheet') {
-    if (state.selectedPresetId && !findPresetById(state.selectedPresetId)) {
-      state.selectedPresetId = '';
-      state.draftPreset = makeBlankPreset();
-    }
-    recalcPreset();
-  }
-
-  computeLayoutCells();
-  renderAll();
+function addStaticTextField() {
+  addField({ type: 'staticText', label: 'Static Text', staticText: 'Static text', colStart: 5, rowStart: 3, colEnd: state.template.grid.cols + 1, rowEnd: 5, align: 'left', fontScale: 1 });
 }
 
-function sanitizePresetList(presets, origin) {
-  return (Array.isArray(presets) ? presets : [])
-    .map(function (preset, index) { return sanitizePreset(preset, origin, index); })
-    .filter(Boolean);
-}
-
-function sanitizePreset(preset, origin, index) {
-  if (!preset || typeof preset !== 'object') return null;
-
-  var sanitized = {
-    id: preset.id != null && preset.id !== '' ? String(preset.id) : (origin === 'editor' ? '' : origin + '-preset-' + (index + 1)),
-    name: preset.name != null ? String(preset.name) : (origin === 'editor' ? '' : 'Preset ' + (index + 1)),
-    mode: preset.mode != null ? String(preset.mode) : '',
-    vendor: preset.vendor != null ? String(preset.vendor) : '',
-    sku: preset.sku != null ? String(preset.sku) : '',
-    pageWidth: toNumber(preset.pageWidth),
-    pageHeight: toNumber(preset.pageHeight),
-    topMargin: toNumber(preset.topMargin),
-    leftMargin: toNumber(preset.leftMargin),
-    verticalPitch: toNumber(preset.verticalPitch),
-    horizontalPitch: toNumber(preset.horizontalPitch),
-    labelHeight: toNumber(preset.labelHeight),
-    labelWidth: toNumber(preset.labelWidth),
-    columns: toInteger(preset.columns),
-    rows: toInteger(preset.rows),
-    notes: preset.notes != null ? String(preset.notes) : '',
-    _origin: origin,
+function addField(seed) {
+  var field = {
+    id: makeFieldId(),
+    type: seed.type,
+    label: seed.label,
+    sourceColumn: 0,
+    staticText: seed.staticText || '',
+    colStart: seed.colStart,
+    rowStart: seed.rowStart,
+    colEnd: seed.colEnd,
+    rowEnd: seed.rowEnd,
+    align: seed.align || 'left',
+    fontScale: seed.fontScale || 1,
   };
-
-  return sanitized;
-}
-
-function loadUserPresets() {
-  var raw = labtoolsSafeJsonParse(localStorage.getItem(STORAGE_KEY), []);
-  return sanitizePresetList(raw, 'user');
-}
-
-function persistUserPresets() {
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(state.userPresets.map(function (preset) { return normalizePreset(preset); }), null, 2)
-  );
-}
-
-function allPresets() {
-  return state.builtInPresets.concat(state.userPresets);
-}
-
-function findPresetById(id) {
-  return allPresets().find(function (preset) { return preset.id === id; }) || null;
-}
-
-function clonePresetDraft(preset) {
-  return sanitizePreset({
-    id: preset.id || '',
-    name: preset.name || '',
-    mode: preset.mode || '',
-    vendor: preset.vendor || '',
-    sku: preset.sku || '',
-    pageWidth: valueOrEmpty(preset.pageWidth),
-    pageHeight: valueOrEmpty(preset.pageHeight),
-    topMargin: valueOrEmpty(preset.topMargin),
-    leftMargin: valueOrEmpty(preset.leftMargin),
-    horizontalPitch: valueOrEmpty(preset.horizontalPitch),
-    verticalPitch: valueOrEmpty(preset.verticalPitch),
-    labelWidth: valueOrEmpty(preset.labelWidth),
-    labelHeight: valueOrEmpty(preset.labelHeight),
-    columns: valueOrEmpty(preset.columns),
-    rows: valueOrEmpty(preset.rows),
-    notes: preset.notes || '',
-  }, 'editor', 0);
-}
-
-function validatePreset(preset) {
-  var errors = [];
-
-  if (!preset.name) {
-    errors.push('Preset name is required.');
-  }
-  if (!(preset.pageWidth > 0) || !(preset.pageHeight > 0)) {
-    errors.push('Page width and page height must be positive numbers.');
-  }
-  if (!(preset.labelWidth > 0) || !(preset.labelHeight > 0)) {
-    errors.push('Label width and label height must be positive numbers.');
-  }
-  if (!(preset.horizontalPitch >= preset.labelWidth) || !(preset.verticalPitch >= preset.labelHeight)) {
-    errors.push('Pitch values must be greater than or equal to the label dimensions.');
-  }
-  if (!(preset.columns > 0) || !(preset.rows > 0)) {
-    errors.push('Columns and rows must be positive integers.');
-  }
-  if (!(preset.topMargin >= 0) || !(preset.leftMargin >= 0)) {
-    errors.push('Margins must be zero or greater.');
-  }
-
-  var gridWidth = preset.labelWidth + (preset.columns - 1) * preset.horizontalPitch;
-  var gridHeight = preset.labelHeight + (preset.rows - 1) * preset.verticalPitch;
-  if (preset.leftMargin + gridWidth > preset.pageWidth + 1e-6) {
-    errors.push('The labels extend beyond the page width. Reduce left margin, label width, pitch, or column count.');
-  }
-  if (preset.topMargin + gridHeight > preset.pageHeight + 1e-6) {
-    errors.push('The labels extend beyond the page height. Reduce top margin, label height, pitch, or row count.');
-  }
-
-  return {
-    valid: errors.length === 0,
-    errors: errors,
-    preset: preset,
-  };
-}
-
-function collectPresetFromEditor() {
-  return sanitizePreset(
-    {
-      id: state.selectedPresetId && state.selectedPresetId !== '__manual__' ? state.selectedPresetId : '',
-      name: document.getElementById('presetName').value.trim(),
-      vendor: document.getElementById('presetVendor').value.trim(),
-      sku: document.getElementById('presetSku').value.trim(),
-      pageWidth: document.getElementById('pageWidth').value,
-      pageHeight: document.getElementById('pageHeight').value,
-      topMargin: document.getElementById('topMargin').value,
-      leftMargin: document.getElementById('leftMargin').value,
-      horizontalPitch: document.getElementById('horizontalPitch').value,
-      verticalPitch: document.getElementById('verticalPitch').value,
-      labelWidth: document.getElementById('labelWidth').value,
-      labelHeight: document.getElementById('labelHeight').value,
-      columns: document.getElementById('columns').value,
-      rows: document.getElementById('rows').value,
-      notes: document.getElementById('presetNotes').value.trim(),
-    },
-    'editor',
-    0
-  );
-}
-
-function seedEditorFromPreset(preset) {
-  populateEditorField('presetName', preset.name);
-  populateEditorField('presetVendor', preset.vendor);
-  populateEditorField('presetSku', preset.sku);
-  populateEditorField('pageWidth', preset.pageWidth);
-  populateEditorField('pageHeight', preset.pageHeight);
-  populateEditorField('topMargin', preset.topMargin);
-  populateEditorField('leftMargin', preset.leftMargin);
-  populateEditorField('horizontalPitch', preset.horizontalPitch);
-  populateEditorField('verticalPitch', preset.verticalPitch);
-  populateEditorField('labelWidth', preset.labelWidth);
-  populateEditorField('labelHeight', preset.labelHeight);
-  populateEditorField('columns', preset.columns);
-  populateEditorField('rows', preset.rows);
-  populateEditorField('presetNotes', preset.notes);
-}
-
-function onPresetSelectChanged(event) {
-  var selectedId = event.target.value;
-  state.selectedPresetId = selectedId;
-
-  if (!selectedId) {
-    state.draftPreset = makeBlankPreset();
-    seedEditorFromPreset(state.draftPreset);
-    recalcPreset();
-    setStatus('design-status', 'Select a preset or enter custom geometry manually.', 'info');
-    renderAll();
-    return;
-  }
-
-  if (selectedId === '__manual__') {
-    if (!document.getElementById('presetName').value.trim()) {
-      state.draftPreset = makeBlankPreset();
-      seedEditorFromPreset(state.draftPreset);
-    }
-    state.draftPreset = collectPresetFromEditor();
-    recalcPreset();
-    setStatus('design-status', 'Editing custom sheet geometry.', 'info');
-    renderAll();
-    return;
-  }
-
-  var preset = findPresetById(selectedId);
-  if (!preset) return;
-  state.draftPreset = clonePresetDraft(preset);
-  seedEditorFromPreset(state.draftPreset);
-  recalcPreset();
-  setStatus('design-status', 'Loaded preset: ' + preset.name + '.', 'info');
+  clampFieldToGrid(field);
+  state.template.fields.push(field);
+  state.selectedFieldId = field.id;
+  markOutputDirty();
   renderAll();
 }
 
-function onPresetEditorInput(event) {
-  var selectedPreset = state.selectedPresetId ? findPresetById(state.selectedPresetId) : null;
-
-  if (selectedPreset) {
-    state.selectedPresetId = '__manual__';
-    document.getElementById('preset-select').value = '__manual__';
-  }
-
-  state.draftPreset = collectPresetFromEditor();
-  recalcPreset();
+function removeSelectedField() {
+  state.template.fields = state.template.fields.filter(function (field) { return field.id !== state.selectedFieldId; });
+  state.selectedFieldId = state.template.fields[0] ? state.template.fields[0].id : '';
+  markOutputDirty();
   renderAll();
 }
 
-function recalcPreset() {
-  if (state.layoutMode === 'thermal') {
-    state.currentPreset = null;
-    state.currentPresetErrors = [];
-    state.outputDirty = true;
-    computeLayoutCells();
-    return;
-  }
-
-  var validation = validatePreset(state.draftPreset);
-  state.currentPreset = validation.valid ? validation.preset : null;
-  state.currentPresetErrors = validation.errors;
-  state.outputDirty = true;
-  computeLayoutCells();
-}
-
-function computeLayoutCells() {
-  if (state.layoutMode === 'thermal') {
-    state.layoutCells = [];
-    return;
-  }
-
-  if (!state.currentPreset) {
-    state.layoutCells = [];
-    return;
-  }
-
-  var cellsPerSheet = state.currentPreset.columns * state.currentPreset.rows;
-  if (!cellsPerSheet) {
-    state.layoutCells = [];
-    return;
-  }
-
-  var dataCount = state.csvRows.length;
-  if (!dataCount) {
-    state.layoutCells = [];
-    return;
-  }
-
-  var sheetCount = Math.ceil(dataCount / cellsPerSheet);
-  var totalCells = sheetCount * cellsPerSheet;
-  state.layoutCells = [];
-  for (var i = 0; i < totalCells; i++) {
-    state.layoutCells.push(i < dataCount ? 'use' : 'available');
-  }
-}
-
-function saveCurrentPreset() {
-  if (state.layoutMode !== 'laser-sheet') {
-    setStatus('design-status', 'Switch to laser-sheet mode to save a preset.', 'warn');
-    return;
-  }
-
-  state.draftPreset = collectPresetFromEditor();
-  var validation = validatePreset(state.draftPreset);
-
-  if (!validation.valid) {
-    setStatus('design-status', validation.errors[0] || 'The preset is incomplete.', 'danger');
-    return;
-  }
-
-  var sourceId = state.selectedPresetId;
-  var isUpdatingUserPreset = sourceId && state.userPresets.some(function (preset) { return preset.id === sourceId; });
-
-  var id = isUpdatingUserPreset
-    ? sourceId
-    : 'user-' + slugify(state.currentPreset.name || 'preset') + '-' + Date.now();
-
-  var presetToSave = sanitizePreset({
-    id: id,
-    name: state.currentPreset.name,
-    vendor: state.currentPreset.vendor,
-    sku: state.currentPreset.sku,
-    pageWidth: state.currentPreset.pageWidth,
-    pageHeight: state.currentPreset.pageHeight,
-    topMargin: state.currentPreset.topMargin,
-    leftMargin: state.currentPreset.leftMargin,
-    horizontalPitch: state.currentPreset.horizontalPitch,
-    verticalPitch: state.currentPreset.verticalPitch,
-    labelWidth: state.currentPreset.labelWidth,
-    labelHeight: state.currentPreset.labelHeight,
-    columns: state.currentPreset.columns,
-    rows: state.currentPreset.rows,
-    notes: state.currentPreset.notes,
-    mode: 'laser-sheet',
-  }, 'user', state.userPresets.length);
-
-  if (isUpdatingUserPreset) {
-    state.userPresets = state.userPresets.map(function (preset) {
-      return preset.id === id ? presetToSave : preset;
-    });
-  } else {
-    state.userPresets.push(presetToSave);
-  }
-
-  persistUserPresets();
-  state.selectedPresetId = id;
-  state.draftPreset = clonePresetDraft(presetToSave);
-  state.currentPreset = sanitizePreset(presetToSave, 'editor', 0);
-  recalcPreset();
-  renderPresetSelect();
-  document.getElementById('preset-select').value = id;
-  setStatus('design-status', 'Saved in this browser. Stays local until cleared. Does not sync to other browsers or machines.', 'success');
+function updateSelectedFieldFromEditor() {
+  var field = getSelectedField();
+  if (!field) return;
+  field.label = document.getElementById('field-label-input').value.trim() || fieldTypeName(field.type);
+  field.sourceColumn = Number(document.getElementById('field-source-select').value || 0);
+  field.staticText = document.getElementById('field-static-input').value;
+  field.align = document.getElementById('field-align-select').value;
+  field.fontScale = clamp(Number(document.getElementById('field-font-scale').value || 1), 0.6, 2);
+  markOutputDirty();
   renderAll();
 }
 
-function clearUserPresets() {
-  if (!state.userPresets.length) {
-    setStatus('design-status', 'No browser-saved presets were found.', 'info');
-    renderAll();
-    return;
-  }
-
-  var removedPresetIds = new Set();
-  state.userPresets.forEach(function (preset) { removedPresetIds.add(preset.id); });
-
-  localStorage.removeItem(STORAGE_KEY);
-  state.userPresets = [];
-
-  if (removedPresetIds.has(state.selectedPresetId)) {
-    state.selectedPresetId = '';
-    state.draftPreset = makeBlankPreset();
-    state.currentPreset = null;
-    state.currentPresetErrors = [];
-    seedEditorFromPreset(state.draftPreset);
-  }
-
-  renderPresetSelect();
-  setStatus('design-status', 'Cleared browser-saved presets. Shipped presets are unchanged.', 'success');
+function setOutputMode(mode) {
+  state.outputMode = mode;
+  recomputeGrid(true);
+  markOutputDirty();
   renderAll();
 }
 
-function copyCurrentPresetConfig() {
-  state.draftPreset = collectPresetFromEditor();
-  var validation = validatePreset(state.draftPreset);
+function onLaserPresetChange(event) {
+  state.selectedLaserPresetId = event.target.value;
+  recomputeGrid(true);
+  initializeSequentialPlan(0);
+  markOutputDirty();
+  renderAll();
+}
 
-  if (!validation.valid) {
-    setStatus('design-status', 'Enter a valid preset before copying.', 'danger');
-    return;
-  }
+function onThermalPresetChange(event) {
+  state.selectedThermalPresetId = event.target.value;
+  recomputeGrid(true);
+  markOutputDirty();
+  renderAll();
+}
 
-  var normalized = normalizePreset(Object.assign({}, state.currentPreset, {
-    id: state.selectedPresetId && state.selectedPresetId !== '__manual__'
-      ? state.selectedPresetId
-      : 'custom-' + slugify(state.currentPreset.name || 'preset'),
-  }));
-
-  var lines = [];
-  PRESET_FIELD_ORDER.forEach(function (field) {
-    if (normalized[field] === '' || normalized[field] == null) return;
-    var value = typeof normalized[field] === 'number'
-      ? normalized[field]
-      : JSON.stringify(String(normalized[field]));
-    lines.push('  ' + field + ': ' + value + ',');
+function onCustomLaserInput() {
+  ['pageWidth', 'pageHeight', 'leftMargin', 'topMargin', 'labelWidth', 'labelHeight', 'horizontalPitch', 'verticalPitch'].forEach(function (id) {
+    state.customLaserPreset[id] = numberOrDefault(document.getElementById(id).value, state.customLaserPreset[id]);
   });
+  state.customLaserPreset.columns = Math.max(1, Math.round(numberOrDefault(document.getElementById('columns').value, state.customLaserPreset.columns)));
+  state.customLaserPreset.rows = Math.max(1, Math.round(numberOrDefault(document.getElementById('rows').value, state.customLaserPreset.rows)));
+  recomputeGrid(true);
+  initializeSequentialPlan(0);
+  markOutputDirty();
+  renderAll();
+}
 
-  var snippet = '{\n' + lines.join('\n') + '\n}';
+function onCustomThermalInput() {
+  state.customThermalPreset.labelWidth = numberOrDefault(document.getElementById('thermal-label-width').value, state.customThermalPreset.labelWidth);
+  state.customThermalPreset.labelHeight = numberOrDefault(document.getElementById('thermal-label-height').value, state.customThermalPreset.labelHeight);
+  state.customThermalPreset.pageWidth = state.customThermalPreset.labelWidth;
+  state.customThermalPreset.pageHeight = state.customThermalPreset.labelHeight;
+  state.customThermalPreset.horizontalPitch = state.customThermalPreset.labelWidth;
+  state.customThermalPreset.verticalPitch = state.customThermalPreset.labelHeight;
+  recomputeGrid(true);
+  markOutputDirty();
+  renderAll();
+}
 
-  labtoolsCopyText(snippet).then(function () {
-    setStatus('design-status', 'Current settings copied to clipboard. Paste them into the presets array in preset-config.js.', 'success');
-  }).catch(function () {
-    setStatus('design-status', 'Unable to copy to clipboard. Right-click the preset notes field to copy manually.', 'warn');
+function recomputeGrid(remap) {
+  var oldGrid = { cols: state.template.grid.cols, rows: state.template.grid.rows };
+  var preset = getActivePreset();
+  var nextGrid = computeDesignGrid(preset.labelWidth, preset.labelHeight);
+  state.template.grid = nextGrid;
+  state.template.fields.forEach(function (field) {
+    if (remap && oldGrid.cols && oldGrid.rows) {
+      field.colStart = Math.round((field.colStart - 1) / oldGrid.cols * nextGrid.cols) + 1;
+      field.colEnd = Math.round((field.colEnd - 1) / oldGrid.cols * nextGrid.cols) + 1;
+      field.rowStart = Math.round((field.rowStart - 1) / oldGrid.rows * nextGrid.rows) + 1;
+      field.rowEnd = Math.round((field.rowEnd - 1) / oldGrid.rows * nextGrid.rows) + 1;
+    }
+    clampFieldToGrid(field);
   });
 }
 
-function exportAllPresetConfigs() {
-  var allPresetList = [].concat(state.builtInPresets, state.userPresets);
-  var normalized = allPresetList.map(function (preset) { return normalizePreset(preset); });
+function computeDesignGrid(width, height) {
+  var area = width * height;
+  var cols = width < 1.5 ? 8 : width < 3.1 ? 12 : 16;
+  var rows = height < 0.65 ? 4 : height < 1.4 ? 6 : 8;
+  if (area < 0.45) return { cols: 6, rows: 4 };
+  if (width / height > 4) cols += 2;
+  if (height / width > 1.2) rows += 2;
+  return { cols: cols, rows: rows };
+}
 
-  var lines = [
-    "'use strict';",
-    '',
-    'window.LABEL_GENERATOR_PRESET_CONFIG = {',
-    '  version: 1,',
-    '  presets: [',
-  ];
-
-  normalized.forEach(function (preset, index) {
-    var presetLines = [];
-    PRESET_FIELD_ORDER.forEach(function (field) {
-      if (preset[field] === '' || preset[field] == null) return;
-      var value = typeof preset[field] === 'number'
-        ? preset[field]
-        : JSON.stringify(String(preset[field]));
-      presetLines.push('    ' + field + ': ' + value + ',');
-    });
-    var suffix = index < normalized.length - 1 ? ',' : '';
-    lines.push('    {');
-    lines.push.apply(lines, presetLines);
-    lines.push('    }' + suffix);
+function initializeSequentialPlan(startIndex) {
+  var preset = getActiveLaserPreset();
+  var cellsPerSheet = Math.max(1, preset.columns * preset.rows);
+  var labelCount = state.csvRows.length;
+  var totalCells = Math.max(cellsPerSheet, Math.ceil((startIndex + labelCount) / cellsPerSheet) * cellsPerSheet);
+  state.layoutCells = Array.from({ length: totalCells }, function (_, index) {
+    if (index < startIndex) return { mode: 'available' };
+    if (index < startIndex + labelCount) return { mode: 'use' };
+    return { mode: 'available' };
   });
-
-  lines.push('  ],');
-  lines.push('};');
-  lines.push('');
-
-  labtoolsDownloadText('label-generator-presets.js', lines.join('\n'), 'application/javascript;charset=utf-8');
-  setStatus('design-status', 'Exported all presets. You can merge them back into preset-config.js.', 'success');
 }
 
-function getActivePreset() {
-  if (state.layoutMode === 'thermal') {
-    return {
-      labelWidth: state.labelWidth,
-      labelHeight: state.labelHeight,
-      pageWidth: state.labelWidth,
-      pageHeight: state.labelHeight,
-      topMargin: 0,
-      leftMargin: 0,
-      horizontalPitch: state.labelWidth,
-      verticalPitch: state.labelHeight,
-      columns: 1,
-      rows: 1,
-    };
-  }
-  return state.currentPreset;
+function markCellForLabel(index) {
+  ensureCell(index);
+  state.layoutCells[index].mode = 'use';
+  ensureUseCount(index, index);
+  trimUnusedTrailingSheets();
 }
 
-function buildSheetGeometry(preset) {
-  if (!preset) return { cells: [], gridLeftPct: 0, gridTopPct: 0, gridWidthPct: 0, gridHeightPct: 0 };
+function skipCellAndAdvance(index) {
+  ensureCell(index);
+  state.layoutCells[index].mode = 'skip';
+  ensureUseCount(index + 1, index);
+  trimUnusedTrailingSheets();
+}
 
-  var gridWidth = preset.labelWidth + (preset.columns - 1) * preset.horizontalPitch;
-  var gridHeight = preset.labelHeight + (preset.rows - 1) * preset.verticalPitch;
-  var cells = [];
-
-  for (var row = 0; row < preset.rows; row++) {
-    for (var col = 0; col < preset.columns; col++) {
-      var left = preset.leftMargin + col * preset.horizontalPitch;
-      var top = preset.topMargin + row * preset.verticalPitch;
-      cells.push({
-        xIn: left,
-        yIn: top,
-        widthIn: preset.labelWidth,
-        heightIn: preset.labelHeight,
-        leftPct: (left / preset.pageWidth) * 100,
-        topPct: (top / preset.pageHeight) * 100,
-        widthPct: (preset.labelWidth / preset.pageWidth) * 100,
-        heightPct: (preset.labelHeight / preset.pageHeight) * 100,
-      });
+function ensureUseCount(preferredFrom, lockedIndex) {
+  var target = state.csvRows.length;
+  ensureCell(preferredFrom);
+  var used = getUseIndices();
+  while (used.length > target) {
+    var removed = false;
+    for (var i = state.layoutCells.length - 1; i >= 0; i--) {
+      if (i !== lockedIndex && state.layoutCells[i].mode === 'use') {
+        state.layoutCells[i].mode = 'available';
+        removed = true;
+        break;
+      }
     }
+    if (!removed) break;
+    used = getUseIndices();
   }
+  var cursor = Math.max(0, preferredFrom);
+  while (getUseIndices().length < target) {
+    ensureCell(cursor);
+    if (state.layoutCells[cursor].mode === 'available') state.layoutCells[cursor].mode = 'use';
+    cursor++;
+  }
+}
 
-  return {
-    gridLeftPct: (preset.leftMargin / preset.pageWidth) * 100,
-    gridTopPct: (preset.topMargin / preset.pageHeight) * 100,
-    gridWidthPct: (gridWidth / preset.pageWidth) * 100,
-    gridHeightPct: (gridHeight / preset.pageHeight) * 100,
-    cells: cells,
-  };
+function ensureCell(index) {
+  var preset = getActiveLaserPreset();
+  var cellsPerSheet = Math.max(1, preset.columns * preset.rows);
+  while (index >= state.layoutCells.length) {
+    for (var i = 0; i < cellsPerSheet; i++) state.layoutCells.push({ mode: 'available' });
+  }
+}
+
+function trimUnusedTrailingSheets() {
+  var preset = getActiveLaserPreset();
+  var cellsPerSheet = Math.max(1, preset.columns * preset.rows);
+  while (state.layoutCells.length > cellsPerSheet) {
+    var tail = state.layoutCells.slice(state.layoutCells.length - cellsPerSheet);
+    if (tail.some(function (cell) { return cell.mode !== 'available'; })) break;
+    state.layoutCells.splice(state.layoutCells.length - cellsPerSheet, cellsPerSheet);
+  }
+}
+
+function getUseIndices() {
+  var indices = [];
+  state.layoutCells.forEach(function (cell, index) {
+    if (cell.mode === 'use') indices.push(index);
+  });
+  return indices;
+}
+
+function buildLabelIndexMap() {
+  var map = new Map();
+  getUseIndices().forEach(function (cellIndex, labelIndex) {
+    map.set(cellIndex, labelIndex);
+  });
+  return map;
+}
+
+function setPlacementMode(mode) {
+  state.placementMode = mode;
+  renderAll();
+}
+
+function onSheetCellClick(index) {
+  if (!state.csvRows.length) return;
+  if (state.placementMode === 'start') initializeSequentialPlan(index);
+  if (state.placementMode === 'use') markCellForLabel(index);
+  if (state.placementMode === 'skip') skipCellAndAdvance(index);
+  markOutputDirty();
+  renderAll();
 }
 
 function renderAll() {
-  renderStepProgress();
+  renderPresetSelects();
   renderCsvSummary();
-  renderColumnMapping();
-  renderLayoutControls();
-  renderPresetSelect();
-  renderPresetSummary();
-  renderSheetPreview();
-  renderOutputSummary();
+  renderFieldList();
+  renderFieldEditor();
+  renderOutputControls();
+  renderDesigner();
+  renderPlacement();
+  renderExportState();
 }
 
-function renderStepProgress() {
-  var step1 = document.getElementById('step-csv');
-  var step2 = document.getElementById('step-design');
-  var step3 = document.getElementById('step-export');
-  var conn1 = document.getElementById('step-conn-1');
-  var conn2 = document.getElementById('step-conn-2');
+function renderPresetSelects() {
+  var laserSelect = document.getElementById('laser-preset-select');
+  laserSelect.innerHTML = state.laserPresets.map(function (preset) {
+    return '<option value="' + escapeHtml(preset.id) + '">' + escapeHtml(preset.name + (preset.sku ? ' · ' + preset.sku : '')) + '</option>';
+  }).join('') + '<option value="' + CUSTOM_LASER_ID + '">Custom laser sheet</option>';
+  laserSelect.value = state.selectedLaserPresetId;
 
-  step1.className = 'step-pip';
-  step2.className = 'step-pip';
-  step3.className = 'step-pip';
-  conn1.className = 'step-connector';
-  conn2.className = 'step-connector';
-
-  var hasData = state.csvRows.length > 0;
-
-  if (hasData) {
-    step1.classList.add('done');
-  } else {
-    step1.classList.add('active');
-  }
-
-  if (hasData) {
-    step2.classList.add('active');
-    conn1.classList.add('done');
-    if (state.outputBytes && !state.outputDirty) {
-      step2.classList.add('done');
-      step3.classList.add('active');
-      conn2.classList.add('done');
-    }
-  }
+  var thermalSelect = document.getElementById('thermal-preset-select');
+  thermalSelect.innerHTML = state.thermalPresets.map(function (preset) {
+    return '<option value="' + escapeHtml(preset.id) + '">' + escapeHtml(preset.name) + '</option>';
+  }).join('') + '<option value="' + CUSTOM_THERMAL_ID + '">Custom thermal label</option>';
+  thermalSelect.value = state.selectedThermalPresetId;
 }
 
 function renderCsvSummary() {
   var summary = document.getElementById('csv-summary');
-  var statusEl = document.getElementById('csv-status');
-
   if (!state.csvRows.length) {
     summary.innerHTML = '';
     setStatus('csv-status', 'Upload a CSV file or paste CSV text to begin.', 'info');
     return;
   }
-
-  var colCount = state.csvHeaders.length;
   var delimiterLabel = state.csvDelimiter === '\t' ? 'Tab' : state.csvDelimiter === ';' ? 'Semicolon' : 'Comma';
-  setStatus('csv-status',
-    state.csvRows.length + ' row' + (state.csvRows.length !== 1 ? 's' : '') + ' · ' +
-    colCount + ' column' + (colCount !== 1 ? 's' : '') + ' · ' +
-    delimiterLabel + ' delimiter' +
-    (state.csvFirstRowHeader ? ' · Header detected' : ' · No header'),
-    'success'
-  );
-
-  var previewRows = state.csvRows.slice(0, 5);
-  var headersHtml = '';
-  for (var h = 0; h < state.csvHeaders.length; h++) {
-    headersHtml += '<th>' + escapeHtml(state.csvHeaders[h]) + '</th>';
-  }
-
-  var rowsHtml = '';
-  for (var r = 0; r < previewRows.length; r++) {
-    rowsHtml += '<tr>';
-    var cells = previewRows[r];
-    for (var c = 0; c < state.csvHeaders.length; c++) {
-      rowsHtml += '<td>' + escapeHtml((cells[c] || '').trim()) + '</td>';
-    }
-    rowsHtml += '</tr>';
-  }
-
-  summary.innerHTML =
-    '<div class="csv-preview-wrap">' +
-    '<table class="csv-preview-table">' +
-    '<thead><tr>' + headersHtml + '</tr></thead>' +
-    '<tbody>' + rowsHtml + '</tbody>' +
-    '</table>' +
-    '</div>' +
-    (state.csvRows.length > 5
-      ? '<div class="csv-preview-note">Showing first 5 of ' + state.csvRows.length + ' rows.</div>'
-      : '');
+  setStatus('csv-status', state.csvRows.length + ' row' + plural(state.csvRows.length) + ' · ' + state.csvHeaders.length + ' column' + plural(state.csvHeaders.length) + ' · ' + delimiterLabel + ' delimiter' + (state.csvFirstRowHeader ? ' · Header detected' : ' · No header'), 'success');
+  var headersHtml = state.csvHeaders.map(function (header) { return '<th>' + escapeHtml(header) + '</th>'; }).join('');
+  var rowsHtml = state.csvRows.slice(0, 5).map(function (row) {
+    return '<tr>' + state.csvHeaders.map(function (_, index) { return '<td>' + escapeHtml((row[index] || '').trim()) + '</td>'; }).join('') + '</tr>';
+  }).join('');
+  summary.innerHTML = '<div class="csv-preview-wrap"><table class="csv-preview-table"><thead><tr>' + headersHtml + '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
 }
 
-function renderColumnMapping() {
-  var hasData = state.csvRows.length > 0;
-  var barcodeSelect = document.getElementById('barcode-col-select');
-  var textSelects = [
-    document.getElementById('text-line-1-select'),
-    document.getElementById('text-line-2-select'),
-    document.getElementById('text-line-3-select'),
-    document.getElementById('text-line-4-select'),
-  ];
-
-  var optionsHtml = '';
-  var colCount = state.csvHeaders.length;
-  if (!colCount && !hasData) {
-    optionsHtml = '<option value="0" selected>— Load CSV first —</option>';
-  } else {
-    for (var c = 0; c < colCount; c++) {
-      var selected = '';
-      optionsHtml += '<option value="' + c + '"' + selected + '>' + escapeHtml(state.csvHeaders[c]) + '</option>';
-    }
-  }
-
-  barcodeSelect.innerHTML = optionsHtml;
-  barcodeSelect.value = Math.min(state.barcodeCol, Math.max(0, colCount - 1));
-  barcodeSelect.disabled = !hasData;
-
-  for (var i = 0; i < 4; i++) {
-    var selHtml = '<option value="-1"' + '>— None —</option>';
-    for (var ci = 0; ci < colCount; ci++) {
-      selHtml += '<option value="' + ci + '">' + escapeHtml(state.csvHeaders[ci]) + '</option>';
-    }
-    textSelects[i].innerHTML = selHtml;
-    textSelects[i].value = String(state.textLines[i]);
-    textSelects[i].disabled = !hasData;
-  }
+function renderFieldList() {
+  document.getElementById('add-datamatrix-btn').disabled = state.template.fields.some(function (field) { return field.type === 'datamatrix'; });
+  document.getElementById('field-list').innerHTML = state.template.fields.map(function (field) {
+    var source = field.type === 'staticText' ? field.staticText : (state.csvHeaders[field.sourceColumn] || 'Column ' + (field.sourceColumn + 1));
+    return '<button class="field-item ' + (field.id === state.selectedFieldId ? 'active' : '') + '" type="button" data-field-id="' + field.id + '"><span><strong>' + escapeHtml(field.label) + '</strong><span>' + escapeHtml(fieldTypeName(field.type) + ' · ' + source) + '</span></span><span>' + (field.colEnd - field.colStart) + '×' + (field.rowEnd - field.rowStart) + '</span></button>';
+  }).join('') || '<div class="lt-alert lt-alert-warn">Add at least one field before exporting.</div>';
+  document.querySelectorAll('[data-field-id]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      state.selectedFieldId = button.dataset.fieldId;
+      renderAll();
+    });
+  });
 }
 
-function renderLayoutControls() {
-  var thermalControls = document.getElementById('thermal-controls');
-  var laserControls = document.getElementById('laser-controls');
-  var isLaser = state.layoutMode === 'laser-sheet';
+function renderFieldEditor() {
+  var field = getSelectedField();
+  document.getElementById('field-editor-panel').style.display = field ? '' : 'none';
+  if (!field) return;
+  document.getElementById('field-label-input').value = field.label;
+  var sourceSelect = document.getElementById('field-source-select');
+  var columnOptions = state.csvHeaders.length ? state.csvHeaders : ['Col 1'];
+  sourceSelect.innerHTML = columnOptions.map(function (header, index) {
+    return '<option value="' + index + '">' + escapeHtml(header) + '</option>';
+  }).join('');
+  sourceSelect.value = String(clamp(field.sourceColumn, 0, columnOptions.length - 1));
+  document.getElementById('source-column-row').style.display = field.type === 'staticText' ? 'none' : '';
+  document.getElementById('static-text-row').style.display = field.type === 'staticText' ? '' : 'none';
+  document.getElementById('field-static-input').value = field.staticText || '';
+  document.getElementById('field-align-select').value = field.align || 'left';
+  document.getElementById('field-font-scale').value = field.fontScale || 1;
+}
 
-  thermalControls.style.display = isLaser ? 'none' : '';
-  laserControls.style.display = isLaser ? '' : 'none';
+function renderOutputControls() {
+  var isLaser = state.outputMode === 'laser-sheet';
+  document.getElementById('mode-laser-btn').classList.toggle('active', isLaser);
+  document.getElementById('mode-thermal-btn').classList.toggle('active', !isLaser);
+  document.getElementById('laser-output-controls').style.display = isLaser ? '' : 'none';
+  document.getElementById('thermal-output-controls').style.display = isLaser ? 'none' : '';
+  document.getElementById('placement-section').style.display = isLaser ? '' : 'none';
+  document.getElementById('custom-preset-fields').style.display = state.selectedLaserPresetId === CUSTOM_LASER_ID && isLaser ? '' : 'none';
+  document.getElementById('thermal-custom-fields').style.display = state.selectedThermalPresetId === CUSTOM_THERMAL_ID && !isLaser ? '' : 'none';
+  seedCustomFields();
 
-  document.getElementById('layout-mode-thermal').classList.toggle('active', !isLaser);
-  document.getElementById('layout-mode-laser').classList.toggle('active', isLaser);
-
-  document.getElementById('thermal-label-width').value = state.labelWidth;
-  document.getElementById('thermal-label-height').value = state.labelHeight;
+  var preset = getActivePreset();
+  setStatus('output-status', (isLaser ? 'Laser sheet' : 'Thermal labels') + ' · ' + preset.name + ' · label ' + formatDecimal(preset.labelWidth, 3) + ' × ' + formatDecimal(preset.labelHeight, 3) + ' in', 'info');
   document.getElementById('show-border').checked = state.showBorder;
 }
 
-function renderPresetSelect() {
-  var select = document.getElementById('preset-select');
-  select.innerHTML =
-    '<option value="">— Choose a preset —</option>' +
-    '<optgroup label="Built-in presets"></optgroup>' +
-    '<optgroup label="Saved in this browser"></optgroup>' +
-    '<option value="__manual__">Custom parameters</option>';
-
-  var groups = select.querySelectorAll('optgroup');
-  var builtInGroup = groups[0];
-  var userGroup = groups[1];
-
-  state.builtInPresets.forEach(function (preset) {
-    var opt = document.createElement('option');
-    opt.value = preset.id;
-    opt.textContent = preset.name + (preset.sku ? ' · ' + preset.sku : '');
-    builtInGroup.appendChild(opt);
+function seedCustomFields() {
+  ['pageWidth', 'pageHeight', 'leftMargin', 'topMargin', 'labelWidth', 'labelHeight', 'horizontalPitch', 'verticalPitch', 'columns', 'rows'].forEach(function (id) {
+    document.getElementById(id).value = state.customLaserPreset[id];
   });
-
-  state.userPresets.forEach(function (preset) {
-    var opt = document.createElement('option');
-    opt.value = preset.id;
-    opt.textContent = preset.name + (preset.sku ? ' · ' + preset.sku : '');
-    userGroup.appendChild(opt);
-  });
-
-  if (!state.userPresets.length) {
-    var opt = document.createElement('option');
-    opt.disabled = true;
-    opt.textContent = 'No browser-saved presets yet';
-    userGroup.appendChild(opt);
-  }
-
-  select.value = state.selectedPresetId || '';
+  document.getElementById('thermal-label-width').value = state.customThermalPreset.labelWidth;
+  document.getElementById('thermal-label-height').value = state.customThermalPreset.labelHeight;
 }
 
-function renderPresetSummary() {
-  var summary = document.getElementById('preset-summary');
+function renderDesigner() {
+  var stage = document.getElementById('label-stage');
+  var preset = getActivePreset();
+  var grid = state.template.grid;
+  var overlapIds = getOverlapFieldIds();
+  stage.style.setProperty('--label-aspect', preset.labelWidth + ' / ' + preset.labelHeight);
+  stage.style.setProperty('--grid-cols', grid.cols);
+  stage.style.setProperty('--grid-rows', grid.rows);
+  var html = '<div class="label-stage-grid"></div>';
+  state.template.fields.forEach(function (field) {
+    var left = ((field.colStart - 1) / grid.cols) * 100;
+    var top = ((field.rowStart - 1) / grid.rows) * 100;
+    var width = ((field.colEnd - field.colStart) / grid.cols) * 100;
+    var height = ((field.rowEnd - field.rowStart) / grid.rows) * 100;
+    var classes = 'label-field-block' + (field.id === state.selectedFieldId ? ' active' : '') + (overlapIds.has(field.id) ? ' overlap' : '');
+    html += '<div class="' + classes + '" data-drag-field="' + field.id + '" data-type="' + field.type + '" style="left:' + left + '%;top:' + top + '%;width:' + width + '%;height:' + height + '%;text-align:' + field.align + ';">' + escapeHtml(field.label) + '<span class="field-resize-handle" data-resize-field="' + field.id + '"></span></div>';
+  });
+  stage.innerHTML = html;
+  stage.querySelectorAll('[data-drag-field]').forEach(function (block) {
+    block.addEventListener('mousedown', startFieldDrag);
+  });
+  stage.querySelectorAll('[data-resize-field]').forEach(function (handle) {
+    handle.addEventListener('mousedown', startFieldResize);
+  });
 
-  if (state.layoutMode === 'thermal') {
-    var thermalPreset = getActivePreset();
-    summary.innerHTML =
-      '<div class="preset-summary-panel preset-summary-panel--info">' +
-      '<div class="preset-summary-top">' +
-      '<div>' +
-      '<div class="preset-summary-eyebrow">Thermal Label Mode</div>' +
-      '<div class="preset-summary-title">' + formatDecimal(thermalPreset.labelWidth, 3) + ' × ' + formatDecimal(thermalPreset.labelHeight, 3) + ' in</div>' +
-      '<div class="preset-summary-subtitle">One label per page. ' + state.csvRows.length + ' label' + (state.csvRows.length !== 1 ? 's' : '') + ' will be generated.</div>' +
-      '</div>' +
-      '<span class="preset-summary-chip">Thermal</span>' +
-      '</div>' +
-      '</div>';
-    return;
+  setStatus('geometry-status', 'Grid ' + grid.cols + ' × ' + grid.rows + ' · label ' + formatDecimal(preset.labelWidth, 3) + ' × ' + formatDecimal(preset.labelHeight, 3) + ' in. Drag fields or resize from the lower-right corner.', 'info');
+  var warning = document.getElementById('overlap-warning');
+  if (overlapIds.size) {
+    warning.style.display = '';
+    warning.textContent = 'Warning: overlapping fields are highlighted. Export is still allowed.';
+  } else {
+    warning.style.display = 'none';
+    warning.textContent = '';
   }
-
-  if (!state.currentPreset) {
-    var errMsg = state.currentPresetErrors[0] || 'Enter valid sheet geometry or select a preset.';
-    summary.innerHTML =
-      '<div class="preset-summary-panel preset-summary-panel--warn">' +
-      '<div class="preset-summary-top">' +
-      '<div>' +
-      '<div class="preset-summary-eyebrow">Laser Sheet Mode</div>' +
-      '<div class="preset-summary-title">Geometry Required</div>' +
-      '<div class="preset-summary-subtitle">' + escapeHtml(errMsg) + '</div>' +
-      '</div>' +
-      '<span class="preset-summary-chip">' + (state.currentPresetErrors.length ? 'Incomplete' : 'Waiting') + '</span>' +
-      '</div>' +
-      '</div>';
-    return;
-  }
-
-  var preset = state.currentPreset;
-  var capacity = preset.columns * preset.rows;
-  var selectedPreset = state.selectedPresetId ? findPresetById(state.selectedPresetId) : null;
-  var sourceLabel = selectedPreset
-    ? (selectedPreset._origin === 'user' ? 'Saved in this browser' : 'Shipped in preset-config.js')
-    : 'Manual values';
-
-  summary.innerHTML =
-    '<div class="preset-summary-panel preset-summary-panel--success">' +
-    '<div class="preset-summary-top">' +
-    '<div>' +
-    '<div class="preset-summary-eyebrow">Laser Sheet Mode</div>' +
-    '<div class="preset-summary-title">' + escapeHtml(preset.name) + '</div>' +
-    '<div class="preset-summary-subtitle">' + escapeHtml(sourceLabel) + '</div>' +
-    '</div>' +
-    '<span class="preset-summary-chip">Ready</span>' +
-    '</div>' +
-    '<div class="preset-summary-facts">' +
-    '<div class="preset-summary-fact">' +
-    '<div class="preset-summary-fact-label">Sheet Capacity</div>' +
-    '<div class="preset-summary-fact-value">' + capacity + '</div>' +
-    '<div class="preset-summary-fact-note">' + preset.columns + ' columns × ' + preset.rows + ' rows</div>' +
-    '</div>' +
-    '<div class="preset-summary-fact">' +
-    '<div class="preset-summary-fact-label">Label Size</div>' +
-    '<div class="preset-summary-fact-value">' + formatDecimal(preset.labelWidth, 3) + ' × ' + formatDecimal(preset.labelHeight, 3) + ' in</div>' +
-    '<div class="preset-summary-fact-note">' + state.csvRows.length + ' label' + (state.csvRows.length !== 1 ? 's' : '') + ' · Page ' + formatDecimal(preset.pageWidth, 3) + ' × ' + formatDecimal(preset.pageHeight, 3) + ' in</div>' +
-    '</div>' +
-    '<div class="preset-summary-fact">' +
-    '<div class="preset-summary-fact-label">Pitch</div>' +
-    '<div class="preset-summary-fact-value">' + formatDecimal(preset.horizontalPitch, 3) + ' × ' + formatDecimal(preset.verticalPitch, 3) + ' in</div>' +
-    '<div class="preset-summary-fact-note">Margins ' + formatDecimal(preset.leftMargin, 3) + ' / ' + formatDecimal(preset.topMargin, 3) + ' in</div>' +
-    '</div>' +
-    '</div>' +
-    '</div>';
+  renderSamplePreview();
 }
 
-function renderSheetPreview() {
-  var container = document.getElementById('sheet-preview');
+function startFieldDrag(event) {
+  if (event.target.dataset.resizeField) return;
+  var field = findField(event.currentTarget.dataset.dragField);
+  if (!field) return;
+  state.selectedFieldId = field.id;
+  dragState = {
+    type: 'move',
+    fieldId: field.id,
+    startX: event.clientX,
+    startY: event.clientY,
+    startField: cloneField(field),
+    stageRect: document.getElementById('label-stage').getBoundingClientRect(),
+  };
+  document.addEventListener('mousemove', onFieldDragMove);
+  document.addEventListener('mouseup', endFieldDrag);
+  event.preventDefault();
+  renderAll();
+}
 
-  if (state.layoutMode === 'thermal') {
-    var tw = state.labelWidth;
-    var th = state.labelHeight;
-    var aspect = tw / th;
-    container.innerHTML =
-      '<div class="sheet-preview-container">' +
-      '<div class="lt-sheet-stage" style="--sheet-aspect:' + aspect + '; max-width: 280px;">' +
-      '<div class="lt-sheet-cell lt-sheet-cell--use" style="left:4%;top:4%;width:92%;height:92%;">' +
-      '<span class="lt-sheet-cell-id">Label 1</span>' +
-      '<span class="lt-sheet-cell-token">' + formatDecimal(tw, 2) + ' × ' + formatDecimal(th, 2) + ' in</span>' +
-      '</div>' +
-      '</div>' +
-      '</div>';
-    return;
+function startFieldResize(event) {
+  var field = findField(event.target.dataset.resizeField);
+  if (!field) return;
+  state.selectedFieldId = field.id;
+  dragState = {
+    type: 'resize',
+    fieldId: field.id,
+    startX: event.clientX,
+    startY: event.clientY,
+    startField: cloneField(field),
+    stageRect: document.getElementById('label-stage').getBoundingClientRect(),
+  };
+  document.addEventListener('mousemove', onFieldDragMove);
+  document.addEventListener('mouseup', endFieldDrag);
+  event.stopPropagation();
+  event.preventDefault();
+}
+
+function onFieldDragMove(event) {
+  if (!dragState) return;
+  var field = findField(dragState.fieldId);
+  var grid = state.template.grid;
+  var dx = Math.round((event.clientX - dragState.startX) / dragState.stageRect.width * grid.cols);
+  var dy = Math.round((event.clientY - dragState.startY) / dragState.stageRect.height * grid.rows);
+  var width = dragState.startField.colEnd - dragState.startField.colStart;
+  var height = dragState.startField.rowEnd - dragState.startField.rowStart;
+  if (dragState.type === 'move') {
+    field.colStart = dragState.startField.colStart + dx;
+    field.rowStart = dragState.startField.rowStart + dy;
+    field.colEnd = field.colStart + width;
+    field.rowEnd = field.rowStart + height;
+  } else {
+    field.colEnd = dragState.startField.colEnd + dx;
+    field.rowEnd = dragState.startField.rowEnd + dy;
   }
+  clampFieldToGrid(field);
+  markOutputDirty();
+  renderDesigner();
+}
 
-  if (!state.currentPreset || !state.layoutCells.length) {
-    container.innerHTML =
-      '<div class="lt-preview-frame">' +
-      '<div class="lt-alert lt-alert-info">The sheet preview appears after CSV data is loaded and a valid sheet preset is selected or entered.</div>' +
-      '</div>';
-    return;
-  }
+function endFieldDrag() {
+  dragState = null;
+  document.removeEventListener('mousemove', onFieldDragMove);
+  document.removeEventListener('mouseup', endFieldDrag);
+  renderAll();
+}
 
-  var preset = state.currentPreset;
+function renderSamplePreview() {
+  var row = state.csvRows[0] || [];
+  var items = state.template.fields.map(function (field) {
+    return '<div class="field-item"><span><strong>' + escapeHtml(field.label) + '</strong><span>' + escapeHtml(getFieldValue(field, row) || 'No sample value') + '</span></span></div>';
+  }).join('');
+  document.getElementById('label-sample-preview').innerHTML = '<div class="panel-heading" style="margin:12px 0 8px;">First Label Values</div><div class="field-list">' + items + '</div>';
+}
+
+function renderPlacement() {
+  document.querySelectorAll('[data-placement-mode]').forEach(function (button) {
+    button.classList.toggle('active', button.dataset.placementMode === state.placementMode);
+  });
+  if (state.outputMode !== 'laser-sheet') return;
+  if (!state.layoutCells.length) initializeSequentialPlan(0);
+  var preset = getActiveLaserPreset();
   var geometry = buildSheetGeometry(preset);
-  var cellsPerSheet = geometry.cells.length;
-  if (!cellsPerSheet) {
-    container.innerHTML = '';
-    return;
-  }
-
+  var cellsPerSheet = Math.max(1, preset.columns * preset.rows);
+  var labelMap = buildLabelIndexMap();
   var sheetCount = Math.max(1, Math.ceil(state.layoutCells.length / cellsPerSheet));
-  var html = '';
+  setStatus('placement-status', state.csvRows.length ? getUseIndices().length + ' of ' + state.csvRows.length + ' labels planned across ' + sheetCount + ' sheet' + plural(sheetCount) + '.' : 'Load CSV data to plan sheet placement.', state.csvRows.length ? 'success' : 'info');
 
+  var html = '';
   for (var sheetIndex = 0; sheetIndex < sheetCount; sheetIndex++) {
     var sheetStart = sheetIndex * cellsPerSheet;
-    var sheetCells = state.layoutCells.slice(sheetStart, sheetStart + cellsPerSheet);
-    var usedOnSheet = sheetCells.filter(function (c) { return c === 'use'; }).length;
-
-    html += '<div class="sheet-card">';
-    html += '<div class="sheet-card-header"><h3>Sheet ' + (sheetIndex + 1) + '</h3><p>' + usedOnSheet + ' label' + (usedOnSheet !== 1 ? 's' : '') + ' · ' + sheetCells.length + ' cell' + (sheetCells.length !== 1 ? 's' : '') + '</p></div>';
-
-    html += '<div class="lt-preview-frame">';
-    html += '<div class="lt-sheet-stage" style="--sheet-aspect:' + preset.pageWidth + ' / ' + preset.pageHeight + ';">';
-
-    var regionLeft = geometry.gridLeftPct;
-    var regionTop = geometry.gridTopPct;
-    var regionW = geometry.gridWidthPct;
-    var regionH = geometry.gridHeightPct;
-    html += '<div class="lt-sheet-grid-region" style="left:' + regionLeft + '%;top:' + regionTop + '%;width:' + regionW + '%;height:' + regionH + '%;"></div>';
-
-    html += '<div class="lt-sheet-grid">';
+    var usedOnSheet = 0;
+    html += '<div class="sheet-card"><h3>Sheet ' + (sheetIndex + 1) + '</h3><div class="lt-preview-frame"><div class="lt-sheet-stage" style="--sheet-aspect:' + preset.pageWidth + ' / ' + preset.pageHeight + ';">';
+    html += '<div class="lt-sheet-grid-region" style="left:' + geometry.gridLeftPct + '%;top:' + geometry.gridTopPct + '%;width:' + geometry.gridWidthPct + '%;height:' + geometry.gridHeightPct + '%;"></div>';
     geometry.cells.forEach(function (rect, cellIndex) {
       var globalIndex = sheetStart + cellIndex;
-      var mode = sheetCells[cellIndex] || 'available';
-      var cellClass = 'lt-sheet-cell lt-sheet-cell--' + (mode === 'use' ? 'use' : 'available');
-      html += '<div class="' + cellClass + '" style="left:' + rect.leftPct + '%;top:' + rect.topPct + '%;width:' + rect.widthPct + '%;height:' + rect.heightPct + '%;">';
-      html += '<span class="lt-sheet-cell-id">Cell ' + (globalIndex + 1) + '</span>';
-      if (mode === 'use') {
-        html += '<span class="lt-sheet-cell-token">L' + (globalIndex + 1) + '</span>';
-      }
-      html += '</div>';
+      var cell = state.layoutCells[globalIndex] || { mode: 'available' };
+      if (cell.mode === 'use') usedOnSheet++;
+      var modeClass = cell.mode === 'use' ? 'use' : cell.mode === 'skip' ? 'skip' : 'available';
+      var token = cell.mode === 'use' ? 'L' + (labelMap.get(globalIndex) + 1) : cell.mode === 'skip' ? 'Skip' : 'Cell ' + (globalIndex + 1);
+      html += '<button type="button" class="lt-sheet-cell lt-sheet-cell--' + modeClass + '" data-sheet-cell="' + globalIndex + '" style="left:' + rect.leftPct + '%;top:' + rect.topPct + '%;width:' + rect.widthPct + '%;height:' + rect.heightPct + '%;">' + escapeHtml(token) + '</button>';
     });
-    html += '</div>';
-
-    html += '</div>';
-
-    html += '<div class="lt-legend-row">' +
-      '<span class="lt-legend-item"><span class="lt-legend-swatch lt-legend-swatch--use"></span>Filled</span>' +
-      '<span class="lt-legend-item"><span class="lt-legend-swatch lt-legend-swatch--open"></span>Available</span>' +
-      '</div>';
-
-    html += '</div>';
-    html += '</div>';
+    html += '</div></div><div class="lt-legend-row"><span class="lt-legend-item"><span class="lt-legend-swatch lt-legend-swatch--use"></span>' + usedOnSheet + ' filled</span><span class="lt-legend-item"><span class="lt-legend-swatch lt-legend-swatch--open"></span>Open</span><span class="lt-legend-item">Skip</span></div></div>';
   }
-
-  container.innerHTML = html;
-}
-
-function getBarcodeCanvas() {
-  if (!_barcodeCanvas) {
-    _barcodeCanvas = document.createElement('canvas');
-    _barcodeCanvas.style.display = 'none';
-    document.body.appendChild(_barcodeCanvas);
-  }
-  return _barcodeCanvas;
-}
-
-function renderBarcodeToPng(data, sizeKey) {
-  return new Promise(function (resolve) {
-    var text = (data && data.trim()) ? data.trim() : ' ';
-    var sizeConfig = BARCODE_SIZES[sizeKey] || BARCODE_SIZES['M'];
-    var canvas = getBarcodeCanvas();
-
-    try {
-      bwipjs.toCanvas(canvas, {
-        bcid: 'datamatrix',
-        text: text,
-        scale: sizeConfig.scale,
-        includetext: false,
-      });
-    } catch (err) {
-      setStatus('export-status', 'Barcode rendering failed for: ' + escapeHtml(text.substring(0, 30)), 'warn');
-      resolve(null);
-      return;
-    }
-
-    canvas.toBlob(function (blob) {
-      if (!blob) {
-        setStatus('export-status', 'Unable to convert barcode canvas to PNG.', 'warn');
-        resolve(null);
-        return;
-      }
-      var reader = new FileReader();
-      reader.onload = function () {
-        resolve(new Uint8Array(reader.result));
-      };
-      reader.onerror = function () {
-        resolve(null);
-      };
-      reader.readAsArrayBuffer(blob);
-    });
+  document.getElementById('sheet-preview').innerHTML = html;
+  document.querySelectorAll('[data-sheet-cell]').forEach(function (button) {
+    button.addEventListener('click', function () { onSheetCellClick(Number(button.dataset.sheetCell)); });
   });
 }
 
-function inchesToPoints(value) {
-  return value * 72;
-}
-
-function pdfLabelFontSize(labelHeightIn) {
-  if (labelHeightIn <= 0.5) return 5;
-  if (labelHeightIn <= 1.0) return 7;
-  return 9;
+function renderExportState() {
+  var hasData = state.csvRows.length > 0;
+  var hasFields = state.template.fields.length > 0;
+  var hasDataMatrix = state.template.fields.some(function (field) { return field.type === 'datamatrix'; });
+  var canGenerate = hasData && hasFields && hasDataMatrix && !state.isGenerating;
+  document.getElementById('generate-btn').disabled = !canGenerate;
+  document.getElementById('download-btn').disabled = !state.outputBytes || state.outputDirty;
+  var summary = state.outputMode === 'laser-sheet'
+    ? 'Laser PDF · ' + getUseIndices().length + ' labels · ' + Math.max(1, Math.ceil(state.layoutCells.length / Math.max(1, getActiveLaserPreset().columns * getActiveLaserPreset().rows))) + ' sheet' + plural(Math.max(1, Math.ceil(state.layoutCells.length / Math.max(1, getActiveLaserPreset().columns * getActiveLaserPreset().rows))))
+    : 'Thermal PDF · ' + state.csvRows.length + ' label page' + plural(state.csvRows.length);
+  document.getElementById('output-summary').innerHTML = '<div class="lt-alert lt-alert-info">' + escapeHtml(summary) + '</div>';
+  updateOutputPreview();
 }
 
 async function generatePdf() {
-  if (!state.csvRows.length) {
-    setStatus('export-status', 'Load CSV data first.', 'warn');
-    return;
-  }
-
-  if (state.layoutMode === 'laser-sheet' && !state.currentPreset) {
-    setStatus('export-status', 'Enter valid sheet geometry or select a preset in laser-sheet mode.', 'warn');
-    return;
-  }
-
-  if (state.barcodeCol < 0 || state.barcodeCol >= state.csvHeaders.length) {
-    setStatus('export-status', 'Select a valid barcode column.', 'warn');
-    return;
-  }
-
+  if (!state.csvRows.length) return setStatus('export-status', 'Load CSV data first.', 'warn');
+  if (!state.template.fields.some(function (field) { return field.type === 'datamatrix'; })) return setStatus('export-status', 'Add one DataMatrix field before exporting.', 'warn');
   state.isGenerating = true;
-  setStatus('export-status', 'Generating PDF…', 'info');
-  renderOutputSummary();
+  clearOutputPreview();
+  setStatus('export-status', 'Generating PDF...', 'info');
+  renderExportState();
 
   try {
     var doc = await PDFLib.PDFDocument.create();
     var font = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
-
-    var preset = getActivePreset();
-    if (!preset) throw new Error('No valid layout configuration.');
-
-    var totalLabels = state.csvRows.length;
-
-    if (state.layoutMode === 'thermal') {
-      var labelW = inchesToPoints(preset.labelWidth);
-      var labelH = inchesToPoints(preset.labelHeight);
-
-      for (var i = 0; i < totalLabels; i++) {
-        var page = doc.addPage([labelW, labelH]);
-        var row = state.csvRows[i];
-        var barcodeData = (row[state.barcodeCol] || '').trim();
-        await drawLabelOnPage(doc, page, font, barcodeData, row, 0, 0, labelW, labelH, preset);
-      }
+    var boldFont = await doc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+    if (state.outputMode === 'thermal') {
+      await generateThermalPdf(doc, font, boldFont);
     } else {
-      var cellsPerSheet = preset.columns * preset.rows;
-      var geometry = buildSheetGeometry(preset);
-      var sheetCount = Math.ceil(totalLabels / cellsPerSheet);
-      var pageW = inchesToPoints(preset.pageWidth);
-      var pageH = inchesToPoints(preset.pageHeight);
-
-      for (var sheetIdx = 0; sheetIdx < sheetCount; sheetIdx++) {
-        var sheetPage = doc.addPage([pageW, pageH]);
-        var sheetStart = sheetIdx * cellsPerSheet;
-
-        for (var cellIdx = 0; cellIdx < cellsPerSheet; cellIdx++) {
-          var globalIdx = sheetStart + cellIdx;
-          if (globalIdx >= totalLabels) break;
-
-          var cellRect = geometry.cells[cellIdx];
-          var cellX = inchesToPoints(cellRect.xIn);
-          var cellY = pageH - inchesToPoints(cellRect.yIn) - inchesToPoints(cellRect.heightIn);
-          var cellW = inchesToPoints(cellRect.widthIn);
-          var cellH = inchesToPoints(cellRect.heightIn);
-          var row = state.csvRows[globalIdx];
-          var barcodeData = (row[state.barcodeCol] || '').trim();
-
-          await drawLabelOnPage(doc, sheetPage, font, barcodeData, row, cellX, cellY, cellW, cellH, preset);
-        }
-      }
+      await generateLaserPdf(doc, font, boldFont);
     }
-
-    doc.setTitle('Labels');
+    doc.setTitle('LabTools Labels');
     doc.setProducer('LabTools');
     doc.setCreator('LabTools label-generator');
-
     state.outputBytes = await doc.save();
     state.outputDirty = false;
-
-    if (state.outputUrl) {
-      URL.revokeObjectURL(state.outputUrl);
-    }
     var blob = new Blob([state.outputBytes], { type: 'application/pdf' });
     state.outputUrl = URL.createObjectURL(blob);
-
-    setStatus('export-status', 'Generated ' + (state.layoutMode === 'thermal' ? totalLabels : Math.ceil(totalLabels / (preset.columns * preset.rows))) + ' page' + (totalLabels > 1 && state.layoutMode === 'thermal' ? 's' : (state.layoutMode === 'laser-sheet' && sheetCount > 1 ? 's' : '')) + ' with ' + totalLabels + ' label' + (totalLabels !== 1 ? 's' : '') + '.', 'success');
+    setStatus('export-status', 'Generated PDF with ' + state.csvRows.length + ' label' + plural(state.csvRows.length) + '.', 'success');
   } catch (err) {
-    setStatus('export-status', err && err.message ? err.message : 'Failed to generate the PDF.', 'danger');
+    setStatus('export-status', err && err.message ? err.message : 'Failed to generate PDF.', 'danger');
   } finally {
     state.isGenerating = false;
     renderAll();
   }
 }
 
-async function drawLabelOnPage(doc, page, font, barcodeData, row, cellX, cellY, cellW, cellH, preset) {
-  var padding = 4;
-  var innerX = cellX + padding;
-  var innerY = cellY + padding;
-  var innerW = cellW - padding * 2;
-  var innerH = cellH - padding * 2;
-
-var barcodeW = innerW * 0.35;
-var textX = innerX + innerW * 0.45;
-var textW = innerW * 0.52;
-
-  var fontSize = pdfLabelFontSize(preset.labelHeight);
-
-  if (barcodeData) {
-    var pngBytes = await renderBarcodeToPng(barcodeData, state.barcodeSize);
-    if (pngBytes) {
-      try {
-        var pngImage = await doc.embedPng(pngBytes);
-        var pngAspect = pngImage.width / pngImage.height;
-        var barcodeDrawW, barcodeDrawH;
-
-        if (barcodeW / innerH > pngAspect) {
-          barcodeDrawH = innerH;
-          barcodeDrawW = innerH * pngAspect;
-        } else {
-          barcodeDrawW = barcodeW;
-          barcodeDrawH = barcodeW / pngAspect;
-        }
-
-        var barcodeDrawX = innerX + (barcodeW - barcodeDrawW) / 2;
-        var barcodeDrawY = innerY + (innerH - barcodeDrawH) / 2;
-
-        page.drawImage(pngImage, {
-          x: barcodeDrawX,
-          y: barcodeDrawY,
-          width: barcodeDrawW,
-          height: barcodeDrawH,
-        });
-
-        var barcodeLabelText = barcodeData.substring(0, 20);
-        page.drawText(barcodeLabelText, {
-          x: innerX,
-          y: barcodeDrawY + barcodeDrawH + 4,
-          size: 4,
-          font: font,
-          color: PDFLib.rgb(0.5, 0.5, 0.5),
-          maxWidth: barcodeW,
-          lineHeight: 4,
-        });
-      } catch (embedErr) {
-        setStatus('export-status', 'Unable to embed barcode image: ' + (embedErr.message || ''), 'warn');
-      }
-    }
+async function generateThermalPdf(doc, font, boldFont) {
+  var preset = getActiveThermalPreset();
+  var width = inchesToPoints(preset.labelWidth);
+  var height = inchesToPoints(preset.labelHeight);
+  for (var i = 0; i < state.csvRows.length; i++) {
+    var page = doc.addPage([width, height]);
+    await drawLabel(doc, page, font, boldFont, state.csvRows[i], { x: 0, y: 0, width: width, height: height });
   }
+}
 
-  var lineHeight = fontSize + 2;
-  var textY = innerY + innerH - fontSize;
-
-  for (var i = 0; i < 4; i++) {
-    var colIdx = state.textLines[i];
-    if (colIdx < 0 || colIdx >= (row ? row.length : 0)) continue;
-    var text = (row[colIdx] || '').trim();
-    if (!text) continue;
-    try {
-      page.drawText(text, {
-        x: textX,
-        y: textY,
-        size: fontSize,
-        font: font,
-        color: PDFLib.rgb(0, 0, 0),
-        maxWidth: textW,
-        lineHeight: fontSize + 1,
+async function generateLaserPdf(doc, font, boldFont) {
+  var preset = getActiveLaserPreset();
+  var geometry = buildSheetGeometry(preset);
+  var cellsPerSheet = Math.max(1, preset.columns * preset.rows);
+  var labelMap = buildLabelIndexMap();
+  var sheetCount = Math.max(1, Math.ceil(state.layoutCells.length / cellsPerSheet));
+  var pageWidth = inchesToPoints(preset.pageWidth);
+  var pageHeight = inchesToPoints(preset.pageHeight);
+  for (var sheetIndex = 0; sheetIndex < sheetCount; sheetIndex++) {
+    var page = doc.addPage([pageWidth, pageHeight]);
+    for (var cellIndex = 0; cellIndex < cellsPerSheet; cellIndex++) {
+      var globalIndex = sheetIndex * cellsPerSheet + cellIndex;
+      var labelIndex = labelMap.get(globalIndex);
+      if (labelIndex === undefined || !state.csvRows[labelIndex]) continue;
+      var cellRect = geometry.cells[cellIndex];
+      await drawLabel(doc, page, font, boldFont, state.csvRows[labelIndex], {
+        x: inchesToPoints(cellRect.xIn),
+        y: pageHeight - inchesToPoints(cellRect.yIn) - inchesToPoints(cellRect.heightIn),
+        width: inchesToPoints(cellRect.widthIn),
+        height: inchesToPoints(cellRect.heightIn),
       });
-    } catch (drawErr) {
-      // Character may not be available in Helvetica — skip silently
     }
-    textY -= lineHeight;
   }
+}
 
+async function drawLabel(doc, page, font, boldFont, row, labelRect) {
   if (state.showBorder) {
-    page.drawRectangle({
-      x: cellX,
-      y: cellY,
-      width: cellW,
-      height: cellH,
-      borderColor: PDFLib.rgb(0.5, 0.5, 0.5),
-      borderWidth: 0.5,
-    });
+    page.drawRectangle({ x: labelRect.x, y: labelRect.y, width: labelRect.width, height: labelRect.height, borderWidth: 0.35, borderColor: PDFLib.rgb(0.78, 0.78, 0.78) });
   }
+  var grid = state.template.grid;
+  for (var i = 0; i < state.template.fields.length; i++) {
+    var field = state.template.fields[i];
+    var rect = fieldToPdfRect(field, grid, labelRect);
+    if (field.type === 'datamatrix') {
+      await drawDataMatrix(doc, page, row, field, rect);
+    } else {
+      drawTextField(page, field.type === 'staticText' ? boldFont : font, row, field, rect);
+    }
+  }
+}
+
+function fieldToPdfRect(field, grid, labelRect) {
+  var x = labelRect.x + ((field.colStart - 1) / grid.cols) * labelRect.width;
+  var top = ((field.rowStart - 1) / grid.rows) * labelRect.height;
+  var width = ((field.colEnd - field.colStart) / grid.cols) * labelRect.width;
+  var height = ((field.rowEnd - field.rowStart) / grid.rows) * labelRect.height;
+  return { x: x + 2, y: labelRect.y + labelRect.height - top - height + 2, width: Math.max(1, width - 4), height: Math.max(1, height - 4) };
+}
+
+async function drawDataMatrix(doc, page, row, field, rect) {
+  var text = getFieldValue(field, row) || ' ';
+  var pngBytes = await renderDataMatrixToPng(text);
+  if (!pngBytes) return;
+  var png = await doc.embedPng(pngBytes);
+  var size = Math.min(rect.width, rect.height);
+  page.drawImage(png, { x: rect.x + (rect.width - size) / 2, y: rect.y + (rect.height - size) / 2, width: size, height: size });
+}
+
+function drawTextField(page, font, row, field, rect) {
+  var text = getFieldValue(field, row);
+  if (!text) return;
+  var fontSize = clamp(Math.min(rect.height * 0.48, rect.width / Math.max(2, text.length) * 1.6) * (field.fontScale || 1), 4, 18);
+  var truncated = truncateToWidth(text, font, fontSize, rect.width);
+  var textWidth = font.widthOfTextAtSize(truncated, fontSize);
+  var x = rect.x;
+  if (field.align === 'center') x = rect.x + Math.max(0, (rect.width - textWidth) / 2);
+  if (field.align === 'right') x = rect.x + Math.max(0, rect.width - textWidth);
+  page.drawText(truncated, { x: x, y: rect.y + Math.max(1, (rect.height - fontSize) / 2), size: fontSize, font: font, color: PDFLib.rgb(0, 0, 0), maxWidth: rect.width });
+}
+
+function truncateToWidth(text, font, fontSize, maxWidth) {
+  if (font.widthOfTextAtSize(text, fontSize) <= maxWidth) return text;
+  var suffix = '...';
+  var out = text;
+  while (out.length > 0 && font.widthOfTextAtSize(out + suffix, fontSize) > maxWidth) out = out.slice(0, -1);
+  return out ? out + suffix : '';
+}
+
+function renderDataMatrixToPng(text) {
+  return new Promise(function (resolve) {
+    var canvas = getBarcodeCanvas();
+    try {
+      bwipjs.toCanvas(canvas, { bcid: 'datamatrix', text: String(text || ' '), scale: 4, includetext: false, paddingwidth: 0, paddingheight: 0 });
+    } catch (err) {
+      resolve(null);
+      return;
+    }
+    canvas.toBlob(function (blob) {
+      if (!blob) return resolve(null);
+      var reader = new FileReader();
+      reader.onload = function () { resolve(new Uint8Array(reader.result)); };
+      reader.onerror = function () { resolve(null); };
+      reader.readAsArrayBuffer(blob);
+    });
+  });
+}
+
+function getBarcodeCanvas() {
+  if (!barcodeCanvas) {
+    barcodeCanvas = document.createElement('canvas');
+    barcodeCanvas.style.display = 'none';
+    document.body.appendChild(barcodeCanvas);
+  }
+  return barcodeCanvas;
 }
 
 function downloadPdf() {
-  if (!state.outputBytes) return;
+  if (!state.outputBytes || state.outputDirty) return;
+  var filename = 'labtools-labels-' + state.outputMode + '.pdf';
   var blob = new Blob([state.outputBytes], { type: 'application/pdf' });
-  labtoolsDownloadBlob('labels.pdf', blob);
-  setStatus('export-status', 'PDF downloaded.', 'success');
+  if (window.showSaveFilePicker) {
+    window.showSaveFilePicker({ suggestedName: filename, types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }] })
+      .then(function (handle) { return handle.createWritable(); })
+      .then(function (writable) { return writable.write(blob).then(function () { return writable.close(); }); })
+      .catch(function (err) { if (err && err.name !== 'AbortError') fallbackDownload(blob, filename); });
+    return;
+  }
+  fallbackDownload(blob, filename);
 }
 
-function renderOutputSummary() {
-  var summary = document.getElementById('output-summary');
-  var generateBtn = document.getElementById('generate-btn');
-  var downloadBtn = document.getElementById('download-btn');
+function fallbackDownload(blob, filename) {
+  var url = URL.createObjectURL(blob);
+  var link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 500);
+}
+
+function updateOutputPreview() {
   var preview = document.getElementById('pdf-preview');
-
-  var hasData = state.csvRows.length > 0;
-  var hasPreset = state.layoutMode === 'thermal' || !!state.currentPreset;
-  generateBtn.disabled = !hasData || !hasPreset || state.isGenerating;
-
-  if (!hasData) {
-    summary.innerHTML = '<div class="lt-alert lt-alert-info">Load CSV data in Step 1 first.</div>';
+  if (!state.outputUrl || state.outputDirty) {
     preview.innerHTML = '';
-    downloadBtn.disabled = true;
     return;
   }
-
-  if (!hasPreset) {
-    summary.innerHTML = '<div class="lt-alert lt-alert-warn">Enter valid sheet geometry or select a preset in Step 2 before generating.</div>';
-    preview.innerHTML = '';
-    downloadBtn.disabled = true;
-    return;
-  }
-
-  if (state.outputDirty || !state.outputBytes) {
-    summary.innerHTML = '<div class="lt-alert lt-alert-info">Click Generate PDF to create the output.</div>';
-    preview.innerHTML = '';
-    downloadBtn.disabled = true;
-    return;
-  }
-
-  summary.innerHTML = '<div class="lt-alert lt-alert-success">PDF is ready. Preview below or download directly.</div>';
-  preview.innerHTML =
-    '<object data="' + state.outputUrl + '" type="application/pdf" class="output-embed">' +
-    '<div class="lt-alert lt-alert-info">Your browser cannot display the PDF preview inline. Use the download button instead.</div>' +
-    '</object>';
-  downloadBtn.disabled = false;
+  preview.innerHTML = '<embed class="output-embed" src="' + state.outputUrl + '" type="application/pdf" />';
 }
 
-function getThermalLabelCells() {
-  return state.csvRows.map(function (_, i) { return { index: i, mode: 'use' }; });
+function clearOutputPreview() {
+  if (state.outputUrl) URL.revokeObjectURL(state.outputUrl);
+  state.outputUrl = '';
+  state.outputBytes = null;
+  document.getElementById('pdf-preview').innerHTML = '';
 }
 
-function onThermalSizeInput() {
-  state.labelWidth = parseFloat(document.getElementById('thermal-label-width').value) || 1.28;
-  state.labelHeight = parseFloat(document.getElementById('thermal-label-height').value) || 0.5;
+function markOutputDirty() {
   state.outputDirty = true;
+  clearOutputPreview();
 }
 
-function valueOrEmpty(val) {
-  return Number.isFinite(val) && !isNaN(val) ? val : '';
+function buildSheetGeometry(preset) {
+  var cells = [];
+  for (var row = 0; row < preset.rows; row++) {
+    for (var col = 0; col < preset.columns; col++) {
+      var xIn = preset.leftMargin + col * preset.horizontalPitch;
+      var yIn = preset.topMargin + row * preset.verticalPitch;
+      cells.push({
+        xIn: xIn,
+        yIn: yIn,
+        widthIn: preset.labelWidth,
+        heightIn: preset.labelHeight,
+        leftPct: (xIn / preset.pageWidth) * 100,
+        topPct: (yIn / preset.pageHeight) * 100,
+        widthPct: (preset.labelWidth / preset.pageWidth) * 100,
+        heightPct: (preset.labelHeight / preset.pageHeight) * 100,
+      });
+    }
+  }
+  return {
+    cells: cells,
+    gridLeftPct: (preset.leftMargin / preset.pageWidth) * 100,
+    gridTopPct: (preset.topMargin / preset.pageHeight) * 100,
+    gridWidthPct: ((preset.columns - 1) * preset.horizontalPitch + preset.labelWidth) / preset.pageWidth * 100,
+    gridHeightPct: ((preset.rows - 1) * preset.verticalPitch + preset.labelHeight) / preset.pageHeight * 100,
+  };
 }
 
-function toNumber(value) {
-  var parsed = parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : NaN;
+function getOverlapFieldIds() {
+  var ids = new Set();
+  for (var i = 0; i < state.template.fields.length; i++) {
+    for (var j = i + 1; j < state.template.fields.length; j++) {
+      if (fieldsOverlap(state.template.fields[i], state.template.fields[j])) {
+        ids.add(state.template.fields[i].id);
+        ids.add(state.template.fields[j].id);
+      }
+    }
+  }
+  return ids;
 }
 
-function toInteger(value) {
-  var parsed = parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : NaN;
+function fieldsOverlap(a, b) {
+  return a.colStart < b.colEnd && a.colEnd > b.colStart && a.rowStart < b.rowEnd && a.rowEnd > b.rowStart;
 }
 
-function formatDecimal(val, places) {
-  return Number(val).toFixed(places).replace(/\.?0+$/, '');
+function clampFieldToGrid(field) {
+  var grid = state.template.grid;
+  var width = Math.max(1, field.colEnd - field.colStart);
+  var height = Math.max(1, field.rowEnd - field.rowStart);
+  field.colStart = clamp(field.colStart, 1, grid.cols);
+  field.rowStart = clamp(field.rowStart, 1, grid.rows);
+  field.colEnd = clamp(field.colStart + width, field.colStart + 1, grid.cols + 1);
+  field.rowEnd = clamp(field.rowStart + height, field.rowStart + 1, grid.rows + 1);
+  if (field.colEnd > grid.cols + 1) {
+    field.colEnd = grid.cols + 1;
+    field.colStart = Math.max(1, field.colEnd - width);
+  }
+  if (field.rowEnd > grid.rows + 1) {
+    field.rowEnd = grid.rows + 1;
+    field.rowStart = Math.max(1, field.rowEnd - height);
+  }
 }
 
-function pointsToInches(pts) {
-  return pts / 72;
+function getFieldValue(field, row) {
+  if (field.type === 'staticText') return field.staticText || '';
+  return String((row && row[field.sourceColumn]) || '').trim();
 }
 
-function setStatus(elementId, message, type) {
-  var el = document.getElementById(elementId);
+function getActivePreset() {
+  return state.outputMode === 'thermal' ? getActiveThermalPreset() : getActiveLaserPreset();
+}
+
+function getActiveLaserPreset() {
+  return state.selectedLaserPresetId === CUSTOM_LASER_ID ? state.customLaserPreset : findLaserPreset(state.selectedLaserPresetId) || state.customLaserPreset;
+}
+
+function getActiveThermalPreset() {
+  return state.selectedThermalPresetId === CUSTOM_THERMAL_ID ? state.customThermalPreset : findThermalPreset(state.selectedThermalPresetId) || state.customThermalPreset;
+}
+
+function findLaserPreset(id) {
+  return state.laserPresets.find(function (preset) { return preset.id === id; }) || null;
+}
+
+function findThermalPreset(id) {
+  return state.thermalPresets.find(function (preset) { return preset.id === id; }) || null;
+}
+
+function getSelectedField() {
+  return findField(state.selectedFieldId);
+}
+
+function findField(id) {
+  return state.template.fields.find(function (field) { return field.id === id; }) || null;
+}
+
+function cloneField(field) {
+  return Object.assign({}, field);
+}
+
+function nextCsvLabel() {
+  if (state.csvHeaders.length) return state.csvHeaders[Math.min(state.template.fields.length, state.csvHeaders.length - 1)];
+  return 'CSV Text';
+}
+
+function fieldTypeName(type) {
+  if (type === 'datamatrix') return 'DataMatrix';
+  if (type === 'staticText') return 'Static text';
+  return 'CSV text';
+}
+
+function makeFieldId() {
+  return 'field-' + Math.random().toString(36).slice(2, 10);
+}
+
+function inchesToPoints(value) {
+  return value * POINTS_PER_INCH;
+}
+
+function numberOrDefault(value, fallback) {
+  var parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function plural(count) {
+  return count === 1 ? '' : 's';
+}
+
+function formatDecimal(value, digits) {
+  return Number(value).toFixed(digits).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+}
+
+function setStatus(id, message, type) {
+  var el = document.getElementById(id);
   if (!el) return;
-  el.className = 'lt-alert lt-alert-' + type;
+  el.className = 'lt-alert lt-alert-' + (type || 'info');
   el.textContent = message;
 }
 
-function escapeHtml(str) {
-  return String(str)
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
-
-function slugify(value) {
-  return String(value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'preset';
-}
-
-function normalizePreset(preset) {
-  var normalized = {};
-  PRESET_FIELD_ORDER.forEach(function (field) {
-    if (preset[field] === '' || preset[field] == null) return;
-    normalized[field] = preset[field];
-  });
-  return normalized;
 }

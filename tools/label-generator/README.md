@@ -1,27 +1,29 @@
 # Label Generator
 
-Generate PDF labels with DataMatrix barcodes from CSV data.
+Generate laser sheet or thermal PDF labels from CSV data using one reusable label template.
 
 ## Features
 
-- **CSV input** — Upload a `.csv` file or paste CSV text. Auto-detects delimiter (comma, tab, semicolon) and headers.
-- **DataMatrix barcodes** — Encode any column as a 2D DataMatrix code. Choose from Small / Medium / Large sizes.
-- **Human-readable text** — Print up to 4 additional columns as text alongside the barcode.
-- **Two layout modes**:
-  - **Thermal** — One label per page. Ideal for direct thermal printers (cryo labels, tube labels, cap labels).
-  - **Laser sheet** — Grid layout on letter-size sheets. Use built-in presets (Avery 5160, 5167, 5163, 5164) or enter custom geometry.
-- **Preset system** — Built-in presets ship in `preset-config.js`. Save custom presets in your browser (localStorage). Copy or export presets to share.
-- **PDF output** — Generates a ready-to-print PDF with barcodes and text positioned on each label.
+- **Laser-first workflow** — Choose a laser sheet preset, design one label, then place labels on the sheet.
+- **Reusable template** — The same template exports to laser sheets or one-label-per-page thermal PDFs.
+- **Automatic design grid** — The tool chooses the internal grid from label dimensions; users drag and resize fields instead of configuring rows and columns.
+- **Interactive fields** — Add CSV text, static text, and one DataMatrix field. Drag or resize fields on the label preview with grid snapping.
+- **Overlap warnings** — Overlapping fields are highlighted and warned, but PDF export remains available.
+- **Sheet placement** — Pick a starting cell, mark cells to use, skip partially used labels, and reset placement.
+- **PDF output** — Generates 100% scale PDFs with the bundled `pdf-lib` and `bwip-js` files. No build step or external dependency is required.
 
-## Usage
+## Basic Workflow
 
-1. **CSV Data** — Upload a CSV file or paste CSV content. The tool auto-detects the delimiter and headers.
-2. **Label Design** — Map which CSV column becomes the barcode data. Optionally add up to 4 text lines from other columns. Choose thermal or laser-sheet layout.
-3. **Export** — Generate the PDF. Preview it in the browser, then download.
+1. Upload or paste CSV data.
+2. Choose a laser sheet preset, or switch to thermal labels if needed.
+3. Add or edit label fields.
+4. Drag fields on the design preview and resize with the lower-right handle.
+5. For laser sheets, choose the first cell or skip used cells in the placement preview.
+6. Generate the PDF, preview it, then download.
 
 ## CSV Format
 
-Your CSV should have a header row and data rows. Example:
+Header rows are detected automatically. Comma, tab, and semicolon delimiters are supported, including quoted CSV cells.
 
 ```csv
 Sample ID,Name,Date,Notes
@@ -30,28 +32,35 @@ S002,Mutant A,2024-01-15,Treatment A
 S003,Mutant B,2024-01-16,Treatment B
 ```
 
-The "Sample ID" column can be used for the barcode, while "Name" and "Date" appear as printed text.
+The DataMatrix field can encode `Sample ID`. Human-readable code text should be added separately as a CSV text field if desired.
 
-## Presets
+## Printing Guidance
 
-### Built-in Thermal Presets
-- Cryo Label 1.28 × 0.5 in
-- Cryo Label 1.0 × 0.5 in
-- Tube Label 1.0 × 0.75 in
-- Cryo Cap Label 0.375 × 0.375 in
+- Print laser sheet PDFs at **Actual size** or **100% scale**.
+- Disable browser/printer options such as "Fit to page", "Shrink oversized pages", or custom scaling.
+- For Avery-style sheets, test on plain paper first and hold it behind the label stock to confirm alignment.
+- Thermal mode creates one PDF page per label using the selected label dimensions.
 
-### Built-in Laser Sheet Presets
-- Avery 5160 (30-up) — 1" × 2.625", 3×10 grid
-- Avery 5167 (80-up) — 0.5" × 1.75", 4×20 grid
-- Avery 5163 (10-up) — 2" × 4", 2×5 grid
-- Avery 5164 (6-up) — 3.33" × 4", 2×3 grid
+## Built-in Presets
 
-Add custom presets via the "Save In This Browser" button. Saved presets remain in your browser until cleared. Use "Copy Current Settings" or "Export All Presets" to transfer presets to `preset-config.js`.
+### Laser Sheet
+
+- Avery 5160 (30-up) — 2.625" × 1", 3 × 10 grid
+- Avery 5167 (80-up) — 1.75" × 0.5", 4 × 20 grid
+- Avery 5163 (10-up) — 4" × 2", 2 × 5 grid
+- Avery 5164 (6-up) — 4" × 3.33", 2 × 3 grid
+
+### Thermal
+
+- Cryo Label 1.28" × 0.5"
+- Cryo Label 1.0" × 0.5"
+- Tube Label 1.0" × 0.75"
+- Cryo Cap Label 0.375" × 0.375"
 
 ## Files
 
-- `index.html` — Tool page
-- `tool.js` — Application logic
-- `preset-config.js` — Shipped label sheet presets
-- `bwip-js-min.js` — Barcode generation library
+- `index.html` — Tool page and local styles
+- `tool.js` — CSV parsing, template designer, placement, and PDF generation
+- `preset-config.js` — Shipped laser and thermal presets
+- `bwip-js-min.js` — DataMatrix rendering library
 - `pdf-lib.min.js` — PDF generation library
