@@ -34,7 +34,7 @@ const state = {
   barcodeSize: 'M',
 
   layoutMode: 'thermal',
-  labelWidth: 0.75,
+  labelWidth: 1.28,
   labelHeight: 0.5,
   showBorder: true,
 
@@ -1212,9 +1212,9 @@ async function drawLabelOnPage(doc, page, font, barcodeData, row, cellX, cellY, 
   var innerW = cellW - padding * 2;
   var innerH = cellH - padding * 2;
 
-  var barcodeW = innerW * 0.38;
-  var textX = innerX + innerW * 0.42;
-  var textW = innerW * 0.56;
+var barcodeW = innerW * 0.35;
+var textX = innerX + innerW * 0.45;
+var textW = innerW * 0.52;
 
   var fontSize = pdfLabelFontSize(preset.labelHeight);
 
@@ -1247,7 +1247,7 @@ async function drawLabelOnPage(doc, page, font, barcodeData, row, cellX, cellY, 
         var barcodeLabelText = barcodeData.substring(0, 20);
         page.drawText(barcodeLabelText, {
           x: innerX,
-          y: Math.max(cellY + padding, barcodeDrawY - 5),
+          y: barcodeDrawY + barcodeDrawH + 4,
           size: 4,
           font: font,
           color: PDFLib.rgb(0.5, 0.5, 0.5),
@@ -1347,7 +1347,7 @@ function getThermalLabelCells() {
 }
 
 function onThermalSizeInput() {
-  state.labelWidth = parseFloat(document.getElementById('thermal-label-width').value) || 0.75;
+  state.labelWidth = parseFloat(document.getElementById('thermal-label-width').value) || 1.28;
   state.labelHeight = parseFloat(document.getElementById('thermal-label-height').value) || 0.5;
   state.outputDirty = true;
 }

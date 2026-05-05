@@ -35,7 +35,7 @@ The "Sample ID" column can be used for the barcode, while "Name" and "Date" appe
 ## Presets
 
 ### Built-in Thermal Presets
-- Cryo Label 0.75 × 0.5 in
+- Cryo Label 1.28 × 0.5 in
 - Cryo Label 1.0 × 0.5 in
 - Tube Label 1.0 × 0.75 in
 - Cryo Cap Label 0.375 × 0.375 in

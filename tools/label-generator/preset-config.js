@@ -3,11 +3,11 @@ window.LABEL_GENERATOR_PRESET_CONFIG = {
   version: 1,
   presets: [
     {
-      id: 'thermal-cryo-075x05', name: 'Cryo Label 0.75 × 0.5 in', mode: 'thermal',
+      id: 'thermal-cryo-128x05', name: 'Cryo Label 1.28 × 0.5 in', mode: 'thermal',
       vendor: 'Generic', sku: '',
-      labelWidth: 0.75, labelHeight: 0.5, pageWidth: 0.75, pageHeight: 0.5,
+      labelWidth: 1.28, labelHeight: 0.5, pageWidth: 1.28, pageHeight: 0.5,
       topMargin: 0, leftMargin: 0,
-      horizontalPitch: 0.75, verticalPitch: 0.5,
+      horizontalPitch: 1.28, verticalPitch: 0.5,
       columns: 1, rows: 1,
       notes: 'Common cryogenic vial label size.'
     },
