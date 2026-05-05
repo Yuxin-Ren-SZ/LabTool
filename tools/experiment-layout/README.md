@@ -49,4 +49,6 @@ plate_type,row,column,well,group,group_abbreviation,group_color
 
 `Print Layout` opens the browser print dialog with a clean plate map, group summary, and color legend. When the visible well labels use generated abbreviations, the print legend maps each abbreviation and color back to the full group name. Use the browser's save-as-PDF option if a PDF is needed.
 
+`Export PNG` downloads a 1920 x 1080 landscape PNG containing only the plate view and an assigned-group legend on the right side.
+
 `Reset Plate` clears the current layout after confirmation.

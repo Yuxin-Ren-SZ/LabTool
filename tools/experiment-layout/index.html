@@ -662,6 +662,7 @@
     </div>
     <div class="layout-actions">
       <button class="btn-reset" type="button" id="export-csv-btn">Export CSV</button>
+      <button class="btn-reset" type="button" id="export-png-btn">Export PNG</button>
       <button class="btn-reset" type="button" id="print-btn">Print Layout</button>
       <button class="btn-reset" type="button" id="reset-btn">Reset Plate</button>
     </div>
@@ -853,6 +854,13 @@ const PLATE_UI_MM = {
 };
 const PLATE_SCALE_LIMITS = { min: 2.6, max: 6.0 };
 const VIEWPORT_HEIGHT_RESERVE_PX = 96;
+const PNG_EXPORT = {
+  width: 1920,
+  height: 1080,
+  margin: 72,
+  gap: 56,
+  rightLegendWidth: 420,
+};
 
 let plateType = '96';
 let groups = [
@@ -953,6 +961,7 @@ function wireEvents() {
     if (event.key === 'Enter') addGroupFromInput();
   });
   document.getElementById('export-csv-btn').addEventListener('click', exportCsv);
+  document.getElementById('export-png-btn').addEventListener('click', exportPng);
   document.getElementById('print-btn').addEventListener('click', () => window.print());
   document.getElementById('reset-btn').addEventListener('click', resetPlate);
 }
@@ -1594,6 +1603,284 @@ function pasteAnchorPosition() {
   return anchorWell ? wellPosition(anchorWell) : null;
 }
 
+function exportPng() {
+  const canvas = document.createElement('canvas');
+  canvas.width = PNG_EXPORT.width;
+  canvas.height = PNG_EXPORT.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    setStatus('PNG export is not available in this browser.', 'danger');
+    return;
+  }
+
+  drawPngExport(ctx);
+
+  const filename = `experiment-layout-${plateType}-well.png`;
+  canvas.toBlob((blob) => {
+    if (!blob) {
+      setStatus('Unable to generate PNG export.', 'danger');
+      return;
+    }
+    if (typeof labtoolsDownloadBlob === 'function') {
+      labtoolsDownloadBlob(filename, blob);
+    } else {
+      fallbackDownloadBlob(filename, blob);
+    }
+    setStatus(`Exported ${filename}.`, 'success');
+  }, 'image/png');
+}
+
+function drawPngExport(ctx) {
+  const plate = PLATE_REFERENCE_MM[plateType];
+  const plateBounds = getPngPlateBounds();
+  const legendBounds = getPngLegendBounds();
+  const metrics = getPngPlateMetrics(plate, plateBounds);
+  const labelMode = getPngLabelMode(plate);
+  const assignedGroups = getAssignedGroupDisplayInfo(labelMode);
+
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, PNG_EXPORT.width, PNG_EXPORT.height);
+  drawPngPlate(ctx, plate, metrics, labelMode);
+  drawPngLegend(ctx, legendBounds, assignedGroups);
+  ctx.restore();
+}
+
+function getPngPlateBounds() {
+  return {
+    x: PNG_EXPORT.margin,
+    y: PNG_EXPORT.margin,
+    width: PNG_EXPORT.width - (PNG_EXPORT.margin * 2) - PNG_EXPORT.rightLegendWidth - PNG_EXPORT.gap,
+    height: PNG_EXPORT.height - (PNG_EXPORT.margin * 2),
+  };
+}
+
+function getPngLegendBounds() {
+  return {
+    x: PNG_EXPORT.width - PNG_EXPORT.margin - PNG_EXPORT.rightLegendWidth,
+    y: PNG_EXPORT.margin,
+    width: PNG_EXPORT.rightLegendWidth,
+    height: PNG_EXPORT.height - (PNG_EXPORT.margin * 2),
+  };
+}
+
+function getPngPlateMetrics(plate, bounds) {
+  const pxPerMm = Math.min(bounds.width / PLATE_UI_MM.outerWidth, bounds.height / PLATE_UI_MM.outerHeight);
+  const frameWidthPx = PLATE_UI_MM.outerWidth * pxPerMm;
+  const frameHeightPx = PLATE_UI_MM.outerHeight * pxPerMm;
+  const frameX = bounds.x + (bounds.width - frameWidthPx) / 2;
+  const frameY = bounds.y + (bounds.height - frameHeightPx) / 2;
+  const pitchPx = plate.pitchMm * pxPerMm;
+  const wellDiameterPx = plate.wellDiameterMm * pxPerMm;
+  const wellRadiusPx = wellDiameterPx / 2;
+  const gridOffsetXpx = plate.a1ColOffsetMm * pxPerMm;
+  const gridOffsetYpx = plate.a1RowOffsetMm * pxPerMm;
+  const colLabelBandPx = Math.max(gridOffsetYpx - wellRadiusPx, PLATE_UI_MM.colLabelBandMm * pxPerMm);
+  const rowLabelBandPx = Math.max(gridOffsetXpx - wellRadiusPx, PLATE_UI_MM.rowLabelBandMm * pxPerMm);
+
+  return {
+    x: frameX,
+    y: frameY,
+    frameWidthPx,
+    frameHeightPx,
+    pxPerMm,
+    pitchPx,
+    wellDiameterPx,
+    gridOffsetXpx,
+    gridOffsetYpx,
+    colLabelCenterYpx: Math.max(8, colLabelBandPx / 2),
+    rowLabelCenterXpx: Math.max(8, rowLabelBandPx / 2),
+    axisLabelFontPx: clamp(pxPerMm * 2.1, 12, 22),
+    wellIdFontPx: clamp(wellDiameterPx * 0.18, 10, 24),
+    wellLabelFontPx: clamp(wellDiameterPx * 0.11, 9, 18),
+    wellInitialsFontPx: clamp(wellDiameterPx * 0.2, 10, 22),
+  };
+}
+
+function getPngLabelMode(plate) {
+  return getLabelMode(plate.wellDiameterMm * PLATE_SCALE_LIMITS.max);
+}
+
+function drawPngPlate(ctx, plate, metrics, labelMode) {
+  const cutSize = getPngPlateCutSize(metrics.frameWidthPx, metrics.frameHeightPx, metrics.pxPerMm);
+  const points = buildPlateFramePoints(metrics.frameWidthPx, metrics.frameHeightPx, cutSize);
+
+  ctx.save();
+  ctx.translate(metrics.x, metrics.y);
+  drawPngPolygon(ctx, points, '#fffefb', '#b9b5ac', 3);
+
+  ctx.fillStyle = '#6b665d';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `700 ${metrics.axisLabelFontPx}px Arial, sans-serif`;
+
+  for (let col = 0; col < plate.cols; col++) {
+    ctx.fillText(String(col + 1), getPngWellCenterX(metrics, col), metrics.colLabelCenterYpx);
+  }
+
+  for (let row = 0; row < plate.rows; row++) {
+    ctx.fillText(rowLabel(row), metrics.rowLabelCenterXpx, getPngWellCenterY(metrics, row));
+    for (let col = 0; col < plate.cols; col++) {
+      drawPngWell(ctx, plate, metrics, row, col, labelMode);
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawPngWell(ctx, plate, metrics, row, col, labelMode) {
+  const wellId = getWellId(row, col);
+  const group = getGroup(assignments[wellId]);
+  const x = getPngWellCenterX(metrics, col);
+  const y = getPngWellCenterY(metrics, row);
+  const size = metrics.wellDiameterPx;
+  const radius = size / 2;
+
+  ctx.save();
+  ctx.fillStyle = group ? group.color : '#ffffff';
+  ctx.strokeStyle = group ? 'rgba(0, 0, 0, 0.28)' : '#d8d6d0';
+  ctx.lineWidth = Math.max(1.5, size * 0.035);
+
+  if (plate.shape === 'square') {
+    drawRoundRectPath(ctx, x - radius, y - radius, size, size, size * 0.18);
+  } else {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+  }
+  ctx.fill();
+  ctx.stroke();
+
+  if (group && labelMode === 'rich') {
+    ctx.fillStyle = contrastText(group.color);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `800 ${metrics.wellIdFontPx}px Arial, sans-serif`;
+    ctx.fillText(wellId, x, y - metrics.wellIdFontPx * 0.42);
+    ctx.font = `700 ${metrics.wellLabelFontPx}px Arial, sans-serif`;
+    fillTextFit(ctx, group.name, x, y + metrics.wellLabelFontPx * 0.82, size * 0.82);
+  } else if (group && labelMode === 'compact') {
+    ctx.fillStyle = contrastText(group.color);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `800 ${metrics.wellInitialsFontPx}px Arial, sans-serif`;
+    ctx.fillText(groupInitials(group.name), x, y);
+  }
+
+  ctx.restore();
+}
+
+function drawPngLegend(ctx, bounds, groupsForLegend) {
+  ctx.save();
+  ctx.fillStyle = '#37352f';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = '800 24px Arial, sans-serif';
+  ctx.fillText('Group Legend', bounds.x, bounds.y + 28);
+
+  if (groupsForLegend.length === 0) {
+    ctx.fillStyle = '#78746c';
+    ctx.font = '600 20px Arial, sans-serif';
+    ctx.fillText('No assigned groups', bounds.x, bounds.y + 64);
+    ctx.restore();
+    return;
+  }
+
+  const columnCount = 1;
+  const rowHeight = 38;
+  const columnWidth = bounds.width / columnCount;
+  const startY = bounds.y + 66;
+
+  groupsForLegend.forEach((group, index) => {
+    const column = index % columnCount;
+    const row = Math.floor(index / columnCount);
+    const x = bounds.x + column * columnWidth;
+    const y = startY + row * rowHeight;
+    const maxNameWidth = columnWidth - 118;
+
+    ctx.fillStyle = group.color;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.28)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x + 11, y - 7, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    let textX = x + 28;
+    if (group.abbreviationUsed) {
+      ctx.fillStyle = '#37352f';
+      ctx.font = '800 17px Arial, sans-serif';
+      ctx.fillText(`${group.abbreviation} =`, textX, y);
+      textX += ctx.measureText(`${group.abbreviation} =`).width + 7;
+    }
+
+    ctx.fillStyle = '#37352f';
+    ctx.font = '700 18px Arial, sans-serif';
+    fillTextFit(ctx, group.name, textX, y, Math.max(70, maxNameWidth - (textX - x - 28)));
+    ctx.fillStyle = '#78746c';
+    ctx.font = '600 16px Arial, sans-serif';
+    ctx.fillText(`(${group.count})`, x + columnWidth - 68, y);
+  });
+
+  ctx.restore();
+}
+
+function getPngPlateCutSize(width, height, pxPerMm) {
+  const requested = PLATE_UI_MM.cornerCutMm * pxPerMm;
+  const safeMax = Math.max(18, Math.min((width / 2) - 8, (height / 2) - 8));
+  return Math.round(Math.min(requested, safeMax));
+}
+
+function getPngWellCenterX(metrics, col) {
+  return roundPx(metrics.gridOffsetXpx + col * metrics.pitchPx);
+}
+
+function getPngWellCenterY(metrics, row) {
+  return roundPx(metrics.gridOffsetYpx + row * metrics.pitchPx);
+}
+
+function drawPngPolygon(ctx, points, fill, stroke, lineWidth) {
+  ctx.beginPath();
+  points.forEach(([x, y], index) => {
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+}
+
+function drawRoundRectPath(ctx, x, y, width, height, radius) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + safeRadius, y);
+  ctx.lineTo(x + width - safeRadius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+  ctx.lineTo(x + width, y + height - safeRadius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+  ctx.lineTo(x + safeRadius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+  ctx.lineTo(x, y + safeRadius);
+  ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+  ctx.closePath();
+}
+
+function fillTextFit(ctx, text, x, y, maxWidth) {
+  const value = String(text || '');
+  if (ctx.measureText(value).width <= maxWidth) {
+    ctx.fillText(value, x, y);
+    return;
+  }
+
+  let clipped = value;
+  while (clipped.length > 1 && ctx.measureText(`${clipped}...`).width > maxWidth) {
+    clipped = clipped.slice(0, -1);
+  }
+  ctx.fillText(`${clipped}...`, x, y);
+}
+
 function exportCsv() {
   const plate = PLATE_REFERENCE_MM[plateType];
   const rows = [['plate_type', 'row', 'column', 'well', 'group', 'group_abbreviation', 'group_color']];
@@ -1707,20 +1994,20 @@ function countAssignedWells(groupId) {
   return Object.values(assignments).filter((id) => id === groupId).length;
 }
 
-function getAssignedGroupDisplayInfo() {
+function getAssignedGroupDisplayInfo(labelMode = getCurrentLabelMode()) {
   return groups
-    .map(getGroupDisplayInfo)
+    .map((group) => getGroupDisplayInfo(group, labelMode))
     .filter((group) => group.count > 0);
 }
 
-function getGroupDisplayInfo(group) {
+function getGroupDisplayInfo(group, labelMode = getCurrentLabelMode()) {
   const abbreviation = groupInitials(group.name);
   return {
     id: group.id,
     name: group.name,
     color: group.color,
     abbreviation,
-    abbreviationUsed: getCurrentLabelMode() === 'compact' && abbreviation !== '',
+    abbreviationUsed: labelMode === 'compact' && abbreviation !== '',
     count: countAssignedWells(group.id),
   };
 }
@@ -1776,6 +2063,10 @@ function clamp(value, min, max) {
 
 function fallbackDownloadText(filename, content) {
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  fallbackDownloadBlob(filename, blob);
+}
+
+function fallbackDownloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
