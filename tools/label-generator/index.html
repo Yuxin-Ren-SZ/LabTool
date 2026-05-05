@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Label Generator · LabTools</title>
+  <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <script src="../../assets/js/labtools-common.js"></script>
+  <script src="./preset-config.js"></script>
+  <script src="./bwip-js-min.js"></script>
+  <script src="./pdf-lib.min.js"></script>
+  <style>
+    .card { max-width: 960px; }
+
+    .tool-shell {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .panel-block {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .panel-surface {
+      background: var(--surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .csv-preview-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.76rem;
+      font-family: var(--font-mono);
+    }
+    .csv-preview-table th,
+    .csv-preview-table td {
+      padding: 4px 8px;
+      border: 1px solid var(--border-subtle);
+      text-align: left;
+      white-space: nowrap;
+    }
+    .csv-preview-table th {
+      background: var(--surface-subtle);
+      font-weight: 700;
+      color: var(--text-secondary);
+      font-size: 0.70rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .csv-preview-table tr:nth-child(even) td {
+      background: var(--surface-subtle);
+    }
+
+    .csv-preview-wrap {
+      overflow-x: auto;
+      max-height: 220px;
+      overflow-y: auto;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+    }
+
+    .csv-preview-note {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .mapping-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    .mapping-field {
+      flex: 1;
+      min-width: 150px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .mapping-field label {
+      font-size: var(--fs-xs);
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .preset-editor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .preset-editor-grid .field-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .preset-editor-grid .field-stack label,
+    .preset-editor-grid .field-stack .lt-label {
+      margin-bottom: 0;
+    }
+    .field-span-full {
+      grid-column: 1 / -1;
+    }
+
+    .sheet-preview-container {
+      max-width: 480px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .sheet-card {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .sheet-card-header h3 {
+      font-size: 0.94rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+    .sheet-card-header p {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+    }
+
+    .preset-summary-panel {
+      --preset-summary-accent: var(--blue-dark);
+      --preset-summary-bg: var(--blue-bg);
+      --preset-summary-border: var(--blue-border);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 16px 18px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--preset-summary-border);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0)) padding-box,
+        var(--preset-summary-bg);
+    }
+    .preset-summary-panel--info {
+      --preset-summary-accent: var(--blue-dark);
+      --preset-summary-bg: var(--blue-bg);
+      --preset-summary-border: var(--blue-border);
+    }
+    .preset-summary-panel--success {
+      --preset-summary-accent: var(--green-dark);
+      --preset-summary-bg: var(--green-bg);
+      --preset-summary-border: var(--green-border);
+    }
+    .preset-summary-panel--warn {
+      --preset-summary-accent: var(--yellow-dark);
+      --preset-summary-bg: var(--yellow-bg);
+      --preset-summary-border: var(--yellow-border);
+    }
+
+    .preset-summary-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .preset-summary-eyebrow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--preset-summary-accent);
+    }
+    .preset-summary-title {
+      font-size: 1.16rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+      margin-bottom: 4px;
+    }
+    .preset-summary-subtitle {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+    .preset-summary-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      min-height: 28px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(255,255,255,0.82);
+      color: var(--preset-summary-accent);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .preset-summary-facts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+    }
+    .preset-summary-fact {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+      padding-top: 10px;
+      border-top: 1px solid rgba(55, 53, 47, 0.08);
+    }
+    .preset-summary-fact-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+    .preset-summary-fact-value {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+    }
+    .preset-summary-fact-note {
+      font-size: 0.77rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .output-embed {
+      width: 100%;
+      min-height: 620px;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      background: var(--surface-subtle);
+    }
+
+    .sub-section-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .lt-sheet-cell {
+      justify-content: flex-start;
+      gap: 1px;
+      padding: 3px 4px;
+      font-size: 0.52rem;
+      overflow: hidden;
+    }
+    .lt-sheet-cell-id {
+      font-size: 0.43rem;
+      line-height: 1;
+      opacity: 0.78;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .lt-sheet-cell-token {
+      font-size: 0.56rem;
+      line-height: 1;
+      font-weight: 800;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: 0;
+    }
+
+    @media (max-width: 860px) {
+      .preset-editor-grid {
+        grid-template-columns: 1fr;
+      }
+      .preset-summary-top {
+        flex-direction: column;
+      }
+      .preset-summary-chip {
+        align-self: flex-start;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .card { padding: 18px 14px; }
+      .panel-surface { padding: 14px; }
+      .output-embed { min-height: 420px; }
+      .preset-summary-panel { padding: 14px; }
+      .preset-summary-facts { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="lt-nav">
+  <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
+  <span class="lt-nav-sep">/</span>
+  <span class="lt-nav-page">Label Generator</span>
+</nav>
+
+<div class="lt-page-body">
+  <div class="card">
+
+    <div class="tool-shell">
+
+      <h1 class="lt-tool-title">🏷️ Label Generator</h1>
+      <p class="lt-tool-subtitle">Generate PDF labels with DataMatrix barcodes from CSV data. Supports single thermal labels and laser-printer label sheets.</p>
+
+      <div class="step-bar">
+        <div class="step-pip active" id="step-csv"><div class="dot">1</div>CSV Data</div>
+        <div class="step-connector" id="step-conn-1"></div>
+        <div class="step-pip" id="step-design"><div class="dot">2</div>Label Design</div>
+        <div class="step-connector" id="step-conn-2"></div>
+        <div class="step-pip" id="step-export"><div class="dot">3</div>Export</div>
+      </div>
+
+      <section class="panel-block">
+        <div class="lt-section-label">1. CSV Data</div>
+        <div class="panel-surface">
+          <div class="lt-toolbar-row">
+            <button class="lt-btn" id="csv-upload-btn">Upload CSV</button>
+            <input type="file" accept=".csv,.txt,text/csv" id="csv-file-input" hidden />
+          </div>
+          <textarea class="lt-input lt-textarea" id="csv-textarea" rows="8" placeholder="Paste CSV data here, or upload a file..."></textarea>
+          <div class="lt-alert lt-alert-info" id="csv-status">Upload a CSV file or paste CSV text to begin.</div>
+          <div id="csv-summary"></div>
+        </div>
+      </section>
+
+      <section class="panel-block">
+        <div class="lt-section-label">2. Label Design</div>
+
+        <div class="panel-surface">
+          <div class="sub-section-title">Column Mapping</div>
+
+          <div class="mapping-row">
+            <div class="mapping-field">
+              <label for="barcode-col-select">Barcode Data Column</label>
+              <select class="lt-select" id="barcode-col-select" disabled>
+                <option value="0">— Load CSV first —</option>
+              </select>
+            </div>
+            <div class="mapping-field">
+              <label for="barcode-size-select">Barcode Size</label>
+              <select class="lt-select" id="barcode-size-select">
+                <option value="S">Small (2 mm)</option>
+                <option value="M" selected>Medium (4 mm)</option>
+                <option value="L">Large (6 mm)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mapping-row">
+            <div class="mapping-field">
+              <label for="text-line-1-select">Text Line 1</label>
+              <select class="lt-select" id="text-line-1-select" disabled>
+                <option value="-1">— None —</option>
+              </select>
+            </div>
+            <div class="mapping-field">
+              <label for="text-line-2-select">Text Line 2</label>
+              <select class="lt-select" id="text-line-2-select" disabled>
+                <option value="-1">— None —</option>
+              </select>
+            </div>
+            <div class="mapping-field">
+              <label for="text-line-3-select">Text Line 3</label>
+              <select class="lt-select" id="text-line-3-select" disabled>
+                <option value="-1">— None —</option>
+              </select>
+            </div>
+            <div class="mapping-field">
+              <label for="text-line-4-select">Text Line 4</label>
+              <select class="lt-select" id="text-line-4-select" disabled>
+                <option value="-1">— None —</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-surface">
+          <div class="sub-section-title">Layout Mode</div>
+
+          <div class="lt-toolbar-row">
+            <div class="lt-segmented" aria-label="Layout mode">
+              <button type="button" class="lt-segmented-btn active" id="layout-mode-thermal">Thermal (single)</button>
+              <button type="button" class="lt-segmented-btn" id="layout-mode-laser">Laser Sheet (grid)</button>
+            </div>
+          </div>
+
+          <div id="thermal-controls">
+            <div class="lt-form-grid">
+              <div class="field-stack">
+                <label class="lt-label" for="thermal-label-width">Label Width (in)</label>
+                <input class="lt-input lt-input-float" id="thermal-label-width" type="number" inputmode="decimal" step="0.01" min="0.1" value="0.75"/>
+              </div>
+              <div class="field-stack">
+                <label class="lt-label" for="thermal-label-height">Label Height (in)</label>
+                <input class="lt-input lt-input-float" id="thermal-label-height" type="number" inputmode="decimal" step="0.01" min="0.1" value="0.5"/>
+              </div>
+            </div>
+            <label class="lt-checkbox-row">
+              <input type="checkbox" id="show-border" checked />
+              <span>Show label border</span>
+            </label>
+          </div>
+
+          <div id="laser-controls" style="display:none;">
+            <div class="field-stack">
+              <label class="lt-label" for="preset-select">Preset</label>
+              <select class="lt-select" id="preset-select"></select>
+            </div>
+
+            <div id="preset-editor">
+              <div class="preset-editor-grid">
+                <div class="field-stack">
+                  <label class="lt-label" for="presetName">Preset Name</label>
+                  <input class="lt-input" id="presetName" type="text" placeholder="e.g. Avery 5160"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="presetVendor">Vendor</label>
+                  <input class="lt-input" id="presetVendor" type="text" placeholder="optional"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="presetSku">SKU / Catalog</label>
+                  <input class="lt-input" id="presetSku" type="text" placeholder="optional"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="presetNotes">Notes</label>
+                  <input class="lt-input" id="presetNotes" type="text" placeholder="optional"/>
+                </div>
+
+                <div class="field-stack">
+                  <label class="lt-label" for="pageWidth">Page Width (in)</label>
+                  <input class="lt-input lt-input-float" id="pageWidth" type="number" inputmode="decimal" min="0" step="0.01"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="pageHeight">Page Height (in)</label>
+                  <input class="lt-input lt-input-float" id="pageHeight" type="number" inputmode="decimal" min="0" step="0.01"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="topMargin">Top Margin (in)</label>
+                  <input class="lt-input lt-input-float" id="topMargin" type="number" inputmode="decimal" min="0" step="0.01"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="leftMargin">Left Margin (in)</label>
+                  <input class="lt-input lt-input-float" id="leftMargin" type="number" inputmode="decimal" min="0" step="0.01"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="horizontalPitch">Horizontal Pitch (in)</label>
+                  <input class="lt-input lt-input-float" id="horizontalPitch" type="number" inputmode="decimal" min="0" step="0.01"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="verticalPitch">Vertical Pitch (in)</label>
+                  <input class="lt-input lt-input-float" id="verticalPitch" type="number" inputmode="decimal" min="0" step="0.01"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="labelWidth">Label Width (in)</label>
+                  <input class="lt-input lt-input-float" id="labelWidth" type="number" inputmode="decimal" min="0" step="0.01"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="labelHeight">Label Height (in)</label>
+                  <input class="lt-input lt-input-float" id="labelHeight" type="number" inputmode="decimal" min="0" step="0.01"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="columns">Columns</label>
+                  <input class="lt-input lt-input-int" id="columns" type="number" inputmode="numeric" min="1" step="1"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="rows">Rows</label>
+                  <input class="lt-input lt-input-int" id="rows" type="number" inputmode="numeric" min="1" step="1"/>
+                </div>
+              </div>
+            </div>
+
+            <div class="lt-toolbar-row">
+              <button class="btn-reset" id="save-preset-btn">Save In This Browser</button>
+              <button class="btn-reset" id="clear-saved-presets-btn">Clear Saved Presets</button>
+              <button class="btn-reset" id="copy-current-btn">Copy Current Settings</button>
+              <button class="btn-reset" id="export-all-btn">Export All Presets</button>
+            </div>
+
+            <div id="preset-summary"></div>
+
+            <div id="sheet-preview"></div>
+          </div>
+
+          <div class="lt-alert lt-alert-info" id="design-status">Select a layout mode and configure the label geometry.</div>
+        </div>
+      </section>
+
+      <section class="panel-block">
+        <div class="lt-section-label">3. Export</div>
+        <div class="panel-surface">
+          <div class="lt-toolbar-row">
+            <button class="lt-btn lt-btn-primary" id="generate-btn" disabled>Generate PDF</button>
+            <button class="btn-reset" id="download-btn" disabled>Download PDF</button>
+          </div>
+          <div class="lt-alert lt-alert-info" id="export-status">Load CSV data and configure the layout before generating the PDF.</div>
+          <div id="output-summary"></div>
+          <div id="pdf-preview"></div>
+        </div>
+      </section>
+
+    </div>
+
+  </div>
+</div>
+
+<footer class="lt-footer">LabTools · Open source lab utilities</footer>
+
+<script src="./tool.js"></script>
+
+</body>
+</html>
