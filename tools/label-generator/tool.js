@@ -4,6 +4,7 @@ const POINTS_PER_INCH = 72;
 const CUSTOM_LASER_ID = '__custom_laser__';
 const CUSTOM_THERMAL_ID = '__custom_thermal__';
 const TEMPLATE_STORAGE_KEY = 'labtools.labelGenerator.template.v1';
+const THERMAL_TO_LASER_USER_PRESETS_KEY = 'labtools:thermal-to-laser:user-presets:v1';
 const CSV_HEADER_AUTO = 'auto';
 const CSV_HEADER_YES = 'yes';
 const CSV_HEADER_NO = 'no';
@@ -19,7 +20,7 @@ const state = {
   laserPresets: [],
   thermalPresets: [],
   outputMode: 'laser-sheet',
-  selectedLaserPresetId: 'laser-avery-5160',
+  selectedLaserPresetId: 'labtools-9187-1258',
   selectedThermalPresetId: 'thermal-cryo-128x05',
   customLaserPreset: {
     id: CUSTOM_LASER_ID,
@@ -73,9 +74,10 @@ document.addEventListener('DOMContentLoaded', init);
 
 function init() {
   state.presets = sanitizePresetList((window.LABEL_GENERATOR_PRESET_CONFIG && window.LABEL_GENERATOR_PRESET_CONFIG.presets) || []);
-  state.laserPresets = state.presets.filter(function (preset) { return preset.mode === 'laser-sheet'; });
+  state.laserPresets = buildSharedLaserPresets();
   state.thermalPresets = state.presets.filter(function (preset) { return preset.mode === 'thermal'; });
   if (!findLaserPreset(state.selectedLaserPresetId) && state.laserPresets[0]) state.selectedLaserPresetId = state.laserPresets[0].id;
+  if (!findLaserPreset(state.selectedLaserPresetId) && !state.laserPresets[0]) state.selectedLaserPresetId = CUSTOM_LASER_ID;
   if (!findThermalPreset(state.selectedThermalPresetId) && state.thermalPresets[0]) state.selectedThermalPresetId = state.thermalPresets[0].id;
   initializeDefaultTemplate();
   recomputeGrid(true);
@@ -155,6 +157,67 @@ function sanitizePresetList(rawPresets) {
   }).filter(function (preset) {
     return preset.id && preset.labelWidth > 0 && preset.labelHeight > 0;
   });
+}
+
+function buildSharedLaserPresets() {
+  var shipped = (window.THERMAL_TO_LASER_PRESET_CONFIG && window.THERMAL_TO_LASER_PRESET_CONFIG.presets) || [];
+  var user = readThermalToLaserUserPresets();
+  var seenIds = new Set();
+  return shipped.map(function (preset, index) {
+    return Object.assign({}, preset, { _origin: 'builtin', _sourceIndex: index });
+  }).concat(user.map(function (preset, index) {
+    return Object.assign({}, preset, { _origin: 'user', _sourceIndex: index });
+  })).map(function (preset, index) {
+    var normalized = normalizeSharedLaserPreset(preset, index);
+    if (!normalized || seenIds.has(normalized.id)) return null;
+    seenIds.add(normalized.id);
+    return normalized;
+  }).filter(Boolean);
+}
+
+function readThermalToLaserUserPresets() {
+  var stored = '';
+  try {
+    if (!window.localStorage || !window.localStorage.getItem) return [];
+    stored = window.localStorage.getItem(THERMAL_TO_LASER_USER_PRESETS_KEY);
+  } catch (err) {
+    return [];
+  }
+  if (!stored) return [];
+  try {
+    var parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function normalizeSharedLaserPreset(preset, index) {
+  if (!preset) return null;
+  var rawId = String(preset.id || 'thermal-to-laser-preset-' + index);
+  var normalized = {
+    id: rawId,
+    name: String(preset.name || rawId || 'Preset'),
+    mode: 'laser-sheet',
+    vendor: String(preset.vendor || ''),
+    sku: String(preset.sku || ''),
+    labelWidth: numberOrDefault(preset.labelWidth, 0),
+    labelHeight: numberOrDefault(preset.labelHeight, 0),
+    pageWidth: numberOrDefault(preset.pageWidth, 0),
+    pageHeight: numberOrDefault(preset.pageHeight, 0),
+    topMargin: numberOrDefault(preset.topMargin, 0),
+    leftMargin: numberOrDefault(preset.leftMargin, numberOrDefault(preset.sideMargin, 0)),
+    horizontalPitch: numberOrDefault(preset.horizontalPitch, 0),
+    verticalPitch: numberOrDefault(preset.verticalPitch, 0),
+    columns: Math.max(1, Math.round(numberOrDefault(preset.columns, 1))),
+    rows: Math.max(1, Math.round(numberOrDefault(preset.rows, 1))),
+    notes: String(preset.notes || ''),
+    _origin: preset._origin === 'user' ? 'user' : 'builtin',
+  };
+  if (!normalized.id || normalized.labelWidth <= 0 || normalized.labelHeight <= 0) return null;
+  if (normalized.pageWidth <= 0 || normalized.pageHeight <= 0) return null;
+  if (normalized.horizontalPitch <= 0 || normalized.verticalPitch <= 0) return null;
+  return normalized;
 }
 
 function initializeDefaultTemplate() {
@@ -631,7 +694,8 @@ function renderAll() {
 function renderPresetSelects() {
   var laserSelect = document.getElementById('laser-preset-select');
   laserSelect.innerHTML = state.laserPresets.map(function (preset) {
-    return '<option value="' + escapeHtml(preset.id) + '">' + escapeHtml(preset.name + (preset.sku ? ' · ' + preset.sku : '')) + '</option>';
+    var source = preset._origin === 'user' ? ' · Saved' : '';
+    return '<option value="' + escapeHtml(preset.id) + '">' + escapeHtml(preset.name + (preset.sku ? ' · ' + preset.sku : '') + source) + '</option>';
   }).join('') + '<option value="' + CUSTOM_LASER_ID + '">Custom laser sheet</option>';
   laserSelect.value = state.selectedLaserPresetId;
 

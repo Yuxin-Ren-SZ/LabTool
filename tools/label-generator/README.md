@@ -4,7 +4,7 @@ Generate laser sheet or thermal PDF labels from CSV data using one reusable labe
 
 ## Features
 
-- **Laser-first workflow** — Choose a laser sheet preset, design one label, then place labels on the sheet.
+- **Laser-first workflow** — Choose a laser sheet preset shared with the Thermal To Laser converter, design one label, then place labels on the sheet.
 - **Reusable template** — The same template exports to laser sheets or one-label-per-page thermal PDFs.
 - **Automatic design grid** — The tool chooses the internal grid from label dimensions; users drag and resize fields instead of configuring rows and columns.
 - **Interactive fields** — Add CSV text, static text, and one DataMatrix field. Drag, touch-drag, keyboard-move, or resize fields on the label preview with grid snapping.
@@ -51,10 +51,7 @@ Blank DataMatrix values block export so a printable but meaningless code is not 
 
 ### Laser Sheet
 
-- Avery 5160 (30-up) — 2.625" × 1", 3 × 10 grid
-- Avery 5167 (80-up) — 1.75" × 0.5", 4 × 20 grid
-- Avery 5163 (10-up) — 4" × 2", 2 × 5 grid
-- Avery 5164 (6-up) — 4" × 3.33", 2 × 3 grid
+Laser sheet presets are loaded from `tools/thermal-to-laser/preset-config.js` so the two label tools use the same shipped sheet formats. Browser-saved Thermal To Laser presets also appear in the Label Generator preset dropdown when available.
 
 ### Thermal
 
@@ -67,6 +64,7 @@ Blank DataMatrix values block export so a printable but meaningless code is not 
 
 - `index.html` — Tool page and local styles
 - `tool.js` — CSV parsing, template designer, placement, and PDF generation
-- `preset-config.js` — Shipped laser and thermal presets
+- `preset-config.js` — Shipped thermal presets for one-label-per-page output
+- `../thermal-to-laser/preset-config.js` — Shared laser sheet presets
 - `bwip-js-min.js` — DataMatrix rendering library
 - `pdf-lib.min.js` — PDF generation library
