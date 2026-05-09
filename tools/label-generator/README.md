@@ -7,19 +7,23 @@ Generate laser sheet or thermal PDF labels from CSV data using one reusable labe
 - **Laser-first workflow** — Choose a laser sheet preset, design one label, then place labels on the sheet.
 - **Reusable template** — The same template exports to laser sheets or one-label-per-page thermal PDFs.
 - **Automatic design grid** — The tool chooses the internal grid from label dimensions; users drag and resize fields instead of configuring rows and columns.
-- **Interactive fields** — Add CSV text, static text, and one DataMatrix field. Drag or resize fields on the label preview with grid snapping.
+- **Interactive fields** — Add CSV text, static text, and one DataMatrix field. Drag, touch-drag, keyboard-move, or resize fields on the label preview with grid snapping.
+- **Browser-saved templates** — Save, reload, or reset the current label template in local browser storage.
+- **CSV header control** — Auto-detect headers, or force the first row to be treated as header/data.
 - **Overlap warnings** — Overlapping fields are highlighted and warned, but PDF export remains available.
+- **Geometry validation** — Custom laser sheet values are checked before export so labels do not run off the page.
 - **Sheet placement** — Pick a starting cell, mark cells to use, skip partially used labels, and reset placement.
 - **PDF output** — Generates 100% scale PDFs with the bundled `pdf-lib` and `bwip-js` files. No build step or external dependency is required.
 
 ## Basic Workflow
 
 1. Upload or paste CSV data.
-2. Choose a laser sheet preset, or switch to thermal labels if needed.
-3. Add or edit label fields.
-4. Drag fields on the design preview and resize with the lower-right handle.
-5. For laser sheets, choose the first cell or skip used cells in the placement preview.
-6. Generate the PDF, preview it, then download.
+2. Confirm whether the first row should be treated as headers.
+3. Choose a laser sheet preset, or switch to thermal labels if needed.
+4. Add or edit label fields.
+5. Drag fields on the design preview, resize with the lower-right handle, or use arrow keys to move the selected field.
+6. For laser sheets, choose the first cell or skip used cells in the placement preview.
+7. Generate the PDF, preview it, then download.
 
 ## CSV Format
 
@@ -33,6 +37,8 @@ S003,Mutant B,2024-01-16,Treatment B
 ```
 
 The DataMatrix field can encode `Sample ID`. Human-readable code text should be added separately as a CSV text field if desired.
+
+Blank DataMatrix values block export so a printable but meaningless code is not generated. Very long encoded values warn before export because dense codes may scan poorly on small cryogenic labels.
 
 ## Printing Guidance
 

@@ -3,6 +3,10 @@
 const POINTS_PER_INCH = 72;
 const CUSTOM_LASER_ID = '__custom_laser__';
 const CUSTOM_THERMAL_ID = '__custom_thermal__';
+const TEMPLATE_STORAGE_KEY = 'labtools.labelGenerator.template.v1';
+const CSV_HEADER_AUTO = 'auto';
+const CSV_HEADER_YES = 'yes';
+const CSV_HEADER_NO = 'no';
 
 const state = {
   csvText: '',
@@ -10,6 +14,7 @@ const state = {
   csvHeaders: [],
   csvDelimiter: ',',
   csvFirstRowHeader: true,
+  csvHeaderMode: CSV_HEADER_AUTO,
   presets: [],
   laserPresets: [],
   thermalPresets: [],
@@ -58,6 +63,7 @@ const state = {
   outputUrl: '',
   outputDirty: true,
   isGenerating: false,
+  barcodeIssues: [],
 };
 
 let barcodeCanvas = null;
@@ -84,9 +90,13 @@ function bindEvents() {
   });
   document.getElementById('csv-file-input').addEventListener('change', onCsvFileUpload);
   document.getElementById('csv-textarea').addEventListener('input', onCsvTextInput);
+  document.getElementById('csv-header-mode').addEventListener('change', onCsvHeaderModeChange);
   document.getElementById('add-datamatrix-btn').addEventListener('click', addDataMatrixField);
   document.getElementById('add-csv-text-btn').addEventListener('click', addCsvTextField);
   document.getElementById('add-static-text-btn').addEventListener('click', addStaticTextField);
+  document.getElementById('save-template-btn').addEventListener('click', saveTemplateToStorage);
+  document.getElementById('load-template-btn').addEventListener('click', loadTemplateFromStorage);
+  document.getElementById('reset-template-btn').addEventListener('click', resetTemplate);
   document.getElementById('field-label-input').addEventListener('input', updateSelectedFieldFromEditor);
   document.getElementById('field-source-select').addEventListener('change', updateSelectedFieldFromEditor);
   document.getElementById('field-static-input').addEventListener('input', updateSelectedFieldFromEditor);
@@ -193,6 +203,10 @@ function initializeDefaultTemplate() {
 }
 
 function parseCSV(text) {
+  parseCsvWithHeaderMode(text, state.csvHeaderMode);
+}
+
+function parseCsvWithHeaderMode(text, headerMode) {
   if (!text || !text.trim()) {
     state.csvRows = [];
     state.csvHeaders = [];
@@ -221,7 +235,8 @@ function parseCSV(text) {
 
   var firstRow = best.rows[0];
   var firstLooksLikeHeader = firstRow.every(function (cell) { return cell.trim() === '' || isNaN(Number(cell)); });
-  if (firstLooksLikeHeader && best.rows.length > 1) {
+  var useHeader = headerMode === CSV_HEADER_YES || (headerMode !== CSV_HEADER_NO && firstLooksLikeHeader && best.rows.length > 1);
+  if (useHeader) {
     state.csvHeaders = firstRow.map(function (cell, index) { return cell.trim() || 'Column ' + (index + 1); });
     state.csvRows = best.rows.slice(1);
     state.csvFirstRowHeader = true;
@@ -279,6 +294,14 @@ function onCsvTextInput() {
   renderAll();
 }
 
+function onCsvHeaderModeChange(event) {
+  state.csvHeaderMode = event.target.value;
+  parseCSV(state.csvText);
+  initializeSequentialPlan(0);
+  markOutputDirty();
+  renderAll();
+}
+
 function onCsvFileUpload(event) {
   var file = event.target.files[0];
   if (!file) return;
@@ -322,6 +345,87 @@ function addField(seed) {
   state.selectedFieldId = field.id;
   markOutputDirty();
   renderAll();
+}
+
+function saveTemplateToStorage() {
+  if (!hasLocalStorage()) return setStatus('template-status', 'Template storage is not available in this browser.', 'warn');
+  window.localStorage.setItem(TEMPLATE_STORAGE_KEY, serializeTemplate());
+  setStatus('template-status', 'Template saved in this browser.', 'success');
+}
+
+function loadTemplateFromStorage() {
+  if (!hasLocalStorage()) return setStatus('template-status', 'Template storage is not available in this browser.', 'warn');
+  var stored = window.localStorage.getItem(TEMPLATE_STORAGE_KEY);
+  if (!stored) return setStatus('template-status', 'No saved template found in this browser.', 'warn');
+  if (!loadStoredTemplate(stored)) return setStatus('template-status', 'Saved template could not be loaded.', 'danger');
+  markOutputDirty();
+  renderAll();
+  setStatus('template-status', 'Template loaded from this browser.', 'success');
+}
+
+function resetTemplate() {
+  initializeDefaultTemplate();
+  recomputeGrid(false);
+  markOutputDirty();
+  renderAll();
+  setStatus('template-status', 'Template reset to the default layout.', 'info');
+}
+
+function serializeTemplate() {
+  return JSON.stringify({
+    version: 1,
+    grid: state.template.grid,
+    fields: state.template.fields.map(function (field) {
+      return {
+        type: field.type,
+        label: field.label,
+        sourceColumn: field.sourceColumn,
+        staticText: field.staticText,
+        colStart: field.colStart,
+        rowStart: field.rowStart,
+        colEnd: field.colEnd,
+        rowEnd: field.rowEnd,
+        align: field.align,
+        fontScale: field.fontScale,
+      };
+    }),
+  });
+}
+
+function loadStoredTemplate(serialized) {
+  var parsed;
+  try {
+    parsed = JSON.parse(serialized);
+  } catch (err) {
+    return false;
+  }
+  if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.fields)) return false;
+  var fields = parsed.fields.map(sanitizeStoredField).filter(Boolean);
+  if (!fields.length) return false;
+  state.template.fields = fields;
+  state.selectedFieldId = fields[0].id;
+  recomputeGrid(false);
+  return true;
+}
+
+function sanitizeStoredField(rawField) {
+  var type = rawField && rawField.type;
+  if (type !== 'datamatrix' && type !== 'csvText' && type !== 'staticText') return null;
+  var field = {
+    id: makeFieldId(),
+    type: type,
+    label: String(rawField.label || fieldTypeName(type)),
+    sourceColumn: Math.max(0, Math.round(numberOrDefault(rawField.sourceColumn, 0))),
+    staticText: String(rawField.staticText || ''),
+    colStart: Math.round(numberOrDefault(rawField.colStart, 1)),
+    rowStart: Math.round(numberOrDefault(rawField.rowStart, 1)),
+    colEnd: Math.round(numberOrDefault(rawField.colEnd, 2)),
+    rowEnd: Math.round(numberOrDefault(rawField.rowEnd, 2)),
+    align: ['left', 'center', 'right'].indexOf(rawField.align) >= 0 ? rawField.align : 'left',
+    fontScale: clamp(numberOrDefault(rawField.fontScale, 1), 0.6, 2),
+  };
+  clampFieldToGrid(field);
+  return field;
 }
 
 function removeSelectedField() {
@@ -540,6 +644,7 @@ function renderPresetSelects() {
 
 function renderCsvSummary() {
   var summary = document.getElementById('csv-summary');
+  document.getElementById('csv-header-mode').value = state.csvHeaderMode;
   if (!state.csvRows.length) {
     summary.innerHTML = '';
     setStatus('csv-status', 'Upload a CSV file or paste CSV text to begin.', 'info');
@@ -598,7 +703,9 @@ function renderOutputControls() {
   seedCustomFields();
 
   var preset = getActivePreset();
-  setStatus('output-status', (isLaser ? 'Laser sheet' : 'Thermal labels') + ' · ' + preset.name + ' · label ' + formatDecimal(preset.labelWidth, 3) + ' × ' + formatDecimal(preset.labelHeight, 3) + ' in', 'info');
+  var geometryStatus = validatePresetGeometry(preset);
+  var capacity = isLaser ? ' · capacity ' + (preset.columns * preset.rows) + ' per sheet' : '';
+  setStatus('output-status', (isLaser ? 'Laser sheet' : 'Thermal labels') + ' · ' + preset.name + ' · label ' + formatDecimal(preset.labelWidth, 3) + ' × ' + formatDecimal(preset.labelHeight, 3) + ' in' + capacity + '. ' + geometryStatus.message, geometryStatus.valid ? 'info' : 'warn');
   document.getElementById('show-border').checked = state.showBorder;
 }
 
@@ -625,14 +732,15 @@ function renderDesigner() {
     var width = ((field.colEnd - field.colStart) / grid.cols) * 100;
     var height = ((field.rowEnd - field.rowStart) / grid.rows) * 100;
     var classes = 'label-field-block' + (field.id === state.selectedFieldId ? ' active' : '') + (overlapIds.has(field.id) ? ' overlap' : '');
-    html += '<div class="' + classes + '" data-drag-field="' + field.id + '" data-type="' + field.type + '" style="left:' + left + '%;top:' + top + '%;width:' + width + '%;height:' + height + '%;text-align:' + field.align + ';">' + escapeHtml(field.label) + '<span class="field-resize-handle" data-resize-field="' + field.id + '"></span></div>';
+    html += '<div class="' + classes + '" data-drag-field="' + field.id + '" data-type="' + field.type + '" tabindex="0" role="button" aria-label="' + escapeHtml(field.label + ' field') + '" style="left:' + left + '%;top:' + top + '%;width:' + width + '%;height:' + height + '%;text-align:' + field.align + ';">' + escapeHtml(field.label) + '<span class="field-resize-handle" data-resize-field="' + field.id + '"></span></div>';
   });
   stage.innerHTML = html;
   stage.querySelectorAll('[data-drag-field]').forEach(function (block) {
-    block.addEventListener('mousedown', startFieldDrag);
+    block.addEventListener('pointerdown', startFieldDrag);
+    block.addEventListener('keydown', onFieldKeyDown);
   });
   stage.querySelectorAll('[data-resize-field]').forEach(function (handle) {
-    handle.addEventListener('mousedown', startFieldResize);
+    handle.addEventListener('pointerdown', startFieldResize);
   });
 
   setStatus('geometry-status', 'Grid ' + grid.cols + ' × ' + grid.rows + ' · label ' + formatDecimal(preset.labelWidth, 3) + ' × ' + formatDecimal(preset.labelHeight, 3) + ' in. Drag fields or resize from the lower-right corner.', 'info');
@@ -654,14 +762,16 @@ function startFieldDrag(event) {
   state.selectedFieldId = field.id;
   dragState = {
     type: 'move',
+    pointerId: event.pointerId,
     fieldId: field.id,
     startX: event.clientX,
     startY: event.clientY,
     startField: cloneField(field),
     stageRect: document.getElementById('label-stage').getBoundingClientRect(),
   };
-  document.addEventListener('mousemove', onFieldDragMove);
-  document.addEventListener('mouseup', endFieldDrag);
+  document.addEventListener('pointermove', onFieldDragMove);
+  document.addEventListener('pointerup', endFieldDrag);
+  document.addEventListener('pointercancel', endFieldDrag);
   event.preventDefault();
   renderAll();
 }
@@ -672,20 +782,23 @@ function startFieldResize(event) {
   state.selectedFieldId = field.id;
   dragState = {
     type: 'resize',
+    pointerId: event.pointerId,
     fieldId: field.id,
     startX: event.clientX,
     startY: event.clientY,
     startField: cloneField(field),
     stageRect: document.getElementById('label-stage').getBoundingClientRect(),
   };
-  document.addEventListener('mousemove', onFieldDragMove);
-  document.addEventListener('mouseup', endFieldDrag);
+  document.addEventListener('pointermove', onFieldDragMove);
+  document.addEventListener('pointerup', endFieldDrag);
+  document.addEventListener('pointercancel', endFieldDrag);
   event.stopPropagation();
   event.preventDefault();
 }
 
 function onFieldDragMove(event) {
   if (!dragState) return;
+  if (dragState.pointerId != null && event.pointerId !== dragState.pointerId) return;
   var field = findField(dragState.fieldId);
   var grid = state.template.grid;
   var dx = Math.round((event.clientX - dragState.startX) / dragState.stageRect.width * grid.cols);
@@ -708,9 +821,43 @@ function onFieldDragMove(event) {
 
 function endFieldDrag() {
   dragState = null;
-  document.removeEventListener('mousemove', onFieldDragMove);
-  document.removeEventListener('mouseup', endFieldDrag);
+  document.removeEventListener('pointermove', onFieldDragMove);
+  document.removeEventListener('pointerup', endFieldDrag);
+  document.removeEventListener('pointercancel', endFieldDrag);
   renderAll();
+}
+
+function onFieldKeyDown(event) {
+  var field = findField(event.currentTarget.dataset.dragField);
+  if (!field) return;
+  var handled = true;
+  var resize = event.shiftKey;
+  var delta = event.altKey ? 2 : 1;
+  if (event.key === 'ArrowLeft') moveOrResizeField(field, resize, -delta, 0);
+  else if (event.key === 'ArrowRight') moveOrResizeField(field, resize, delta, 0);
+  else if (event.key === 'ArrowUp') moveOrResizeField(field, resize, 0, -delta);
+  else if (event.key === 'ArrowDown') moveOrResizeField(field, resize, 0, delta);
+  else handled = false;
+  if (!handled) return;
+  state.selectedFieldId = field.id;
+  markOutputDirty();
+  renderAll();
+  event.preventDefault();
+}
+
+function moveOrResizeField(field, resize, dx, dy) {
+  if (resize) {
+    field.colEnd += dx;
+    field.rowEnd += dy;
+  } else {
+    var width = field.colEnd - field.colStart;
+    var height = field.rowEnd - field.rowStart;
+    field.colStart += dx;
+    field.rowStart += dy;
+    field.colEnd = field.colStart + width;
+    field.rowEnd = field.rowStart + height;
+  }
+  clampFieldToGrid(field);
 }
 
 function renderSamplePreview() {
@@ -760,20 +907,31 @@ function renderExportState() {
   var hasData = state.csvRows.length > 0;
   var hasFields = state.template.fields.length > 0;
   var hasDataMatrix = state.template.fields.some(function (field) { return field.type === 'datamatrix'; });
-  var canGenerate = hasData && hasFields && hasDataMatrix && !state.isGenerating;
+  var geometryStatus = validatePresetGeometry(getActivePreset());
+  var barcodeIssues = detectBarcodeInputIssues();
+  var blockingBarcodeIssues = barcodeIssues.filter(function (issue) { return issue.severity === 'danger'; });
+  var canGenerate = hasData && hasFields && hasDataMatrix && geometryStatus.valid && !blockingBarcodeIssues.length && !state.isGenerating;
   document.getElementById('generate-btn').disabled = !canGenerate;
   document.getElementById('download-btn').disabled = !state.outputBytes || state.outputDirty;
   var summary = state.outputMode === 'laser-sheet'
     ? 'Laser PDF · ' + getUseIndices().length + ' labels · ' + Math.max(1, Math.ceil(state.layoutCells.length / Math.max(1, getActiveLaserPreset().columns * getActiveLaserPreset().rows))) + ' sheet' + plural(Math.max(1, Math.ceil(state.layoutCells.length / Math.max(1, getActiveLaserPreset().columns * getActiveLaserPreset().rows))))
     : 'Thermal PDF · ' + state.csvRows.length + ' label page' + plural(state.csvRows.length);
-  document.getElementById('output-summary').innerHTML = '<div class="lt-alert lt-alert-info">' + escapeHtml(summary) + '</div>';
+  var statusHtml = '<div class="lt-alert lt-alert-info">' + escapeHtml(summary) + '</div>';
+  if (!geometryStatus.valid) statusHtml += '<div class="lt-alert lt-alert-warn">' + escapeHtml(geometryStatus.message) + '</div>';
+  if (barcodeIssues.length) statusHtml += '<div class="lt-alert lt-alert-' + (blockingBarcodeIssues.length ? 'danger' : 'warn') + '">' + escapeHtml(formatBarcodeIssueSummary(barcodeIssues)) + '</div>';
+  document.getElementById('output-summary').innerHTML = statusHtml;
   updateOutputPreview();
 }
 
 async function generatePdf() {
   if (!state.csvRows.length) return setStatus('export-status', 'Load CSV data first.', 'warn');
   if (!state.template.fields.some(function (field) { return field.type === 'datamatrix'; })) return setStatus('export-status', 'Add one DataMatrix field before exporting.', 'warn');
+  var geometryStatus = validatePresetGeometry(getActivePreset());
+  if (!geometryStatus.valid) return setStatus('export-status', geometryStatus.message, 'warn');
+  var barcodeIssues = detectBarcodeInputIssues();
+  if (barcodeIssues.some(function (issue) { return issue.severity === 'danger'; })) return setStatus('export-status', formatBarcodeIssueSummary(barcodeIssues), 'danger');
   state.isGenerating = true;
+  state.barcodeIssues = [];
   clearOutputPreview();
   setStatus('export-status', 'Generating PDF...', 'info');
   renderExportState();
@@ -794,7 +952,11 @@ async function generatePdf() {
     state.outputDirty = false;
     var blob = new Blob([state.outputBytes], { type: 'application/pdf' });
     state.outputUrl = URL.createObjectURL(blob);
-    setStatus('export-status', 'Generated PDF with ' + state.csvRows.length + ' label' + plural(state.csvRows.length) + '.', 'success');
+    if (state.barcodeIssues.length) {
+      setStatus('export-status', 'Generated PDF, but ' + formatBarcodeIssueSummary(state.barcodeIssues), 'warn');
+    } else {
+      setStatus('export-status', 'Generated PDF with ' + state.csvRows.length + ' label' + plural(state.csvRows.length) + '.', 'success');
+    }
   } catch (err) {
     setStatus('export-status', err && err.message ? err.message : 'Failed to generate PDF.', 'danger');
   } finally {
@@ -809,7 +971,7 @@ async function generateThermalPdf(doc, font, boldFont) {
   var height = inchesToPoints(preset.labelHeight);
   for (var i = 0; i < state.csvRows.length; i++) {
     var page = doc.addPage([width, height]);
-    await drawLabel(doc, page, font, boldFont, state.csvRows[i], { x: 0, y: 0, width: width, height: height });
+    await drawLabel(doc, page, font, boldFont, state.csvRows[i], { x: 0, y: 0, width: width, height: height }, i);
   }
 }
 
@@ -833,12 +995,12 @@ async function generateLaserPdf(doc, font, boldFont) {
         y: pageHeight - inchesToPoints(cellRect.yIn) - inchesToPoints(cellRect.heightIn),
         width: inchesToPoints(cellRect.widthIn),
         height: inchesToPoints(cellRect.heightIn),
-      });
+      }, labelIndex);
     }
   }
 }
 
-async function drawLabel(doc, page, font, boldFont, row, labelRect) {
+async function drawLabel(doc, page, font, boldFont, row, labelRect, rowIndex) {
   if (state.showBorder) {
     page.drawRectangle({ x: labelRect.x, y: labelRect.y, width: labelRect.width, height: labelRect.height, borderWidth: 0.35, borderColor: PDFLib.rgb(0.78, 0.78, 0.78) });
   }
@@ -847,7 +1009,7 @@ async function drawLabel(doc, page, font, boldFont, row, labelRect) {
     var field = state.template.fields[i];
     var rect = fieldToPdfRect(field, grid, labelRect);
     if (field.type === 'datamatrix') {
-      await drawDataMatrix(doc, page, row, field, rect);
+      await drawDataMatrix(doc, page, row, field, rect, rowIndex);
     } else {
       drawTextField(page, field.type === 'staticText' ? boldFont : font, row, field, rect);
     }
@@ -862,10 +1024,16 @@ function fieldToPdfRect(field, grid, labelRect) {
   return { x: x + 2, y: labelRect.y + labelRect.height - top - height + 2, width: Math.max(1, width - 4), height: Math.max(1, height - 4) };
 }
 
-async function drawDataMatrix(doc, page, row, field, rect) {
-  var text = getFieldValue(field, row) || ' ';
+async function drawDataMatrix(doc, page, row, field, rect, rowIndex) {
+  var text = getFieldValue(field, row);
+  if (!text) {
+    state.barcodeIssues.push({ rowIndex: rowIndex, label: field.label, severity: 'danger', message: 'blank DataMatrix value' });
+    return;
+  }
   var pngBytes = await renderDataMatrixToPng(text);
-  if (!pngBytes) return;
+  if (!pngBytes) {
+    throw new Error('DataMatrix render failed for row ' + (rowIndex + 1) + ' in ' + field.label + '.');
+  }
   var png = await doc.embedPng(pngBytes);
   var size = Math.min(rect.width, rect.height);
   page.drawImage(png, { x: rect.x + (rect.width - size) / 2, y: rect.y + (rect.height - size) / 2, width: size, height: size });
@@ -962,7 +1130,59 @@ function clearOutputPreview() {
 
 function markOutputDirty() {
   state.outputDirty = true;
+  state.barcodeIssues = [];
   clearOutputPreview();
+}
+
+function validatePresetGeometry(preset) {
+  var issues = [];
+  ['pageWidth', 'pageHeight', 'labelWidth', 'labelHeight', 'horizontalPitch', 'verticalPitch'].forEach(function (key) {
+    if (!Number.isFinite(Number(preset[key])) || Number(preset[key]) <= 0) issues.push(key + ' must be greater than 0');
+  });
+  if (!Number.isFinite(Number(preset.leftMargin)) || Number(preset.leftMargin) < 0) issues.push('left margin must be 0 or greater');
+  if (!Number.isFinite(Number(preset.topMargin)) || Number(preset.topMargin) < 0) issues.push('top margin must be 0 or greater');
+  if (!Number.isFinite(Number(preset.columns)) || Number(preset.columns) < 1) issues.push('columns must be at least 1');
+  if (!Number.isFinite(Number(preset.rows)) || Number(preset.rows) < 1) issues.push('rows must be at least 1');
+  if (issues.length) return { valid: false, message: issues[0] + '.' };
+
+  if (preset.mode === 'laser-sheet') {
+    var gridWidth = preset.leftMargin + (preset.columns - 1) * preset.horizontalPitch + preset.labelWidth;
+    var gridHeight = preset.topMargin + (preset.rows - 1) * preset.verticalPitch + preset.labelHeight;
+    if (gridWidth > preset.pageWidth + 0.0001) issues.push('label grid extends past the page width');
+    if (gridHeight > preset.pageHeight + 0.0001) issues.push('label grid extends past the page height');
+    if (preset.horizontalPitch < preset.labelWidth) issues.push('horizontal pitch is smaller than label width');
+    if (preset.verticalPitch < preset.labelHeight) issues.push('vertical pitch is smaller than label height');
+    return {
+      valid: !issues.length,
+      message: issues.length ? issues.join('; ') + '.' : 'Geometry fits the page.',
+    };
+  }
+
+  return { valid: true, message: 'Geometry fits the label page.' };
+}
+
+function detectBarcodeInputIssues() {
+  var dataMatrixFields = state.template.fields.filter(function (field) { return field.type === 'datamatrix'; });
+  var issues = [];
+  dataMatrixFields.forEach(function (field) {
+    state.csvRows.forEach(function (row, rowIndex) {
+      var value = getFieldValue(field, row);
+      if (!value) {
+        issues.push({ rowIndex: rowIndex, label: field.label, severity: 'danger', message: 'blank DataMatrix value' });
+      } else if (value.length > 120) {
+        issues.push({ rowIndex: rowIndex, label: field.label, severity: 'warn', message: 'long DataMatrix value may scan poorly' });
+      }
+    });
+  });
+  return issues;
+}
+
+function formatBarcodeIssueSummary(issues) {
+  if (!issues.length) return '';
+  var first = issues[0];
+  var rowText = first.rowIndex == null ? '' : 'row ' + (first.rowIndex + 1) + ' ';
+  var suffix = issues.length > 1 ? ' and ' + (issues.length - 1) + ' more issue' + plural(issues.length - 1) : '';
+  return rowText + first.message + ' in ' + first.label + suffix + '.';
 }
 
 function buildSheetGeometry(preset) {
@@ -1086,6 +1306,14 @@ function inchesToPoints(value) {
 function numberOrDefault(value, fallback) {
   var parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function hasLocalStorage() {
+  try {
+    return !!(window.localStorage && window.localStorage.setItem && window.localStorage.getItem);
+  } catch (err) {
+    return false;
+  }
 }
 
 function clamp(value, min, max) {

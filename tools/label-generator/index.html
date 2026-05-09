@@ -292,6 +292,14 @@
             <input type="file" accept=".csv,.txt,text/csv" id="csv-file-input" hidden />
           </div>
           <textarea class="lt-input lt-textarea" id="csv-textarea" rows="8" placeholder="Paste CSV data here, or upload a file..."></textarea>
+          <div class="field-stack">
+            <label class="lt-label" for="csv-header-mode">Header Row</label>
+            <select class="lt-select" id="csv-header-mode">
+              <option value="auto">Auto detect</option>
+              <option value="yes">First row is header</option>
+              <option value="no">No header row</option>
+            </select>
+          </div>
           <div class="lt-alert lt-alert-info" id="csv-status">Upload a CSV file or paste CSV text to begin.</div>
           <div id="csv-summary"></div>
         </section>
@@ -302,6 +310,11 @@
             <button class="btn-reset" id="add-datamatrix-btn" type="button">Add DataMatrix</button>
             <button class="btn-reset" id="add-csv-text-btn" type="button">Add CSV Text</button>
             <button class="btn-reset" id="add-static-text-btn" type="button">Add Static Text</button>
+          </div>
+          <div class="placement-actions">
+            <button class="btn-reset" id="save-template-btn" type="button">Save Template</button>
+            <button class="btn-reset" id="load-template-btn" type="button">Load Template</button>
+            <button class="btn-reset" id="reset-template-btn" type="button">Reset Template</button>
           </div>
           <div class="field-list" id="field-list"></div>
           <div class="lt-alert lt-alert-info" id="template-status">Drag fields on the label preview. Grid size is selected automatically from label dimensions.</div>
