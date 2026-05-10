@@ -12,37 +12,6 @@
   <style>
     .card { max-width: 1280px; }
 
-    .label-workspace {
-      display: grid;
-      grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-      gap: 18px;
-      align-items: start;
-    }
-
-    .label-panel,
-    .label-main-card {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      background: var(--surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-lg);
-      padding: 16px;
-    }
-
-    .panel-group {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      padding-bottom: 14px;
-      border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .panel-group:last-child {
-      padding-bottom: 0;
-      border-bottom: 0;
-    }
-
     .panel-heading {
       font-size: 0.78rem;
       font-weight: 800;
@@ -96,6 +65,48 @@
       display: block;
       font-size: 0.73rem;
       color: var(--text-muted);
+    }
+
+    /* CSV import */
+    .csv-drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      margin-bottom: 10px;
+    }
+
+    .csv-drop-zone:hover,
+    .csv-drop-zone.drag-over {
+      border-color: var(--blue);
+      background: var(--blue-bg);
+      color: var(--blue-dark);
+    }
+
+    .col-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      background: var(--surface-subtle);
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+    }
+
+    /* Designer step */
+    .designer-top-bar {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
 
     .designer-shell {
@@ -188,7 +199,7 @@
 
     .csv-preview-wrap {
       overflow: auto;
-      max-height: 190px;
+      max-height: 240px;
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-sm);
     }
@@ -214,6 +225,7 @@
       font-weight: 800;
     }
 
+    /* Placement */
     .placement-actions {
       display: flex;
       flex-wrap: wrap;
@@ -255,11 +267,18 @@
       background: var(--surface-subtle);
     }
 
+    /* Wizard nav row */
+    .wiz-nav-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
     @media (max-width: 980px) {
-      .label-workspace,
-      .designer-shell {
-        grid-template-columns: 1fr;
-      }
+      .designer-shell { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 560px) {
@@ -283,151 +302,234 @@
     <h1 class="lt-tool-title">🏷️ Label Generator</h1>
     <p class="lt-tool-subtitle">Laser-first label sheets with reusable DataMatrix/text templates that can also export as thermal labels.</p>
 
-    <div class="label-workspace">
-      <aside class="label-panel">
-        <section class="panel-group">
-          <div class="panel-heading">Data Import</div>
-          <div class="lt-toolbar-row">
-            <button class="lt-btn" id="csv-upload-btn" type="button">Upload CSV</button>
-            <input type="file" accept=".csv,.txt,text/csv" id="csv-file-input" hidden />
-          </div>
-          <textarea class="lt-input lt-textarea" id="csv-textarea" rows="8" placeholder="Paste CSV data here, or upload a file..."></textarea>
-          <div class="lt-alert lt-alert-info" id="csv-status">Upload a CSV file or paste CSV text to begin.</div>
-          <div id="csv-summary"></div>
-        </section>
+    <div class="step-bar">
+      <div class="step-pip active" id="pip1"><div class="dot">1</div> Data Import</div>
+      <div class="step-connector" id="conn1"></div>
+      <div class="step-pip" id="pip2"><div class="dot">2</div> Label Designer</div>
+      <div class="step-connector" id="conn2"></div>
+      <div class="step-pip" id="pip3"><div class="dot">3</div> Preview &amp; Export</div>
+    </div>
 
-        <section class="panel-group">
-          <div class="panel-heading">Label Content</div>
-          <div class="placement-actions">
-            <button class="btn-reset" id="add-datamatrix-btn" type="button">Add DataMatrix</button>
-            <button class="btn-reset" id="add-csv-text-btn" type="button">Add CSV Text</button>
-            <button class="btn-reset" id="add-static-text-btn" type="button">Add Static Text</button>
-          </div>
-          <div class="field-list" id="field-list"></div>
-          <div class="lt-alert lt-alert-info" id="template-status">Drag fields on the label preview. Grid size is selected automatically from label dimensions.</div>
-        </section>
+    <!-- ── Step 1: Data Import ── -->
+    <div class="step-panel active" id="step1">
 
-        <section class="panel-group" id="field-editor-panel">
-          <div class="panel-heading">Selected Field</div>
-          <div class="field-stack">
-            <label class="lt-label" for="field-label-input">Field Name</label>
-            <input class="lt-input" id="field-label-input" type="text" />
-          </div>
-          <div class="field-stack" id="source-column-row">
-            <label class="lt-label" for="field-source-select">CSV Column</label>
-            <select class="lt-select" id="field-source-select"></select>
-          </div>
-          <div class="field-stack" id="static-text-row">
-            <label class="lt-label" for="field-static-input">Static Text</label>
-            <input class="lt-input" id="field-static-input" type="text" />
-          </div>
-          <div class="compact-grid">
-            <div class="field-stack">
-              <label class="lt-label" for="field-align-select">Alignment</label>
-              <select class="lt-select" id="field-align-select">
-                <option value="left">Left</option>
-                <option value="center">Center</option>
-                <option value="right">Right</option>
-              </select>
-            </div>
-            <div class="field-stack">
-              <label class="lt-label" for="field-font-scale">Font Scale</label>
-              <input class="lt-input" id="field-font-scale" type="number" min="0.6" max="2" step="0.1" />
-            </div>
-          </div>
-          <button class="btn-reset" id="remove-field-btn" type="button">Remove Field</button>
-        </section>
+      <div class="lt-toolbar-row" style="margin-bottom: 10px;">
+        <button class="lt-btn" id="csv-upload-btn" type="button">Upload CSV</button>
+        <input type="file" accept=".csv,.txt,text/csv" id="csv-file-input" hidden />
+      </div>
 
-        <section class="panel-group">
-          <div class="panel-heading">Output</div>
+      <div id="csv-drop-zone" class="csv-drop-zone">
+        Drop a CSV file here, or click Upload above
+      </div>
+
+      <textarea class="lt-input lt-textarea" id="csv-textarea" rows="7"
+        placeholder="Or paste CSV text here…"></textarea>
+
+      <div class="compact-grid" style="margin-top: 10px;">
+        <div class="field-stack">
+          <label class="lt-label" for="delimiter-select">Delimiter</label>
+          <select class="lt-select" id="delimiter-select">
+            <option value="auto">Auto-detect</option>
+            <option value=",">Comma ( , )</option>
+            <option value="&#9;">Tab</option>
+            <option value=";">Semicolon ( ; )</option>
+          </select>
+        </div>
+        <div class="field-stack" style="justify-content: flex-end;">
+          <label class="lt-checkbox-row" style="margin-top: 0; border-top: none;">
+            <input type="checkbox" id="first-row-header" checked />
+            <span>First row is header</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="lt-alert lt-alert-info" id="csv-status" style="margin-top: 10px;">
+        Upload a CSV file or paste CSV text to begin.
+      </div>
+
+      <div id="csv-preview-section" style="display: none; margin-top: 14px;">
+        <div class="panel-heading" style="margin-bottom: 8px;">Preview</div>
+        <div class="csv-preview-wrap">
+          <table class="csv-preview-table" id="csv-preview-table"></table>
+        </div>
+        <div id="csv-col-summary" style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;"></div>
+      </div>
+
+      <div class="wiz-nav-row">
+        <div></div>
+        <button class="lt-btn lt-btn-primary" id="btn-next-1" type="button" disabled>
+          Next: Label Designer →
+        </button>
+      </div>
+
+    </div><!-- /step1 -->
+
+    <!-- ── Step 2: Label Designer ── -->
+    <div class="step-panel" id="step2">
+
+      <!-- Preset / output mode bar -->
+      <div class="designer-top-bar">
+        <div class="lt-toolbar-row">
           <div class="lt-segmented" aria-label="Output mode">
             <button type="button" class="lt-segmented-btn active" id="mode-laser-btn">Laser Sheet</button>
             <button type="button" class="lt-segmented-btn" id="mode-thermal-btn">Thermal Labels</button>
           </div>
-
-          <div id="laser-output-controls">
-            <div class="field-stack">
-              <label class="lt-label" for="laser-preset-select">Laser Sheet Preset</label>
-              <select class="lt-select" id="laser-preset-select"></select>
-            </div>
-            <div class="compact-grid" id="custom-preset-fields" style="display:none;">
-              <div class="field-stack"><label class="lt-label" for="pageWidth">Page W</label><input class="lt-input" id="pageWidth" type="number" step="0.01" min="0.1" /></div>
-              <div class="field-stack"><label class="lt-label" for="pageHeight">Page H</label><input class="lt-input" id="pageHeight" type="number" step="0.01" min="0.1" /></div>
-              <div class="field-stack"><label class="lt-label" for="leftMargin">Left Margin</label><input class="lt-input" id="leftMargin" type="number" step="0.01" min="0" /></div>
-              <div class="field-stack"><label class="lt-label" for="topMargin">Top Margin</label><input class="lt-input" id="topMargin" type="number" step="0.01" min="0" /></div>
-              <div class="field-stack"><label class="lt-label" for="labelWidth">Label W</label><input class="lt-input" id="labelWidth" type="number" step="0.01" min="0.1" /></div>
-              <div class="field-stack"><label class="lt-label" for="labelHeight">Label H</label><input class="lt-input" id="labelHeight" type="number" step="0.01" min="0.1" /></div>
-              <div class="field-stack"><label class="lt-label" for="horizontalPitch">Pitch X</label><input class="lt-input" id="horizontalPitch" type="number" step="0.01" min="0.1" /></div>
-              <div class="field-stack"><label class="lt-label" for="verticalPitch">Pitch Y</label><input class="lt-input" id="verticalPitch" type="number" step="0.01" min="0.1" /></div>
-              <div class="field-stack"><label class="lt-label" for="columns">Columns</label><input class="lt-input" id="columns" type="number" step="1" min="1" /></div>
-              <div class="field-stack"><label class="lt-label" for="rows">Rows</label><input class="lt-input" id="rows" type="number" step="1" min="1" /></div>
-            </div>
-          </div>
-
-          <div id="thermal-output-controls" style="display:none;">
-            <div class="field-stack">
-              <label class="lt-label" for="thermal-preset-select">Thermal Preset</label>
-              <select class="lt-select" id="thermal-preset-select"></select>
-            </div>
-            <div class="compact-grid" id="thermal-custom-fields" style="display:none;">
-              <div class="field-stack">
-                <label class="lt-label" for="thermal-label-width">Width (in)</label>
-                <input class="lt-input" id="thermal-label-width" type="number" min="0.1" step="0.01" />
-              </div>
-              <div class="field-stack">
-                <label class="lt-label" for="thermal-label-height">Height (in)</label>
-                <input class="lt-input" id="thermal-label-height" type="number" min="0.1" step="0.01" />
-              </div>
-            </div>
-          </div>
-
-          <label class="lt-checkbox-row">
+          <label class="lt-checkbox-row" style="margin: 0;">
             <input type="checkbox" id="show-border" checked />
-            <span>Show label border in PDF</span>
+            <span>Label border in PDF</span>
           </label>
-          <div class="lt-alert lt-alert-info" id="output-status">Laser sheet is selected by default.</div>
-        </section>
-      </aside>
+        </div>
 
-      <main class="label-main-card">
-        <section class="panel-group">
-          <div class="lt-section-label">Design Preview</div>
-          <div class="designer-shell">
-            <div class="label-stage-wrap">
-              <div class="label-stage" id="label-stage" aria-label="Label design surface"></div>
+        <div id="laser-output-controls">
+          <div class="field-stack">
+            <label class="lt-label" for="laser-preset-select">Sheet Preset</label>
+            <select class="lt-select" id="laser-preset-select"></select>
+          </div>
+          <div class="compact-grid" id="custom-preset-fields" style="display: none; margin-top: 8px;">
+            <div class="field-stack"><label class="lt-label" for="pageWidth">Page W (in)</label><input class="lt-input" id="pageWidth" type="number" step="0.01" min="0.1" /></div>
+            <div class="field-stack"><label class="lt-label" for="pageHeight">Page H (in)</label><input class="lt-input" id="pageHeight" type="number" step="0.01" min="0.1" /></div>
+            <div class="field-stack"><label class="lt-label" for="leftMargin">Left Margin</label><input class="lt-input" id="leftMargin" type="number" step="0.01" min="0" /></div>
+            <div class="field-stack"><label class="lt-label" for="topMargin">Top Margin</label><input class="lt-input" id="topMargin" type="number" step="0.01" min="0" /></div>
+            <div class="field-stack"><label class="lt-label" for="labelWidth">Label W (in)</label><input class="lt-input" id="labelWidth" type="number" step="0.01" min="0.1" /></div>
+            <div class="field-stack"><label class="lt-label" for="labelHeight">Label H (in)</label><input class="lt-input" id="labelHeight" type="number" step="0.01" min="0.1" /></div>
+            <div class="field-stack"><label class="lt-label" for="horizontalPitch">Pitch X</label><input class="lt-input" id="horizontalPitch" type="number" step="0.01" min="0.1" /></div>
+            <div class="field-stack"><label class="lt-label" for="verticalPitch">Pitch Y</label><input class="lt-input" id="verticalPitch" type="number" step="0.01" min="0.1" /></div>
+            <div class="field-stack"><label class="lt-label" for="columns">Columns</label><input class="lt-input" id="columns" type="number" step="1" min="1" /></div>
+            <div class="field-stack"><label class="lt-label" for="rows">Rows</label><input class="lt-input" id="rows" type="number" step="1" min="1" /></div>
+          </div>
+        </div>
+
+        <div id="thermal-output-controls" style="display: none;">
+          <div class="field-stack">
+            <label class="lt-label" for="thermal-preset-select">Thermal Preset</label>
+            <select class="lt-select" id="thermal-preset-select"></select>
+          </div>
+          <div class="compact-grid" id="thermal-custom-fields" style="display: none; margin-top: 8px;">
+            <div class="field-stack">
+              <label class="lt-label" for="thermal-label-width">Width (in)</label>
+              <input class="lt-input" id="thermal-label-width" type="number" min="0.1" step="0.01" />
             </div>
-            <div>
-              <div class="lt-alert lt-alert-info" id="geometry-status"></div>
-              <div class="lt-alert lt-alert-warn" id="overlap-warning" style="display:none;"></div>
-              <div id="label-sample-preview"></div>
+            <div class="field-stack">
+              <label class="lt-label" for="thermal-label-height">Height (in)</label>
+              <input class="lt-input" id="thermal-label-height" type="number" min="0.1" step="0.01" />
             </div>
           </div>
-        </section>
+        </div>
 
-        <section class="panel-group" id="placement-section">
-          <div class="lt-section-label">Laser Sheet Placement</div>
-          <div class="placement-actions">
-            <button class="btn-reset active" type="button" data-placement-mode="start">Start Here</button>
-            <button class="btn-reset" type="button" data-placement-mode="use">Use Cell</button>
-            <button class="btn-reset" type="button" data-placement-mode="skip">Skip Cell</button>
-            <button class="btn-reset" type="button" id="reset-placement-btn">Reset</button>
-          </div>
-          <div class="lt-alert lt-alert-info" id="placement-status">Load CSV data to plan sheet placement.</div>
-          <div id="sheet-preview"></div>
-        </section>
+        <div class="lt-alert lt-alert-info" id="output-status"></div>
+      </div><!-- /designer-top-bar -->
 
-        <section class="panel-group">
-          <div class="lt-section-label">Export</div>
-          <div class="lt-toolbar-row">
-            <button class="lt-btn lt-btn-primary" id="generate-btn" type="button" disabled>Generate PDF</button>
-            <button class="btn-reset" id="download-btn" type="button" disabled>Download PDF</button>
+      <!-- Canvas + field panel -->
+      <div class="designer-shell">
+
+        <!-- Left: label canvas -->
+        <div>
+          <div class="label-stage-wrap">
+            <div class="label-stage" id="label-stage" aria-label="Label design surface"></div>
           </div>
-          <div class="lt-alert lt-alert-info" id="export-status">Load CSV data, confirm the template, then generate the PDF.</div>
-          <div id="output-summary"></div>
-          <div id="pdf-preview"></div>
-        </section>
-      </main>
-    </div>
+          <div class="lt-alert lt-alert-info" id="geometry-status" style="margin-top: 8px;"></div>
+          <div class="lt-alert lt-alert-warn" id="overlap-warning" style="display: none; margin-top: 6px;"></div>
+        </div>
+
+        <!-- Right: field management -->
+        <div>
+          <div class="panel-heading" style="margin-bottom: 8px;">Label Content</div>
+          <div class="lt-toolbar-row" style="margin-bottom: 10px; flex-wrap: wrap; gap: 6px;">
+            <button class="btn-reset" id="add-datamatrix-btn" type="button">+ DataMatrix</button>
+            <button class="btn-reset" id="add-csv-text-btn" type="button">+ CSV Text</button>
+            <button class="btn-reset" id="add-static-text-btn" type="button">+ Static Text</button>
+          </div>
+
+          <div class="lt-alert lt-alert-info" id="template-status" style="margin-bottom: 10px;">
+            Drag fields on the label preview. Grid size is selected automatically from label dimensions.
+          </div>
+
+          <div class="field-list" id="field-list"></div>
+
+          <!-- Field editor (shown when a field is selected) -->
+          <div id="field-editor-panel" style="display: none; margin-top: 14px; border-top: 1px solid var(--border-subtle); padding-top: 14px;">
+            <div class="panel-heading" style="margin-bottom: 8px;">Selected Field</div>
+            <div class="field-stack" style="margin-bottom: 8px;">
+              <label class="lt-label" for="field-label-input">Field Name</label>
+              <input class="lt-input" id="field-label-input" type="text" />
+            </div>
+            <div class="field-stack" id="source-column-row" style="margin-bottom: 8px;">
+              <label class="lt-label" for="field-source-select">CSV Column</label>
+              <select class="lt-select" id="field-source-select"></select>
+            </div>
+            <div class="field-stack" id="static-text-row" style="margin-bottom: 8px;">
+              <label class="lt-label" for="field-static-input">Static Text</label>
+              <input class="lt-input" id="field-static-input" type="text" />
+            </div>
+            <div class="compact-grid" style="margin-bottom: 8px;">
+              <div class="field-stack">
+                <label class="lt-label" for="field-align-select">Alignment</label>
+                <select class="lt-select" id="field-align-select">
+                  <option value="left">Left</option>
+                  <option value="center">Center</option>
+                  <option value="right">Right</option>
+                </select>
+              </div>
+              <div class="field-stack">
+                <label class="lt-label" for="field-font-scale">Font Scale</label>
+                <input class="lt-input" id="field-font-scale" type="number" min="0.6" max="2" step="0.1" />
+              </div>
+            </div>
+            <button class="btn-reset" id="remove-field-btn" type="button">Remove Field</button>
+          </div>
+
+          <div id="label-sample-preview" style="margin-top: 14px;"></div>
+        </div>
+
+      </div><!-- /designer-shell -->
+
+      <!-- Sheet placement (laser mode only) -->
+      <div id="placement-section" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+        <div class="lt-section-label" style="margin-bottom: 10px;">Laser Sheet Placement</div>
+        <div class="placement-actions">
+          <button class="btn-reset active" type="button" data-placement-mode="start">Start Here</button>
+          <button class="btn-reset" type="button" data-placement-mode="use">Use Cell</button>
+          <button class="btn-reset" type="button" data-placement-mode="skip">Skip Cell</button>
+          <button class="btn-reset" type="button" id="reset-placement-btn">Reset</button>
+        </div>
+        <div class="lt-alert lt-alert-info" id="placement-status" style="margin-top: 8px;">
+          Load CSV data to plan sheet placement.
+        </div>
+        <div id="sheet-preview"></div>
+      </div>
+
+      <div class="wiz-nav-row">
+        <button class="lt-btn lt-btn-ghost" id="btn-back-2" type="button">← Back</button>
+        <button class="lt-btn lt-btn-primary" id="btn-next-2" type="button" disabled>
+          Next: Preview &amp; Export →
+        </button>
+      </div>
+
+    </div><!-- /step2 -->
+
+    <!-- ── Step 3: Preview & Export ── -->
+    <div class="step-panel" id="step3">
+
+      <div id="output-summary" style="margin-bottom: 12px;"></div>
+
+      <div class="lt-toolbar-row" style="margin-bottom: 12px;">
+        <button class="lt-btn lt-btn-primary" id="generate-btn" type="button" disabled>Generate PDF</button>
+        <button class="lt-btn lt-btn-ghost" id="download-btn" type="button" disabled>Download PDF</button>
+      </div>
+
+      <div class="lt-alert lt-alert-info" id="export-status">
+        Click Generate PDF to render your labels.
+      </div>
+
+      <div id="pdf-preview" style="margin-top: 14px;"></div>
+
+      <div class="wiz-nav-row">
+        <button class="lt-btn lt-btn-ghost" id="btn-back-3" type="button">← Back to Designer</button>
+        <div></div>
+      </div>
+
+    </div><!-- /step3 -->
+
   </div>
 </div>
 
