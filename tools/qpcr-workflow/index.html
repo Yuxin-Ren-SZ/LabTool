@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RT-qPCR Workflow Assistant - LabTools</title>
+  <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
+  <script src="./tool.js" defer></script>
+  <style>
+    .card {
+      max-width: 1180px;
+    }
+
+    .tool-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+
+    .tool-title {
+      font-size: var(--fs-xl);
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .tool-subcopy {
+      color: var(--text-secondary);
+      font-size: var(--fs-base);
+      line-height: 1.55;
+      max-width: 76ch;
+    }
+
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .workflow-grid {
+      display: grid;
+      grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      background: var(--surface-subtle);
+      padding: 16px;
+    }
+
+    .panel + .panel {
+      margin-top: 14px;
+    }
+
+    .field-stack {
+      display: grid;
+      gap: 7px;
+      margin-bottom: 12px;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .hint {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: 1.45;
+    }
+
+    .status-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .metric {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      padding: 11px 12px;
+      min-width: 0;
+    }
+
+    .metric-label {
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .metric-value {
+      color: var(--text);
+      font-size: 1.05rem;
+      font-weight: 800;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+
+    .notice {
+      border: 1px solid var(--yellow-border);
+      background: var(--yellow-bg);
+      color: var(--yellow-dark);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      font-size: var(--fs-sm);
+      line-height: 1.45;
+      margin-bottom: 14px;
+      display: none;
+    }
+
+    .notice.active {
+      display: block;
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .tab-btn {
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: var(--fs-sm);
+      font-weight: 700;
+      padding: 8px 11px;
+    }
+
+    .tab-btn.active {
+      border-color: var(--blue-dark);
+      background: var(--blue-bg);
+      color: var(--blue-dark);
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .plate-wrap {
+      overflow: auto;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      padding: 14px;
+    }
+
+    .plate-grid {
+      display: grid;
+      grid-template-columns: 28px repeat(12, 54px);
+      gap: 5px;
+      width: max-content;
+    }
+
+    .axis,
+    .well {
+      min-height: 38px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: var(--fs-2xs);
+      line-height: 1.15;
+    }
+
+    .axis {
+      color: var(--text-muted);
+      font-weight: 800;
+      font-family: var(--font-mono);
+    }
+
+    .well {
+      border: 1px solid var(--border);
+      background: var(--surface-subtle);
+      color: var(--text-dim);
+      padding: 3px;
+      overflow: hidden;
+    }
+
+    .well.filled {
+      background: var(--blue-bg);
+      border-color: var(--blue-border);
+      color: var(--blue-dark);
+      font-weight: 700;
+    }
+
+    .well.reference {
+      background: var(--green-bg);
+      border-color: var(--green-border);
+      color: var(--green-dark);
+    }
+
+    .table-shell {
+      overflow: auto;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      max-height: 430px;
+    }
+
+    .data-table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+      font-size: var(--fs-sm);
+    }
+
+    .data-table th,
+    .data-table td {
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 8px 9px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .data-table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--surface-subtle);
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .data-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .guide {
+      white-space: pre-wrap;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: var(--fs-sm);
+      line-height: 1.55;
+    }
+
+    .analysis-layout {
+      display: grid;
+      grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    @media (max-width: 920px) {
+      .tool-header,
+      .workflow-grid,
+      .analysis-layout {
+        grid-template-columns: 1fr;
+        display: grid;
+      }
+
+      .action-row {
+        justify-content: flex-start;
+      }
+
+      .status-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 620px) {
+      .field-grid,
+      .status-strip {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav class="lt-nav">
+    <a class="lt-nav-brand" href="../../index.html">LabTools</a>
+    <span class="lt-nav-sep">/</span>
+    <span class="lt-nav-page">RT-qPCR Workflow Assistant</span>
+  </nav>
+
+  <main class="lt-page-body">
+    <section class="card">
+      <div class="tool-header">
+        <div>
+          <h1 class="tool-title">RT-qPCR Workflow Assistant</h1>
+          <p class="tool-subcopy">Design a pipetting-friendly 96-well RT-qPCR plate, scale reagent mixes, calculate 4 ug RNA inputs, and run single-reference Delta-Delta-Ct analysis from pasted Cq rows.</p>
+        </div>
+        <div class="action-row">
+          <button class="lt-btn lt-btn-ghost" id="loadExampleBtn" type="button">Load Example</button>
+          <button class="lt-btn lt-btn-primary" id="exportPlateBtn" type="button">Export Plate CSV</button>
+        </div>
+      </div>
+
+      <div class="workflow-grid">
+        <aside>
+          <div class="panel">
+            <div class="lt-section-label">Setup</div>
+            <div class="field-stack">
+              <label class="lt-label" for="samplesInput">Samples</label>
+              <textarea class="lt-input lt-textarea" id="samplesInput" rows="5" placeholder="MR1_siNC, MR1_siWNT5A.1, MR2_siNC"></textarea>
+              <p class="hint">Use `CellLineName_Treatment` names. The part before the first underscore becomes the cell line.</p>
+            </div>
+
+            <div class="field-stack">
+              <label class="lt-label" for="assaysInput">Assays / genes</label>
+              <textarea class="lt-input lt-textarea" id="assaysInput" rows="3" placeholder="Actin, WNT5A, MAPK8"></textarea>
+              <p class="hint">`Actin` is marked as the reference assay by default. Other assays are targets.</p>
+            </div>
+
+            <div class="field-grid">
+              <div class="field-stack">
+                <label class="lt-label" for="replicatesInput">Replicates</label>
+                <input class="lt-input" id="replicatesInput" type="number" min="1" max="12" step="1" value="3"/>
+              </div>
+              <div class="field-stack">
+                <label class="lt-label" for="controlInput">Control treatment</label>
+                <input class="lt-input" id="controlInput" type="text" value="siNC"/>
+              </div>
+              <div class="field-stack">
+                <label class="lt-label" for="assayOverageInput">Assay overage</label>
+                <input class="lt-input" id="assayOverageInput" type="number" min="0" step="1" value="2"/>
+              </div>
+              <div class="field-stack">
+                <label class="lt-label" for="sampleOverageInput">Sample overage</label>
+                <input class="lt-input" id="sampleOverageInput" type="number" min="0" step="1" value="2"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="lt-section-label">Cq Analysis Options</div>
+            <div class="field-grid">
+              <div class="field-stack">
+                <label class="lt-label" for="referenceInput">Reference gene</label>
+                <input class="lt-input" id="referenceInput" type="text" value="Actin"/>
+              </div>
+              <div class="field-stack">
+                <label class="lt-label" for="efficiencyInput">Efficiency</label>
+                <input class="lt-input" id="efficiencyInput" type="number" min="1" step="0.01" value="2"/>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <section>
+          <div class="status-strip">
+            <div class="metric">
+              <div class="metric-label">Samples</div>
+              <div class="metric-value" id="sampleCount">0</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Assays</div>
+              <div class="metric-value" id="assayCount">0</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Wells</div>
+              <div class="metric-value" id="wellCount">0</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Layout</div>
+              <div class="metric-value" id="layoutName">-</div>
+            </div>
+          </div>
+
+          <div class="notice" id="warningBox"></div>
+
+          <div class="tabs" role="tablist">
+            <button class="tab-btn active" data-tab="plate" type="button">Plate</button>
+            <button class="tab-btn" data-tab="guide" type="button">Guide</button>
+            <button class="tab-btn" data-tab="reagents" type="button">Reagents</button>
+            <button class="tab-btn" data-tab="rna" type="button">RNA</button>
+            <button class="tab-btn" data-tab="cq" type="button">DeltaDeltaCt</button>
+          </div>
+
+          <div class="tab-panel active" id="tab-plate">
+            <div class="plate-wrap">
+              <div class="plate-grid" id="plateGrid"></div>
+            </div>
+          </div>
+
+          <div class="tab-panel" id="tab-guide">
+            <div class="panel">
+              <div class="guide" id="loadingGuide"></div>
+            </div>
+          </div>
+
+          <div class="tab-panel" id="tab-reagents">
+            <div class="action-row" style="justify-content: flex-start; margin-bottom: 10px;">
+              <button class="lt-btn lt-btn-ghost" id="exportPrimerBtn" type="button">Export Primer Mix</button>
+              <button class="lt-btn lt-btn-ghost" id="exportSampleMixBtn" type="button">Export Sample Mix</button>
+            </div>
+            <div class="table-shell" id="reagentTable"></div>
+          </div>
+
+          <div class="tab-panel" id="tab-rna">
+            <div class="analysis-layout">
+              <div class="panel">
+                <div class="field-stack">
+                  <label class="lt-label" for="rnaInput">Nanodrop CSV rows</label>
+                  <textarea class="lt-input lt-textarea" id="rnaInput" rows="8" placeholder="sample_name,concentration_ng_per_uL,A260_A280,A260_A230&#10;MR1_siNC,800,2.01,2.20"></textarea>
+                  <p class="hint">Accepted concentration headers include `Concentration`, `Conc.`, and `Nucleic Acid ng/uL`.</p>
+                </div>
+                <button class="lt-btn lt-btn-ghost" id="exportRnaBtn" type="button">Export RNA CSV</button>
+              </div>
+              <div class="table-shell" id="rnaTable"></div>
+            </div>
+          </div>
+
+          <div class="tab-panel" id="tab-cq">
+            <div class="analysis-layout">
+              <div class="panel">
+                <div class="field-stack">
+                  <label class="lt-label" for="cqInput">Tidy Cq CSV rows</label>
+                  <textarea class="lt-input lt-textarea" id="cqInput" rows="12" placeholder="sample_name,assay/gene,Cq&#10;MR1_siNC,Actin,19.8&#10;MR1_siNC,WNT5A,25.2"></textarea>
+                  <p class="hint">Use one row per technical replicate. `sample`, `Sample`, `target`, `Target`, `Ct`, and `Cq` headers are recognized.</p>
+                </div>
+                <button class="lt-btn lt-btn-ghost" id="exportCqBtn" type="button">Export Results CSV</button>
+              </div>
+              <div class="table-shell" id="cqTable"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer class="lt-footer">
+    LabTools &middot; Verify qPCR setup and analysis against your lab protocol before use.
+  </footer>
+</body>
+</html>
