@@ -1,0 +1,36 @@
+Sample ID,Name,Date,Group,Passage,Cell Line,Concentration,Volume uL,Storage,Operator,Notes
+LG-TEST-0001,Wild Type A,2026-05-09,Control,P03,HEK293,1.2e6,250,"Box A, Slot 01",YX,Control replicate 1
+LG-TEST-0002,Wild Type B,2026-05-09,Control,P03,HEK293,1.1e6,250,"Box A, Slot 02",YX,Control replicate 2
+LG-TEST-0003,Mutant Alpha,2026-05-09,Treatment A,P04,HEK293,9.8e5,200,"Box A, Slot 03",YX,Treatment A low dose
+LG-TEST-0004,Mutant Beta,2026-05-09,Treatment A,P04,HEK293,1.0e6,200,"Box A, Slot 04",YX,Treatment A medium dose
+LG-TEST-0005,Mutant Gamma,2026-05-09,Treatment A,P04,HEK293,1.3e6,200,"Box A, Slot 05",YX,Treatment A high dose
+LG-TEST-0006,Clone 7,2026-05-10,Treatment B,P02,A549,8.5e5,150,"Box A, Slot 06",AL,"Quoted note with comma, should stay one cell"
+LG-TEST-0007,Clone 8,2026-05-10,Treatment B,P02,A549,8.7e5,150,"Box A, Slot 07",AL,"Contains semicolon; useful for delimiter testing"
+LG-TEST-0008,Clone 9,2026-05-10,Treatment B,P02,A549,8.9e5,150,"Box A, Slot 08",AL,"Contains escaped quote ""QC pass"""
+LG-TEST-0009,Drug X 1 nM,2026-05-11,Dose Response,P05,Jurkat,2.0e6,100,"Box B, Slot 01",MJ,Small thermal label text fit check
+LG-TEST-0010,Drug X 10 nM,2026-05-11,Dose Response,P05,Jurkat,2.1e6,100,"Box B, Slot 02",MJ,Small thermal label text fit check
+LG-TEST-0011,Drug X 100 nM,2026-05-11,Dose Response,P05,Jurkat,2.2e6,100,"Box B, Slot 03",MJ,Small thermal label text fit check
+LG-TEST-0012,Drug X 1 uM,2026-05-11,Dose Response,P05,Jurkat,2.3e6,100,"Box B, Slot 04",MJ,Small thermal label text fit check
+LG-TEST-0013,Plate A01,2026-05-12,Plate Map,P01,U2OS,5.0e5,50,"Box B, Slot 05",TN,A01
+LG-TEST-0014,Plate A02,2026-05-12,Plate Map,P01,U2OS,5.1e5,50,"Box B, Slot 06",TN,A02
+LG-TEST-0015,Plate A03,2026-05-12,Plate Map,P01,U2OS,5.2e5,50,"Box B, Slot 07",TN,A03
+LG-TEST-0016,Plate A04,2026-05-12,Plate Map,P01,U2OS,5.3e5,50,"Box B, Slot 08",TN,A04
+LG-TEST-0017,Plate B01,2026-05-12,Plate Map,P01,U2OS,5.4e5,50,"Box B, Slot 09",TN,B01
+LG-TEST-0018,Plate B02,2026-05-12,Plate Map,P01,U2OS,5.5e5,50,"Box B, Slot 10",TN,B02
+LG-TEST-0019,Plate B03,2026-05-12,Plate Map,P01,U2OS,5.6e5,50,"Box B, Slot 11",TN,B03
+LG-TEST-0020,Plate B04,2026-05-12,Plate Map,P01,U2OS,5.7e5,50,"Box B, Slot 12",TN,B04
+LG-TEST-0021,Cryo Vial 001,2026-05-13,Cryo Archive,P08,Primary T,3.0e6,500,"LN2 Rack 1, Box 1",KL,Freeze media 90 percent FBS 10 percent DMSO
+LG-TEST-0022,Cryo Vial 002,2026-05-13,Cryo Archive,P08,Primary T,3.1e6,500,"LN2 Rack 1, Box 2",KL,Freeze media 90 percent FBS 10 percent DMSO
+LG-TEST-0023,Cryo Vial 003,2026-05-13,Cryo Archive,P08,Primary T,3.2e6,500,"LN2 Rack 1, Box 3",KL,Freeze media 90 percent FBS 10 percent DMSO
+LG-TEST-0024,Cryo Vial 004,2026-05-13,Cryo Archive,P08,Primary T,3.3e6,500,"LN2 Rack 1, Box 4",KL,Freeze media 90 percent FBS 10 percent DMSO
+LG-TEST-0025,Long Name Sample With Extra Text,2026-05-14,Layout Stress,P06,MCF7,7.5e5,75,"Shelf C, Bin 01",RS,Long text should reveal clipping or wrapping limits in label fields
+LG-TEST-0026,Unicode-Free ASCII Only,2026-05-14,Layout Stress,P06,MCF7,7.6e5,75,"Shelf C, Bin 02",RS,ASCII punctuation only: hyphen slash colon period
+LG-TEST-0027,Blank Notes,2026-05-14,Layout Stress,P06,MCF7,7.7e5,75,"Shelf C, Bin 03",RS,
+LG-TEST-0028,Blank Storage,2026-05-14,Layout Stress,P06,MCF7,7.8e5,75,,RS,Missing storage cell should stay aligned
+LG-TEST-0029,Numeric-Like ID,2026-05-15,Header Check,P07,HCT116,6.4e5,125,"Shelf D, Bin 01",VP,Sample ID is text even with trailing numbers
+LG-TEST-0030,Edge Row 30,2026-05-15,Sheet Boundary,P07,HCT116,6.5e5,125,"Shelf D, Bin 02",VP,Last label on first Avery 5160 sheet
+LG-TEST-0031,Edge Row 31,2026-05-15,Sheet Boundary,P07,HCT116,6.6e5,125,"Shelf D, Bin 03",VP,First label on second Avery 5160 sheet
+LG-TEST-0032,Edge Row 32,2026-05-15,Sheet Boundary,P07,HCT116,6.7e5,125,"Shelf D, Bin 04",VP,Second sheet placement check
+LG-TEST-0033,Edge Row 33,2026-05-15,Sheet Boundary,P07,HCT116,6.8e5,125,"Shelf D, Bin 05",VP,Second sheet placement check
+LG-TEST-0034,Edge Row 34,2026-05-15,Sheet Boundary,P07,HCT116,6.9e5,125,"Shelf D, Bin 06",VP,Second sheet placement check
+LG-TEST-0035,Edge Row 35,2026-05-15,Sheet Boundary,P07,HCT116,7.0e5,125,"Shelf D, Bin 07",VP,Second sheet placement check
