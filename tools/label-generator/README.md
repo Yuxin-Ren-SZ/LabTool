@@ -38,17 +38,24 @@ The DataMatrix field can encode `Sample ID`. Human-readable code text should be 
 
 - Print laser sheet PDFs at **Actual size** or **100% scale**.
 - Disable browser/printer options such as "Fit to page", "Shrink oversized pages", or custom scaling.
-- For Avery-style sheets, test on plain paper first and hold it behind the label stock to confirm alignment.
+- For laser label sheets, test on plain paper first and hold it behind the label stock to confirm alignment.
 - Thermal mode creates one PDF page per label using the selected label dimensions.
 
 ## Built-in Presets
 
-### Laser Sheet
+### Laser Sheet (USA Scientific)
 
-- Avery 5160 (30-up) — 2.625" × 1", 3 × 10 grid
-- Avery 5167 (80-up) — 1.75" × 0.5", 4 × 20 grid
-- Avery 5163 (10-up) — 4" × 2", 2 × 5 grid
-- Avery 5164 (6-up) — 4" × 3.33", 2 × 3 grid
+- CryoClear 1.28×0.5" — 5 × 17 grid
+- CryoClear 0.94×0.5" — 7 × 17 grid
+- CryoBaby 1.50×0.75" — 5 × 12 grid
+- CryoBaby 1.69×0.75" — 4 × 13 grid
+- CryoBaby 2.625×1.00" — 3 × 10 grid
+- CryoBaby 1.50×0.25" — 4 × 39 grid
+- Catalog 9185-1000 (0.38×0.38") — 12 × 16 grid
+- Catalog 9185-2000 (0.50×0.50") — 12 × 16 grid
+- Catalog 9185-3000 (0.75×0.75") — 9 × 12 grid
+- Catalog 9185-4000 (1.00×1.00") — 7 × 9 grid
+- Catalog 9185-5000 (0.44×0.44") — 13 × 18 grid
 
 ### Thermal
 

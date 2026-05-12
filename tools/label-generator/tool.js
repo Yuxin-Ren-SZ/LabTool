@@ -14,7 +14,7 @@ const state = {
   laserPresets: [],
   thermalPresets: [],
   outputMode: 'laser-sheet',
-  selectedLaserPresetId: 'laser-avery-5160',
+  selectedLaserPresetId: 'labtools-9187-1258',
   selectedThermalPresetId: 'thermal-cryo-128x05',
   customLaserPreset: {
     id: CUSTOM_LASER_ID,
