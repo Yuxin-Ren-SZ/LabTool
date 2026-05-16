@@ -44,14 +44,26 @@ Blank DataMatrix values block export so a printable but meaningless code is not 
 
 - Print laser sheet PDFs at **Actual size** or **100% scale**.
 - Disable browser/printer options such as "Fit to page", "Shrink oversized pages", or custom scaling.
-- For Avery-style sheets, test on plain paper first and hold it behind the label stock to confirm alignment.
+- For laser label sheets, test on plain paper first and hold it behind the label stock to confirm alignment.
 - Thermal mode creates one PDF page per label using the selected label dimensions.
 
 ## Built-in Presets
 
-### Laser Sheet
+### Laser Sheet (USA Scientific)
 
-Laser sheet presets are loaded from `tools/thermal-to-laser/preset-config.js` so the two label tools use the same shipped sheet formats. Browser-saved Thermal To Laser presets also appear in the Label Generator preset dropdown when available.
+- CryoClear 1.28×0.5" — 5 × 17 grid
+- CryoClear 0.94×0.5" — 7 × 17 grid
+- CryoBaby 1.50×0.75" — 5 × 12 grid
+- CryoBaby 1.69×0.75" — 4 × 13 grid
+- CryoBaby 2.625×1.00" — 3 × 10 grid
+- CryoBaby 1.50×0.25" — 4 × 39 grid
+- Catalog 9185-1000 (0.38×0.38") — 12 × 16 grid
+- Catalog 9185-2000 (0.50×0.50") — 12 × 16 grid
+- Catalog 9185-3000 (0.75×0.75") — 9 × 12 grid
+- Catalog 9185-4000 (1.00×1.00") — 7 × 9 grid
+- Catalog 9185-5000 (0.44×0.44") — 13 × 18 grid
+
+Browser-saved Thermal To Laser presets also appear in the preset dropdown when available.
 
 ### Thermal
 
