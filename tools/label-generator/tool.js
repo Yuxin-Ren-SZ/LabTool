@@ -93,7 +93,6 @@ function bindEvents() {
   });
   document.getElementById('csv-file-input').addEventListener('change', onCsvFileUpload);
   document.getElementById('csv-textarea').addEventListener('input', onCsvTextInput);
-  document.getElementById('csv-header-mode').addEventListener('change', onCsvHeaderModeChange);
   document.getElementById('add-datamatrix-btn').addEventListener('click', addDataMatrixField);
   document.getElementById('add-csv-text-btn').addEventListener('click', addCsvTextField);
   document.getElementById('add-static-text-btn').addEventListener('click', addStaticTextField);
