@@ -223,8 +223,8 @@ function bindEvents() {
   document.getElementById('grid-reset').addEventListener('click', function () { recomputeGrid(true); renderAll(); });
 
   // Bottom bar
-  document.getElementById('generate-btn').addEventListener('click', generatePdf);
-  document.getElementById('download-btn').addEventListener('click', downloadPdf);
+  document.getElementById('generate-btn').addEventListener('click', generateAndDownload);
+  document.getElementById('download-btn').addEventListener('click', previewPdf);
 
   // PDF modal close
   document.getElementById('pdf-modal-close').addEventListener('click', function () {
@@ -1069,8 +1069,8 @@ function renderFieldList() {
   list.innerHTML = state.template.fields.map(function (field) {
     var chipClass = field.type === 'datamatrix' ? 'dm' : field.type === 'csvText' ? 'csv' : 'stat';
     var chipIcon  = field.type === 'datamatrix' ? Icons.Grid : field.type === 'csvText' ? Icons.Database : Icons.Type;
-    var sub = field.type === 'datamatrix' ? 'encodes col ' + (state.csvHeaders[field.sourceColumn] || field.sourceColumn)
-            : field.type === 'csvText'    ? 'csv · ' + (state.csvHeaders[field.sourceColumn] || 'col ' + field.sourceColumn)
+    var sub = field.type === 'datamatrix' ? 'encodes ' + (state.csvHeaders[field.sourceColumn] || '—')
+            : field.type === 'csvText'    ? 'csv · ' + (state.csvHeaders[field.sourceColumn] || '—')
             : 'static · "' + field.staticText + '"';
     var size = (field.colEnd - field.colStart) + '×' + (field.rowEnd - field.rowStart);
     var sel = field.id === state.selectedFieldId ? ' selected' : '';
@@ -1189,20 +1189,20 @@ function renderBottomBar() {
     '<div class="lg-bottom-stat"><div class="lg-bottom-stat-num">' + sheetsNeeded + '</div><div class="lg-bottom-stat-lbl">' + (isLaser ? 'laser sheet' + plural(sheetsNeeded) : 'thermal page' + plural(sheetsNeeded)) + '</div></div>';
   info.innerHTML = html;
 
-  // Generate button state
+  // Button state — both buttons need the same preconditions
   var hasData = state.csvRows.length > 0;
   var hasFields = state.template.fields.length > 0;
   var hasDM = state.template.fields.some(function (f) { return f.type === 'datamatrix'; });
   var geomOk = validatePresetGeometry(getActivePreset()).valid;
   var barcodeIssues = hasData ? detectBarcodeInputIssues() : [];
   var blockingIssues = barcodeIssues.filter(function (i) { return i.severity === 'danger'; });
-  var canGenerate = hasData && hasFields && hasDM && geomOk && !blockingIssues.length && !state.isGenerating;
+  var canAct = hasData && hasFields && hasDM && geomOk && !blockingIssues.length && !state.isGenerating;
 
   var genBtn = document.getElementById('generate-btn');
   var dlBtn  = document.getElementById('download-btn');
-  genBtn.disabled = !canGenerate;
-  genBtn.innerHTML = Icons.Grid + (state.isGenerating ? ' Generating…' : ' Generate PDF');
-  dlBtn.disabled = !state.outputBytes || state.outputDirty;
+  genBtn.disabled = !canAct;
+  genBtn.innerHTML = Icons.Download + (state.isGenerating ? ' Generating…' : ' Generate PDF');
+  dlBtn.disabled = !canAct;
   dlBtn.innerHTML = Icons.Eye + ' Preview PDF';
 }
 
@@ -1365,11 +1365,6 @@ function getBarcodeCanvas() {
 
 function downloadPdf() {
   if (!state.outputBytes || state.outputDirty) return;
-  // Show preview modal first
-  if (state.outputUrl) {
-    document.getElementById('pdf-preview').src = state.outputUrl;
-    document.getElementById('pdf-modal').classList.add('open');
-  }
   var filename = 'labtools-labels-' + state.outputMode + '.pdf';
   var blob = new Blob([state.outputBytes], { type: 'application/pdf' });
   if (window.showSaveFilePicker) {
@@ -1380,6 +1375,19 @@ function downloadPdf() {
     return;
   }
   fallbackDownload(blob, filename);
+}
+
+async function previewPdf() {
+  if (state.outputDirty || !state.outputBytes) await generatePdf();
+  if (!state.outputUrl) return;
+  document.getElementById('pdf-preview').src = state.outputUrl;
+  document.getElementById('pdf-modal').classList.add('open');
+}
+
+async function generateAndDownload() {
+  if (state.outputDirty || !state.outputBytes) await generatePdf();
+  if (!state.outputBytes) return;
+  downloadPdf();
 }
 
 function fallbackDownload(blob, filename) {
