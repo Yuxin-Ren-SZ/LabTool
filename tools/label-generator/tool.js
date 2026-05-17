@@ -215,6 +215,13 @@ function bindEvents() {
   // Window arrow keys for nudge
   window.addEventListener('keydown', onGlobalKeyDown);
 
+  // Grid density steppers
+  document.getElementById('grid-cols-dec').addEventListener('click', function () { adjustGrid(-1,  0); });
+  document.getElementById('grid-cols-inc').addEventListener('click', function () { adjustGrid(+1,  0); });
+  document.getElementById('grid-rows-dec').addEventListener('click', function () { adjustGrid( 0, -1); });
+  document.getElementById('grid-rows-inc').addEventListener('click', function () { adjustGrid( 0, +1); });
+  document.getElementById('grid-reset').addEventListener('click', function () { recomputeGrid(true); renderAll(); });
+
   // Bottom bar
   document.getElementById('generate-btn').addEventListener('click', generatePdf);
   document.getElementById('download-btn').addEventListener('click', downloadPdf);
@@ -523,6 +530,22 @@ function recomputeGrid(remap) {
     }
     clampFieldToGrid(field);
   });
+}
+
+function adjustGrid(colsDelta, rowsDelta) {
+  var oldGrid = { cols: state.template.grid.cols, rows: state.template.grid.rows };
+  var newCols = Math.min(20, Math.max(2, oldGrid.cols + colsDelta));
+  var newRows = Math.min(10, Math.max(1, oldGrid.rows + rowsDelta));
+  if (newCols === oldGrid.cols && newRows === oldGrid.rows) return;
+  state.template.fields.forEach(function (field) {
+    field.colStart = Math.round((field.colStart - 1) / oldGrid.cols * newCols) + 1;
+    field.colEnd   = Math.round((field.colEnd   - 1) / oldGrid.cols * newCols) + 1;
+    field.rowStart = Math.round((field.rowStart - 1) / oldGrid.rows * newRows) + 1;
+    field.rowEnd   = Math.round((field.rowEnd   - 1) / oldGrid.rows * newRows) + 1;
+    clampFieldToGrid(field);
+  });
+  state.template.grid = { cols: newCols, rows: newRows };
+  renderAll();
 }
 
 // ─── Sheet placement (new plan/startCell model) ───────────────
@@ -907,7 +930,12 @@ function renderCanvasHeader() {
   document.getElementById('canvas-title').innerHTML = '<span class="lg-canvas-emoji">' + emoji + '</span>' + escapeHtml(preset.name);
   document.getElementById('canvas-dim-label').textContent = formatDecimal(preset.labelWidth, 3) + '″ × ' + formatDecimal(preset.labelHeight, 3) + '″';
   var grid = state.template.grid;
-  document.getElementById('canvas-dim-grid').textContent = 'grid ' + grid.cols + '×' + grid.rows;
+  document.getElementById('grid-cols-val').textContent = grid.cols;
+  document.getElementById('grid-rows-val').textContent = grid.rows;
+  document.getElementById('grid-cols-dec').disabled = grid.cols <= 2;
+  document.getElementById('grid-cols-inc').disabled = grid.cols >= 20;
+  document.getElementById('grid-rows-dec').disabled = grid.rows <= 1;
+  document.getElementById('grid-rows-inc').disabled = grid.rows >= 10;
   document.getElementById('stage-pill-w').textContent = formatDecimal(preset.labelWidth, 3) + '″';
   document.getElementById('stage-pill-h').textContent = formatDecimal(preset.labelHeight, 3) + '″';
 }

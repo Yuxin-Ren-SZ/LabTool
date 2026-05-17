@@ -288,6 +288,30 @@
     .lg-canvas-dim.subtle { color: var(--text-muted); background: transparent; border-color: transparent; padding-left: 0; }
     .lg-canvas-hint { font-size: 0.74rem; color: var(--text-muted); }
 
+    /* ─── Grid density stepper ────────────────────────────────── */
+    .lg-grid-stepper {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-family: var(--font-mono); font-size: 0.74rem; color: var(--text-muted);
+      background: var(--surface); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm); padding: 2px 7px;
+    }
+    .lg-gstepper-label { margin-right: 2px; }
+    .lg-gstepper-sep   { margin: 0 1px; }
+    .lg-gstepper-val   { min-width: 1.6ch; text-align: center; font-weight: 600; color: var(--text-primary); }
+    .lg-gstepper-btn, .lg-gstepper-reset {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 18px; height: 18px;
+      background: none; border: none; border-radius: 4px;
+      cursor: pointer; font-size: 0.85rem; line-height: 1;
+      color: var(--text-secondary); padding: 0;
+      transition: background 0.12s, color 0.12s;
+    }
+    .lg-gstepper-btn:hover:not(:disabled), .lg-gstepper-reset:hover {
+      background: var(--border-subtle); color: var(--text-primary);
+    }
+    .lg-gstepper-btn:disabled { opacity: 0.28; cursor: not-allowed; }
+    .lg-gstepper-reset { margin-left: 3px; font-size: 0.80rem; }
+
     /* ─── Stage area ──────────────────────────────────────────── */
     .lg-stage-wrap {
       flex: 1; min-height: 0;
@@ -828,7 +852,17 @@
       <div class="lg-canvas-head-l">
         <div class="lg-canvas-title" id="canvas-title"><!-- rendered by JS --></div>
         <span class="lg-canvas-dim" id="canvas-dim-label"></span>
-        <span class="lg-canvas-dim subtle" id="canvas-dim-grid"></span>
+        <div class="lg-grid-stepper" id="canvas-dim-grid">
+          <span class="lg-gstepper-label">grid</span>
+          <button class="lg-gstepper-btn" id="grid-cols-dec" type="button" aria-label="Fewer columns">−</button>
+          <span class="lg-gstepper-val" id="grid-cols-val">8</span>
+          <button class="lg-gstepper-btn" id="grid-cols-inc" type="button" aria-label="More columns">+</button>
+          <span class="lg-gstepper-sep">×</span>
+          <button class="lg-gstepper-btn" id="grid-rows-dec" type="button" aria-label="Fewer rows">−</button>
+          <span class="lg-gstepper-val" id="grid-rows-val">3</span>
+          <button class="lg-gstepper-btn" id="grid-rows-inc" type="button" aria-label="More rows">+</button>
+          <button class="lg-gstepper-reset" id="grid-reset" type="button" title="Reset to auto">↺</button>
+        </div>
       </div>
       <div class="lg-canvas-hint">Drag fields on the label · resize from the corner handle · arrow keys to nudge</div>
     </div>
