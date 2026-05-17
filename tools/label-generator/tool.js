@@ -1006,7 +1006,7 @@ function renderSamples() {
   var grid = state.template.grid;
   var preset = getActivePreset();
   var labelAspect = preset.labelWidth + ' / ' + preset.labelHeight;
-  var sampleCount = Math.min(state.csvRows.length, 6);
+  var sampleCount = Math.min(state.csvRows.length, 100);
   var samplesHtml = '';
   for (var i = 0; i < sampleCount; i++) {
     var row = state.csvRows[i];
