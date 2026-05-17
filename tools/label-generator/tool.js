@@ -107,8 +107,7 @@ function bindEvents() {
   document.getElementById('remove-field-btn').addEventListener('click', removeSelectedField);
   document.getElementById('mode-laser-btn').addEventListener('click', function () { setOutputMode('laser-sheet'); });
   document.getElementById('mode-thermal-btn').addEventListener('click', function () { setOutputMode('thermal'); });
-  document.getElementById('laser-preset-select').addEventListener('change', onLaserPresetChange);
-  document.getElementById('thermal-preset-select').addEventListener('change', onThermalPresetChange);
+  document.getElementById('unified-preset-select').addEventListener('change', onUnifiedPresetChange);
   document.getElementById('show-border').addEventListener('change', function (event) {
     state.showBorder = event.target.checked;
     markOutputDirty();
@@ -587,17 +586,15 @@ function setOutputMode(mode) {
   renderAll();
 }
 
-function onLaserPresetChange(event) {
-  state.selectedLaserPresetId = event.target.value;
-  recomputeGrid(true);
-  initializeSequentialPlan(0);
-  markOutputDirty();
-  renderAll();
-}
-
-function onThermalPresetChange(event) {
-  state.selectedThermalPresetId = event.target.value;
-  recomputeGrid(true);
+function onUnifiedPresetChange(event) {
+  if (state.outputMode === 'laser-sheet') {
+    state.selectedLaserPresetId = event.target.value;
+    recomputeGrid(true);
+    initializeSequentialPlan(0);
+  } else {
+    state.selectedThermalPresetId = event.target.value;
+    recomputeGrid(true);
+  }
   markOutputDirty();
   renderAll();
 }
@@ -768,27 +765,28 @@ function renderStep2() {
   renderFieldEditor();
   renderOutputControls();
   renderDesigner();
-  renderPlacement();
   updateStep2NextButton();
 }
 
 function renderStep3() {
+  renderPlacement();
   renderExportState();
 }
 
 function renderPresetSelects() {
-  var laserSelect = document.getElementById('laser-preset-select');
-  laserSelect.innerHTML = state.laserPresets.map(function (preset) {
-    var source = preset._origin === 'user' ? ' · Saved' : '';
-    return '<option value="' + escapeHtml(preset.id) + '">' + escapeHtml(preset.name + (preset.sku ? ' · ' + preset.sku : '') + source) + '</option>';
-  }).join('') + '<option value="' + CUSTOM_LASER_ID + '">Custom laser sheet</option>';
-  laserSelect.value = state.selectedLaserPresetId;
-
-  var thermalSelect = document.getElementById('thermal-preset-select');
-  thermalSelect.innerHTML = state.thermalPresets.map(function (preset) {
-    return '<option value="' + escapeHtml(preset.id) + '">' + escapeHtml(preset.name) + '</option>';
-  }).join('') + '<option value="' + CUSTOM_THERMAL_ID + '">Custom thermal label</option>';
-  thermalSelect.value = state.selectedThermalPresetId;
+  var select = document.getElementById('unified-preset-select');
+  if (state.outputMode === 'laser-sheet') {
+    select.innerHTML = state.laserPresets.map(function (preset) {
+      var source = preset._origin === 'user' ? ' · Saved' : '';
+      return '<option value="' + escapeHtml(preset.id) + '">' + escapeHtml(preset.name + (preset.sku ? ' · ' + preset.sku : '') + source) + '</option>';
+    }).join('') + '<option value="' + CUSTOM_LASER_ID + '">Custom laser sheet</option>';
+    select.value = state.selectedLaserPresetId;
+  } else {
+    select.innerHTML = state.thermalPresets.map(function (preset) {
+      return '<option value="' + escapeHtml(preset.id) + '">' + escapeHtml(preset.name) + '</option>';
+    }).join('') + '<option value="' + CUSTOM_THERMAL_ID + '">Custom thermal label</option>';
+    select.value = state.selectedThermalPresetId;
+  }
 }
 
 function renderCsvSummary() {
@@ -893,9 +891,6 @@ function renderOutputControls() {
   var isLaser = state.outputMode === 'laser-sheet';
   document.getElementById('mode-laser-btn').classList.toggle('active', isLaser);
   document.getElementById('mode-thermal-btn').classList.toggle('active', !isLaser);
-  document.getElementById('laser-output-controls').style.display = isLaser ? '' : 'none';
-  document.getElementById('thermal-output-controls').style.display = isLaser ? 'none' : '';
-  document.getElementById('placement-section').style.display = isLaser ? '' : 'none';
   document.getElementById('custom-preset-fields').style.display = state.selectedLaserPresetId === CUSTOM_LASER_ID && isLaser ? '' : 'none';
   document.getElementById('thermal-custom-fields').style.display = state.selectedThermalPresetId === CUSTOM_THERMAL_ID && !isLaser ? '' : 'none';
   seedCustomFields();
@@ -1067,6 +1062,8 @@ function renderSamplePreview() {
 }
 
 function renderPlacement() {
+  var section = document.getElementById('placement-section');
+  if (section) section.style.display = state.outputMode === 'laser-sheet' ? '' : 'none';
   document.querySelectorAll('[data-placement-mode]').forEach(function (button) {
     button.classList.toggle('active', button.dataset.placementMode === state.placementMode);
   });
