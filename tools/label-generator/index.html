@@ -575,12 +575,24 @@
     .lg-sheet-cell.use  { background: var(--blue-bg); border-color: var(--blue-border); }
     .lg-sheet-cell.use:hover { background: var(--blue-border); }
     .lg-sheet-cell.skip {
-      background: repeating-linear-gradient(135deg, transparent 0 2px, rgba(0,0,0,0.10) 2px 4px);
+      background: repeating-linear-gradient(135deg, transparent 0 2px, rgba(0,0,0,0.40) 2px 4px);
       border-color: var(--border);
     }
-    .lg-sheet-cell.past { background: var(--surface-subtle); opacity: 0.4; cursor: not-allowed; }
+    .lg-sheet-cell.past {
+      background: repeating-linear-gradient(135deg, transparent 0 2px, rgba(0,0,0,0.40) 2px 4px);
+      border-color: var(--border);
+      cursor: not-allowed;
+      /* background: var(--surface-subtle); opacity: 0.4; cursor: not-allowed; */
+    }
+    .lg-sheet-cell.available { background: var(--surface-subtle); border-color: transparent; opacity: 0.35; cursor: default; }
     .lg-sheet--mode-start .lg-sheet-cell.past { cursor: pointer; opacity: 0.55; }
     .lg-sheet--mode-start .lg-sheet-cell.past:hover { opacity: 0.8; }
+    .lg-sheet { max-height: 150px; }
+    .lg-sheet-card-label {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-muted);
+      margin: 10px 0 4px;
+    }
     .lg-sheet-cell.start {
       background: var(--green); border-color: var(--green-dark);
       box-shadow: 0 0 0 2px var(--green-bg); z-index: 1;
@@ -799,10 +811,6 @@
       </div>
 
       <dl class="lg-kv" id="preset-kv"><!-- rendered by JS --></dl>
-      <label class="lg-checkbox">
-        <input type="checkbox" id="show-border" checked />
-        <span>Show label border in PDF</span>
-      </label>
     </section>
 
     <!-- Template actions -->

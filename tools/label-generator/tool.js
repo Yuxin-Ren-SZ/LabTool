@@ -51,7 +51,7 @@ const state = {
   laserPresets: [],
   thermalPresets: [],
   outputMode: 'laser-sheet',
-  selectedLaserPresetId: 'labtools-9187-1258',
+  selectedLaserPresetId: 'labtools-9125-0170',
   selectedThermalPresetId: 'thermal-cryo-128x05',
   customLaserPreset: {
     id: CUSTOM_LASER_ID, name: 'Custom laser sheet', mode: 'laser-sheet',
@@ -70,7 +70,6 @@ const state = {
   plan: [],
   startCell: 0,
   placementMode: 'start',
-  showBorder: true,
   outputBytes: null,
   outputUrl: '',
   outputDirty: true,
@@ -146,13 +145,6 @@ function bindEvents() {
 
   // Preset select
   document.getElementById('unified-preset-select').addEventListener('change', onUnifiedPresetChange);
-
-  // Show border
-  document.getElementById('show-border').addEventListener('change', function (e) {
-    state.showBorder = e.target.checked;
-    markOutputDirty();
-    renderAll();
-  });
 
   // Custom preset form inputs — laser
   function bindCustomNum(id, setter) {
@@ -534,62 +526,88 @@ function recomputeGrid(remap) {
 }
 
 // ─── Sheet placement (new plan/startCell model) ───────────────
+// plan values: 'past' | 'use' | 'skip' | 'available'
+// plan spans ALL sheets needed to fit all labels from state.startCell
 function initPlan() {
+  if (state.outputMode !== 'laser-sheet') { state.plan = []; return; }
   var preset = getActiveLaserPreset();
-  var total = Math.max(1, preset.columns * preset.rows);
-  if (state.plan.length !== total) {
-    state.plan = Array(total).fill('use');
-    state.startCell = 0;
+  var cellsPerSheet = Math.max(1, preset.columns * preset.rows);
+  var labelCount = state.csvRows.length;
+  if (labelCount === 0) { state.plan = []; return; }
+  var neededSheets = Math.max(1, Math.ceil((state.startCell + labelCount) / cellsPerSheet));
+  var totalCells = neededSheets * cellsPerSheet;
+  state.plan = [];
+  for (var i = 0; i < totalCells; i++) {
+    if (i < state.startCell)                   state.plan.push('past');
+    else if (i < state.startCell + labelCount) state.plan.push('use');
+    else                                       state.plan.push('available');
   }
 }
 
 function resetPlan() {
-  var preset = getActiveLaserPreset();
-  var total = Math.max(1, preset.columns * preset.rows);
-  state.plan = Array(total).fill('use');
   state.startCell = 0;
+  initPlan();
 }
 
 function computeUsableCells() {
-  return state.plan.slice(state.startCell).filter(function (s) { return s !== 'skip'; }).length;
+  return state.plan.filter(function (s) { return s === 'use'; }).length;
 }
 
 function computeSheetsNeeded() {
   if (state.outputMode === 'thermal') return state.csvRows.length;
   var preset = getActiveLaserPreset();
-  var total = Math.max(1, preset.columns * preset.rows);
-  var usable = computeUsableCells();
-  return Math.max(1, Math.ceil(Math.max(0, state.csvRows.length - usable) / total) + 1);
+  var cellsPerSheet = Math.max(1, preset.columns * preset.rows);
+  if (state.plan.length === 0) return 1;
+  return Math.max(1, Math.ceil(state.plan.length / cellsPerSheet));
 }
 
 function buildNewLabelIndexMap() {
-  var preset = getActiveLaserPreset();
-  var total = Math.max(1, preset.columns * preset.rows);
   var map = new Map();
   var labelIdx = 0;
-  // Sheet 1: respect startCell + plan
-  for (var i = state.startCell; i < total && labelIdx < state.csvRows.length; i++) {
-    if (state.plan[i] !== 'skip') map.set(i, labelIdx++);
-  }
-  // Sheets 2+: all cells in order
-  var cell = total;
-  while (labelIdx < state.csvRows.length) {
-    map.set(cell++, labelIdx++);
+  for (var i = 0; i < state.plan.length && labelIdx < state.csvRows.length; i++) {
+    if (state.plan[i] === 'use') map.set(i, labelIdx++);
   }
   return map;
 }
 
 function onSheetCellClick(index) {
   var mode = state.placementMode;
+  var cellState = state.plan[index];
+  var preset = getActiveLaserPreset();
+  var cellsPerSheet = Math.max(1, preset.columns * preset.rows);
+
   if (mode === 'start') {
     state.startCell = index;
-    state.plan = Array(state.plan.length).fill('use');
+    initPlan();
   } else if (mode === 'use') {
-    if (index < state.startCell) return;
-    state.plan[index] = 'use';
+    if (cellState === 'past') return;
+    if (cellState === 'skip') {
+      state.plan[index] = 'use';
+      var useCount = state.plan.filter(function (s) { return s === 'use'; }).length;
+      if (useCount > state.csvRows.length) {
+        for (var k = state.plan.length - 1; k >= 0; k--) {
+          if (state.plan[k] === 'use' && k !== index) { state.plan[k] = 'available'; break; }
+        }
+      }
+    }
   } else if (mode === 'skip') {
-    if (index < state.startCell) return;
+    if (cellState !== 'use') return;
     state.plan[index] = 'skip';
+    var nextAvail = -1;
+    for (var j = index + 1; j < state.plan.length; j++) {
+      if (state.plan[j] === 'available') { nextAvail = j; break; }
+    }
+    if (nextAvail === -1) {
+      for (var m = 0; m < cellsPerSheet; m++) state.plan.push('available');
+      for (var n = index + 1; n < state.plan.length; n++) {
+        if (state.plan[n] === 'available') { nextAvail = n; break; }
+      }
+    }
+    if (nextAvail !== -1) state.plan[nextAvail] = 'use';
+    // If the skipped cell was the start cell, advance startCell to the next 'use' cell
+    while (state.startCell < state.plan.length && state.plan[state.startCell] !== 'use') {
+      state.startCell++;
+    }
   }
   markOutputDirty(); renderAll();
 }
@@ -636,24 +654,20 @@ function updateSelectedFieldFromEditor() {
 
 // ─── Preset switching ─────────────────────────────────────────
 function setOutputMode(mode) {
-  var oldTotal = getActiveLaserPreset().columns * getActiveLaserPreset().rows;
   state.outputMode = mode;
   recomputeGrid(true);
-  var newTotal = getActiveLaserPreset().columns * getActiveLaserPreset().rows;
-  if (newTotal !== oldTotal) resetPlan();
+  initPlan();
   markOutputDirty(); renderAll();
 }
 
 function onUnifiedPresetChange(event) {
   var id = event.target.value;
   var isLaser = id === CUSTOM_LASER_ID || !!findLaserPreset(id);
-  var oldTotal = getActiveLaserPreset().columns * getActiveLaserPreset().rows;
   state.outputMode = isLaser ? 'laser-sheet' : 'thermal';
   if (isLaser) state.selectedLaserPresetId = id;
   else state.selectedThermalPresetId = id;
   recomputeGrid(true);
-  var newTotal = getActiveLaserPreset().columns * getActiveLaserPreset().rows;
-  if (newTotal !== oldTotal) resetPlan();
+  initPlan();
   markOutputDirty(); renderAll();
 }
 
@@ -881,9 +895,6 @@ function renderFormatSection() {
   if (preset.vendor) rows += '<dt>Vendor</dt><dd>' + escapeHtml(preset.vendor) + '</dd>';
   kv.innerHTML = rows;
 
-  // Show border checkbox sync
-  document.getElementById('show-border').checked = state.showBorder;
-
   // Sheet placement section visibility
   var placementSection = document.getElementById('placement-section');
   if (placementSection) placementSection.style.display = state.outputMode === 'laser-sheet' ? '' : 'none';
@@ -1085,47 +1096,55 @@ function renderSheetPlacement() {
   if (state.outputMode !== 'laser-sheet') { section.style.display = 'none'; return; }
   section.style.display = '';
 
+  var content = document.getElementById('placement-content');
+
+  // Guard: no CSV loaded yet
+  if (state.csvRows.length === 0) {
+    document.getElementById('placement-grid-badge').textContent = '';
+    content.innerHTML = '<p class="lg-sheet-hint">Load CSV data to configure sheet placement.</p>';
+    return;
+  }
+
   var preset = getActiveLaserPreset();
-  var total  = Math.max(1, preset.columns * preset.rows);
-  // Ensure plan length matches
-  if (state.plan.length !== total) { state.plan = Array(total).fill('use'); state.startCell = 0; }
-
-  var badge = document.getElementById('placement-grid-badge');
-  badge.textContent = preset.columns + '×' + preset.rows;
-
-  var usable  = computeUsableCells();
-  var skipped = state.plan.filter(function (s) { return s === 'skip'; }).length;
-
+  var cellsPerSheet = Math.max(1, preset.columns * preset.rows);
+  var sheetCount = Math.max(1, Math.ceil(state.plan.length / cellsPerSheet));
   var pm = state.placementMode;
+
+  document.getElementById('placement-grid-badge').textContent = preset.columns + '×' + preset.rows;
+
   var modeHtml =
-    '<div class="lg-segmented" style="margin-bottom:8px;">' +
+    '<div class="lg-segmented" style="margin-bottom:10px;">' +
       '<button type="button" data-placement-mode="start" class="' + (pm === 'start' ? 'is-on' : '') + '">Start here</button>' +
       '<button type="button" data-placement-mode="use"   class="' + (pm === 'use'   ? 'is-on' : '') + '">Use cell</button>' +
       '<button type="button" data-placement-mode="skip"  class="' + (pm === 'skip'  ? 'is-on' : '') + '">Skip cell</button>' +
     '</div>';
 
-  var cellsHtml = '';
-  for (var i = 0; i < total; i++) {
-    var cls;
-    if (i < state.startCell) cls = 'past';
-    else if (i === state.startCell) cls = 'start';
-    else cls = state.plan[i] || 'use';
-    cellsHtml += '<div class="lg-sheet-cell ' + cls + '" data-cell-index="' + i + '" title="Cell ' + (i + 1) + '"></div>';
+  var sheetClass = 'lg-sheet' + (pm === 'start' ? ' lg-sheet--mode-start' : '');
+  var gridStyle = 'grid-template-columns:repeat(' + preset.columns + ',1fr);grid-template-rows:repeat(' + preset.rows + ',1fr);';
+  var sheetsHtml = '';
+  for (var s = 0; s < sheetCount; s++) {
+    var sheetStart = s * cellsPerSheet;
+    var cellsHtml = '';
+    for (var i = sheetStart; i < sheetStart + cellsPerSheet; i++) {
+      var planState = state.plan[i] || 'available';
+      var cls = i < state.startCell ? 'past' : i === state.startCell ? 'start' : planState;
+      cellsHtml += '<div class="lg-sheet-cell ' + cls + '" data-cell-index="' + i + '" title="Cell ' + (i + 1) + '"></div>';
+    }
+    if (sheetCount > 1) sheetsHtml += '<div class="lg-sheet-card-label">Sheet ' + (s + 1) + '</div>';
+    sheetsHtml += '<div class="' + sheetClass + '" style="aspect-ratio:' + preset.pageWidth + '/' + preset.pageHeight + ';"><div class="lg-sheet-grid" style="' + gridStyle + '">' + cellsHtml + '</div></div>';
   }
 
-  var sheetClass = 'lg-sheet' + (pm === 'start' ? ' lg-sheet--mode-start' : '');
+  var usable  = computeUsableCells();
+  var skipped = state.plan.filter(function (s) { return s === 'skip'; }).length;
   var statsHtml =
     '<div class="lg-sheet-stats">' +
       '<span class="lg-sheet-stat"><span class="swatch start"></span>start · cell ' + (state.startCell + 1) + '</span>' +
-      '<span class="lg-sheet-stat"><span class="swatch use"></span>' + usable + ' usable</span>' +
+      '<span class="lg-sheet-stat"><span class="swatch use"></span>' + usable + ' assigned</span>' +
       '<span class="lg-sheet-stat"><span class="swatch skip"></span>' + skipped + ' skipped</span>' +
     '</div>';
 
-  var content = document.getElementById('placement-content');
   content.innerHTML =
-    modeHtml +
-    '<div class="' + sheetClass + '" style="aspect-ratio:' + preset.pageWidth + '/' + preset.pageHeight + ';"><div class="lg-sheet-grid" style="grid-template-columns:repeat(' + preset.columns + ',1fr);grid-template-rows:repeat(' + preset.rows + ',1fr);">' + cellsHtml + '</div></div>' +
-    statsHtml +
+    modeHtml + sheetsHtml + statsHtml +
     '<p class="lg-sheet-hint">Click a cell to apply the selected action above</p>';
 }
 
@@ -1133,7 +1152,6 @@ function renderSheetPlacement() {
 function renderBottomBar() {
   var preset = getActivePreset();
   var sheetsNeeded = computeSheetsNeeded();
-  var usable = computeUsableCells();
 
   var info = document.getElementById('bottom-info');
   var isLaser = state.outputMode === 'laser-sheet';
@@ -1141,9 +1159,6 @@ function renderBottomBar() {
     '<div class="lg-bottom-stat"><div class="lg-bottom-stat-num">' + state.csvRows.length + '</div><div class="lg-bottom-stat-lbl">labels to print</div></div>' +
     '<div class="lg-bottom-divider"></div>' +
     '<div class="lg-bottom-stat"><div class="lg-bottom-stat-num">' + sheetsNeeded + '</div><div class="lg-bottom-stat-lbl">' + (isLaser ? 'laser sheet' + plural(sheetsNeeded) : 'thermal page' + plural(sheetsNeeded)) + '</div></div>';
-  if (isLaser) {
-    html += '<div class="lg-bottom-divider"></div><div class="lg-bottom-stat"><div class="lg-bottom-stat-num">' + usable + '</div><div class="lg-bottom-stat-lbl">usable cells / sheet 1</div></div>';
-  }
   info.innerHTML = html;
 
   // Generate button state
@@ -1246,9 +1261,6 @@ async function generateLaserPdf(doc, font, boldFont) {
 }
 
 async function drawLabel(doc, page, font, boldFont, row, labelRect, rowIndex) {
-  if (state.showBorder) {
-    page.drawRectangle({ x: labelRect.x, y: labelRect.y, width: labelRect.width, height: labelRect.height, borderWidth: 0.35, borderColor: PDFLib.rgb(0.78, 0.78, 0.78) });
-  }
   var grid = state.template.grid;
   for (var i = 0; i < state.template.fields.length; i++) {
     var field = state.template.fields[i];
