@@ -113,6 +113,31 @@ C10-C12 = sample 9 + MAPK8 triplicates
 
 This avoids random scattered placement while still using the open right-side columns.
 
+### Target Overflow On The Same Plate
+
+When there are more targets than fit in rows A-H, the auto layout tries a target-row matrix and uses the remaining right-side columns for a second clean matrix before starting another plate.
+
+For 3 samples, 10 targets, and triplicates:
+
+```text
+Primary matrix:
+- Columns 1-3 = sample 1
+- Columns 4-6 = sample 2
+- Columns 7-9 = sample 3
+- Rows A-H = targets 1-8
+
+Right-side overflow matrix:
+- Columns 10-12 = overflow target triplicates
+- A10-A12 = sample 1 + target 9
+- B10-B12 = sample 1 + target 10
+- C10-C12 = sample 2 + target 9
+- D10-D12 = sample 2 + target 10
+- E10-E12 = sample 3 + target 9
+- F10-F12 = sample 3 + target 10
+```
+
+This keeps all 90 reactions on one 96-well plate without random placement.
+
 ## Reagents And Overage
 
 Prepared reaction count is explicit:
