@@ -313,7 +313,7 @@
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
       color: var(--text-dim);
-      height: 44px;
+      height: 58px;
       max-width: 58px;
       overflow: hidden;
       padding: 4px;
@@ -335,7 +335,8 @@
     }
 
     .well-sample,
-    .well-target {
+    .well-target,
+    .well-rep {
       display: block;
       font-size: 0.62rem;
       font-weight: 800;
@@ -347,6 +348,12 @@
 
     .well-target {
       font-weight: 600;
+      margin-top: 2px;
+    }
+
+    .well-rep {
+      color: var(--text-muted);
+      font-weight: 700;
       margin-top: 2px;
     }
 
@@ -663,10 +670,10 @@
                 <div class="field-stack">
                   <label class="lt-label" for="layoutModeInput">Plate layout mode</label>
                   <select class="lt-input" id="layoutModeInput">
-                    <option value="auto">Auto: pipetting-friendly</option>
-                    <option value="sampleRows">Sample rows / assay column groups</option>
-                    <option value="targetRows">Assay rows / sample column groups</option>
-                    <option value="compact">Compact fill</option>
+                    <option value="auto">Pipetting-friendly auto layout</option>
+                    <option value="sampleRows">Sample rows / target column groups</option>
+                    <option value="targetRows">Target rows / sample column groups</option>
+                    <option value="compact">Compact fill, only as a fallback</option>
                   </select>
                 </div>
               </div>
@@ -678,7 +685,7 @@
               <div>
                 <div class="page-kicker">Plate</div>
                 <h2 class="page-title">96-well layout preview</h2>
-                <p class="page-copy">Preview is rendered as a fixed table rather than a dense CSS grid to reduce browser differences. Still verify exported wells before pipetting.</p>
+                <p class="page-copy">Preview is rendered as a fixed table rather than a dense CSS grid to reduce browser differences. Each filled well shows sample, target, and replicate number. Still verify exported wells before pipetting.</p>
               </div>
               <div class="action-row">
                 <button class="lt-btn lt-btn-primary" id="exportPlateBtn" type="button">Export Plate Map</button>

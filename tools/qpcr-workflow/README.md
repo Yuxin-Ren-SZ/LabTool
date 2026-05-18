@@ -59,12 +59,59 @@ Tidy Cq CSV accepts headers such as `sample_name`, `sample`, `Sample`, `assay/ge
 
 The current tool supports 96-well plates. Layout modes are:
 
-- `Auto: pipetting-friendly`
-- `Sample rows / assay column groups`
-- `Assay rows / sample column groups`
-- `Compact fill`
+- `Pipetting-friendly auto layout`
+- `Sample rows / target column groups`
+- `Target rows / sample column groups`
+- `Compact fill, only as a fallback`
+
+The default auto layout tries sample rows / target column groups first. This keeps:
+
+- one sample per row when possible
+- one target per adjacent column group
+- technical replicates beside each other
+- overflow samples in a right-side mini matrix when clean space remains
+
+The layout export includes:
+
+```text
+plate, well, row, column, sample, target, replicate,
+block_type, loading_group, sample_group, target_group
+```
 
 The plate preview is rendered as a fixed HTML table to reduce browser differences. It should still be manually checked in the target browser and on the target machine before relying on the layout for pipetting.
+
+### 9 Samples x 3 Targets x Triplicates
+
+For 9 samples, 3 targets (`Actin`, `WNT5A`, `MAPK8`), and 3 technical replicates, the first 8 samples use the primary matrix:
+
+```text
+Rows A-H = samples 1-8
+Columns 1-3 = Actin triplicates
+Columns 4-6 = WNT5A triplicates
+Columns 7-9 = MAPK8 triplicates
+```
+
+Example primary rows:
+
+```text
+A1-A3 = sample 1 + Actin
+A4-A6 = sample 1 + WNT5A
+A7-A9 = sample 1 + MAPK8
+
+B1-B3 = sample 2 + Actin
+B4-B6 = sample 2 + WNT5A
+B7-B9 = sample 2 + MAPK8
+```
+
+The 9th sample uses the right-side overflow matrix:
+
+```text
+A10-A12 = sample 9 + Actin triplicates
+B10-B12 = sample 9 + WNT5A triplicates
+C10-C12 = sample 9 + MAPK8 triplicates
+```
+
+This avoids random scattered placement while still using the open right-side columns.
 
 ## Reagents And Overage
 

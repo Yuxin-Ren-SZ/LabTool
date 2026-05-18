@@ -286,26 +286,29 @@ function designPlateLayout(samples, assays, config) {
   }
 
   if (config.layoutMode === 'sampleRows') {
-    return sampleRowsLayout(samples, assays, config.replicates, warnings) || compactLayout(samples, assays, config.replicates, warnings, 'Compact fill fallback');
+    const result = sampleRowsLayout(samples, assays, config.replicates, warnings, 'Sample rows / target column groups');
+    return result || cleanSplitLayout(samples, assays, config.replicates, warnings, 'Clean split fallback');
   }
   if (config.layoutMode === 'targetRows') {
-    return targetRowsLayout(samples, assays, config.replicates, warnings) || compactLayout(samples, assays, config.replicates, warnings, 'Compact fill fallback');
+    const result = targetRowsLayout(samples, assays, config.replicates, warnings, 'Target rows / sample column groups');
+    return result || cleanSplitLayout(samples, assays, config.replicates, warnings, 'Clean split fallback');
   }
   if (config.layoutMode === 'compact') {
-    return compactLayout(samples, assays, config.replicates, warnings, 'Compact fill');
+    warnings.push('Compact fill was explicitly selected. Use this only when a clean manual-pipetting matrix is not required.');
+    return compactLayout(samples, assays, config.replicates, warnings, 'Compact fill, only as a fallback');
   }
 
   return (
-    sampleRowsLayout(samples, assays, config.replicates, warnings) ||
-    targetRowsLayout(samples, assays, config.replicates, warnings) ||
-    compactLayout(samples, assays, config.replicates, warnings, 'Compact fill fallback')
+    sampleRowsLayout(samples, assays, config.replicates, warnings, 'Pipetting-friendly auto layout') ||
+    targetRowsLayout(samples, assays, config.replicates, warnings, 'Pipetting-friendly auto layout') ||
+    cleanSplitLayout(samples, assays, config.replicates, warnings, 'Clean split fallback')
   );
 }
 
-function sampleRowsLayout(samples, assays, replicates, warnings) {
+function sampleRowsLayout(samples, assays, replicates, warnings, requestedMode) {
   const targetWidth = assays.length * replicates;
   if (targetWidth > COLUMNS.length) {
-    warnings.push(`${assays.length} assays x ${replicates} replicates requires ${targetWidth} columns, so sample-row layout cannot fit.`);
+    warnings.push(`${assays.length} targets x ${replicates} replicates = ${targetWidth} columns, so sample-row layout cannot fit all targets in one row.`);
     return null;
   }
 
@@ -315,19 +318,36 @@ function sampleRowsLayout(samples, assays, replicates, warnings) {
   const overflowSamplesPerPlate = assays.length ? Math.floor(ROWS.length / assays.length) * overflowLanes : 0;
   let sampleIndex = 0;
   let plateNumber = 1;
+  const guideParts = [
+    `Chosen layout: ${requestedMode === 'Pipetting-friendly auto layout' ? 'sample rows / target column groups' : requestedMode}.`,
+    'Why: targets x replicates fit within 12 columns, so each sample can stay in one row and each target can stay in an adjacent column group.',
+  ];
 
   while (sampleIndex < samples.length) {
+    const plateStartIndex = sampleIndex;
     const primary = samples.slice(sampleIndex, sampleIndex + ROWS.length);
     primary.forEach((sample, rowIndex) => {
       assays.forEach((assay, assayIndex) => {
         const firstCol = assayIndex * replicates + 1;
         for (let rep = 1; rep <= replicates; rep += 1) {
-          records.push(makeRecord(plateNumber, ROWS[rowIndex], firstCol + rep - 1, sample, assay, rep, 'primary_matrix'));
+          records.push(makeRecord({
+            plateNumber,
+            row: ROWS[rowIndex],
+            column: firstCol + rep - 1,
+            sample,
+            assay,
+            replicate: rep,
+            blockType: plateNumber === 1 ? 'primary_matrix' : 'second_plate',
+            loadingGroup: `sample_row_${ROWS[rowIndex]}`,
+            sampleGroup: `sample_${sampleIndex + rowIndex + 1}`,
+            targetGroup: `target_columns_${firstCol}_${firstCol + replicates - 1}`,
+          }));
         }
       });
     });
     sampleIndex += primary.length;
 
+    const overflowRecords = [];
     if (sampleIndex < samples.length && overflowSamplesPerPlate > 0) {
       const overflow = samples.slice(sampleIndex, sampleIndex + overflowSamplesPerPlate);
       overflow.forEach((sample, overflowIndex) => {
@@ -337,67 +357,187 @@ function sampleRowsLayout(samples, assays, replicates, warnings) {
         assays.forEach((assay, assayIndex) => {
           const rowIndex = blockIndex * assays.length + assayIndex;
           for (let rep = 1; rep <= replicates; rep += 1) {
-            records.push(makeRecord(plateNumber, ROWS[rowIndex], firstCol + rep - 1, sample, assay, rep, 'right_overflow_matrix'));
+            const record = makeRecord({
+              plateNumber,
+              row: ROWS[rowIndex],
+              column: firstCol + rep - 1,
+              sample,
+              assay,
+              replicate: rep,
+              blockType: plateNumber === 1 ? 'right_overflow_matrix' : 'second_plate',
+              loadingGroup: `overflow_sample_${sampleIndex + overflowIndex + 1}`,
+              sampleGroup: `sample_${sampleIndex + overflowIndex + 1}`,
+              targetGroup: `target_rows_${ROWS[rowIndex]}`,
+            });
+            records.push(record);
+            overflowRecords.push(record);
           }
         });
       });
       sampleIndex += overflow.length;
     }
 
+    guideParts.push(sampleRowsGuideSection({
+      plateNumber,
+      samples,
+      assays,
+      replicates,
+      targetWidth,
+      rightStart,
+      primaryStartIndex: plateStartIndex,
+      primaryCount: primary.length,
+      overflowRecords,
+    }));
+
     if (sampleIndex < samples.length) plateNumber += 1;
   }
 
-  const guide = [
-    'Chosen layout: sample rows / assay column groups.',
-    `Primary matrix: rows A-H are samples; every ${replicates} adjacent columns are one assay lane.`,
-    ...assays.map((assay, index) => {
-      const start = index * replicates + 1;
-      return `Columns ${start}-${start + replicates - 1}: ${assay.gene}`;
-    }),
-    overflowLanes > 0 ? `Overflow samples use columns ${rightStart}-12 with assays stacked down rows.` : '',
-  ].filter(Boolean).join('\n');
+  return {
+    records,
+    layoutName: 'Sample rows / target groups',
+    guide: guideParts.filter(Boolean).join('\n\n'),
+    warnings,
+  };
+}
+
+function targetRowsLayout(samples, assays, replicates, warnings, requestedMode) {
+  const lanesPerRow = Math.floor(COLUMNS.length / replicates);
+  if (lanesPerRow < 1 || assays.length > ROWS.length) {
+    warnings.push(`Target-row layout cannot fit cleanly: ${assays.length} targets need no more than 8 target rows, and ${replicates} replicates must fit within 12 columns.`);
+    return null;
+  }
+
+  const records = [];
+  const guideParts = [
+    `Chosen layout: ${requestedMode === 'Pipetting-friendly auto layout' ? 'target rows / sample column groups' : requestedMode}.`,
+    'Why: sample-row layout could not fit all targets in one row, so targets are kept in rows and samples are kept in adjacent column groups.',
+  ];
+
+  for (let sampleStart = 0, plateNumber = 1; sampleStart < samples.length; sampleStart += lanesPerRow, plateNumber += 1) {
+    const sampleChunk = samples.slice(sampleStart, sampleStart + lanesPerRow);
+    assays.forEach((assay, assayIndex) => {
+      const row = ROWS[assayIndex];
+      sampleChunk.forEach((sample, sampleOffset) => {
+        const firstCol = sampleOffset * replicates + 1;
+        for (let rep = 1; rep <= replicates; rep += 1) {
+          records.push(makeRecord({
+            plateNumber,
+            row,
+            column: firstCol + rep - 1,
+            sample,
+            assay,
+            replicate: rep,
+            blockType: plateNumber === 1 ? 'target_row_matrix' : 'second_plate',
+            loadingGroup: `target_row_${row}`,
+            sampleGroup: `sample_columns_${firstCol}_${firstCol + replicates - 1}`,
+            targetGroup: `target_${assayIndex + 1}`,
+          }));
+        }
+      });
+    });
+
+    guideParts.push([
+      `Plate ${plateNumber}: target rows / sample column groups.`,
+      ...assays.map((assay, index) => `- Row ${ROWS[index]} contains ${assay.gene}.`),
+      ...sampleChunk.map((sample, index) => {
+        const start = index * replicates + 1;
+        return `- Columns ${start}-${start + replicates - 1} contain ${sample.sample_name} triplicates.`;
+      }),
+    ].join('\n'));
+  }
 
   return {
     records,
-    layoutName: 'Sample rows',
+    layoutName: 'Target rows / sample groups',
+    guide: guideParts.join('\n\n'),
+    warnings,
+  };
+}
+
+function cleanSplitLayout(samples, assays, replicates, warnings, layoutName) {
+  warnings.push('Neither preferred clean matrix fit on one plate. Splitting across multiple clean sample-row plates before compact fill.');
+  const records = [];
+  const assaysPerPlate = Math.max(1, Math.floor(COLUMNS.length / replicates));
+  let plateNumber = 1;
+  for (let assayStart = 0; assayStart < assays.length; assayStart += assaysPerPlate) {
+    const assayChunk = assays.slice(assayStart, assayStart + assaysPerPlate);
+    for (let sampleStart = 0; sampleStart < samples.length; sampleStart += ROWS.length) {
+      const sampleChunk = samples.slice(sampleStart, sampleStart + ROWS.length);
+      sampleChunk.forEach((sample, rowIndex) => {
+        assayChunk.forEach((assay, assayOffset) => {
+          const firstCol = assayOffset * replicates + 1;
+          for (let rep = 1; rep <= replicates; rep += 1) {
+            records.push(makeRecord({
+              plateNumber,
+              row: ROWS[rowIndex],
+              column: firstCol + rep - 1,
+              sample,
+              assay,
+              replicate: rep,
+              blockType: plateNumber === 1 ? 'primary_matrix' : 'second_plate',
+              loadingGroup: `sample_row_${ROWS[rowIndex]}`,
+              sampleGroup: `sample_${sampleStart + rowIndex + 1}`,
+              targetGroup: `target_columns_${firstCol}_${firstCol + replicates - 1}`,
+            }));
+          }
+        });
+      });
+      plateNumber += 1;
+    }
+  }
+
+  const guide = [
+    `Chosen layout: ${layoutName}.`,
+    `Each split plate keeps samples in rows and up to ${assaysPerPlate} targets in adjacent column groups.`,
+    'This avoids random scattered placement when a single clean matrix is not possible.',
+  ].join('\n');
+
+  return {
+    records,
+    layoutName,
     guide,
     warnings,
   };
 }
 
-function targetRowsLayout(samples, assays, replicates, warnings) {
-  const sampleWidth = samples.length * replicates;
-  if (sampleWidth > COLUMNS.length || assays.length > ROWS.length) {
-    warnings.push(`${samples.length} samples x ${replicates} replicates requires ${sampleWidth} columns, or ${assays.length} assay rows; target-row layout cannot fit cleanly.`);
-    return null;
+function sampleRowsGuideSection({ plateNumber, samples, assays, replicates, targetWidth, rightStart, primaryStartIndex, primaryCount, overflowRecords }) {
+  const primaryLines = [
+    `Plate ${plateNumber} primary matrix:`,
+    `- Rows A-${ROWS[primaryCount - 1]} contain samples ${primaryStartIndex + 1}-${primaryStartIndex + primaryCount}.`,
+    ...assays.map((assay, index) => {
+      const start = index * replicates + 1;
+      return `- Columns ${start}-${start + replicates - 1} contain ${assay.gene} triplicates.`;
+    }),
+  ];
+
+  const overflowLines = [];
+  if (overflowRecords.length) {
+    const overflowBySample = groupBy(overflowRecords, (record) => record.sample_group);
+    overflowLines.push('Right-side overflow matrix:');
+    overflowLines.push(`- Columns ${rightStart}-12 are used for overflow samples.`);
+    Object.keys(overflowBySample).forEach((sampleGroup) => {
+      const records = overflowBySample[sampleGroup];
+      const sampleLabel = records[0].sample;
+      const sampleNumber = sampleGroup.replace('sample_', '');
+      const rows = Array.from(new Set(records.map((record) => record.row)));
+      overflowLines.push(`- Rows ${rows[0]}-${rows[rows.length - 1]} contain sample ${sampleNumber} (${sampleLabel}) across targets ${assays.map((assay) => assay.gene).join(', ')}.`);
+      assays.forEach((assay) => {
+        const assayRecords = records.filter((record) => record.target === assay.gene);
+        if (!assayRecords.length) return;
+        const first = assayRecords[0];
+        const last = assayRecords[assayRecords.length - 1];
+        overflowLines.push(`- ${first.well}-${last.well} = sample ${sampleNumber} + ${assay.gene} triplicates.`);
+      });
+    });
+  } else if (rightStart <= COLUMNS.length) {
+    primaryLines.push(`- Columns ${rightStart}-12 remain available for a right-side overflow mini matrix if more samples are added.`);
   }
 
-  const records = [];
-  assays.forEach((assay, assayIndex) => {
-    const row = ROWS[assayIndex];
-    samples.forEach((sample, sampleIndex) => {
-      const firstCol = sampleIndex * replicates + 1;
-      for (let rep = 1; rep <= replicates; rep += 1) {
-        records.push(makeRecord(1, row, firstCol + rep - 1, sample, assay, rep, 'target_row_matrix'));
-      }
-    });
-  });
+  if (targetWidth === COLUMNS.length) {
+    primaryLines.push('- No right-side overflow area remains on this plate.');
+  }
 
-  const guide = [
-    'Chosen layout: assay rows / sample column groups.',
-    `Each assay gets a row; every ${replicates} adjacent columns are one sample lane.`,
-    ...samples.map((sample, index) => {
-      const start = index * replicates + 1;
-      return `Columns ${start}-${start + replicates - 1}: ${sample.sample_name}`;
-    }),
-  ].join('\n');
-
-  return {
-    records,
-    layoutName: 'Assay rows',
-    guide,
-    warnings,
-  };
+  return [...primaryLines, ...overflowLines].join('\n');
 }
 
 function compactLayout(samples, assays, replicates, warnings, layoutName) {
@@ -410,7 +550,18 @@ function compactLayout(samples, assays, replicates, warnings, layoutName) {
         const plateNumber = Math.floor(index / WELLS_PER_PLATE) + 1;
         const row = ROWS[Math.floor(plateOffset / COLUMNS.length)];
         const column = COLUMNS[plateOffset % COLUMNS.length];
-        records.push(makeRecord(plateNumber, row, column, sample, assay, rep, 'compact_fill'));
+        records.push(makeRecord({
+          plateNumber,
+          row,
+          column,
+          sample,
+          assay,
+          replicate: rep,
+          blockType: 'compact_fill',
+          loadingGroup: `compact_plate_${plateNumber}`,
+          sampleGroup: `sample_${sample.sample_id}`,
+          targetGroup: `target_${assay.gene}`,
+        }));
         index += 1;
       }
     });
@@ -423,7 +574,7 @@ function compactLayout(samples, assays, replicates, warnings, layoutName) {
   };
 }
 
-function makeRecord(plateNumber, row, column, sample, assay, replicate, blockType) {
+function makeRecord({ plateNumber, row, column, sample, assay, replicate, blockType, loadingGroup, sampleGroup, targetGroup }) {
   return {
     plate: `Plate ${plateNumber}`,
     plate_id: `Plate ${plateNumber}`,
@@ -436,6 +587,9 @@ function makeRecord(plateNumber, row, column, sample, assay, replicate, blockTyp
     CellLineName: sample.CellLineName,
     Treatment: sample.Treatment,
     block_type: blockType,
+    loading_group: loadingGroup,
+    sample_group: sampleGroup,
+    target_group: targetGroup,
     sample_id: sample.sample_id,
     sample_name: sample.sample_name,
     group: sample.group,
@@ -677,8 +831,9 @@ function renderPlateTable(plateId, rows) {
       if (record.assay_type === 'reference') classes.push('reference');
       return [
         `<td class="${classes.join(' ')}" title="${escapeHtml(`${record.well}: ${record.sample_name} / ${record.target} rep ${record.replicate}`)}">`,
-        `<span class="well-sample">${escapeHtml(record.sample_id)}</span>`,
+        `<span class="well-sample">${escapeHtml(record.sample_name)}</span>`,
         `<span class="well-target">${escapeHtml(record.target)}</span>`,
+        `<span class="well-rep">rep ${escapeHtml(record.replicate)}</span>`,
         '</td>',
       ].join('');
     }).join('');
