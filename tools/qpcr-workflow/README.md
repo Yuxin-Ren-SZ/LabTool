@@ -1,71 +1,115 @@
 # RT-qPCR Workflow Assistant
 
-Browser-only RT-qPCR setup helper for LabTools. It turns sample and assay names into a pipetting-friendly 96-well plate map, calculates primer master mix and sample cDNA/H2O mix volumes, performs 4 ug RNA input calculations, and runs a compact single-reference Delta-Delta-Ct analysis from pasted Cq values.
+Browser-only RT-qPCR planning and relative-expression helper for LabTools. It supports 96-well plate planning, reagent scaling, nucleic-acid concentration calculations, and exploratory ΔΔCt analysis from pasted or uploaded CSV-style data.
 
 Part of the [LabTools](../../) collection.
 
+## Scope
+
+This tool is intended for:
+
+- planning 96-well RT-qPCR layouts before pipetting
+- calculating primer master mix and sample cDNA/H2O mix volumes
+- calculating RNA, DNA, or other nucleic-acid input volume from concentration data
+- running single- or multi-reference ΔΔCt calculations from tidy Cq rows
+- exporting browser-generated CSV tables for manual review
+
+This tool is not intended for:
+
+- diagnostic interpretation
+- instrument-specific binary file parsing
+- automatic validation against a kit, primer set, or thermocycler protocol
+- replacing final manual review of the exported plate map and calculations
+
+All work happens in the browser. The page has no build step, server dependency, or external runtime package.
+
 ## Workflow
 
-1. Enter samples as comma-separated `CellLineName_Treatment` names.
-2. Enter assays/genes as comma-separated text. `Actin` is marked as the reference assay by default.
-3. Review the generated 96-well plate map and loading guide.
-4. Export plate map, primer master mix, and sample cDNA/H2O mix CSV files.
-5. Paste Nanodrop rows to calculate RNA and water volumes for 4 ug RNA in 32 uL.
-6. Paste tidy Cq rows to calculate DeltaCt, DeltaDeltaCt, and fold change.
+1. Open the **Scope** page to confirm the workflow matches the intended use.
+2. Enter samples, assays, reference genes, control treatment, technical replicates, and layout mode on **Setup**.
+3. Review the generated plate map and loading guide on **Plate**.
+4. Edit reagent recipe and overage assumptions on **Reagents**.
+5. Paste or upload concentration rows on **Nucleic Acid**.
+6. Paste or upload tidy Cq rows on **ΔΔCt**.
+7. Export the generated CSV tables needed for review.
+
+The page starts blank by design. Template downloads and placeholders describe accepted formats, but no test dataset is loaded into the tool.
+
+## Input Formats
+
+Samples can be entered as a comma-separated list or one sample per line:
+
+```text
+CellLine_control, CellLine_treatment
+```
+
+Assays can be entered as a comma-separated list or as CSV:
+
+```text
+gene,assay_type,efficiency
+ReferenceGene,reference,2
+TargetGene,target,1.95
+```
+
+Nucleic-acid measurement CSV accepts common headers such as `concentration_ng_per_uL`, `Concentration`, `Conc.`, `Nucleic Acid`, `Nucleic Acid ng/uL`, `A260/A280`, and `A260/A230`.
+
+Tidy Cq CSV accepts headers such as `sample_name`, `sample`, `Sample`, `assay/gene`, `target`, `Target`, `gene`, `Cq`, `Ct`, `CellLineName`, and `Treatment`.
 
 ## Plate Layout
 
-The default layout mirrors the qPCR workflow source project:
+The current tool supports 96-well plates. Layout modes are:
 
-- samples load by rows A-H
-- assays occupy adjacent column lanes
-- technical replicates stay adjacent
-- overflow samples use the right-side mini-matrix when possible
+- `Auto: pipetting-friendly`
+- `Sample rows / assay column groups`
+- `Assay rows / sample column groups`
+- `Compact fill`
 
-For 9 samples, 3 assays, and triplicates, samples 1-8 fill rows A-H across columns 1-9. Sample 9 uses columns 10-12 with assays stacked down rows A-C.
+The plate preview is rendered as a fixed HTML table to reduce browser differences. It should still be manually checked in the target browser and on the target machine before relying on the layout for pipetting.
 
-The tool warns when the requested setup needs more than 96 wells.
+## Reagents And Overage
 
-## Reagent Formulas
-
-Primer master mix is calculated per assay:
+Prepared reaction count is explicit:
 
 ```text
-total reactions = wells for assay + assay overage
-SsoFast = 10 uL x total reactions
-forward primer = 0.5 uL x total reactions
-reverse primer = 0.5 uL x total reactions
+prepared reactions = wells + extra reactions + ceiling(wells x overage percent)
+```
+
+Primer master mix is calculated per assay from editable per-reaction volumes:
+
+```text
+master mix uL = master mix per reaction x prepared reactions
+forward primer uL = forward primer per reaction x prepared reactions
+reverse primer uL = reverse primer per reaction x prepared reactions
 ```
 
 Sample cDNA/H2O mix is calculated per sample:
 
 ```text
-total reactions = wells for sample + sample overage
-H2O = 5 uL x total reactions
-cDNA = 4 uL x total reactions
+H2O uL = water per reaction x prepared reactions
+cDNA uL = cDNA per reaction x prepared reactions
 ```
 
-## RNA Formula
+## Nucleic Acid Calculation
+
+The nucleic-acid page is not Nanodrop-specific. It can use Nanodrop, Qubit, plate reader, or manual concentration rows if the concentration is represented as ng/uL.
 
 ```text
-RNA volume = 4000 ng / concentration ng/uL
-water to 32 uL = 32 - RNA volume
+sample volume uL = target mass ng / concentration ng/uL
+diluent uL = final volume uL - sample volume uL
 ```
 
-QC flags mark missing concentration, RNA volume above 32 uL, A260/A280 at or below 1.8, and A260/A230 at or below 2.0.
+QC flags mark missing concentration, sample volume greater than final volume, negative diluent, and purity ratios below the configured thresholds.
 
-## Delta-Delta-Ct Formula
+## ΔΔCt Analysis
 
-Single-reference analysis uses:
+Reference genes are customizable. One or more reference genes can be used. Multiple references use the mean reference Cq per sample for ΔCt.
 
 ```text
-DeltaCt = Cq target - mean Cq reference
-DeltaDeltaCt = DeltaCt - mean control DeltaCt within the same CellLineName and target
-fold change = efficiency ^ -DeltaDeltaCt
+ΔCt = mean target Cq - mean reference Cq
+ΔΔCt = ΔCt - mean control ΔCt within the same CellLineName and target
+fold change = PCR efficiency ^ -ΔΔCt
 ```
 
-The default control treatment is `siNC`, and the default efficiency is `2.0`.
+PCR efficiency is configurable. `2.0` represents ideal 100% amplification efficiency. Assay CSV rows can define per-target efficiency, or the page can use one default efficiency for every target.
 
-## Notes
-
-This checked-in LabTool version intentionally does not include the original Streamlit app, Python package, generated PDFs, cache folders, or example output files. LabTools is a zero-dependency static site, so this implementation keeps the workflow portable for direct browser-file usage and GitHub Pages.
+The ΔΔCt page includes a compact visualization of mean ΔΔCt by cell line, treatment, and target. Exported CSV keeps the underlying rows for review.
