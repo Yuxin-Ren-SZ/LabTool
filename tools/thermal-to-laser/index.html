@@ -453,6 +453,21 @@
       .preset-summary-panel { padding: 14px; }
       .preset-summary-facts { grid-template-columns: 1fr; }
     }
+
+    @media (prefers-color-scheme: dark) {
+      .preset-summary-panel {
+        background:
+          linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0)) padding-box,
+          var(--preset-summary-bg);
+      }
+      .preset-summary-chip {
+        background: rgba(255,255,255,0.08);
+        border-color: rgba(255,255,255,0.14);
+      }
+      .preset-summary-fact {
+        border-top-color: rgba(255,255,255,0.08);
+      }
+    }
   </style>
 </head>
 <body>

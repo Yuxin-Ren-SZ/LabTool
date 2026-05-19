@@ -1028,7 +1028,7 @@ function renderSamples() {
           } catch (e) { /* fallback to black block */ }
         }
         if (dmUrl) {
-          fieldsHtml += '<div class="lg-sample-zone dm" style="' + style + 'background:#fff;padding:2px;"><img src="' + dmUrl + '" style="width:100%;height:100%;object-fit:contain;image-rendering:pixelated;" /></div>';
+          fieldsHtml += '<div class="lg-sample-zone dm lg-dm-bg" style="' + style + 'padding:2px;"><img src="' + dmUrl + '" style="width:100%;height:100%;object-fit:contain;image-rendering:pixelated;" /></div>';
         } else {
           fieldsHtml += '<div class="lg-sample-zone dm" style="' + style + '"></div>';
         }

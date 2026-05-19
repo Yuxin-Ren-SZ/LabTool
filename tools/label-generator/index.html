@@ -743,6 +743,52 @@
       .lg-stage-wrap { padding: 20px 16px 12px; }
       .lg-bottom-bar { position: static; height: auto; padding: 14px 18px; }
     }
+
+    /* DataMatrix barcode zones always need a white background for machine readability */
+    .lg-dm-bg { background: #fff; }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --surface-cool:  #1e1d1b;
+        --border-strong: #4a4845;
+      }
+      .lg-nav {
+        background: rgba(26,25,22,0.86);
+      }
+      .lg-center {
+        background: linear-gradient(180deg, #1e1d1b 0%, #1a1916 100%);
+      }
+      .lg-canvas-header {
+        background: rgba(26,25,22,0.65);
+        border-color: var(--border);
+      }
+      .lg-stage-canvas {
+        background: #252421;
+      }
+      .lg-samples {
+        background: rgba(26,25,22,0.7);
+        border-top-color: var(--border-subtle);
+      }
+      .lg-sample {
+        background: var(--surface);
+        border-color: var(--border);
+      }
+      .lg-sheet {
+        background: var(--surface);
+      }
+      .lg-status-bar {
+        background: rgba(26,25,22,0.9);
+        border-top-color: var(--border-subtle);
+      }
+      .lg-bottom-bar {
+        background: rgba(26,25,22,0.92);
+        border-top-color: var(--border-subtle);
+      }
+      .lg-csv-col {
+        background: rgba(255,255,255,0.10);
+        border-color: rgba(255,255,255,0.12);
+      }
+    }
   </style>
 </head>
 <body>
