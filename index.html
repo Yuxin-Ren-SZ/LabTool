@@ -5,267 +5,535 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>LabTools</title>
   <link rel="stylesheet" href="assets/css/labtools.css"/>
+  <script src="assets/js/labtools-glyphs.js"></script>
   <style>
-    body {
-      display: flex;
-      flex-direction: column;
-    }
+    body { display: flex; flex-direction: column; }
 
-    /* ── Hero ── */
-    .hero {
-      padding: 72px 24px 52px;
-      text-align: center;
-    }
-    .hero-icon {
-      font-size: 2.6rem;
-      line-height: 1;
-      margin-bottom: 18px;
-    }
-    .hero-title {
-      font-size: 2.1rem;
-      font-weight: 800;
-      letter-spacing: -0.025em;
-      color: var(--text);
-      margin-bottom: 12px;
-    }
-    .hero-sub {
-      font-size: 0.98rem;
-      color: var(--text-muted);
-      max-width: 400px;
-      margin: 0 auto;
-      line-height: 1.65;
-    }
-
-    /* ── Tools section ── */
-    .tools-section {
+    /* ── Hub layout ── */
+    .lt-hub-main {
       flex: 1;
-      max-width: 900px;
+      max-width: 960px;
       width: 100%;
       margin: 0 auto;
-      padding: 0 24px 72px;
+      padding: 36px 24px 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 40px;
     }
 
+    /* ── Recent section ── */
+    .lt-hub-recent-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-top: 12px;
+    }
+    .lt-hub-recent-tile {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card);
+      padding: 20px 22px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      text-decoration: none;
+      color: inherit;
+      transition: box-shadow 0.18s, transform 0.18s;
+    }
+    .lt-hub-recent-tile:hover {
+      box-shadow: var(--shadow-hover);
+      transform: translateY(-2px);
+    }
+    .lt-hub-recent-glyph { color: var(--blue-dark); flex-shrink: 0; }
+    .lt-hub-recent-glyph svg { width: 28px; height: 28px; }
+    .lt-hub-recent-name { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+    .lt-hub-recent-desc { font-size: 0.80rem; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+
+    /* ── All tools ── */
+    .lt-hub-tools-header {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 4px;
+    }
+
+    .lt-hub-subgroup { margin-bottom: 24px; }
+    .lt-hub-subgroup-label {
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-dim);
+      display: block;
+      margin-bottom: 10px;
+      padding-left: 2px;
+    }
+
+    /* ── Tool cards ── */
     .tools-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
     }
-
-    /* ── Tool card ── */
     .tool-card {
       background: var(--surface);
       border-radius: var(--radius-lg);
       box-shadow: var(--shadow-card);
-      padding: 24px;
+      padding: 20px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
+      text-decoration: none;
+      color: inherit;
       transition: box-shadow 0.18s, transform 0.18s;
-      cursor: pointer;
     }
     .tool-card:hover {
       box-shadow: var(--shadow-hover);
       transform: translateY(-2px);
     }
-
-    .tool-card-icon   { font-size: 1.8rem; line-height: 1; margin-bottom: 4px; }
-    .tool-card-name   { font-size: 1rem;   font-weight: 700; color: var(--text); }
-    .tool-card-desc   { font-size: 0.84rem; color: var(--text-muted); line-height: 1.55; flex: 1; }
-
+    .tool-card-glyph {
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      transition: color 0.15s;
+    }
+    .tool-card:hover .tool-card-glyph { color: var(--blue-dark); }
+    .tool-card-name { font-size: 0.92rem; font-weight: 700; color: var(--text); }
+    .tool-card-desc { font-size: 0.80rem; color: var(--text-muted); line-height: 1.5; flex: 1; }
     .tool-card-footer {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-top: 10px;
+      margin-top: 8px;
     }
-    .tool-card-launch {
-      font-size: 0.82rem;
-      font-weight: 700;
-      color: var(--blue-dark);
-    }
+    .tool-card-launch { font-size: 0.80rem; font-weight: 700; color: var(--blue-dark); }
     .tool-card:hover .tool-card-launch { text-decoration: underline; }
 
-    .tool-card--coming-soon {
-      opacity: 0.55;
-      cursor: default;
+    /* ── Coming soon disclosure ── */
+    .lt-hub-disclosure {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .lt-hub-disclosure summary {
+      padding: 13px 20px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      user-select: none;
+    }
+    .lt-hub-disclosure summary::-webkit-details-marker { display: none; }
+    .lt-hub-disclosure[open] summary {
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .lt-hub-disclosure-body {
+      padding: 16px 20px 20px;
+    }
+    .lt-hub-cs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+      opacity: 0.5;
       pointer-events: none;
+    }
+    .tool-card--coming-soon { cursor: default; }
+
+    /* ── ⌘K nav button ── */
+    .lt-nav-spacer { flex: 1; }
+    .lt-nav-cmd-k {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      font-size: 0.80rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      font-family: var(--font);
+    }
+    .lt-nav-cmd-k:hover { border-color: var(--blue); color: var(--text); }
+    .lt-nav-cmd-k kbd {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      background: var(--tag-bg);
+      border-radius: 3px;
+      padding: 1px 5px;
+    }
+
+    /* ── ⌘K Palette overlay ── */
+    #cmd-palette {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+    }
+    .lt-palette-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+    }
+    .lt-palette-modal {
+      position: absolute;
+      top: 110px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(600px, calc(100vw - 48px));
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-hover);
+      overflow: hidden;
+    }
+    .lt-palette-input {
+      width: 100%;
+      padding: 14px 18px;
+      border: none;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 1rem;
+      font-family: var(--font);
+      color: var(--text);
+      background: transparent;
+      outline: none;
+    }
+    .lt-palette-input::placeholder { color: var(--text-placeholder); }
+    .lt-palette-results { max-height: 340px; overflow-y: auto; }
+    .lt-palette-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 18px;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+      transition: background 0.1s;
+    }
+    .lt-palette-item:hover,
+    .lt-palette-item.selected { background: var(--surface-hover); }
+    .lt-palette-item-glyph { color: var(--text-muted); flex-shrink: 0; }
+    .lt-palette-item-name { font-size: 0.92rem; font-weight: 600; color: var(--text); }
+    .lt-palette-item-desc { font-size: 0.78rem; color: var(--text-muted); margin-top: 1px; }
+    .lt-palette-empty {
+      padding: 28px 18px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .tools-grid { grid-template-columns: repeat(2, 1fr); }
+      .lt-hub-recent-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 480px) {
+      .tools-grid { grid-template-columns: 1fr; }
+      .lt-hub-main { padding: 24px 16px 64px; }
     }
   </style>
 </head>
 <body>
 
-  <main>
-    <!-- Hero -->
-    <section class="hero">
-      <div class="hero-icon">🔬</div>
-      <h1 class="hero-title">LabTools</h1>
-      <p class="hero-sub">Interactive utilities for the cell biology bench. Open source, no install required.</p>
-      <p class="hero-sub"> Made by Yuxin with Claude and GitHub Copilot</p>
+  <nav class="lt-nav">
+    <a class="lt-nav-brand" href="index.html">LabTools</a>
+    <span class="lt-nav-spacer"></span>
+    <button class="lt-nav-cmd-k" onclick="openPalette()" aria-label="Search tools">
+      <kbd>⌘K</kbd> Search tools
+    </button>
+  </nav>
+
+  <!-- ⌘K Command palette -->
+  <div id="cmd-palette" hidden>
+    <div class="lt-palette-backdrop" onclick="closePalette()"></div>
+    <div class="lt-palette-modal">
+      <input class="lt-palette-input" id="palette-input"
+             type="text" placeholder="Search tools…"
+             oninput="filterPalette()" autocomplete="off"/>
+      <div class="lt-palette-results" id="palette-results"></div>
+    </div>
+  </div>
+
+  <main class="lt-hub-main">
+
+    <!-- Recent section — hidden until localStorage has entries -->
+    <section id="recent-section" hidden>
+      <div class="lt-section-label">Recent</div>
+      <div class="lt-hub-recent-grid" id="recent-grid"></div>
     </section>
 
-    <!-- Tools grid -->
-    <section class="tools-section">
-      <div class="lt-section-label">Available Tools</div>
-      <div class="tools-grid">
+    <!-- All tools -->
+    <section class="lt-hub-tools">
+      <div class="lt-section-label">All tools</div>
 
-        <a class="tool-card" href="tools/cell-count/index.html">
-          <div class="tool-card-icon">🧮</div>
-          <div class="tool-card-name">Cell Count Calculator</div>
-          <div class="tool-card-desc">
-            Hemocytometer counting with Trypan Blue viability analysis.
-            Supports single or duplicate chamber counts across 4 counting modes.
-          </div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
+      <!-- Prepare -->
+      <div class="lt-hub-subgroup" id="group-prepare"></div>
+      <!-- Run -->
+      <div class="lt-hub-subgroup" id="group-run"></div>
+      <!-- Record -->
+      <div class="lt-hub-subgroup" id="group-record"></div>
+    </section>
 
-        <a class="tool-card" href="tools/seeding-calc/index.html">
-          <div class="tool-card-icon">⚗️</div>
-          <div class="tool-card-name">Cell Seeding Calculator</div>
-          <div class="tool-card-desc">
-            Count your cells, then calculate the dilution needed to reach
-            a target seeding density. Guided two-step workflow with C₁V₁ = C₂V₂ solver.
-          </div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
-
-        <a class="tool-card" href="tools/experiment-layout/index.html">
-          <div class="tool-card-icon">🧫</div>
-          <div class="tool-card-name">Well Plate Map Generator</div>
-          <div class="tool-card-desc">
-            Assign treatment groups to 6-, 12-, 24-, 48-, 96-, 384-, or 1536-well plates,
-            copy patterns across wells, and export CSV or print-ready layouts.
-          </div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
-
-        <a class="tool-card" href="tools/stain-timer/index.html">
-          <div class="tool-card-icon">⏱</div>
-          <div class="tool-card-name">Stain Timer</div>
-          <div class="tool-card-desc">
-            Configurable step-by-step staining protocol timer with alarm.
-            Design your protocol, then run it with countdown and audio cues.
-          </div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
-
-        <a class="tool-card" href="tools/thermal-to-laser/index.html">
-          <div class="tool-card-icon">🏷️</div>
-          <div class="tool-card-name">Thermal To Laser Label Converter</div>
-          <div class="tool-card-desc">
-            Convert a one-label-per-page thermal printer PDF into a mailing-label-sheet PDF for laser printing, with preset detection, sheet preview, and cell-by-cell placement control.
-          </div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
-
-        <a class="tool-card" href="tools/label-generator/index.html">
-          <div class="tool-card-icon">🏷️</div>
-          <div class="tool-card-name">Label Generator</div>
-          <div class="tool-card-desc">Generate PDF labels with DataMatrix barcodes from CSV data. Supports thermal-printer labels and laser-sheet grids.</div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
-
-      </div>
-
-      <div style="margin-top: 48px;">
-        <div class="lt-section-label">Coming Soon</div>
-        <div class="tools-grid">
+    <!-- Coming soon disclosure -->
+    <details class="lt-hub-disclosure">
+      <summary>
+        Coming soon
+        <span class="lt-badge lt-badge-default">8</span>
+      </summary>
+      <div class="lt-hub-disclosure-body">
+        <div class="lt-hub-cs-grid">
 
           <div class="tool-card tool-card--coming-soon">
-            <div class="tool-card-icon">🧪</div>
             <div class="tool-card-name">Dilution &amp; Serial Dilution Planner</div>
-            <div class="tool-card-desc">C₁V₁ = C₂V₂ solver with stepwise series mode for stock solutions and serial dilutions.</div>
+            <div class="tool-card-desc">C₁V₁ = C₂V₂ solver with stepwise series mode.</div>
             <div class="tool-card-footer"><span class="lt-badge lt-badge-default">Coming soon</span></div>
           </div>
 
           <div class="tool-card tool-card--coming-soon">
-            <div class="tool-card-icon">⚖️</div>
             <div class="tool-card-name">Buffer Recipe Calculator</div>
-            <div class="tool-card-desc">Component masses for a target molarity and final volume, with presets for Tris, PBS, RIPA, TAE, and TBS-T.</div>
+            <div class="tool-card-desc">Component masses for Tris, PBS, RIPA, TAE, TBS-T and more.</div>
             <div class="tool-card-footer"><span class="lt-badge lt-badge-default">Coming soon</span></div>
           </div>
 
           <div class="tool-card tool-card--coming-soon">
-            <div class="tool-card-icon">📈</div>
             <div class="tool-card-name">Doubling-Time &amp; Split Scheduler</div>
-            <div class="tool-card-desc">Compute population doubling time from two counts, then predict the next split day from current confluence.</div>
+            <div class="tool-card-desc">Compute doubling time and predict the next split day.</div>
             <div class="tool-card-footer"><span class="lt-badge lt-badge-default">Coming soon</span></div>
           </div>
 
           <div class="tool-card tool-card--coming-soon">
-            <div class="tool-card-icon">🧊</div>
             <div class="tool-card-name">Cryo / Passage Inventory</div>
-            <div class="tool-card-desc">Browser-local vial registry with cell line, passage number, freeze date, and storage location.</div>
+            <div class="tool-card-desc">Browser-local vial registry with cell line and passage number.</div>
             <div class="tool-card-footer"><span class="lt-badge lt-badge-default">Coming soon</span></div>
           </div>
 
           <div class="tool-card tool-card--coming-soon">
-            <div class="tool-card-icon">🔬</div>
             <div class="tool-card-name">PCR Master-Mix Calculator</div>
-            <div class="tool-card-desc">Per-reaction recipe scaled to n samples plus dead volume, for PCR and qPCR setups.</div>
+            <div class="tool-card-desc">Per-reaction recipe scaled to n samples plus dead volume.</div>
             <div class="tool-card-footer"><span class="lt-badge lt-badge-default">Coming soon</span></div>
           </div>
 
-          <!-- <div class="tool-card tool-card--coming-soon">
-            <div class="tool-card-icon">🧬</div>
-            <div class="tool-card-name">DNA / RNA Concentration Converter</div>
-            <div class="tool-card-desc">Convert ng/µL ↔ nM ↔ copies/µL with molecular weight derived from sequence length or entered manually.</div>
-            <div class="tool-card-footer"><span class="lt-badge lt-badge-default">Coming soon</span></div>
-          </div> -->
-
           <div class="tool-card tool-card--coming-soon">
-            <div class="tool-card-icon">📊</div>
             <div class="tool-card-name">ΔΔCt Analyzer</div>
-            <div class="tool-card-desc">Paste Ct values, choose a reference gene and reference sample, and get fold change with error propagation.</div>
+            <div class="tool-card-desc">Fold change from Ct values with error propagation.</div>
             <div class="tool-card-footer"><span class="lt-badge lt-badge-default">Coming soon</span></div>
           </div>
 
-          <!-- <div class="tool-card tool-card--coming-soon">
-            <div class="tool-card-icon">💉</div>
-            <div class="tool-card-name">Antibody &amp; Loading Calculator</div>
-            <div class="tool-card-desc">Plan antibody dilutions and lysate volumes for western blot and immunoassay in one view.</div>
-            <div class="tool-card-footer"><span class="lt-badge lt-badge-default">Coming soon</span></div>
-          </div> -->
-
           <div class="tool-card tool-card--coming-soon">
-            <div class="tool-card-icon">📉</div>
             <div class="tool-card-name">Body-Weight Tracker</div>
-            <div class="tool-card-desc">Per-animal weight log with growth curve sparkline for longitudinal monitoring.</div>
+            <div class="tool-card-desc">Per-animal weight log with growth curve sparkline.</div>
             <div class="tool-card-footer"><span class="lt-badge lt-badge-default">Coming soon</span></div>
           </div>
 
           <div class="tool-card tool-card--coming-soon">
-            <div class="tool-card-icon">🐭</div>
             <div class="tool-card-name">Breeding / Weaning Timeline</div>
-            <div class="tool-card-desc">Enter mating date and get predicted DOB, weaning date, and genotyping window automatically.</div>
+            <div class="tool-card-desc">Enter mating date → get DOB, weaning date, genotyping window.</div>
             <div class="tool-card-footer"><span class="lt-badge lt-badge-default">Coming soon</span></div>
           </div>
 
         </div>
       </div>
-    </section>
+    </details>
+
   </main>
 
   <footer class="lt-footer">
     LabTools &middot; Open source lab utilities
   </footer>
 
+<script>
+// ── Tool catalogue ──────────────────────────────────────────────
+const TOOLS = [
+  {
+    id: 'cell-count',
+    name: 'Cell Count Calculator',
+    href: 'tools/cell-count/index.html',
+    glyph: 'count',
+    group: 'Prepare',
+    desc: 'Hemocytometer counting with Trypan Blue viability analysis. Supports 4 counting modes.',
+    tags: ['count', 'hemocytometer', 'viability', 'trypan', 'cell'],
+  },
+  {
+    id: 'seeding-calc',
+    name: 'Cell Seeding Calculator',
+    href: 'tools/seeding-calc/index.html',
+    glyph: 'seed',
+    group: 'Prepare',
+    desc: 'Count your cells, then calculate the dilution to reach a target seeding density.',
+    tags: ['seed', 'dilution', 'density', 'c1v1', 'cell'],
+  },
+  {
+    id: 'experiment-layout',
+    name: 'Well Plate Map Generator',
+    href: 'tools/experiment-layout/index.html',
+    glyph: 'plate',
+    group: 'Prepare',
+    desc: 'Assign treatment groups to 6–1536-well plates and export CSV or print-ready layouts.',
+    tags: ['plate', 'map', 'well', 'layout', 'csv', 'experiment'],
+  },
+  {
+    id: 'stain-timer',
+    name: 'Stain Timer',
+    href: 'tools/stain-timer/index.html',
+    glyph: 'timer',
+    group: 'Run',
+    desc: 'Step-by-step staining protocol timer with alarm and audio cues.',
+    tags: ['timer', 'stain', 'protocol', 'countdown', 'alarm'],
+  },
+  {
+    id: 'thermal-to-laser',
+    name: 'Thermal → Laser Converter',
+    href: 'tools/thermal-to-laser/index.html',
+    glyph: 'sheet',
+    group: 'Record',
+    desc: 'Convert a one-label-per-page thermal PDF into a laser-printer label sheet.',
+    tags: ['label', 'pdf', 'thermal', 'laser', 'convert', 'print'],
+  },
+  {
+    id: 'label-generator',
+    name: 'Label Generator',
+    href: 'tools/label-generator/index.html',
+    glyph: 'label',
+    group: 'Record',
+    desc: 'Generate PDF labels with DataMatrix barcodes from CSV data.',
+    tags: ['label', 'barcode', 'datamatrix', 'csv', 'pdf'],
+  },
+];
+
+// ── Recency ─────────────────────────────────────────────────────
+const RECENT_KEY = 'lt-recent';
+const MAX_RECENT = 2;
+
+function recordOpen(toolId) {
+  try {
+    const recent = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+    const filtered = recent.filter(r => r.id !== toolId);
+    filtered.unshift({ id: toolId, ts: Date.now() });
+    localStorage.setItem(RECENT_KEY, JSON.stringify(filtered.slice(0, MAX_RECENT)));
+  } catch (_) {}
+}
+
+function renderRecent() {
+  let recent = [];
+  try { recent = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch (_) {}
+  const section = document.getElementById('recent-section');
+  const grid    = document.getElementById('recent-grid');
+  if (!recent.length) { section.hidden = true; return; }
+  section.hidden = false;
+  grid.innerHTML = recent.map(r => {
+    const t = TOOLS.find(t => t.id === r.id);
+    if (!t) return '';
+    return `<a class="lt-hub-recent-tile" href="${t.href}"
+               onclick="recordOpen('${t.id}')">
+      <span class="lt-hub-recent-glyph">${labGlyphHTML(t.glyph, 28)}</span>
+      <div>
+        <div class="lt-hub-recent-name">${t.name}</div>
+        <div class="lt-hub-recent-desc">${t.desc}</div>
+      </div>
+    </a>`;
+  }).join('');
+}
+
+// ── Render tool groups ───────────────────────────────────────────
+function buildToolCard(t) {
+  return `<a class="tool-card" href="${t.href}" onclick="recordOpen('${t.id}')">
+    <span class="tool-card-glyph">${labGlyphHTML(t.glyph)}</span>
+    <div class="tool-card-name">${t.name}</div>
+    <div class="tool-card-desc">${t.desc}</div>
+    <div class="tool-card-footer">
+      <span class="lt-badge lt-badge-green">Live</span>
+      <span class="tool-card-launch">Open →</span>
+    </div>
+  </a>`;
+}
+
+function renderGroups() {
+  ['Prepare', 'Run', 'Record'].forEach(group => {
+    const tools = TOOLS.filter(t => t.group === group);
+    const el = document.getElementById('group-' + group.toLowerCase());
+    if (!el || !tools.length) return;
+    el.innerHTML =
+      `<span class="lt-hub-subgroup-label">${group}</span>
+       <div class="tools-grid">${tools.map(buildToolCard).join('')}</div>`;
+  });
+}
+
+// ── ⌘K Palette ──────────────────────────────────────────────────
+let paletteOpen = false;
+
+function openPalette() {
+  document.getElementById('cmd-palette').hidden = false;
+  paletteOpen = true;
+  renderPalette('');
+  setTimeout(() => document.getElementById('palette-input').focus(), 0);
+}
+
+function closePalette() {
+  document.getElementById('cmd-palette').hidden = true;
+  paletteOpen = false;
+}
+
+function filterPalette() {
+  renderPalette(document.getElementById('palette-input').value);
+}
+
+function renderPalette(query) {
+  const q = query.toLowerCase().trim();
+  const results = q
+    ? TOOLS.filter(t =>
+        t.name.toLowerCase().includes(q) ||
+        t.desc.toLowerCase().includes(q) ||
+        t.tags.some(tag => tag.includes(q)))
+    : TOOLS;
+  const container = document.getElementById('palette-results');
+  if (!results.length) {
+    container.innerHTML = `<div class="lt-palette-empty">No tools match "<em>${query}</em>"</div>`;
+    return;
+  }
+  container.innerHTML = results.map((t, i) =>
+    `<a class="lt-palette-item${i === 0 ? ' selected' : ''}"
+        href="${t.href}"
+        onclick="recordOpen('${t.id}')"
+        data-idx="${i}">
+      <span class="lt-palette-item-glyph">${labGlyphHTML(t.glyph)}</span>
+      <div>
+        <div class="lt-palette-item-name">${t.name}</div>
+        <div class="lt-palette-item-desc">${t.desc}</div>
+      </div>
+    </a>`
+  ).join('');
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    paletteOpen ? closePalette() : openPalette();
+    return;
+  }
+  if (!paletteOpen) return;
+  if (e.key === 'Escape') { closePalette(); return; }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const items = [...document.querySelectorAll('.lt-palette-item')];
+    const sel = items.findIndex(el => el.classList.contains('selected'));
+    const next = e.key === 'ArrowDown'
+      ? Math.min(sel + 1, items.length - 1)
+      : Math.max(sel - 1, 0);
+    items.forEach((el, i) => el.classList.toggle('selected', i === next));
+    items[next]?.scrollIntoView({ block: 'nearest' });
+  }
+  if (e.key === 'Enter') {
+    const sel = document.querySelector('.lt-palette-item.selected');
+    if (sel) sel.click();
+  }
+});
+
+// ── Init ─────────────────────────────────────────────────────────
+renderGroups();
+renderRecent();
+</script>
 </body>
 </html>

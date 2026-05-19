@@ -642,6 +642,25 @@
         -webkit-print-color-adjust: exact;
       }
     }
+
+    @media (prefers-color-scheme: dark) {
+      .plate-frame {
+        --plate-frame-border: #4a4845;
+      }
+      .plate-shell {
+        background: #252421;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -12px 28px rgba(0,0,0,0.12);
+      }
+      .well {
+        border-color: #4a4845;
+      }
+      .well.assigned {
+        border-color: rgba(255,255,255,0.18);
+      }
+      .well.selected {
+        box-shadow: 0 0 0 3px rgba(122, 163, 255, 0.28);
+      }
+    }
   </style>
 </head>
 <body>

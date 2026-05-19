@@ -102,6 +102,11 @@
   --radius-md: 8px;
   --radius-lg: 12px;
 
+  /* ── Navigation ─────────────────────────────────────────────
+   * Nav backdrop — referenced in .lt-nav so dark mode can override
+   */
+  --nav-bg: rgba(247,247,245,0.88);
+
   /* ── Typography ─────────────────────────────────────────────
    * Font stacks
    */
@@ -127,6 +132,52 @@
   --fs-xl:   1.25rem;
 }
 
+/* ─── Dark mode token overrides ────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:              #1a1916;
+    --surface:         #222220;
+    --surface-subtle:  #1e1d1b;
+    --surface-hover:   #2a2926;
+    --tag-bg:          #2e2d2a;
+
+    --text:             #ece9e1;
+    --text-secondary:   #b0afa9;
+    --text-muted:       #8a8a86;
+    --text-dim:         #6b6a67;
+    --text-placeholder: #5a5955;
+
+    --border:        #3a3936;
+    --border-subtle: #2e2d2a;
+
+    --blue:        #5c8dff;
+    --blue-dark:   #7aa3ff;
+    --blue-bg:     rgba(92, 141, 255, 0.12);
+    --blue-border: rgba(122, 163, 255, 0.25);
+
+    --green:        #5bb35e;
+    --green-dark:   #7dd47f;
+    --green-bg:     rgba(87, 168, 90, 0.12);
+    --green-border: rgba(87, 168, 90, 0.25);
+
+    --yellow:        #f59e0b;
+    --yellow-dark:   #fbbf24;
+    --yellow-bg:     rgba(217, 119, 6, 0.12);
+    --yellow-border: rgba(217, 119, 6, 0.30);
+
+    --red:              #f46f6f;
+    --red-bg:           rgba(224, 62, 62, 0.10);
+    --red-border:       rgba(224, 62, 62, 0.22);
+    --red-border-input: rgba(224, 62, 62, 0.35);
+
+    --shadow-card:  0 2px 12px rgba(0,0,0,0.35);
+    --shadow-sm:    0 1px 4px rgba(0,0,0,0.30);
+    --shadow-hover: 0 4px 20px rgba(0,0,0,0.45);
+
+    --nav-bg: rgba(26,25,22,0.88);
+  }
+}
+
 /* ─── Base ──────────────────────────────────────────────────── */
 body {
   font-family: var(--font);
@@ -146,7 +197,7 @@ a { color: inherit; text-decoration: none; }
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(247,247,245,0.88);
+  background: var(--nav-bg);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border-subtle);
@@ -1158,4 +1209,136 @@ a { color: inherit; text-decoration: none; }
   .lt-workspace-grid {
     grid-template-columns: 1fr;
   }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   New Workspace / Layout Primitives (P0)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Three-pane workspace (L2 default) ─────────────────────── */
+/*
+ * .lt-workspace-3col
+ *   Default tool layout for canvas-bearing tools at ≥ 1100 px.
+ *   Grid: 320px inputs · 1fr canvas · 320px result rail.
+ *   Container query collapses to 2-pane (300px · 1fr) below 1100 px,
+ *   and to single column below 680 px — tools opt in automatically.
+ *
+ *   Usage:
+ *     <div class="lt-workspace-3col">
+ *       <aside>inputs</aside>
+ *       <div>canvas</div>
+ *       <aside>results</aside>
+ *     </div>
+ */
+.lt-workspace-3col {
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: 320px 1fr 320px;
+  gap: 24px;
+  align-items: start;
+}
+@container (max-width: 1099px) {
+  .lt-workspace-3col {
+    grid-template-columns: 300px 1fr;
+  }
+  .lt-workspace-3col > *:nth-child(3) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}
+@container (max-width: 679px) {
+  .lt-workspace-3col {
+    grid-template-columns: 1fr;
+  }
+  .lt-workspace-3col > *:nth-child(3) {
+    grid-column: 1;
+    grid-row: 3;
+  }
+}
+
+/* ─── Tab bar ────────────────────────────────────────────────── */
+/*
+ * .lt-tabs / .lt-tab-btn
+ *   Top-level mode selector. JS adds .active to the current tab.
+ *   Use for 2–4 mutually exclusive modes at the top of a tool.
+ *
+ *   Example:
+ *     <div class="lt-tabs">
+ *       <button class="lt-tab-btn active">From count</button>
+ *       <button class="lt-tab-btn">From concentration</button>
+ *     </div>
+ */
+.lt-tabs {
+  display: flex;
+  border-bottom: 2px solid var(--border);
+  gap: 0;
+  margin-bottom: 24px;
+}
+.lt-tab-btn {
+  padding: 10px 18px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: var(--font);
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.lt-tab-btn:hover { color: var(--text); }
+.lt-tab-btn.active {
+  color: var(--blue-dark);
+  border-bottom-color: var(--blue-dark);
+}
+
+/* ─── Sticky result card ─────────────────────────────────────── */
+/*
+ * .lt-result-card
+ *   Sticky right-rail result panel. Stays visible while the user
+ *   fills in inputs on the left. Position: sticky relative to the
+ *   scroll container; top accounts for the 52 px nav + 16 px gap.
+ */
+.lt-result-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  position: sticky;
+  top: 68px;
+}
+.lt-result-card-primary {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--blue-dark);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.lt-result-card-unit {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ─── I/O mono label ─────────────────────────────────────────── */
+/*
+ * .lt-io-label
+ *   Mono uppercase 10.5 px section label for grouping inputs and
+ *   outputs within a tool card (design spec A3).
+ *
+ *   Example:
+ *     <span class="lt-io-label">Input</span>
+ *     <span class="lt-io-label">Output</span>
+ */
+.lt-io-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 8px;
 }
