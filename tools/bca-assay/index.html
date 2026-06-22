@@ -572,12 +572,17 @@
             <div class="plate-grid-wrap" id="plate-grid"></div>
           </div>
 
-          <!-- Color scale legend -->
+          <!-- Color scale legend + selection controls -->
           <div class="plate-legend">
             <span>Low OD</span>
             <div class="plate-legend-bar"></div>
             <span>High OD</span>
-            <span style="margin-left:12px;">Click or drag to select wells</span>
+            <span style="flex:1;margin-left:10px;color:var(--text-dim);">Click or drag to select</span>
+            <div style="display:flex;gap:5px;flex-shrink:0;">
+              <button class="lt-btn lt-btn-ghost" style="padding:3px 9px;font-size:0.72rem;" onclick="selectAll()">Select All</button>
+              <button class="lt-btn lt-btn-ghost" style="padding:3px 9px;font-size:0.72rem;" onclick="clearSelection()">Clear</button>
+              <button class="lt-btn lt-btn-ghost" style="padding:3px 9px;font-size:0.72rem;color:var(--red);" onclick="unassignSelected()">Unassign</button>
+            </div>
           </div>
 
           <div class="lt-divider"></div>
@@ -641,18 +646,6 @@
                   onclick="assignWells('smp')">Assign →</button>
               </div>
             </div>
-          </div>
-
-          <div style="display:flex;gap:8px;margin-bottom:20px;">
-            <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="clearSelection()">
-              Clear Selection
-            </button>
-            <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;color:var(--red);" onclick="unassignSelected()">
-              Unassign Selected
-            </button>
-            <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="selectAll()">
-              Select All
-            </button>
           </div>
 
           <div class="lt-divider"></div>
