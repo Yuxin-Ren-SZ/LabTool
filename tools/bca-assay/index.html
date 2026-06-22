@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BCA Assay Calculator · LabTools</title>
+  <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <script src="../../assets/js/labtools-common.js"></script>
+  <style>
+    .card { max-width: 960px; }
+
+    .page-title {
+      font-size: var(--fs-xl);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .page-sub {
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      line-height: 1.55;
+    }
+
+    /* ── Section blocks ── */
+    .section-block {
+      margin-bottom: 28px;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    /* ── Data table ── */
+    .data-table-shell {
+      overflow-x: auto;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      background: var(--surface-subtle);
+    }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+    }
+    .data-table thead th {
+      background: var(--surface-subtle);
+      padding: 9px 10px;
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+      white-space: nowrap;
+    }
+    .data-table tbody td {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: middle;
+    }
+    .data-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+    .data-table .lt-input {
+      min-height: 34px;
+      font-size: 0.84rem;
+      padding: 6px 9px;
+    }
+    .col-conc  { width: 120px; }
+    .col-od    { width: 100px; }
+    .col-avg   { width: 88px;  color: var(--text-secondary); font-weight: 600; font-size: 0.82rem; text-align: center; }
+    .col-df    { width: 90px;  }
+    .col-name  { min-width: 160px; }
+    .col-del   { width: 38px; text-align: center; }
+
+    .del-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px; height: 26px;
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      font-size: 1rem;
+      line-height: 1;
+      transition: background 0.12s, color 0.12s;
+    }
+    .del-btn:hover { background: var(--red-border); color: var(--red); }
+
+    .table-footer {
+      padding: 8px 10px;
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: var(--surface-subtle);
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    }
+
+    .avg-display {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+    .avg-empty { color: var(--text-dim); }
+
+    /* ── Calculate bar ── */
+    .calc-bar {
+      display: flex;
+      justify-content: center;
+      margin: 24px 0 28px;
+    }
+
+    /* ── Results ── */
+    #results-section { display: none; }
+    #results-section.visible { display: block; }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 680px) {
+      .results-grid { grid-template-columns: 1fr; }
+    }
+
+    .result-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface-subtle);
+      padding: 14px 16px;
+    }
+    .result-card-label {
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .result-card-value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      font-family: var(--font-mono);
+      margin-bottom: 2px;
+    }
+    .result-card-sub {
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .fit-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    /* ── SVG Chart ── */
+    .chart-wrap {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      padding: 12px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .chart-wrap svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .chart-legend {
+      display: flex;
+      gap: 18px;
+      margin-top: 8px;
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .legend-diamond {
+      width: 10px; height: 10px;
+      transform: rotate(45deg);
+      flex-shrink: 0;
+    }
+
+    /* ── Sample results table ── */
+    .results-table-shell {
+      overflow-x: auto;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      background: var(--surface-subtle);
+      margin-bottom: 14px;
+    }
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+    }
+    .results-table thead th {
+      background: var(--surface-subtle);
+      padding: 9px 12px;
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .results-table tbody td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: middle;
+    }
+    .results-table tbody tr:last-child td { border-bottom: none; }
+    .results-table .flag-cell { font-size: var(--fs-xs); }
+
+    .flag-extrap {
+      display: inline-flex;
+      align-items: center;
+      background: var(--yellow-bg);
+      color: var(--yellow-dark);
+      border: 1px solid var(--yellow-border);
+      border-radius: var(--radius-xs);
+      padding: 2px 6px;
+      font-size: var(--fs-2xs);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .flag-low {
+      display: inline-flex;
+      align-items: center;
+      background: var(--red-bg);
+      color: var(--red);
+      border: 1px solid var(--red-border);
+      border-radius: var(--radius-xs);
+      padding: 2px 6px;
+      font-size: var(--fs-2xs);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .conc-value {
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+      padding: 24px;
+      width: min(520px, 94vw);
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .modal-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .modal-hint {
+      font-size: var(--fs-sm);
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    .modal-hint code {
+      font-family: var(--font-mono);
+      background: var(--tag-bg);
+      border-radius: var(--radius-xs);
+      padding: 1px 5px;
+      font-size: 0.8rem;
+    }
+    .modal-textarea {
+      width: 100%;
+      min-height: 160px;
+      padding: 10px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 0.82rem;
+      font-family: var(--font-mono);
+      color: var(--text);
+      background: var(--surface);
+      outline: none;
+      resize: vertical;
+      margin-bottom: 10px;
+    }
+    .modal-textarea:focus { border-color: var(--blue); }
+    .modal-parse-error {
+      color: var(--red);
+      font-size: var(--fs-sm);
+      margin-bottom: 8px;
+      display: none;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    /* ── lt-page-body ── */
+    .lt-page-body {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      padding: 32px 16px 48px;
+    }
+
+    /* ── Yellow badge variant (for R² warning) ── */
+    .lt-badge-yellow {
+      background: var(--yellow-bg);
+      color: var(--yellow-dark);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="lt-nav">
+    <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
+    <span class="lt-nav-sep">/</span>
+    <span class="lt-nav-page">BCA Assay Calculator</span>
+  </nav>
+
+  <div class="lt-page-body">
+    <div class="card">
+
+      <h1 class="page-title">BCA Protein Assay</h1>
+      <p class="page-sub">
+        Enter BSA standard OD values and unknown samples. The tool fits a linear standard curve and interpolates protein concentration for each sample.
+      </p>
+
+      <!-- ── Section 1: Standard Curve ── -->
+      <div class="section-block">
+        <div class="section-header">
+          <div class="lt-section-label" style="margin-bottom:0">Standard Curve</div>
+          <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="openModal('std')">
+            📋 Paste CSV
+          </button>
+        </div>
+
+        <div class="data-table-shell">
+          <table class="data-table" id="std-table">
+            <thead>
+              <tr>
+                <th class="col-conc">Conc (µg/mL)</th>
+                <th class="col-od">OD Rep 1</th>
+                <th class="col-od">OD Rep 2 <span class="lt-opt">(opt)</span></th>
+                <th class="col-od">OD Rep 3 <span class="lt-opt">(opt)</span></th>
+                <th class="col-avg">Avg OD</th>
+                <th class="col-del"></th>
+              </tr>
+            </thead>
+            <tbody id="std-tbody"></tbody>
+          </table>
+          <div class="table-footer">
+            <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="addStdRow()">
+              + Add Standard
+            </button>
+            <span style="font-size:var(--fs-xs);color:var(--text-dim);">Enter OD at 562 nm · blanks excluded from average</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="lt-divider"></div>
+
+      <!-- ── Section 2: Samples ── -->
+      <div class="section-block">
+        <div class="section-header">
+          <div class="lt-section-label" style="margin-bottom:0">Samples</div>
+          <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="openModal('smp')">
+            📋 Paste CSV
+          </button>
+        </div>
+
+        <div class="data-table-shell">
+          <table class="data-table" id="smp-table">
+            <thead>
+              <tr>
+                <th class="col-name">Sample Name</th>
+                <th class="col-od">OD Rep 1</th>
+                <th class="col-od">OD Rep 2 <span class="lt-opt">(opt)</span></th>
+                <th class="col-od">OD Rep 3 <span class="lt-opt">(opt)</span></th>
+                <th class="col-df">Dilution ×</th>
+                <th class="col-del"></th>
+              </tr>
+            </thead>
+            <tbody id="smp-tbody"></tbody>
+          </table>
+          <div class="table-footer">
+            <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="addSmpRow()">
+              + Add Sample
+            </button>
+            <span style="font-size:var(--fs-xs);color:var(--text-dim);">Dilution factor applied to calculated concentration</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Calculate ── -->
+      <div class="calc-bar">
+        <button class="lt-btn lt-btn-primary" style="padding:11px 36px;font-size:0.95rem;" onclick="calculate()">
+          Calculate →
+        </button>
+      </div>
+
+      <!-- ── Results ── -->
+      <div id="results-section">
+        <div class="lt-divider"></div>
+        <div class="lt-section-label">Results</div>
+
+        <!-- Curve fit summary -->
+        <div class="results-grid">
+          <div class="result-card">
+            <div class="result-card-label">Curve Fit</div>
+            <div class="fit-row">
+              <span class="result-card-value" id="res-equation">—</span>
+              <span id="res-r2-badge" class="lt-badge">—</span>
+            </div>
+            <div class="result-card-sub" id="res-r2-note"></div>
+          </div>
+          <div class="result-card">
+            <div class="result-card-label">Fit Statistics</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:2px;">
+              <div>
+                <div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Slope</div>
+                <div class="result-card-value" style="font-size:0.9rem;" id="res-slope">—</div>
+              </div>
+              <div>
+                <div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Intercept</div>
+                <div class="result-card-value" style="font-size:0.9rem;" id="res-intercept">—</div>
+              </div>
+              <div>
+                <div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">R²</div>
+                <div class="result-card-value" style="font-size:0.9rem;" id="res-r2-val">—</div>
+              </div>
+              <div>
+                <div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Points used</div>
+                <div class="result-card-value" style="font-size:0.9rem;" id="res-npts">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="chart-wrap">
+          <svg id="bca-chart" viewBox="0 0 560 300" xmlns="http://www.w3.org/2000/svg"></svg>
+          <div class="chart-legend">
+            <div class="legend-item">
+              <div class="legend-dot" style="background:#5c8dff;"></div>
+              <span>Standards</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-diamond" style="background:#e07832;"></div>
+              <span>Samples</span>
+            </div>
+            <div class="legend-item">
+              <div style="width:18px;height:2px;background:#5c8dff;opacity:0.5;flex-shrink:0;margin-top:1px;"></div>
+              <span>Fitted line</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sample results table -->
+        <div class="lt-section-label">Sample Concentrations</div>
+        <div class="results-table-shell">
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th>Sample</th>
+                <th>Avg OD</th>
+                <th>Dilution ×</th>
+                <th>Protein Conc (µg/mL)</th>
+                <th>Flag</th>
+              </tr>
+            </thead>
+            <tbody id="results-tbody"></tbody>
+          </table>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:8px;">
+          <button class="lt-btn lt-btn-ghost" onclick="exportCSV()">Export CSV</button>
+          <button class="lt-btn lt-btn-ghost" onclick="copyResults()">Copy Table</button>
+        </div>
+      </div>
+
+    </div><!-- /.card -->
+  </div><!-- /.lt-page-body -->
+
+  <footer class="lt-footer">
+    LabTools &middot; Open source lab utilities
+  </footer>
+
+  <!-- ── CSV Paste Modal ── -->
+  <div class="modal-overlay" id="csv-modal" onclick="closeModalOutside(event)">
+    <div class="modal-box">
+      <div class="modal-title" id="modal-title">Paste Standard Curve CSV</div>
+      <div class="modal-hint" id="modal-hint"></div>
+      <textarea class="modal-textarea" id="modal-textarea" placeholder="Paste here…"></textarea>
+      <div class="modal-parse-error" id="modal-error"></div>
+      <div class="modal-actions">
+        <button class="lt-btn lt-btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="lt-btn lt-btn-primary" onclick="applyCSV()">Import</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   State
+   ═══════════════════════════════════════════════════════════════ */
+
+const DEFAULT_CONCS = [0, 25, 125, 250, 500, 1000, 2000];
+
+let stdRows = DEFAULT_CONCS.map(c => ({ conc: String(c), od1: '', od2: '', od3: '' }));
+let smpRows = [{ name: 'Sample 1', od1: '', od2: '', od3: '', df: '1' }];
+
+let modalTarget = 'std'; // 'std' | 'smp'
+let lastResult  = null;  // holds computed result for export
+
+/* ═══════════════════════════════════════════════════════════════
+   Table rendering
+   ═══════════════════════════════════════════════════════════════ */
+
+function renderStd() {
+  const tbody = document.getElementById('std-tbody');
+  tbody.innerHTML = stdRows.map((r, i) => `
+    <tr>
+      <td class="col-conc">
+        <input class="lt-input" type="number" min="0" placeholder="0"
+          value="${r.conc}" oninput="stdRows[${i}].conc=this.value;updateAvg('std',${i})">
+      </td>
+      <td class="col-od">
+        <input class="lt-input" type="number" min="0" step="0.001" placeholder="0.000"
+          value="${r.od1}" oninput="stdRows[${i}].od1=this.value;updateAvg('std',${i})">
+      </td>
+      <td class="col-od">
+        <input class="lt-input" type="number" min="0" step="0.001" placeholder="—"
+          value="${r.od2}" oninput="stdRows[${i}].od2=this.value;updateAvg('std',${i})">
+      </td>
+      <td class="col-od">
+        <input class="lt-input" type="number" min="0" step="0.001" placeholder="—"
+          value="${r.od3}" oninput="stdRows[${i}].od3=this.value;updateAvg('std',${i})">
+      </td>
+      <td class="col-avg">
+        <span class="avg-display" id="std-avg-${i}">${fmtAvg(avgOD(r))}</span>
+      </td>
+      <td class="col-del">
+        <button class="del-btn" onclick="delStdRow(${i})" title="Remove">×</button>
+      </td>
+    </tr>`).join('');
+}
+
+function renderSmp() {
+  const tbody = document.getElementById('smp-tbody');
+  tbody.innerHTML = smpRows.map((r, i) => `
+    <tr>
+      <td class="col-name">
+        <input class="lt-input" type="text" placeholder="Sample name"
+          value="${escHtml(r.name)}" oninput="smpRows[${i}].name=this.value">
+      </td>
+      <td class="col-od">
+        <input class="lt-input" type="number" min="0" step="0.001" placeholder="0.000"
+          value="${r.od1}" oninput="smpRows[${i}].od1=this.value;updateAvg('smp',${i})">
+      </td>
+      <td class="col-od">
+        <input class="lt-input" type="number" min="0" step="0.001" placeholder="—"
+          value="${r.od2}" oninput="smpRows[${i}].od2=this.value;updateAvg('smp',${i})">
+      </td>
+      <td class="col-od">
+        <input class="lt-input" type="number" min="0" step="0.001" placeholder="—"
+          value="${r.od3}" oninput="smpRows[${i}].od3=this.value;updateAvg('smp',${i})">
+      </td>
+      <td class="col-df">
+        <input class="lt-input" type="number" min="1" step="1" placeholder="1"
+          value="${r.df}" oninput="smpRows[${i}].df=this.value">
+      </td>
+      <td class="col-del">
+        <button class="del-btn" onclick="delSmpRow(${i})" title="Remove">×</button>
+      </td>
+    </tr>`).join('');
+}
+
+function updateAvg(type, i) {
+  const r = type === 'std' ? stdRows[i] : smpRows[i];
+  const el = document.getElementById(`${type}-avg-${i}`);
+  if (!el) return;
+  el.textContent = fmtAvg(avgOD(r));
+  el.className = 'avg-display' + (isNaN(avgOD(r)) ? ' avg-empty' : '');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Row management
+   ═══════════════════════════════════════════════════════════════ */
+
+function addStdRow() {
+  stdRows.push({ conc: '', od1: '', od2: '', od3: '' });
+  renderStd();
+}
+
+function delStdRow(i) {
+  if (stdRows.length <= 2) return; // keep at least 2 points
+  stdRows.splice(i, 1);
+  renderStd();
+}
+
+function addSmpRow() {
+  const n = smpRows.length + 1;
+  smpRows.push({ name: `Sample ${n}`, od1: '', od2: '', od3: '', df: '1' });
+  renderSmp();
+}
+
+function delSmpRow(i) {
+  smpRows.splice(i, 1);
+  if (smpRows.length === 0) addSmpRow();
+  else renderSmp();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Math
+   ═══════════════════════════════════════════════════════════════ */
+
+function avgOD(row) {
+  const vals = [row.od1, row.od2, row.od3]
+    .map(v => parseFloat(v))
+    .filter(v => !isNaN(v) && v >= 0);
+  return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : NaN;
+}
+
+function linearRegression(points) {
+  const n = points.length;
+  const sx  = points.reduce((s, p) => s + p.x, 0);
+  const sy  = points.reduce((s, p) => s + p.y, 0);
+  const sxy = points.reduce((s, p) => s + p.x * p.y, 0);
+  const sx2 = points.reduce((s, p) => s + p.x * p.x, 0);
+  const denom = n * sx2 - sx * sx;
+  if (denom === 0) return null;
+  const slope     = (n * sxy - sx * sy) / denom;
+  const intercept = (sy - slope * sx) / n;
+  const yMean  = sy / n;
+  const ssTot  = points.reduce((s, p) => s + (p.y - yMean) ** 2, 0);
+  const ssRes  = points.reduce((s, p) => s + (p.y - (slope * p.x + intercept)) ** 2, 0);
+  const r2     = ssTot === 0 ? 1 : 1 - ssRes / ssTot;
+  return { slope, intercept, r2 };
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Calculate
+   ═══════════════════════════════════════════════════════════════ */
+
+function calculate() {
+  // Build regression points from standards
+  const regPoints = stdRows
+    .map(r => ({ x: parseFloat(r.conc), y: avgOD(r) }))
+    .filter(p => !isNaN(p.x) && !isNaN(p.y));
+
+  if (regPoints.length < 2) {
+    alert('Need at least 2 standard points with both concentration and OD values.');
+    return;
+  }
+
+  const fit = linearRegression(regPoints);
+  if (!fit) {
+    alert('Cannot fit standard curve — check that concentrations are not all identical.');
+    return;
+  }
+
+  const { slope, intercept, r2 } = fit;
+  const minStdOD = Math.min(...regPoints.map(p => p.y));
+  const maxStdOD = Math.max(...regPoints.map(p => p.y));
+
+  // Sample results
+  const sampleResults = smpRows.map(r => {
+    const od   = avgOD(r);
+    const df   = parseFloat(r.df) || 1;
+    if (isNaN(od)) return { name: r.name, od, df, conc: NaN, flag: '' };
+    const rawConc  = (od - intercept) / slope;
+    const actConc  = rawConc * df;
+    let flag = '';
+    if (actConc < 0 || rawConc < 0)      flag = 'below-det';
+    else if (od < minStdOD || od > maxStdOD) flag = 'extrap';
+    return { name: r.name, od, df, conc: actConc, flag };
+  });
+
+  lastResult = { fit, regPoints, sampleResults };
+
+  // Show results
+  showFitStats(slope, intercept, r2, regPoints.length);
+  drawChart(regPoints, slope, intercept, sampleResults);
+  showSampleResults(sampleResults, slope, intercept);
+
+  const resultsEl = document.getElementById('results-section');
+  resultsEl.classList.add('visible');
+  resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Result display helpers
+   ═══════════════════════════════════════════════════════════════ */
+
+function showFitStats(slope, intercept, r2, n) {
+  const sign = intercept >= 0 ? '+' : '−';
+  const absInt = Math.abs(intercept);
+  document.getElementById('res-equation').textContent =
+    `OD = ${slope.toExponential(3)}·C ${sign} ${absInt.toFixed(4)}`;
+
+  const badge = document.getElementById('res-r2-badge');
+  const note  = document.getElementById('res-r2-note');
+  badge.textContent = `R² = ${r2.toFixed(4)}`;
+  if (r2 >= 0.99) {
+    badge.className = 'lt-badge lt-badge-green';
+    note.textContent = 'Curve quality: Good';
+    note.style.color = 'var(--green-dark)';
+  } else if (r2 >= 0.95) {
+    badge.className = 'lt-badge lt-badge-yellow';
+    note.textContent = 'Curve quality: Acceptable (R² < 0.99 — review standards)';
+    note.style.color = 'var(--yellow-dark)';
+  } else {
+    badge.className = 'lt-badge lt-badge-red';
+    note.textContent = 'Poor fit (R² < 0.95) — results may be unreliable';
+    note.style.color = 'var(--red)';
+  }
+
+  document.getElementById('res-slope').textContent     = slope.toExponential(4);
+  document.getElementById('res-intercept').textContent = intercept.toFixed(4);
+  document.getElementById('res-r2-val').textContent    = r2.toFixed(4);
+  document.getElementById('res-npts').textContent      = n;
+}
+
+function showSampleResults(results, slope, intercept) {
+  const tbody = document.getElementById('results-tbody');
+  if (results.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:16px;">No samples entered</td></tr>';
+    return;
+  }
+  tbody.innerHTML = results.map(r => {
+    const odStr   = isNaN(r.od) ? '—' : r.od.toFixed(4);
+    const concStr = isNaN(r.conc) ? '—' : r.conc.toFixed(2);
+    const flagHtml = r.flag === 'extrap'
+      ? '<span class="flag-extrap">Extrapolated</span>'
+      : r.flag === 'below-det'
+      ? '<span class="flag-low">Below detection</span>'
+      : '—';
+    return `<tr>
+      <td>${escHtml(r.name || '—')}</td>
+      <td>${odStr}</td>
+      <td>${r.df}×</td>
+      <td class="conc-value">${concStr}</td>
+      <td class="flag-cell">${flagHtml}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SVG Chart
+   ═══════════════════════════════════════════════════════════════ */
+
+function drawChart(stdPts, slope, intercept, samples) {
+  const W = 560, H = 300;
+  const ML = 62, MR = 20, MT = 18, MB = 48;
+  const PW = W - ML - MR;
+  const PH = H - MT - MB;
+
+  // Axis range
+  const allX = stdPts.map(p => p.x);
+  const allY = stdPts.map(p => p.y);
+  const maxX = Math.max(...allX) * 1.08 || 2200;
+  const maxY = Math.max(...allY) * 1.12 || 4;
+
+  const xS = v => ML + (v / maxX) * PW;
+  const yS = v => MT + PH - (v / maxY) * PH;
+
+  // Nice ticks
+  const xTicks = niceTicks(0, maxX, 5);
+  const yTicks = niceTicks(0, maxY, 5);
+
+  let svg = '';
+
+  // Background
+  svg += `<rect x="${ML}" y="${MT}" width="${PW}" height="${PH}" fill="var(--surface-subtle)" rx="4"/>`;
+
+  // Grid lines
+  yTicks.forEach(t => {
+    const y = yS(t);
+    svg += `<line x1="${ML}" y1="${y}" x2="${ML+PW}" y2="${y}" stroke="var(--border-subtle)" stroke-width="1"/>`;
+  });
+  xTicks.forEach(t => {
+    const x = xS(t);
+    svg += `<line x1="${x}" y1="${MT}" x2="${x}" y2="${MT+PH}" stroke="var(--border-subtle)" stroke-width="1"/>`;
+  });
+
+  // Regression line
+  const x0 = 0, x1 = maxX;
+  const y0 = slope * x0 + intercept;
+  const y1 = slope * x1 + intercept;
+  svg += `<line x1="${xS(x0)}" y1="${yS(y0)}" x2="${xS(x1)}" y2="${yS(y1)}"
+    stroke="#5c8dff" stroke-width="1.8" stroke-opacity="0.55" stroke-dasharray="4 3"/>`;
+
+  // Standard points
+  stdPts.forEach(p => {
+    svg += `<circle cx="${xS(p.x)}" cy="${yS(p.y)}" r="5"
+      fill="#5c8dff" stroke="#fff" stroke-width="1.5" opacity="0.9"/>`;
+  });
+
+  // Sample points (orange diamonds) — plot at calculated conc on X, avgOD on Y
+  samples.forEach(s => {
+    if (isNaN(s.od)) return;
+    const rawConc = (s.od - intercept) / slope;
+    const cx = xS(Math.max(0, Math.min(rawConc, maxX)));
+    const cy = yS(Math.max(0, Math.min(s.od, maxY)));
+    const sz = 5;
+    const pts = `${cx},${cy - sz} ${cx + sz},${cy} ${cx},${cy + sz} ${cx - sz},${cy}`;
+    svg += `<polygon points="${pts}" fill="#e07832" stroke="#fff" stroke-width="1.5" opacity="0.9"/>`;
+  });
+
+  // Axes
+  svg += `<line x1="${ML}" y1="${MT}" x2="${ML}" y2="${MT+PH}" stroke="var(--border)" stroke-width="1.5"/>`;
+  svg += `<line x1="${ML}" y1="${MT+PH}" x2="${ML+PW}" y2="${MT+PH}" stroke="var(--border)" stroke-width="1.5"/>`;
+
+  // X tick labels
+  xTicks.forEach(t => {
+    const x = xS(t);
+    svg += `<text x="${x}" y="${MT+PH+16}" text-anchor="middle"
+      font-size="10" fill="var(--text-muted)" font-family="var(--font)">${fmtTick(t)}</text>`;
+  });
+
+  // Y tick labels
+  yTicks.forEach(t => {
+    const y = yS(t);
+    svg += `<text x="${ML-8}" y="${y+3.5}" text-anchor="end"
+      font-size="10" fill="var(--text-muted)" font-family="var(--font)">${t.toFixed(2)}</text>`;
+  });
+
+  // Axis labels
+  svg += `<text x="${ML + PW/2}" y="${H - 6}" text-anchor="middle"
+    font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600">
+    Concentration (µg/mL)</text>`;
+  svg += `<text x="${12}" y="${MT + PH/2}" text-anchor="middle"
+    font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600"
+    transform="rotate(-90,12,${MT + PH/2})">Absorbance (OD)</text>`;
+
+  document.getElementById('bca-chart').innerHTML = svg;
+}
+
+function niceTicks(min, max, n) {
+  const range = max - min;
+  const step  = niceNum(range / (n - 1), true);
+  const lo    = Math.floor(min / step) * step;
+  const hi    = Math.ceil(max / step)  * step;
+  const ticks = [];
+  for (let t = lo; t <= hi + step * 0.5; t += step) {
+    if (t >= min - 1e-9 && t <= max + 1e-9) ticks.push(parseFloat(t.toPrecision(10)));
+  }
+  return ticks;
+}
+
+function niceNum(x, round) {
+  const exp  = Math.floor(Math.log10(x));
+  const f    = x / Math.pow(10, exp);
+  let nf;
+  if (round) { nf = f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10; }
+  else        { nf = f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10; }
+  return nf * Math.pow(10, exp);
+}
+
+function fmtTick(v) {
+  if (v === 0) return '0';
+  if (v >= 1000) return (v / 1000) + 'k';
+  return v % 1 === 0 ? String(v) : v.toFixed(1);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CSV Paste Modal
+   ═══════════════════════════════════════════════════════════════ */
+
+const STD_HINT = `One row per standard. Columns: <code>Conc, OD1[, OD2, OD3]</code><br>
+  Tab or comma separated. No header required.<br>
+  Example: <code>125, 0.381, 0.376, 0.382</code>`;
+
+const SMP_HINT = `One row per sample. Columns: <code>Name, OD1[, OD2, OD3[, DilutionFactor]]</code><br>
+  Tab or comma separated. No header required.<br>
+  Example: <code>Sample_A, 0.650, 0.648, 1</code>`;
+
+function openModal(target) {
+  modalTarget = target;
+  document.getElementById('modal-title').textContent =
+    target === 'std' ? 'Paste Standard Curve Data' : 'Paste Sample Data';
+  document.getElementById('modal-hint').innerHTML =
+    target === 'std' ? STD_HINT : SMP_HINT;
+  document.getElementById('modal-textarea').value = '';
+  document.getElementById('modal-error').style.display = 'none';
+  document.getElementById('csv-modal').classList.add('open');
+  setTimeout(() => document.getElementById('modal-textarea').focus(), 50);
+}
+
+function closeModal() {
+  document.getElementById('csv-modal').classList.remove('open');
+}
+
+function closeModalOutside(e) {
+  if (e.target === document.getElementById('csv-modal')) closeModal();
+}
+
+function applyCSV() {
+  const text = document.getElementById('modal-textarea').value.trim();
+  const errEl = document.getElementById('modal-error');
+  errEl.style.display = 'none';
+
+  if (!text) { errEl.textContent = 'Paste is empty.'; errEl.style.display = 'block'; return; }
+
+  try {
+    if (modalTarget === 'std') {
+      const parsed = parseStdCSV(text);
+      if (parsed.length === 0) throw new Error('No valid rows found.');
+      stdRows = parsed;
+      renderStd();
+    } else {
+      const parsed = parseSmpCSV(text);
+      if (parsed.length === 0) throw new Error('No valid rows found.');
+      smpRows = parsed;
+      renderSmp();
+    }
+    closeModal();
+  } catch(e) {
+    errEl.textContent = 'Parse error: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+function splitLine(line) {
+  // Try tab first, then comma
+  return line.includes('\t') ? line.split('\t') : line.split(',');
+}
+
+function parseStdCSV(text) {
+  return text.split('\n')
+    .map(l => l.trim()).filter(l => l.length > 0)
+    .map((line, idx) => {
+      const cols = splitLine(line).map(c => c.trim());
+      const conc = cols[0];
+      if (isNaN(parseFloat(conc))) throw new Error(`Row ${idx+1}: first column must be a number (concentration).`);
+      return {
+        conc: conc,
+        od1:  cols[1] || '',
+        od2:  cols[2] || '',
+        od3:  cols[3] || '',
+      };
+    });
+}
+
+function parseSmpCSV(text) {
+  return text.split('\n')
+    .map(l => l.trim()).filter(l => l.length > 0)
+    .map((line, idx) => {
+      const cols = splitLine(line).map(c => c.trim());
+      if (cols.length < 2) throw new Error(`Row ${idx+1}: need at least name and one OD value.`);
+      const name = cols[0];
+      // Detect if last column is dilution factor (numeric, likely integer ≥ 1)
+      let od1 = '', od2 = '', od3 = '', df = '1';
+      const odCols = cols.slice(1);
+      // If last element looks like a whole number dilution factor and we have > 1 OD col
+      if (odCols.length > 1) {
+        const last = parseFloat(odCols[odCols.length - 1]);
+        const secondLast = parseFloat(odCols[odCols.length - 2]);
+        // Heuristic: if last is integer ≥ 1 and previous is decimal <10, treat as DF
+        if (!isNaN(last) && Number.isInteger(last) && last >= 1 && !isNaN(secondLast) && secondLast < 10) {
+          df = String(last);
+          odCols.pop();
+        }
+      }
+      od1 = odCols[0] || '';
+      od2 = odCols[1] || '';
+      od3 = odCols[2] || '';
+      return { name, od1, od2, od3, df };
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Export
+   ═══════════════════════════════════════════════════════════════ */
+
+function exportCSV() {
+  if (!lastResult) { alert('Run Calculate first.'); return; }
+  const { fit, sampleResults } = lastResult;
+
+  const lines = [
+    '# BCA Assay Results',
+    `# Slope,${fit.slope.toExponential(6)}`,
+    `# Intercept,${fit.intercept.toFixed(6)}`,
+    `# R2,${fit.r2.toFixed(6)}`,
+    '',
+    'Sample Name,Avg OD,Dilution Factor,Protein Conc (µg/mL),Flag',
+    ...sampleResults.map(r =>
+      [
+        `"${(r.name || '').replace(/"/g, '""')}"`,
+        isNaN(r.od) ? '' : r.od.toFixed(4),
+        r.df,
+        isNaN(r.conc) ? '' : r.conc.toFixed(2),
+        r.flag === 'extrap' ? 'Extrapolated'
+          : r.flag === 'below-det' ? 'Below detection'
+          : '',
+      ].join(',')
+    ),
+  ];
+
+  labtoolsDownloadText('bca-results.csv', lines.join('\r\n'), 'text/csv');
+}
+
+function copyResults() {
+  if (!lastResult) { alert('Run Calculate first.'); return; }
+  const { sampleResults } = lastResult;
+  const lines = [
+    'Sample Name\tAvg OD\tDilution Factor\tProtein Conc (µg/mL)\tFlag',
+    ...sampleResults.map(r =>
+      [
+        r.name || '',
+        isNaN(r.od) ? '' : r.od.toFixed(4),
+        r.df,
+        isNaN(r.conc) ? '' : r.conc.toFixed(2),
+        r.flag === 'extrap' ? 'Extrapolated'
+          : r.flag === 'below-det' ? 'Below detection'
+          : '',
+      ].join('\t')
+    ),
+  ];
+  labtoolsCopyText(lines.join('\n'));
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Utilities
+   ═══════════════════════════════════════════════════════════════ */
+
+function fmtAvg(v) {
+  return isNaN(v) ? '—' : v.toFixed(3);
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Init
+   ═══════════════════════════════════════════════════════════════ */
+
+renderStd();
+renderSmp();
+</script>
+</body>
+</html>
