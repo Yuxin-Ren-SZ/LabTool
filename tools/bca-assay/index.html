@@ -123,6 +123,13 @@
 
     /* ── Plate mode ── */
     .plate-paste-block { margin-bottom: 20px; }
+    .file-picker-bar {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 16px; margin-bottom: 14px;
+      background: var(--surface-subtle); border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+    .file-picker-bar-sep { font-size: var(--fs-xs); color: var(--text-dim); }
     .plate-paste-block textarea {
       width: 100%;
       min-height: 140px;
@@ -204,6 +211,49 @@
       border-radius: 5px;
       background: linear-gradient(to right, #f7f7f5, #3366cc);
       flex-shrink: 0;
+    }
+
+    /* ── Standard template ── */
+    .tpl-tabs {
+      display: flex; background: var(--tag-bg);
+      border-radius: var(--radius-md); padding: 3px;
+      margin-bottom: 14px; gap: 2px;
+    }
+    .tpl-tab {
+      flex: 1; padding: 6px 8px;
+      border: none; background: transparent;
+      border-radius: var(--radius-sm);
+      font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted);
+      cursor: pointer; white-space: nowrap; transition: all 0.15s;
+    }
+    .tpl-tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+    .tpl-tab:hover:not(.active) { color: var(--text); }
+
+    .tpl-list { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+    .tpl-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 12px; border: 1.5px solid var(--border);
+      border-radius: var(--radius-md); background: var(--surface-subtle);
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .tpl-row.tpl-step-active { border-color: var(--blue); background: var(--blue-bg); }
+    .tpl-row.tpl-done { border-color: var(--green-border); background: var(--green-bg); }
+    .tpl-row.tpl-skip { opacity: 0.4; }
+
+    .tpl-check { display: flex; align-items: center; gap: 7px; cursor: pointer; flex-shrink: 0; }
+    .tpl-check input { cursor: pointer; accent-color: var(--blue); width: 14px; height: 14px; }
+    .tpl-conc { font-size: var(--fs-sm); font-weight: 600; color: var(--text); min-width: 90px; }
+    .tpl-status { flex: 1; font-size: var(--fs-xs); color: var(--green-dark); font-weight: 600; }
+    .tpl-select-btn { padding: 4px 10px; font-size: var(--fs-xs); }
+    .tpl-select-btn.active-step { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue-dark); }
+
+    /* ── Template assign banner ── */
+    .tpl-assign-banner {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 14px; margin-bottom: 12px;
+      background: var(--blue-bg); border: 1.5px solid var(--blue-border);
+      border-radius: var(--radius-md); font-size: var(--fs-sm);
+      color: var(--blue-dark); font-weight: 600;
     }
 
     /* ── Assignment panel ── */
@@ -473,11 +523,21 @@
 
         <!-- Paste area -->
         <div class="plate-paste-block">
-          <div class="lt-section-label" id="plate-paste-label">Paste Raw File Content</div>
+          <div class="lt-section-label" id="plate-paste-label">Import Raw File</div>
           <p class="page-sub" id="plate-paste-hint" style="margin-bottom:10px;"></p>
+
+          <!-- File picker bar — Raw mode only -->
+          <div class="file-picker-bar" id="file-picker-bar" style="display:none">
+            <input type="file" id="file-picker" accept=".txt" style="display:none" onchange="loadFile(this)">
+            <button class="lt-btn lt-btn-primary" onclick="document.getElementById('file-picker').click()">
+              📂 Open File
+            </button>
+            <span class="file-picker-bar-sep">— or paste content below ↓</span>
+          </div>
+
           <textarea id="plate-textarea" spellcheck="false" placeholder="Paste here…"></textarea>
           <div class="plate-parse-error" id="plate-error"></div>
-          <button class="lt-btn lt-btn-primary" style="padding:8px 24px;" onclick="parsePlate()">
+          <button class="lt-btn lt-btn-ghost" style="padding:8px 24px;" onclick="parsePlate()">
             Parse Plate →
           </button>
         </div>
@@ -503,9 +563,36 @@
 
           <div class="lt-divider"></div>
 
+          <!-- Standard Template -->
+          <div class="section-header">
+            <div class="lt-section-label" style="margin-bottom:0">Standard Curve Template</div>
+            <button class="lt-btn lt-btn-ghost" style="padding:4px 10px;font-size:0.75rem;color:var(--red);"
+              onclick="resetTemplate()">Reset Standards</button>
+          </div>
+          <p style="font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:10px;">
+            Uncheck any concentrations you didn't use. Click "→ Select wells" to start assigning.
+          </p>
+
+          <!-- Template selector -->
+          <div class="tpl-tabs">
+            <button class="tpl-tab active" id="tpl-tab-basic"  onclick="setTemplate('basic')">Basic (0–4 µg/well)</button>
+            <button class="tpl-tab"        id="tpl-tab-ext"    onclick="setTemplate('ext')">Extended (0–8 µg/well)</button>
+            <button class="tpl-tab"        id="tpl-tab-pierce" onclick="setTemplate('pierce')">Pierce BCA Kit</button>
+          </div>
+
+          <!-- Template standards list -->
+          <div class="tpl-list" id="tpl-list"></div>
+
+          <div class="lt-divider"></div>
+
           <!-- Assignment panel -->
           <div class="lt-section-label">Assign Selected Wells</div>
           <p id="assign-sel-count" class="assign-sel-count">No wells selected — click wells above to select</p>
+
+          <!-- Template assignment banner -->
+          <div class="tpl-assign-banner" id="tpl-banner" style="display:none">
+            ← <span id="tpl-banner-text">Select wells on the plate above, then click Assign →</span>
+          </div>
 
           <div class="assign-row">
             <!-- Assign as Standard -->
@@ -513,8 +600,8 @@
               <div class="assign-card-label" style="color:var(--green-dark);">◼ Standard</div>
               <div class="assign-input-row">
                 <div style="flex:1;min-width:120px;">
-                  <label class="lt-label">Concentration (µg/mL)</label>
-                  <input class="lt-input" type="number" min="0" id="assign-std-conc" placeholder="e.g. 125">
+                  <label class="lt-label" id="std-conc-label">Concentration (µg/well)</label>
+                  <input class="lt-input" type="number" min="0" id="assign-std-conc" placeholder="e.g. 4">
                 </div>
                 <button class="lt-btn lt-btn-ghost" style="padding:6px 14px;border-color:var(--green-border);color:var(--green-dark);"
                   onclick="assignWells('std')">Assign →</button>
@@ -647,7 +734,7 @@
                 <th>Sample</th>
                 <th>Avg OD</th>
                 <th>Dilution ×</th>
-                <th>Protein Conc (µg/mL)</th>
+                <th id="res-conc-header">Protein Conc (µg/mL)</th>
                 <th>Flag</th>
               </tr>
             </thead>
@@ -692,6 +779,12 @@ const N_ROWS   = 8;
 const N_COLS   = 12;
 const DEFAULT_CONCS = [0, 25, 125, 250, 500, 1000, 2000];
 
+const STD_TEMPLATES = [
+  { id: 'basic',  name: 'Basic (0–4 µg/well)',    unit: 'µg/well', concs: [4, 2, 1, 0.5, 0] },
+  { id: 'ext',    name: 'Extended (0–8 µg/well)', unit: 'µg/well', concs: [8, 4, 2, 1, 0.5, 0] },
+  { id: 'pierce', name: 'Pierce BCA Kit',          unit: 'µg/mL',  concs: [2000, 1000, 500, 250, 125, 25, 0] },
+];
+
 /* ═══════════════════════════════════════════════════════════════
    Manual-mode state
    ═══════════════════════════════════════════════════════════════ */
@@ -705,19 +798,24 @@ let lastResult  = null;
    Plate-mode state
    ═══════════════════════════════════════════════════════════════ */
 
-let plateMatrix   = null;            // 8×12 Float64 array of OD values
-let wellAssigns   = {};              // "A1" → {type:'std',conc:125} | {type:'smp',name:'X',df:1}
-let selWells      = new Set();       // currently selected well keys
-let isDragging    = false;
-let dragAnchor    = null;            // anchor well for rectangular drag
-let currentMode   = 'manual';
+let plateMatrix = null;
+let wellAssigns = {};
+let selWells    = new Set();
+let isDragging  = false;
+let dragAnchor  = null;
+let currentMode = 'manual';
+
+/* Template state */
+let tplId     = 'basic';
+let tplActive = STD_TEMPLATES[0].concs.map(() => true);
+let tplStep   = -1;   // -1 = no active step
 
 /* ═══════════════════════════════════════════════════════════════
    Mode switching
    ═══════════════════════════════════════════════════════════════ */
 
-const RAW_HINT  = `Paste the full content of the <code>.txt</code> file exported from your plate reader (SoftMax Pro / SpectraMax). The tool will extract the 8×12 OD grid automatically.`;
-const GRID_HINT = `Paste the 8 rows × 12 columns of OD values (tab-separated). Select and copy the value block from Excel, Google Sheets, or your reader's plate view — no headers needed.`;
+const RAW_HINT  = `Select your plate reader export file (.txt from SoftMax Pro / SpectraMax), or paste the file content below.`;
+const GRID_HINT = `Paste the 8 rows × 12 columns of OD values (tab-separated). Copy the value block from Excel, Google Sheets, or your reader's plate view — no headers needed.`;
 
 function switchMode(m) {
   currentMode = m;
@@ -728,14 +826,31 @@ function switchMode(m) {
   document.getElementById('mode-plate').style.display  = m !== 'manual' ? '' : 'none';
   if (m !== 'manual') {
     document.getElementById('plate-paste-label').textContent =
-      m === 'raw' ? 'Paste Raw File Content' : 'Paste OD Grid';
+      m === 'raw' ? 'Import Raw File' : 'Paste OD Grid';
     document.getElementById('plate-paste-hint').innerHTML =
       m === 'raw' ? RAW_HINT : GRID_HINT;
     document.getElementById('plate-textarea').placeholder =
       m === 'raw' ? '##BLOCKS= 1\nPlate:\t…' : '0.370\t0.408\t0.352\t…';
+    document.getElementById('file-picker-bar').style.display =
+      m === 'raw' ? 'flex' : 'none';
   }
-  // Hide results when switching modes
   document.getElementById('results-section').classList.remove('visible');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   File picker
+   ═══════════════════════════════════════════════════════════════ */
+
+function loadFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('plate-textarea').value = e.target.result;
+    parsePlate();
+  };
+  reader.readAsText(file);
+  input.value = '';   // reset so re-opening same file still fires onchange
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -743,8 +858,7 @@ function switchMode(m) {
    ═══════════════════════════════════════════════════════════════ */
 
 function parsePlateRaw(text) {
-  // Find the Temperature header line, then read 8 data rows after it
-  const lines = text.split('\n').map(l => l.replace(/\r$/, ''));
+  const lines  = text.split('\n').map(l => l.replace(/\r$/, ''));
   const hdrIdx = lines.findIndex(l => l.includes('Temperature'));
   if (hdrIdx < 0) throw new Error('Could not find "Temperature" header line. Is this a SoftMax Pro export?');
 
@@ -752,10 +866,7 @@ function parsePlateRaw(text) {
   if (dataLines.length < N_ROWS) throw new Error(`Expected ${N_ROWS} data rows after header, found ${dataLines.length}.`);
 
   return dataLines.slice(0, N_ROWS).map((line, ri) => {
-    const cols = line.split('\t');
-    // Row A: [empty, temperature, od1..od12, ...]
-    // Row B-H: [empty, empty, od1..od12, ...]
-    // OD values start at index 2
+    const cols   = line.split('\t');
     const odCols = cols.slice(2, 2 + N_COLS);
     if (odCols.length < N_COLS) throw new Error(`Row ${ROWS[ri]}: expected 12 OD columns, found ${odCols.length}.`);
     return odCols.map((v, ci) => {
@@ -767,40 +878,36 @@ function parsePlateRaw(text) {
 }
 
 function parsePlateGrid(text) {
-  const lines = text.split('\n')
-    .map(l => l.trim()).filter(l => l.length > 0);
-
-  // Skip header lines (non-numeric first token)
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   const dataLines = lines.filter(l => {
     const first = l.split(/[\t,]/)[0].trim();
     return !isNaN(parseFloat(first)) || first === '';
   }).filter(l => {
-    // Must have at least 12 numeric values
     const vals = l.split(/[\t,]/).map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
     return vals.length >= N_COLS;
   });
 
   if (dataLines.length < 1) throw new Error('No rows with 12+ numeric values found.');
-  if (dataLines.length < N_ROWS) throw new Error(`Found ${dataLines.length} data row(s) — need at least ${N_ROWS} for a full plate. If pasting a partial plate, use Manual Entry instead.`);
+  if (dataLines.length < N_ROWS) throw new Error(`Found ${dataLines.length} data row(s) — need at least ${N_ROWS} for a full plate.`);
 
-  return dataLines.slice(0, N_ROWS).map((line, ri) => {
+  return dataLines.slice(0, N_ROWS).map(line => {
     const vals = line.split(/[\t,]/).map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
     return vals.slice(0, N_COLS);
   });
 }
 
 function parsePlate() {
-  const text   = document.getElementById('plate-textarea').value.trim();
-  const errEl  = document.getElementById('plate-error');
+  const text  = document.getElementById('plate-textarea').value.trim();
+  const errEl = document.getElementById('plate-error');
   errEl.style.display = 'none';
-
-  if (!text) { errEl.textContent = 'Paste area is empty.'; errEl.style.display = 'block'; return; }
+  if (!text) { errEl.textContent = 'No content to parse.'; errEl.style.display = 'block'; return; }
 
   try {
     plateMatrix = currentMode === 'raw' ? parsePlateRaw(text) : parsePlateGrid(text);
     wellAssigns = {};
     selWells    = new Set();
     renderPlate();
+    initTemplate();
     updateAssignSummary();
     document.getElementById('plate-grid-section').style.display = 'block';
     document.getElementById('plate-grid-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -816,7 +923,6 @@ function parsePlate() {
 
 function odColor(od, minOD, maxOD) {
   const t = (maxOD > minOD) ? Math.max(0, Math.min(1, (od - minOD) / (maxOD - minOD))) : 0;
-  // white (#f7f7f5) → blue (#3366cc)
   const r = Math.round(247 - t * (247 - 51));
   const g = Math.round(247 - t * (247 - 102));
   const b = Math.round(245 - t * (245 - 204));
@@ -828,17 +934,9 @@ function renderPlate() {
   const minOD   = Math.min(...allVals);
   const maxOD   = Math.max(...allVals);
   const grid    = document.getElementById('plate-grid');
-
   let html = '';
-
-  // Corner
   html += `<div></div>`;
-  // Column headers
-  for (let c = 1; c <= N_COLS; c++) {
-    html += `<div class="plate-col-label">${c}</div>`;
-  }
-
-  // Data rows
+  for (let c = 1; c <= N_COLS; c++) html += `<div class="plate-col-label">${c}</div>`;
   for (let r = 0; r < N_ROWS; r++) {
     html += `<div class="plate-row-label">${ROWS[r]}</div>`;
     for (let c = 0; c < N_COLS; c++) {
@@ -846,25 +944,15 @@ function renderPlate() {
       const od  = plateMatrix[r][c];
       const bg  = odColor(od, minOD, maxOD);
       html += `<div class="plate-well"
-        id="well-${key}"
-        data-key="${key}"
-        data-r="${r}"
-        data-c="${c}"
+        id="well-${key}" data-key="${key}" data-r="${r}" data-c="${c}"
         style="background:${bg};"
-        onmousedown="wellDown(event,this)"
-        onmouseenter="wellEnter(this)"
+        onmousedown="wellDown(event,this)" onmouseenter="wellEnter(this)"
         title="${key}: ${od.toFixed(4)}"
-      >
-        <span class="well-od">${od.toFixed(3)}</span>
-        <span class="well-label" id="wl-${key}"></span>
-      </div>`;
+      ><span class="well-od">${od.toFixed(3)}</span><span class="well-label" id="wl-${key}"></span></div>`;
     }
   }
-
   grid.innerHTML = html;
   refreshWellClasses();
-
-  // Global mouseup to end drag
   document.removeEventListener('mouseup', endDrag);
   document.addEventListener('mouseup', endDrag);
 }
@@ -875,9 +963,7 @@ function refreshWellClasses() {
     const key = el.dataset.key;
     el.classList.remove('selected','assigned-std','assigned-smp');
     const labelEl = document.getElementById('wl-' + key);
-    if (selWells.has(key)) {
-      el.classList.add('selected');
-    }
+    if (selWells.has(key)) el.classList.add('selected');
     if (wellAssigns[key]) {
       const a = wellAssigns[key];
       if (a.type === 'std') {
@@ -899,8 +985,8 @@ function refreshWellClasses() {
 
 function wellDown(e, el) {
   e.preventDefault();
-  isDragging  = true;
-  dragAnchor  = el;
+  isDragging = true;
+  dragAnchor = el;
   if (!e.shiftKey && !e.ctrlKey && !e.metaKey) selWells.clear();
   selWells.add(el.dataset.key);
   refreshWellClasses();
@@ -909,7 +995,6 @@ function wellDown(e, el) {
 
 function wellEnter(el) {
   if (!isDragging || !dragAnchor) return;
-  // Rectangular selection from anchor to current
   const r1 = parseInt(dragAnchor.dataset.r), c1 = parseInt(dragAnchor.dataset.c);
   const r2 = parseInt(el.dataset.r),         c2 = parseInt(el.dataset.c);
   const minR = Math.min(r1,r2), maxR = Math.max(r1,r2);
@@ -924,12 +1009,7 @@ function wellEnter(el) {
 
 function endDrag() { isDragging = false; }
 
-function clearSelection() {
-  selWells.clear();
-  refreshWellClasses();
-  updateSelCount();
-}
-
+function clearSelection() { selWells.clear(); refreshWellClasses(); updateSelCount(); }
 function selectAll() {
   for (let r = 0; r < N_ROWS; r++)
     for (let c = 0; c < N_COLS; c++)
@@ -939,11 +1019,130 @@ function selectAll() {
 }
 
 function updateSelCount() {
-  const n = selWells.size;
+  const n    = selWells.size;
   const keys = [...selWells].sort();
   const label = n === 0 ? 'No wells selected — click wells above to select'
     : `${n} well${n>1?'s':''} selected: ${keys.slice(0,8).join(', ')}${n>8?' …':''}`;
   document.getElementById('assign-sel-count').textContent = label;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Standard template
+   ═══════════════════════════════════════════════════════════════ */
+
+function getCurrentTpl() { return STD_TEMPLATES.find(t => t.id === tplId); }
+
+function getCurrentUnit() {
+  if (currentMode === 'manual') return 'µg/mL';
+  return getCurrentTpl()?.unit ?? 'µg/mL';
+}
+
+function initTemplate() {
+  tplId     = 'basic';
+  tplActive = STD_TEMPLATES[0].concs.map(() => true);
+  tplStep   = -1;
+  document.getElementById('tpl-banner').style.display = 'none';
+  document.getElementById('assign-std-conc').value = '';
+  renderTemplateUI();
+  updateTemplateUnit();
+}
+
+function setTemplate(id) {
+  tplId     = id;
+  tplActive = getCurrentTpl().concs.map(() => true);
+  tplStep   = -1;
+  document.getElementById('tpl-banner').style.display = 'none';
+  document.getElementById('assign-std-conc').value = '';
+  STD_TEMPLATES.forEach(t => {
+    document.getElementById(`tpl-tab-${t.id}`)?.classList.toggle('active', t.id === id);
+  });
+  renderTemplateUI();
+  updateTemplateUnit();
+}
+
+function updateTemplateUnit() {
+  const unit = getCurrentUnit();
+  document.getElementById('std-conc-label').textContent = `Concentration (${unit})`;
+}
+
+function tplToggle(idx) {
+  tplActive[idx] = !tplActive[idx];
+  if (tplStep === idx) { tplStep = -1; document.getElementById('tpl-banner').style.display = 'none'; }
+  renderTemplateUI();
+}
+
+function tplSetStep(idx) {
+  tplStep = idx;
+  const tpl  = getCurrentTpl();
+  const conc = tpl.concs[idx];
+  document.getElementById('assign-std-conc').value = conc;
+  document.getElementById('tpl-banner').style.display = 'flex';
+  document.getElementById('tpl-banner-text').textContent =
+    `Now assigning: ${conc} ${tpl.unit} — select wells on the plate, then click Assign →`;
+  renderTemplateUI();
+  document.getElementById('plate-grid').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function tplAdvance() {
+  if (tplStep < 0) return;
+  const tpl = getCurrentTpl();
+  // Find next active step after current
+  let nextIdx = -1;
+  for (let i = tplStep + 1; i < tpl.concs.length; i++) {
+    if (tplActive[i]) { nextIdx = i; break; }
+  }
+  tplStep = -1;
+  if (nextIdx >= 0) {
+    tplSetStep(nextIdx);
+  } else {
+    document.getElementById('tpl-banner').style.display = 'none';
+    document.getElementById('assign-std-conc').value = '';
+    renderTemplateUI();
+  }
+}
+
+function resetTemplate() {
+  Object.keys(wellAssigns).forEach(key => {
+    if (wellAssigns[key].type === 'std') delete wellAssigns[key];
+  });
+  tplStep = -1;
+  document.getElementById('tpl-banner').style.display = 'none';
+  document.getElementById('assign-std-conc').value = '';
+  refreshWellClasses();
+  updateAssignSummary();
+  renderTemplateUI();
+}
+
+function renderTemplateUI() {
+  const tpl    = getCurrentTpl();
+  const listEl = document.getElementById('tpl-list');
+  if (!listEl) return;
+
+  listEl.innerHTML = tpl.concs.map((conc, i) => {
+    const active = tplActive[i];
+    const isStep = tplStep === i;
+    // Count wells assigned to this exact concentration
+    const assignedCount = Object.values(wellAssigns).filter(a => a.type==='std' && a.conc===conc).length;
+    const done = assignedCount > 0;
+
+    let rowClass = 'tpl-row';
+    if (!active)        rowClass += ' tpl-skip';
+    else if (isStep)    rowClass += ' tpl-step-active';
+    else if (done)      rowClass += ' tpl-done';
+
+    const statusText = active && done ? `✓ ${assignedCount} well${assignedCount>1?'s':''}` : '';
+    const btnClass   = 'lt-btn lt-btn-ghost tpl-select-btn' + (isStep ? ' active-step' : '');
+    const btnLabel   = isStep ? '← Selecting…' : (done ? '↺ Re-select' : '→ Select wells');
+
+    return `<div class="${rowClass}">
+      <label class="tpl-check">
+        <input type="checkbox" ${active?'checked':''} onchange="tplToggle(${i})">
+        <span class="tpl-conc">${conc} ${tpl.unit}</span>
+      </label>
+      <span class="tpl-status">${statusText}</span>
+      ${active ? `<button class="${btnClass}" onclick="tplSetStep(${i})">${btnLabel}</button>` : ''}
+    </div>`;
+  }).join('');
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -957,6 +1156,7 @@ function assignWells(type) {
     const conc = parseFloat(document.getElementById('assign-std-conc').value);
     if (isNaN(conc)) { alert('Enter a concentration value.'); return; }
     selWells.forEach(key => { wellAssigns[key] = { type: 'std', conc }; });
+    tplAdvance();
   } else {
     const name = document.getElementById('assign-smp-name').value.trim();
     const df   = parseFloat(document.getElementById('assign-smp-df').value) || 1;
@@ -968,6 +1168,7 @@ function assignWells(type) {
   refreshWellClasses();
   updateSelCount();
   updateAssignSummary();
+  renderTemplateUI();
 }
 
 function unassignSelected() {
@@ -976,12 +1177,13 @@ function unassignSelected() {
   refreshWellClasses();
   updateSelCount();
   updateAssignSummary();
+  renderTemplateUI();
 }
 
 function updateAssignSummary() {
-  const stdGroups = new Map(); // conc → [od, ...]
-  const smpGroups = new Map(); // name → [{od, df}, ...]
-  let unassigned = 0;
+  const stdGroups = new Map();
+  const smpGroups = new Map();
+  let unassigned  = 0;
 
   for (let r = 0; r < N_ROWS; r++) {
     for (let c = 0; c < N_COLS; c++) {
@@ -1002,7 +1204,6 @@ function updateAssignSummary() {
 
   const stdWells = [...stdGroups.values()].reduce((s, arr) => s + arr.length, 0);
   const smpWells = [...smpGroups.values()].reduce((s, g)  => s + g.ods.length, 0);
-
   document.getElementById('sum-std-groups').textContent = `${stdGroups.size} group${stdGroups.size!==1?'s':''}`;
   document.getElementById('sum-std-wells').textContent  = `${stdWells} well${stdWells!==1?'s':''}`;
   document.getElementById('sum-smp-groups').textContent = `${smpGroups.size} group${smpGroups.size!==1?'s':''}`;
@@ -1011,20 +1212,19 @@ function updateAssignSummary() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Build stdRows/smpRows from plate assignments → calculate
+   Build stdRows/smpRows from plate → calculate
    ═══════════════════════════════════════════════════════════════ */
 
 function buildFromPlate() {
-  // Group by concentration for standards
-  const stdMap = new Map(); // conc → [od, ...]
-  const smpMap = new Map(); // "name||df" → {name, df, ods:[]}
+  const stdMap = new Map();
+  const smpMap = new Map();
 
   for (let r = 0; r < N_ROWS; r++) {
     for (let c = 0; c < N_COLS; c++) {
       const key = ROWS[r] + (c + 1);
       const a   = wellAssigns[key];
       if (!a) continue;
-      const od  = plateMatrix[r][c];
+      const od = plateMatrix[r][c];
       if (a.type === 'std') {
         if (!stdMap.has(a.conc)) stdMap.set(a.conc, []);
         stdMap.get(a.conc).push(od);
@@ -1036,42 +1236,26 @@ function buildFromPlate() {
     }
   }
 
-  if (stdMap.size < 2) {
-    alert('Need at least 2 standard groups. Assign wells as Standards first.');
-    return;
-  }
-  if (smpMap.size === 0) {
-    alert('No sample wells assigned. Assign at least one well as a Sample.');
-    return;
-  }
+  if (stdMap.size < 2) { alert('Need at least 2 standard groups.'); return; }
+  if (smpMap.size === 0) { alert('No sample wells assigned.'); return; }
 
-  // Build stdRows — sort by concentration ascending
   stdRows = [...stdMap.entries()]
     .sort((a, b) => a[0] - b[0])
-    .map(([conc, ods]) => {
-      // Put up to 3 replicates in od1/od2/od3; average the rest into od1 if >3
-      const avgAll = ods.reduce((s, v) => s + v, 0) / ods.length;
-      return {
-        conc: String(conc),
-        od1: ods.length <= 3 ? String(ods[0] || '') : String(avgAll),
-        od2: ods.length >= 2 ? String(ods[1]) : '',
-        od3: ods.length >= 3 ? String(ods[2]) : '',
-      };
-    });
+    .map(([conc, ods]) => ({
+      conc: String(conc),
+      od1: ods.length <= 3 ? String(ods[0] || '') : String(ods.reduce((s,v)=>s+v,0)/ods.length),
+      od2: ods.length >= 2 ? String(ods[1]) : '',
+      od3: ods.length >= 3 ? String(ods[2]) : '',
+    }));
 
-  // Build smpRows
-  smpRows = [...smpMap.values()].map(g => {
-    const avgAll = g.ods.reduce((s, v) => s + v, 0) / g.ods.length;
-    return {
-      name: g.name,
-      od1: g.ods.length <= 3 ? String(g.ods[0] || '') : String(avgAll),
-      od2: g.ods.length >= 2 ? String(g.ods[1]) : '',
-      od3: g.ods.length >= 3 ? String(g.ods[2]) : '',
-      df: String(g.df),
-    };
-  });
+  smpRows = [...smpMap.values()].map(g => ({
+    name: g.name,
+    od1: g.ods.length <= 3 ? String(g.ods[0] || '') : String(g.ods.reduce((s,v)=>s+v,0)/g.ods.length),
+    od2: g.ods.length >= 2 ? String(g.ods[1]) : '',
+    od3: g.ods.length >= 3 ? String(g.ods[2]) : '',
+    df: String(g.df),
+  }));
 
-  // Sync manual tables and run
   renderStd();
   renderSmp();
   calculate();
@@ -1172,10 +1356,10 @@ function linearRegression(points) {
   if (den === 0) return null;
   const slope     = (n*sxy - sx*sy) / den;
   const intercept = (sy - slope*sx) / n;
-  const yMean  = sy/n;
-  const ssTot  = points.reduce((s,p) => s+(p.y-yMean)**2, 0);
-  const ssRes  = points.reduce((s,p) => s+(p.y-(slope*p.x+intercept))**2, 0);
-  const r2     = ssTot===0 ? 1 : 1-ssRes/ssTot;
+  const yMean = sy/n;
+  const ssTot = points.reduce((s,p) => s+(p.y-yMean)**2, 0);
+  const ssRes = points.reduce((s,p) => s+(p.y-(slope*p.x+intercept))**2, 0);
+  const r2    = ssTot===0 ? 1 : 1-ssRes/ssTot;
   return { slope, intercept, r2 };
 }
 
@@ -1192,7 +1376,6 @@ function calculate() {
     alert('Need at least 2 standard points with both concentration and OD values.');
     return;
   }
-
   const fit = linearRegression(regPoints);
   if (!fit) { alert('Cannot fit curve — concentrations may all be identical.'); return; }
 
@@ -1201,8 +1384,8 @@ function calculate() {
   const maxStdOD = Math.max(...regPoints.map(p=>p.y));
 
   const sampleResults = smpRows.map(r => {
-    const od  = avgOD(r);
-    const df  = parseFloat(r.df) || 1;
+    const od = avgOD(r);
+    const df = parseFloat(r.df) || 1;
     if (isNaN(od)) return { name: r.name, od, df, conc: NaN, flag:'' };
     const rawConc = (od - intercept) / slope;
     const actConc = rawConc * df;
@@ -1252,6 +1435,9 @@ function showFitStats(slope, intercept, r2, n) {
 }
 
 function showSampleResults(results) {
+  const unit  = getCurrentUnit();
+  document.getElementById('res-conc-header').textContent = `Protein Conc (${unit})`;
+
   const tbody = document.getElementById('results-tbody');
   if (!results.length) {
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:16px;">No samples</td></tr>';
@@ -1280,12 +1466,13 @@ function showSampleResults(results) {
 function drawChart(stdPts, slope, intercept, samples) {
   const W=560,H=300,ML=62,MR=20,MT=18,MB=48;
   const PW=W-ML-MR, PH=H-MT-MB;
-  const maxX = Math.max(...stdPts.map(p=>p.x))*1.08||2200;
+  const maxX = Math.max(...stdPts.map(p=>p.x))*1.08||8;
   const maxY = Math.max(...stdPts.map(p=>p.y))*1.12||4;
   const xS = v => ML+(v/maxX)*PW;
   const yS = v => MT+PH-(v/maxY)*PH;
   const xTicks = niceTicks(0,maxX,5);
   const yTicks = niceTicks(0,maxY,5);
+  const unit   = getCurrentUnit();
   let svg='';
   svg+=`<rect x="${ML}" y="${MT}" width="${PW}" height="${PH}" fill="var(--surface-subtle)" rx="4"/>`;
   yTicks.forEach(t => { svg+=`<line x1="${ML}" y1="${yS(t)}" x2="${ML+PW}" y2="${yS(t)}" stroke="var(--border-subtle)" stroke-width="1"/>`; });
@@ -1302,7 +1489,7 @@ function drawChart(stdPts, slope, intercept, samples) {
   svg+=`<line x1="${ML}" y1="${MT+PH}" x2="${ML+PW}" y2="${MT+PH}" stroke="var(--border)" stroke-width="1.5"/>`;
   xTicks.forEach(t => { svg+=`<text x="${xS(t)}" y="${MT+PH+16}" text-anchor="middle" font-size="10" fill="var(--text-muted)" font-family="var(--font)">${fmtTick(t)}</text>`; });
   yTicks.forEach(t => { svg+=`<text x="${ML-8}" y="${yS(t)+3.5}" text-anchor="end" font-size="10" fill="var(--text-muted)" font-family="var(--font)">${t.toFixed(2)}</text>`; });
-  svg+=`<text x="${ML+PW/2}" y="${H-6}" text-anchor="middle" font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600">Concentration (µg/mL)</text>`;
+  svg+=`<text x="${ML+PW/2}" y="${H-6}" text-anchor="middle" font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600">Concentration (${unit})</text>`;
   svg+=`<text x="12" y="${MT+PH/2}" text-anchor="middle" font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600" transform="rotate(-90,12,${MT+PH/2})">Absorbance (OD)</text>`;
   document.getElementById('bca-chart').innerHTML = svg;
 }
@@ -1387,9 +1574,10 @@ function parseSmpCSV(text) {
 function exportCSV() {
   if(!lastResult){ alert('Run Calculate first.'); return; }
   const {fit,sampleResults}=lastResult;
+  const unit = getCurrentUnit();
   const lines=['# BCA Assay Results',`# Slope,${fit.slope.toExponential(6)}`,
     `# Intercept,${fit.intercept.toFixed(6)}`,`# R2,${fit.r2.toFixed(6)}`,'',
-    'Sample Name,Avg OD,Dilution Factor,Protein Conc (µg/mL),Flag',
+    `Sample Name,Avg OD,Dilution Factor,Protein Conc (${unit}),Flag`,
     ...sampleResults.map(r=>[
       `"${(r.name||'').replace(/"/g,'""')}"`,
       isNaN(r.od)?'':r.od.toFixed(4), r.df,
@@ -1401,7 +1589,8 @@ function exportCSV() {
 
 function copyResults() {
   if(!lastResult){ alert('Run Calculate first.'); return; }
-  const lines=['Sample Name\tAvg OD\tDilution Factor\tProtein Conc (µg/mL)\tFlag',
+  const unit = getCurrentUnit();
+  const lines=[`Sample Name\tAvg OD\tDilution Factor\tProtein Conc (${unit})\tFlag`,
     ...lastResult.sampleResults.map(r=>[
       r.name||'', isNaN(r.od)?'':r.od.toFixed(4), r.df,
       isNaN(r.conc)?'':r.conc.toFixed(2),
