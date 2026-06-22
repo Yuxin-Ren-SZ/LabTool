@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <script src="../../assets/js/labtools-common.js"></script>
   <style>
-    .card { max-width: 960px; }
+    .card { max-width: 980px; }
 
     .page-title {
       font-size: var(--fs-xl);
@@ -19,14 +19,41 @@
     .page-sub {
       font-size: var(--fs-sm);
       color: var(--text-muted);
-      margin-bottom: 24px;
+      margin-bottom: 20px;
       line-height: 1.55;
     }
 
-    /* ── Section blocks ── */
-    .section-block {
-      margin-bottom: 28px;
+    /* ── Mode tabs ── */
+    .mode-tabs {
+      display: flex;
+      background: var(--tag-bg);
+      border-radius: var(--radius-md);
+      padding: 3px;
+      margin-bottom: 24px;
+      gap: 2px;
     }
+    .mode-tab {
+      flex: 1;
+      padding: 7px 12px;
+      border: none;
+      background: transparent;
+      border-radius: var(--radius-sm);
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .mode-tab.active {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: var(--shadow-sm);
+    }
+    .mode-tab:hover:not(.active) { color: var(--text); }
+
+    /* ── Section blocks ── */
+    .section-block { margin-bottom: 28px; }
     .section-header {
       display: flex;
       align-items: center;
@@ -34,7 +61,7 @@
       margin-bottom: 10px;
     }
 
-    /* ── Data table ── */
+    /* ── Data table (manual mode) ── */
     .data-table-shell {
       overflow-x: auto;
       border: 1px solid var(--border-subtle);
@@ -63,257 +90,46 @@
       border-bottom: 1px solid var(--border-subtle);
       vertical-align: middle;
     }
-    .data-table tbody tr:last-child td {
-      border-bottom: none;
-    }
-    .data-table .lt-input {
-      min-height: 34px;
-      font-size: 0.84rem;
-      padding: 6px 9px;
-    }
-    .col-conc  { width: 120px; }
-    .col-od    { width: 100px; }
-    .col-avg   { width: 88px;  color: var(--text-secondary); font-weight: 600; font-size: 0.82rem; text-align: center; }
-    .col-df    { width: 90px;  }
-    .col-name  { min-width: 160px; }
-    .col-del   { width: 38px; text-align: center; }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+    .data-table .lt-input { min-height: 34px; font-size: 0.84rem; padding: 6px 9px; }
+    .col-conc { width: 120px; }
+    .col-od   { width: 100px; }
+    .col-avg  { width: 88px; color: var(--text-secondary); font-weight: 600; font-size: 0.82rem; text-align: center; }
+    .col-df   { width: 90px; }
+    .col-name { min-width: 160px; }
+    .col-del  { width: 38px; text-align: center; }
 
     .del-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
+      display: inline-flex; align-items: center; justify-content: center;
       width: 26px; height: 26px;
-      border: none;
-      background: transparent;
-      color: var(--text-dim);
-      cursor: pointer;
-      border-radius: var(--radius-sm);
-      font-size: 1rem;
-      line-height: 1;
-      transition: background 0.12s, color 0.12s;
+      border: none; background: transparent; color: var(--text-dim);
+      cursor: pointer; border-radius: var(--radius-sm);
+      font-size: 1rem; line-height: 1; transition: background 0.12s, color 0.12s;
     }
     .del-btn:hover { background: var(--red-border); color: var(--red); }
 
     .table-footer {
       padding: 8px 10px;
       border-top: 1px solid var(--border-subtle);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
       background: var(--surface-subtle);
       border-radius: 0 0 var(--radius-lg) var(--radius-lg);
     }
-
-    .avg-display {
-      font-family: var(--font-mono);
-      font-size: 0.82rem;
-      color: var(--text-secondary);
-    }
+    .avg-display { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-secondary); }
     .avg-empty { color: var(--text-dim); }
 
     /* ── Calculate bar ── */
-    .calc-bar {
-      display: flex;
-      justify-content: center;
-      margin: 24px 0 28px;
-    }
+    .calc-bar { display: flex; justify-content: center; margin: 24px 0 28px; }
 
-    /* ── Results ── */
-    #results-section { display: none; }
-    #results-section.visible { display: block; }
-
-    .results-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-    @media (max-width: 680px) {
-      .results-grid { grid-template-columns: 1fr; }
-    }
-
-    .result-card {
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      background: var(--surface-subtle);
-      padding: 14px 16px;
-    }
-    .result-card-label {
-      font-size: var(--fs-xs);
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      margin-bottom: 8px;
-    }
-    .result-card-value {
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: var(--text);
-      font-family: var(--font-mono);
-      margin-bottom: 2px;
-    }
-    .result-card-sub {
-      font-size: var(--fs-sm);
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-
-    .fit-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    /* ── SVG Chart ── */
-    .chart-wrap {
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-md);
-      background: var(--surface);
-      padding: 12px;
-      margin-bottom: 20px;
-      overflow: hidden;
-    }
-    .chart-wrap svg {
+    /* ── Plate mode ── */
+    .plate-paste-block { margin-bottom: 20px; }
+    .plate-paste-block textarea {
       width: 100%;
-      height: auto;
-      display: block;
-    }
-    .chart-legend {
-      display: flex;
-      gap: 18px;
-      margin-top: 8px;
-      font-size: var(--fs-sm);
-      color: var(--text-muted);
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .legend-dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .legend-diamond {
-      width: 10px; height: 10px;
-      transform: rotate(45deg);
-      flex-shrink: 0;
-    }
-
-    /* ── Sample results table ── */
-    .results-table-shell {
-      overflow-x: auto;
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-lg);
-      background: var(--surface-subtle);
-      margin-bottom: 14px;
-    }
-    .results-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.84rem;
-    }
-    .results-table thead th {
-      background: var(--surface-subtle);
-      padding: 9px 12px;
-      font-size: var(--fs-xs);
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      text-align: left;
-      border-bottom: 1px solid var(--border-subtle);
-    }
-    .results-table tbody td {
-      padding: 9px 12px;
-      border-bottom: 1px solid var(--border-subtle);
-      vertical-align: middle;
-    }
-    .results-table tbody tr:last-child td { border-bottom: none; }
-    .results-table .flag-cell { font-size: var(--fs-xs); }
-
-    .flag-extrap {
-      display: inline-flex;
-      align-items: center;
-      background: var(--yellow-bg);
-      color: var(--yellow-dark);
-      border: 1px solid var(--yellow-border);
-      border-radius: var(--radius-xs);
-      padding: 2px 6px;
-      font-size: var(--fs-2xs);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-    }
-    .flag-low {
-      display: inline-flex;
-      align-items: center;
-      background: var(--red-bg);
-      color: var(--red);
-      border: 1px solid var(--red-border);
-      border-radius: var(--radius-xs);
-      padding: 2px 6px;
-      font-size: var(--fs-2xs);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-    }
-
-    .conc-value {
-      font-family: var(--font-mono);
-      font-weight: 600;
-    }
-
-    /* ── Modal ── */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.35);
-      z-index: 200;
-      align-items: center;
-      justify-content: center;
-    }
-    .modal-overlay.open { display: flex; }
-    .modal-box {
-      background: var(--surface);
-      border-radius: var(--radius-lg);
-      box-shadow: 0 8px 40px rgba(0,0,0,0.18);
-      padding: 24px;
-      width: min(520px, 94vw);
-      max-height: 80vh;
-      overflow-y: auto;
-    }
-    .modal-title {
-      font-size: 1rem;
-      font-weight: 700;
-      color: var(--text);
-      margin-bottom: 6px;
-    }
-    .modal-hint {
-      font-size: var(--fs-sm);
-      color: var(--text-muted);
-      margin-bottom: 12px;
-      line-height: 1.5;
-    }
-    .modal-hint code {
-      font-family: var(--font-mono);
-      background: var(--tag-bg);
-      border-radius: var(--radius-xs);
-      padding: 1px 5px;
-      font-size: 0.8rem;
-    }
-    .modal-textarea {
-      width: 100%;
-      min-height: 160px;
+      min-height: 140px;
       padding: 10px 12px;
       border: 1.5px solid var(--border);
       border-radius: var(--radius-md);
-      font-size: 0.82rem;
+      font-size: 0.78rem;
       font-family: var(--font-mono);
       color: var(--text);
       background: var(--surface);
@@ -321,38 +137,236 @@
       resize: vertical;
       margin-bottom: 10px;
     }
-    .modal-textarea:focus { border-color: var(--blue); }
-    .modal-parse-error {
-      color: var(--red);
-      font-size: var(--fs-sm);
+    .plate-paste-block textarea:focus { border-color: var(--blue); }
+    .plate-parse-error {
+      color: var(--red); font-size: var(--fs-sm);
+      margin-bottom: 8px; display: none;
+    }
+
+    /* ── Plate grid ── */
+    #plate-grid-section { display: none; }
+
+    .plate-outer {
+      overflow-x: auto;
+      margin-bottom: 18px;
+    }
+    .plate-grid-wrap {
+      display: inline-grid;
+      grid-template-columns: 22px repeat(12, 40px);
+      grid-template-rows: 22px repeat(8, 40px);
+      gap: 3px;
+      user-select: none;
+    }
+    .plate-col-label {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.66rem; font-weight: 700; color: var(--text-dim);
+    }
+    .plate-row-label {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.66rem; font-weight: 700; color: var(--text-dim);
+    }
+    .plate-well {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-size: 0.5rem;
+      line-height: 1.2;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: border-color 0.1s, transform 0.08s;
+      position: relative;
+      box-sizing: border-box;
+    }
+    .plate-well:hover { transform: scale(1.12); z-index: 1; }
+    .plate-well.selected { border-color: var(--blue) !important; box-shadow: 0 0 0 1px var(--blue); }
+    .plate-well.assigned-std {
+      background: var(--green-bg) !important;
+      border-color: var(--green-border) !important;
+    }
+    .plate-well.assigned-std .well-label { color: var(--green-dark); font-weight: 700; }
+    .plate-well.assigned-smp {
+      background: #fff4ea !important;
+      border-color: #f4c08a !important;
+    }
+    .plate-well.assigned-smp .well-label { color: #9a4f00; font-weight: 700; }
+
+    .well-od   { font-size: 0.48rem; color: inherit; opacity: 0.75; }
+    .well-label { font-size: 0.52rem; }
+
+    /* ── Plate legend ── */
+    .plate-legend {
+      display: flex; align-items: center; gap: 8px;
+      font-size: var(--fs-xs); color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+    .plate-legend-bar {
+      width: 100px; height: 10px;
+      border-radius: 5px;
+      background: linear-gradient(to right, #f7f7f5, #3366cc);
+      flex-shrink: 0;
+    }
+
+    /* ── Assignment panel ── */
+    .assign-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 600px) { .assign-row { grid-template-columns: 1fr; } }
+
+    .assign-card {
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      background: var(--surface-subtle);
+      transition: border-color 0.15s;
+    }
+    .assign-card-label {
+      font-size: var(--fs-xs); font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--text-muted); margin-bottom: 10px;
+    }
+    .assign-input-row {
+      display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap;
+    }
+    .assign-input-row .lt-input {
+      min-height: 34px; font-size: 0.84rem; padding: 6px 9px;
+    }
+    .assign-sel-count {
+      font-size: var(--fs-xs); color: var(--text-muted);
       margin-bottom: 8px;
-      display: none;
-    }
-    .modal-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      margin-top: 4px;
     }
 
-    /* ── lt-page-body ── */
-    .lt-page-body {
-      flex: 1;
-      display: flex;
-      justify-content: center;
-      padding: 32px 16px 48px;
+    /* ── Assignment summary ── */
+    .assign-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
     }
+    .assign-sum-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface-subtle);
+      padding: 10px 12px;
+    }
+    .assign-sum-label {
+      font-size: var(--fs-xs); font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--text-muted); margin-bottom: 4px;
+    }
+    .assign-sum-value {
+      font-size: 1rem; font-weight: 700; color: var(--text);
+    }
+    .assign-sum-note { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; }
 
-    /* ── Yellow badge variant (for R² warning) ── */
-    .lt-badge-yellow {
-      background: var(--yellow-bg);
-      color: var(--yellow-dark);
+    /* ── Results ── */
+    #results-section { display: none; }
+    #results-section.visible { display: block; }
+
+    .results-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;
     }
+    @media (max-width: 680px) { .results-grid { grid-template-columns: 1fr; } }
+
+    .result-card {
+      border: 1px solid var(--border); border-radius: var(--radius-md);
+      background: var(--surface-subtle); padding: 14px 16px;
+    }
+    .result-card-label {
+      font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.05em;
+      text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;
+    }
+    .result-card-value {
+      font-size: 1.05rem; font-weight: 700; color: var(--text);
+      font-family: var(--font-mono); margin-bottom: 2px;
+    }
+    .result-card-sub { font-size: var(--fs-sm); color: var(--text-muted); margin-top: 4px; }
+    .fit-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    /* ── SVG Chart ── */
+    .chart-wrap {
+      border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+      background: var(--surface); padding: 12px; margin-bottom: 20px; overflow: hidden;
+    }
+    .chart-wrap svg { width: 100%; height: auto; display: block; }
+    .chart-legend { display: flex; gap: 18px; margin-top: 8px; font-size: var(--fs-sm); color: var(--text-muted); }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .legend-diamond { width: 10px; height: 10px; transform: rotate(45deg); flex-shrink: 0; }
+
+    /* ── Sample results table ── */
+    .results-table-shell {
+      overflow-x: auto; border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg); background: var(--surface-subtle); margin-bottom: 14px;
+    }
+    .results-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+    .results-table thead th {
+      background: var(--surface-subtle); padding: 9px 12px;
+      font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.05em;
+      text-transform: uppercase; color: var(--text-muted); text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .results-table tbody td {
+      padding: 9px 12px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle;
+    }
+    .results-table tbody tr:last-child td { border-bottom: none; }
+    .results-table .flag-cell { font-size: var(--fs-xs); }
+
+    .flag-extrap {
+      display: inline-flex; align-items: center;
+      background: var(--yellow-bg); color: var(--yellow-dark);
+      border: 1px solid var(--yellow-border); border-radius: var(--radius-xs);
+      padding: 2px 6px; font-size: var(--fs-2xs); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .flag-low {
+      display: inline-flex; align-items: center;
+      background: var(--red-bg); color: var(--red);
+      border: 1px solid var(--red-border); border-radius: var(--radius-xs);
+      padding: 2px 6px; font-size: var(--fs-2xs); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .conc-value { font-family: var(--font-mono); font-weight: 600; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.35); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--surface); border-radius: var(--radius-lg);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.18); padding: 24px;
+      width: min(520px, 94vw); max-height: 80vh; overflow-y: auto;
+    }
+    .modal-title { font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .modal-hint { font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: 12px; line-height: 1.5; }
+    .modal-hint code {
+      font-family: var(--font-mono); background: var(--tag-bg);
+      border-radius: var(--radius-xs); padding: 1px 5px; font-size: 0.8rem;
+    }
+    .modal-textarea {
+      width: 100%; min-height: 160px; padding: 10px 12px;
+      border: 1.5px solid var(--border); border-radius: var(--radius-md);
+      font-size: 0.82rem; font-family: var(--font-mono); color: var(--text);
+      background: var(--surface); outline: none; resize: vertical; margin-bottom: 10px;
+    }
+    .modal-textarea:focus { border-color: var(--blue); }
+    .modal-parse-error { color: var(--red); font-size: var(--fs-sm); margin-bottom: 8px; display: none; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+    /* ── Page body ── */
+    .lt-page-body { flex: 1; display: flex; justify-content: center; padding: 32px 16px 48px; }
+
+    /* ── Misc ── */
+    .lt-badge-yellow { background: var(--yellow-bg); color: var(--yellow-dark); }
   </style>
 </head>
 <body>
 
-  <!-- Nav -->
   <nav class="lt-nav">
     <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
     <span class="lt-nav-sep">/</span>
@@ -364,88 +378,217 @@
 
       <h1 class="page-title">BCA Protein Assay</h1>
       <p class="page-sub">
-        Enter BSA standard OD values and unknown samples. The tool fits a linear standard curve and interpolates protein concentration for each sample.
+        Fit a linear standard curve from BSA standards, then interpolate protein concentration for unknown samples.
       </p>
 
-      <!-- ── Section 1: Standard Curve ── -->
-      <div class="section-block">
-        <div class="section-header">
-          <div class="lt-section-label" style="margin-bottom:0">Standard Curve</div>
-          <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="openModal('std')">
-            📋 Paste CSV
+      <!-- ── Mode switcher ── -->
+      <div class="mode-tabs">
+        <button class="mode-tab active" id="tab-manual" onclick="switchMode('manual')">Manual Entry</button>
+        <button class="mode-tab" id="tab-raw"    onclick="switchMode('raw')">Raw File (.txt)</button>
+        <button class="mode-tab" id="tab-grid"   onclick="switchMode('grid')">Paste Grid</button>
+      </div>
+
+      <!-- ══════════════════════════════════════════
+           MODE: MANUAL
+           ══════════════════════════════════════════ -->
+      <div id="mode-manual">
+
+        <!-- Standard Curve -->
+        <div class="section-block">
+          <div class="section-header">
+            <div class="lt-section-label" style="margin-bottom:0">Standard Curve</div>
+            <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="openModal('std')">
+              📋 Paste CSV
+            </button>
+          </div>
+          <div class="data-table-shell">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th class="col-conc">Conc (µg/mL)</th>
+                  <th class="col-od">OD Rep 1</th>
+                  <th class="col-od">OD Rep 2 <span class="lt-opt">(opt)</span></th>
+                  <th class="col-od">OD Rep 3 <span class="lt-opt">(opt)</span></th>
+                  <th class="col-avg">Avg OD</th>
+                  <th class="col-del"></th>
+                </tr>
+              </thead>
+              <tbody id="std-tbody"></tbody>
+            </table>
+            <div class="table-footer">
+              <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="addStdRow()">
+                + Add Standard
+              </button>
+              <span style="font-size:var(--fs-xs);color:var(--text-dim);">OD at 562 nm · blanks excluded from average</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="lt-divider"></div>
+
+        <!-- Samples -->
+        <div class="section-block">
+          <div class="section-header">
+            <div class="lt-section-label" style="margin-bottom:0">Samples</div>
+            <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="openModal('smp')">
+              📋 Paste CSV
+            </button>
+          </div>
+          <div class="data-table-shell">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th class="col-name">Sample Name</th>
+                  <th class="col-od">OD Rep 1</th>
+                  <th class="col-od">OD Rep 2 <span class="lt-opt">(opt)</span></th>
+                  <th class="col-od">OD Rep 3 <span class="lt-opt">(opt)</span></th>
+                  <th class="col-df">Dilution ×</th>
+                  <th class="col-del"></th>
+                </tr>
+              </thead>
+              <tbody id="smp-tbody"></tbody>
+            </table>
+            <div class="table-footer">
+              <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="addSmpRow()">
+                + Add Sample
+              </button>
+              <span style="font-size:var(--fs-xs);color:var(--text-dim);">Dilution factor applied to calculated concentration</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="calc-bar">
+          <button class="lt-btn lt-btn-primary" style="padding:11px 36px;font-size:0.95rem;" onclick="calculate()">
+            Calculate →
           </button>
         </div>
 
-        <div class="data-table-shell">
-          <table class="data-table" id="std-table">
-            <thead>
-              <tr>
-                <th class="col-conc">Conc (µg/mL)</th>
-                <th class="col-od">OD Rep 1</th>
-                <th class="col-od">OD Rep 2 <span class="lt-opt">(opt)</span></th>
-                <th class="col-od">OD Rep 3 <span class="lt-opt">(opt)</span></th>
-                <th class="col-avg">Avg OD</th>
-                <th class="col-del"></th>
-              </tr>
-            </thead>
-            <tbody id="std-tbody"></tbody>
-          </table>
-          <div class="table-footer">
-            <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="addStdRow()">
-              + Add Standard
-            </button>
-            <span style="font-size:var(--fs-xs);color:var(--text-dim);">Enter OD at 562 nm · blanks excluded from average</span>
-          </div>
-        </div>
-      </div>
+      </div><!-- /#mode-manual -->
 
-      <div class="lt-divider"></div>
 
-      <!-- ── Section 2: Samples ── -->
-      <div class="section-block">
-        <div class="section-header">
-          <div class="lt-section-label" style="margin-bottom:0">Samples</div>
-          <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="openModal('smp')">
-            📋 Paste CSV
+      <!-- ══════════════════════════════════════════
+           MODE: PLATE (shared by raw + grid)
+           ══════════════════════════════════════════ -->
+      <div id="mode-plate" style="display:none">
+
+        <!-- Paste area -->
+        <div class="plate-paste-block">
+          <div class="lt-section-label" id="plate-paste-label">Paste Raw File Content</div>
+          <p class="page-sub" id="plate-paste-hint" style="margin-bottom:10px;"></p>
+          <textarea id="plate-textarea" spellcheck="false" placeholder="Paste here…"></textarea>
+          <div class="plate-parse-error" id="plate-error"></div>
+          <button class="lt-btn lt-btn-primary" style="padding:8px 24px;" onclick="parsePlate()">
+            Parse Plate →
           </button>
         </div>
 
-        <div class="data-table-shell">
-          <table class="data-table" id="smp-table">
-            <thead>
-              <tr>
-                <th class="col-name">Sample Name</th>
-                <th class="col-od">OD Rep 1</th>
-                <th class="col-od">OD Rep 2 <span class="lt-opt">(opt)</span></th>
-                <th class="col-od">OD Rep 3 <span class="lt-opt">(opt)</span></th>
-                <th class="col-df">Dilution ×</th>
-                <th class="col-del"></th>
-              </tr>
-            </thead>
-            <tbody id="smp-tbody"></tbody>
-          </table>
-          <div class="table-footer">
-            <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="addSmpRow()">
-              + Add Sample
-            </button>
-            <span style="font-size:var(--fs-xs);color:var(--text-dim);">Dilution factor applied to calculated concentration</span>
+        <!-- Plate grid (shown after parse) -->
+        <div id="plate-grid-section">
+
+          <div class="lt-divider"></div>
+          <div class="lt-section-label">96-Well Plate — OD Values</div>
+
+          <!-- Plate heatmap -->
+          <div class="plate-outer">
+            <div class="plate-grid-wrap" id="plate-grid"></div>
           </div>
-        </div>
-      </div>
 
-      <!-- ── Calculate ── -->
-      <div class="calc-bar">
-        <button class="lt-btn lt-btn-primary" style="padding:11px 36px;font-size:0.95rem;" onclick="calculate()">
-          Calculate →
-        </button>
-      </div>
+          <!-- Color scale legend -->
+          <div class="plate-legend">
+            <span>Low OD</span>
+            <div class="plate-legend-bar"></div>
+            <span>High OD</span>
+            <span style="margin-left:12px;">Click or drag to select wells</span>
+          </div>
 
-      <!-- ── Results ── -->
+          <div class="lt-divider"></div>
+
+          <!-- Assignment panel -->
+          <div class="lt-section-label">Assign Selected Wells</div>
+          <p id="assign-sel-count" class="assign-sel-count">No wells selected — click wells above to select</p>
+
+          <div class="assign-row">
+            <!-- Assign as Standard -->
+            <div class="assign-card">
+              <div class="assign-card-label" style="color:var(--green-dark);">◼ Standard</div>
+              <div class="assign-input-row">
+                <div style="flex:1;min-width:120px;">
+                  <label class="lt-label">Concentration (µg/mL)</label>
+                  <input class="lt-input" type="number" min="0" id="assign-std-conc" placeholder="e.g. 125">
+                </div>
+                <button class="lt-btn lt-btn-ghost" style="padding:6px 14px;border-color:var(--green-border);color:var(--green-dark);"
+                  onclick="assignWells('std')">Assign →</button>
+              </div>
+            </div>
+            <!-- Assign as Sample -->
+            <div class="assign-card">
+              <div class="assign-card-label" style="color:#9a4f00;">◆ Sample</div>
+              <div class="assign-input-row" style="flex-wrap:wrap;gap:6px;">
+                <div style="flex:2;min-width:100px;">
+                  <label class="lt-label">Sample Name</label>
+                  <input class="lt-input" type="text" id="assign-smp-name" placeholder="e.g. CS11">
+                </div>
+                <div style="flex:1;min-width:70px;">
+                  <label class="lt-label">Dilution ×</label>
+                  <input class="lt-input" type="number" min="1" id="assign-smp-df" placeholder="1" value="1">
+                </div>
+                <button class="lt-btn lt-btn-ghost" style="padding:6px 14px;border-color:#f4c08a;color:#9a4f00;align-self:flex-end;"
+                  onclick="assignWells('smp')">Assign →</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-bottom:20px;">
+            <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="clearSelection()">
+              Clear Selection
+            </button>
+            <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;color:var(--red);" onclick="unassignSelected()">
+              Unassign Selected
+            </button>
+            <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:0.78rem;" onclick="selectAll()">
+              Select All
+            </button>
+          </div>
+
+          <div class="lt-divider"></div>
+
+          <!-- Assignment summary -->
+          <div class="lt-section-label">Assignment Summary</div>
+          <div class="assign-summary" id="assign-summary">
+            <div class="assign-sum-card">
+              <div class="assign-sum-label">Standards</div>
+              <div class="assign-sum-value" id="sum-std-groups">0 groups</div>
+              <div class="assign-sum-note" id="sum-std-wells">0 wells</div>
+            </div>
+            <div class="assign-sum-card">
+              <div class="assign-sum-label">Samples</div>
+              <div class="assign-sum-value" id="sum-smp-groups">0 groups</div>
+              <div class="assign-sum-note" id="sum-smp-wells">0 wells</div>
+            </div>
+            <div class="assign-sum-card">
+              <div class="assign-sum-label">Unassigned</div>
+              <div class="assign-sum-value" id="sum-unassigned">96 wells</div>
+              <div class="assign-sum-note">Background / unused</div>
+            </div>
+          </div>
+
+          <div class="calc-bar">
+            <button class="lt-btn lt-btn-primary" style="padding:11px 36px;font-size:0.95rem;" onclick="buildFromPlate()">
+              Calculate →
+            </button>
+          </div>
+
+        </div><!-- /#plate-grid-section -->
+      </div><!-- /#mode-plate -->
+
+
+      <!-- ══════════════════════════════════════════
+           RESULTS (shared by all modes)
+           ══════════════════════════════════════════ -->
       <div id="results-section">
         <div class="lt-divider"></div>
         <div class="lt-section-label">Results</div>
 
-        <!-- Curve fit summary -->
         <div class="results-grid">
           <div class="result-card">
             <div class="result-card-label">Curve Fit</div>
@@ -478,7 +621,6 @@
           </div>
         </div>
 
-        <!-- Chart -->
         <div class="chart-wrap">
           <svg id="bca-chart" viewBox="0 0 560 300" xmlns="http://www.w3.org/2000/svg"></svg>
           <div class="chart-legend">
@@ -497,7 +639,6 @@
           </div>
         </div>
 
-        <!-- Sample results table -->
         <div class="lt-section-label">Sample Concentrations</div>
         <div class="results-table-shell">
           <table class="results-table">
@@ -527,7 +668,7 @@
     LabTools &middot; Open source lab utilities
   </footer>
 
-  <!-- ── CSV Paste Modal ── -->
+  <!-- ── CSV Paste Modal (manual mode) ── -->
   <div class="modal-overlay" id="csv-modal" onclick="closeModalOutside(event)">
     <div class="modal-box">
       <div class="modal-title" id="modal-title">Paste Standard Curve CSV</div>
@@ -543,24 +684,405 @@
 
 <script>
 /* ═══════════════════════════════════════════════════════════════
-   State
+   Constants
    ═══════════════════════════════════════════════════════════════ */
 
+const ROWS     = ['A','B','C','D','E','F','G','H'];
+const N_ROWS   = 8;
+const N_COLS   = 12;
 const DEFAULT_CONCS = [0, 25, 125, 250, 500, 1000, 2000];
+
+/* ═══════════════════════════════════════════════════════════════
+   Manual-mode state
+   ═══════════════════════════════════════════════════════════════ */
 
 let stdRows = DEFAULT_CONCS.map(c => ({ conc: String(c), od1: '', od2: '', od3: '' }));
 let smpRows = [{ name: 'Sample 1', od1: '', od2: '', od3: '', df: '1' }];
-
-let modalTarget = 'std'; // 'std' | 'smp'
-let lastResult  = null;  // holds computed result for export
+let modalTarget = 'std';
+let lastResult  = null;
 
 /* ═══════════════════════════════════════════════════════════════
-   Table rendering
+   Plate-mode state
+   ═══════════════════════════════════════════════════════════════ */
+
+let plateMatrix   = null;            // 8×12 Float64 array of OD values
+let wellAssigns   = {};              // "A1" → {type:'std',conc:125} | {type:'smp',name:'X',df:1}
+let selWells      = new Set();       // currently selected well keys
+let isDragging    = false;
+let dragAnchor    = null;            // anchor well for rectangular drag
+let currentMode   = 'manual';
+
+/* ═══════════════════════════════════════════════════════════════
+   Mode switching
+   ═══════════════════════════════════════════════════════════════ */
+
+const RAW_HINT  = `Paste the full content of the <code>.txt</code> file exported from your plate reader (SoftMax Pro / SpectraMax). The tool will extract the 8×12 OD grid automatically.`;
+const GRID_HINT = `Paste the 8 rows × 12 columns of OD values (tab-separated). Select and copy the value block from Excel, Google Sheets, or your reader's plate view — no headers needed.`;
+
+function switchMode(m) {
+  currentMode = m;
+  ['manual','raw','grid'].forEach(id => {
+    document.getElementById(`tab-${id}`).classList.toggle('active', id === m);
+  });
+  document.getElementById('mode-manual').style.display = m === 'manual' ? '' : 'none';
+  document.getElementById('mode-plate').style.display  = m !== 'manual' ? '' : 'none';
+  if (m !== 'manual') {
+    document.getElementById('plate-paste-label').textContent =
+      m === 'raw' ? 'Paste Raw File Content' : 'Paste OD Grid';
+    document.getElementById('plate-paste-hint').innerHTML =
+      m === 'raw' ? RAW_HINT : GRID_HINT;
+    document.getElementById('plate-textarea').placeholder =
+      m === 'raw' ? '##BLOCKS= 1\nPlate:\t…' : '0.370\t0.408\t0.352\t…';
+  }
+  // Hide results when switching modes
+  document.getElementById('results-section').classList.remove('visible');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Plate parsers
+   ═══════════════════════════════════════════════════════════════ */
+
+function parsePlateRaw(text) {
+  // Find the Temperature header line, then read 8 data rows after it
+  const lines = text.split('\n').map(l => l.replace(/\r$/, ''));
+  const hdrIdx = lines.findIndex(l => l.includes('Temperature'));
+  if (hdrIdx < 0) throw new Error('Could not find "Temperature" header line. Is this a SoftMax Pro export?');
+
+  const dataLines = lines.slice(hdrIdx + 1).filter(l => l.trim() !== '' && !l.startsWith('~'));
+  if (dataLines.length < N_ROWS) throw new Error(`Expected ${N_ROWS} data rows after header, found ${dataLines.length}.`);
+
+  return dataLines.slice(0, N_ROWS).map((line, ri) => {
+    const cols = line.split('\t');
+    // Row A: [empty, temperature, od1..od12, ...]
+    // Row B-H: [empty, empty, od1..od12, ...]
+    // OD values start at index 2
+    const odCols = cols.slice(2, 2 + N_COLS);
+    if (odCols.length < N_COLS) throw new Error(`Row ${ROWS[ri]}: expected 12 OD columns, found ${odCols.length}.`);
+    return odCols.map((v, ci) => {
+      const n = parseFloat(v.trim());
+      if (isNaN(n)) throw new Error(`Row ${ROWS[ri]}, col ${ci+1}: "${v}" is not a number.`);
+      return n;
+    });
+  });
+}
+
+function parsePlateGrid(text) {
+  const lines = text.split('\n')
+    .map(l => l.trim()).filter(l => l.length > 0);
+
+  // Skip header lines (non-numeric first token)
+  const dataLines = lines.filter(l => {
+    const first = l.split(/[\t,]/)[0].trim();
+    return !isNaN(parseFloat(first)) || first === '';
+  }).filter(l => {
+    // Must have at least 12 numeric values
+    const vals = l.split(/[\t,]/).map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+    return vals.length >= N_COLS;
+  });
+
+  if (dataLines.length < 1) throw new Error('No rows with 12+ numeric values found.');
+  if (dataLines.length < N_ROWS) throw new Error(`Found ${dataLines.length} data row(s) — need at least ${N_ROWS} for a full plate. If pasting a partial plate, use Manual Entry instead.`);
+
+  return dataLines.slice(0, N_ROWS).map((line, ri) => {
+    const vals = line.split(/[\t,]/).map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+    return vals.slice(0, N_COLS);
+  });
+}
+
+function parsePlate() {
+  const text   = document.getElementById('plate-textarea').value.trim();
+  const errEl  = document.getElementById('plate-error');
+  errEl.style.display = 'none';
+
+  if (!text) { errEl.textContent = 'Paste area is empty.'; errEl.style.display = 'block'; return; }
+
+  try {
+    plateMatrix = currentMode === 'raw' ? parsePlateRaw(text) : parsePlateGrid(text);
+    wellAssigns = {};
+    selWells    = new Set();
+    renderPlate();
+    updateAssignSummary();
+    document.getElementById('plate-grid-section').style.display = 'block';
+    document.getElementById('plate-grid-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch(e) {
+    errEl.textContent = 'Parse error: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Plate rendering
+   ═══════════════════════════════════════════════════════════════ */
+
+function odColor(od, minOD, maxOD) {
+  const t = (maxOD > minOD) ? Math.max(0, Math.min(1, (od - minOD) / (maxOD - minOD))) : 0;
+  // white (#f7f7f5) → blue (#3366cc)
+  const r = Math.round(247 - t * (247 - 51));
+  const g = Math.round(247 - t * (247 - 102));
+  const b = Math.round(245 - t * (245 - 204));
+  return `rgb(${r},${g},${b})`;
+}
+
+function renderPlate() {
+  const allVals = plateMatrix.flat();
+  const minOD   = Math.min(...allVals);
+  const maxOD   = Math.max(...allVals);
+  const grid    = document.getElementById('plate-grid');
+
+  let html = '';
+
+  // Corner
+  html += `<div></div>`;
+  // Column headers
+  for (let c = 1; c <= N_COLS; c++) {
+    html += `<div class="plate-col-label">${c}</div>`;
+  }
+
+  // Data rows
+  for (let r = 0; r < N_ROWS; r++) {
+    html += `<div class="plate-row-label">${ROWS[r]}</div>`;
+    for (let c = 0; c < N_COLS; c++) {
+      const key = ROWS[r] + (c + 1);
+      const od  = plateMatrix[r][c];
+      const bg  = odColor(od, minOD, maxOD);
+      html += `<div class="plate-well"
+        id="well-${key}"
+        data-key="${key}"
+        data-r="${r}"
+        data-c="${c}"
+        style="background:${bg};"
+        onmousedown="wellDown(event,this)"
+        onmouseenter="wellEnter(this)"
+        title="${key}: ${od.toFixed(4)}"
+      >
+        <span class="well-od">${od.toFixed(3)}</span>
+        <span class="well-label" id="wl-${key}"></span>
+      </div>`;
+    }
+  }
+
+  grid.innerHTML = html;
+  refreshWellClasses();
+
+  // Global mouseup to end drag
+  document.removeEventListener('mouseup', endDrag);
+  document.addEventListener('mouseup', endDrag);
+}
+
+function refreshWellClasses() {
+  if (!plateMatrix) return;
+  document.querySelectorAll('.plate-well').forEach(el => {
+    const key = el.dataset.key;
+    el.classList.remove('selected','assigned-std','assigned-smp');
+    const labelEl = document.getElementById('wl-' + key);
+    if (selWells.has(key)) {
+      el.classList.add('selected');
+    }
+    if (wellAssigns[key]) {
+      const a = wellAssigns[key];
+      if (a.type === 'std') {
+        el.classList.add('assigned-std');
+        if (labelEl) labelEl.textContent = a.conc;
+      } else {
+        el.classList.add('assigned-smp');
+        if (labelEl) labelEl.textContent = a.name.slice(0, 4);
+      }
+    } else {
+      if (labelEl) labelEl.textContent = '';
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Well selection (click + drag)
+   ═══════════════════════════════════════════════════════════════ */
+
+function wellDown(e, el) {
+  e.preventDefault();
+  isDragging  = true;
+  dragAnchor  = el;
+  if (!e.shiftKey && !e.ctrlKey && !e.metaKey) selWells.clear();
+  selWells.add(el.dataset.key);
+  refreshWellClasses();
+  updateSelCount();
+}
+
+function wellEnter(el) {
+  if (!isDragging || !dragAnchor) return;
+  // Rectangular selection from anchor to current
+  const r1 = parseInt(dragAnchor.dataset.r), c1 = parseInt(dragAnchor.dataset.c);
+  const r2 = parseInt(el.dataset.r),         c2 = parseInt(el.dataset.c);
+  const minR = Math.min(r1,r2), maxR = Math.max(r1,r2);
+  const minC = Math.min(c1,c2), maxC = Math.max(c1,c2);
+  selWells.clear();
+  for (let r = minR; r <= maxR; r++)
+    for (let c = minC; c <= maxC; c++)
+      selWells.add(ROWS[r] + (c + 1));
+  refreshWellClasses();
+  updateSelCount();
+}
+
+function endDrag() { isDragging = false; }
+
+function clearSelection() {
+  selWells.clear();
+  refreshWellClasses();
+  updateSelCount();
+}
+
+function selectAll() {
+  for (let r = 0; r < N_ROWS; r++)
+    for (let c = 0; c < N_COLS; c++)
+      selWells.add(ROWS[r] + (c + 1));
+  refreshWellClasses();
+  updateSelCount();
+}
+
+function updateSelCount() {
+  const n = selWells.size;
+  const keys = [...selWells].sort();
+  const label = n === 0 ? 'No wells selected — click wells above to select'
+    : `${n} well${n>1?'s':''} selected: ${keys.slice(0,8).join(', ')}${n>8?' …':''}`;
+  document.getElementById('assign-sel-count').textContent = label;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Well assignment
+   ═══════════════════════════════════════════════════════════════ */
+
+function assignWells(type) {
+  if (selWells.size === 0) { alert('Select wells first.'); return; }
+
+  if (type === 'std') {
+    const conc = parseFloat(document.getElementById('assign-std-conc').value);
+    if (isNaN(conc)) { alert('Enter a concentration value.'); return; }
+    selWells.forEach(key => { wellAssigns[key] = { type: 'std', conc }; });
+  } else {
+    const name = document.getElementById('assign-smp-name').value.trim();
+    const df   = parseFloat(document.getElementById('assign-smp-df').value) || 1;
+    if (!name) { alert('Enter a sample name.'); return; }
+    selWells.forEach(key => { wellAssigns[key] = { type: 'smp', name, df }; });
+  }
+
+  selWells.clear();
+  refreshWellClasses();
+  updateSelCount();
+  updateAssignSummary();
+}
+
+function unassignSelected() {
+  selWells.forEach(key => delete wellAssigns[key]);
+  selWells.clear();
+  refreshWellClasses();
+  updateSelCount();
+  updateAssignSummary();
+}
+
+function updateAssignSummary() {
+  const stdGroups = new Map(); // conc → [od, ...]
+  const smpGroups = new Map(); // name → [{od, df}, ...]
+  let unassigned = 0;
+
+  for (let r = 0; r < N_ROWS; r++) {
+    for (let c = 0; c < N_COLS; c++) {
+      const key = ROWS[r] + (c + 1);
+      const a   = wellAssigns[key];
+      if (!a) { unassigned++; continue; }
+      const od = plateMatrix ? plateMatrix[r][c] : 0;
+      if (a.type === 'std') {
+        if (!stdGroups.has(a.conc)) stdGroups.set(a.conc, []);
+        stdGroups.get(a.conc).push(od);
+      } else {
+        const k = a.name + '||' + a.df;
+        if (!smpGroups.has(k)) smpGroups.set(k, { name: a.name, df: a.df, ods: [] });
+        smpGroups.get(k).ods.push(od);
+      }
+    }
+  }
+
+  const stdWells = [...stdGroups.values()].reduce((s, arr) => s + arr.length, 0);
+  const smpWells = [...smpGroups.values()].reduce((s, g)  => s + g.ods.length, 0);
+
+  document.getElementById('sum-std-groups').textContent = `${stdGroups.size} group${stdGroups.size!==1?'s':''}`;
+  document.getElementById('sum-std-wells').textContent  = `${stdWells} well${stdWells!==1?'s':''}`;
+  document.getElementById('sum-smp-groups').textContent = `${smpGroups.size} group${smpGroups.size!==1?'s':''}`;
+  document.getElementById('sum-smp-wells').textContent  = `${smpWells} well${smpWells!==1?'s':''}`;
+  document.getElementById('sum-unassigned').textContent = `${unassigned} well${unassigned!==1?'s':''}`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Build stdRows/smpRows from plate assignments → calculate
+   ═══════════════════════════════════════════════════════════════ */
+
+function buildFromPlate() {
+  // Group by concentration for standards
+  const stdMap = new Map(); // conc → [od, ...]
+  const smpMap = new Map(); // "name||df" → {name, df, ods:[]}
+
+  for (let r = 0; r < N_ROWS; r++) {
+    for (let c = 0; c < N_COLS; c++) {
+      const key = ROWS[r] + (c + 1);
+      const a   = wellAssigns[key];
+      if (!a) continue;
+      const od  = plateMatrix[r][c];
+      if (a.type === 'std') {
+        if (!stdMap.has(a.conc)) stdMap.set(a.conc, []);
+        stdMap.get(a.conc).push(od);
+      } else {
+        const k = a.name + '||' + a.df;
+        if (!smpMap.has(k)) smpMap.set(k, { name: a.name, df: a.df, ods: [] });
+        smpMap.get(k).ods.push(od);
+      }
+    }
+  }
+
+  if (stdMap.size < 2) {
+    alert('Need at least 2 standard groups. Assign wells as Standards first.');
+    return;
+  }
+  if (smpMap.size === 0) {
+    alert('No sample wells assigned. Assign at least one well as a Sample.');
+    return;
+  }
+
+  // Build stdRows — sort by concentration ascending
+  stdRows = [...stdMap.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([conc, ods]) => {
+      // Put up to 3 replicates in od1/od2/od3; average the rest into od1 if >3
+      const avgAll = ods.reduce((s, v) => s + v, 0) / ods.length;
+      return {
+        conc: String(conc),
+        od1: ods.length <= 3 ? String(ods[0] || '') : String(avgAll),
+        od2: ods.length >= 2 ? String(ods[1]) : '',
+        od3: ods.length >= 3 ? String(ods[2]) : '',
+      };
+    });
+
+  // Build smpRows
+  smpRows = [...smpMap.values()].map(g => {
+    const avgAll = g.ods.reduce((s, v) => s + v, 0) / g.ods.length;
+    return {
+      name: g.name,
+      od1: g.ods.length <= 3 ? String(g.ods[0] || '') : String(avgAll),
+      od2: g.ods.length >= 2 ? String(g.ods[1]) : '',
+      od3: g.ods.length >= 3 ? String(g.ods[2]) : '',
+      df: String(g.df),
+    };
+  });
+
+  // Sync manual tables and run
+  renderStd();
+  renderSmp();
+  calculate();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Manual table rendering
    ═══════════════════════════════════════════════════════════════ */
 
 function renderStd() {
-  const tbody = document.getElementById('std-tbody');
-  tbody.innerHTML = stdRows.map((r, i) => `
+  document.getElementById('std-tbody').innerHTML = stdRows.map((r, i) => `
     <tr>
       <td class="col-conc">
         <input class="lt-input" type="number" min="0" placeholder="0"
@@ -588,8 +1110,7 @@ function renderStd() {
 }
 
 function renderSmp() {
-  const tbody = document.getElementById('smp-tbody');
-  tbody.innerHTML = smpRows.map((r, i) => `
+  document.getElementById('smp-tbody').innerHTML = smpRows.map((r, i) => `
     <tr>
       <td class="col-name">
         <input class="lt-input" type="text" placeholder="Sample name"
@@ -618,39 +1139,18 @@ function renderSmp() {
 }
 
 function updateAvg(type, i) {
-  const r = type === 'std' ? stdRows[i] : smpRows[i];
+  const r  = type === 'std' ? stdRows[i] : smpRows[i];
   const el = document.getElementById(`${type}-avg-${i}`);
   if (!el) return;
-  el.textContent = fmtAvg(avgOD(r));
-  el.className = 'avg-display' + (isNaN(avgOD(r)) ? ' avg-empty' : '');
+  const v = avgOD(r);
+  el.textContent = fmtAvg(v);
+  el.className   = 'avg-display' + (isNaN(v) ? ' avg-empty' : '');
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Row management
-   ═══════════════════════════════════════════════════════════════ */
-
-function addStdRow() {
-  stdRows.push({ conc: '', od1: '', od2: '', od3: '' });
-  renderStd();
-}
-
-function delStdRow(i) {
-  if (stdRows.length <= 2) return; // keep at least 2 points
-  stdRows.splice(i, 1);
-  renderStd();
-}
-
-function addSmpRow() {
-  const n = smpRows.length + 1;
-  smpRows.push({ name: `Sample ${n}`, od1: '', od2: '', od3: '', df: '1' });
-  renderSmp();
-}
-
-function delSmpRow(i) {
-  smpRows.splice(i, 1);
-  if (smpRows.length === 0) addSmpRow();
-  else renderSmp();
-}
+function addStdRow() { stdRows.push({ conc:'', od1:'', od2:'', od3:'' }); renderStd(); }
+function delStdRow(i) { if (stdRows.length > 2) { stdRows.splice(i,1); renderStd(); } }
+function addSmpRow() { smpRows.push({ name:`Sample ${smpRows.length+1}`, od1:'', od2:'', od3:'', df:'1' }); renderSmp(); }
+function delSmpRow(i) { smpRows.splice(i,1); if (!smpRows.length) addSmpRow(); else renderSmp(); }
 
 /* ═══════════════════════════════════════════════════════════════
    Math
@@ -658,25 +1158,24 @@ function delSmpRow(i) {
 
 function avgOD(row) {
   const vals = [row.od1, row.od2, row.od3]
-    .map(v => parseFloat(v))
-    .filter(v => !isNaN(v) && v >= 0);
-  return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : NaN;
+    .map(v => parseFloat(v)).filter(v => !isNaN(v) && v >= 0);
+  return vals.length ? vals.reduce((a,b)=>a+b,0) / vals.length : NaN;
 }
 
 function linearRegression(points) {
-  const n = points.length;
-  const sx  = points.reduce((s, p) => s + p.x, 0);
-  const sy  = points.reduce((s, p) => s + p.y, 0);
-  const sxy = points.reduce((s, p) => s + p.x * p.y, 0);
-  const sx2 = points.reduce((s, p) => s + p.x * p.x, 0);
-  const denom = n * sx2 - sx * sx;
-  if (denom === 0) return null;
-  const slope     = (n * sxy - sx * sy) / denom;
-  const intercept = (sy - slope * sx) / n;
-  const yMean  = sy / n;
-  const ssTot  = points.reduce((s, p) => s + (p.y - yMean) ** 2, 0);
-  const ssRes  = points.reduce((s, p) => s + (p.y - (slope * p.x + intercept)) ** 2, 0);
-  const r2     = ssTot === 0 ? 1 : 1 - ssRes / ssTot;
+  const n   = points.length;
+  const sx  = points.reduce((s,p) => s+p.x, 0);
+  const sy  = points.reduce((s,p) => s+p.y, 0);
+  const sxy = points.reduce((s,p) => s+p.x*p.y, 0);
+  const sx2 = points.reduce((s,p) => s+p.x*p.x, 0);
+  const den = n*sx2 - sx*sx;
+  if (den === 0) return null;
+  const slope     = (n*sxy - sx*sy) / den;
+  const intercept = (sy - slope*sx) / n;
+  const yMean  = sy/n;
+  const ssTot  = points.reduce((s,p) => s+(p.y-yMean)**2, 0);
+  const ssRes  = points.reduce((s,p) => s+(p.y-(slope*p.x+intercept))**2, 0);
+  const r2     = ssTot===0 ? 1 : 1-ssRes/ssTot;
   return { slope, intercept, r2 };
 }
 
@@ -685,7 +1184,6 @@ function linearRegression(points) {
    ═══════════════════════════════════════════════════════════════ */
 
 function calculate() {
-  // Build regression points from standards
   const regPoints = stdRows
     .map(r => ({ x: parseFloat(r.conc), y: avgOD(r) }))
     .filter(p => !isNaN(p.x) && !isNaN(p.y));
@@ -696,46 +1194,40 @@ function calculate() {
   }
 
   const fit = linearRegression(regPoints);
-  if (!fit) {
-    alert('Cannot fit standard curve — check that concentrations are not all identical.');
-    return;
-  }
+  if (!fit) { alert('Cannot fit curve — concentrations may all be identical.'); return; }
 
   const { slope, intercept, r2 } = fit;
-  const minStdOD = Math.min(...regPoints.map(p => p.y));
-  const maxStdOD = Math.max(...regPoints.map(p => p.y));
+  const minStdOD = Math.min(...regPoints.map(p=>p.y));
+  const maxStdOD = Math.max(...regPoints.map(p=>p.y));
 
-  // Sample results
   const sampleResults = smpRows.map(r => {
-    const od   = avgOD(r);
-    const df   = parseFloat(r.df) || 1;
-    if (isNaN(od)) return { name: r.name, od, df, conc: NaN, flag: '' };
-    const rawConc  = (od - intercept) / slope;
-    const actConc  = rawConc * df;
-    let flag = '';
-    if (actConc < 0 || rawConc < 0)      flag = 'below-det';
-    else if (od < minStdOD || od > maxStdOD) flag = 'extrap';
+    const od  = avgOD(r);
+    const df  = parseFloat(r.df) || 1;
+    if (isNaN(od)) return { name: r.name, od, df, conc: NaN, flag:'' };
+    const rawConc = (od - intercept) / slope;
+    const actConc = rawConc * df;
+    const flag = (actConc<0||rawConc<0) ? 'below-det'
+               : (od<minStdOD||od>maxStdOD) ? 'extrap' : '';
     return { name: r.name, od, df, conc: actConc, flag };
   });
 
   lastResult = { fit, regPoints, sampleResults };
 
-  // Show results
   showFitStats(slope, intercept, r2, regPoints.length);
   drawChart(regPoints, slope, intercept, sampleResults);
-  showSampleResults(sampleResults, slope, intercept);
+  showSampleResults(sampleResults);
 
-  const resultsEl = document.getElementById('results-section');
-  resultsEl.classList.add('visible');
-  resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const el = document.getElementById('results-section');
+  el.classList.add('visible');
+  el.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Result display helpers
+   Result display
    ═══════════════════════════════════════════════════════════════ */
 
 function showFitStats(slope, intercept, r2, n) {
-  const sign = intercept >= 0 ? '+' : '−';
+  const sign   = intercept >= 0 ? '+' : '−';
   const absInt = Math.abs(intercept);
   document.getElementById('res-equation').textContent =
     `OD = ${slope.toExponential(3)}·C ${sign} ${absInt.toFixed(4)}`;
@@ -745,40 +1237,34 @@ function showFitStats(slope, intercept, r2, n) {
   badge.textContent = `R² = ${r2.toFixed(4)}`;
   if (r2 >= 0.99) {
     badge.className = 'lt-badge lt-badge-green';
-    note.textContent = 'Curve quality: Good';
-    note.style.color = 'var(--green-dark)';
+    note.textContent = 'Curve quality: Good'; note.style.color='var(--green-dark)';
   } else if (r2 >= 0.95) {
     badge.className = 'lt-badge lt-badge-yellow';
-    note.textContent = 'Curve quality: Acceptable (R² < 0.99 — review standards)';
-    note.style.color = 'var(--yellow-dark)';
+    note.textContent = 'Acceptable (R² < 0.99 — review standards)'; note.style.color='var(--yellow-dark)';
   } else {
     badge.className = 'lt-badge lt-badge-red';
-    note.textContent = 'Poor fit (R² < 0.95) — results may be unreliable';
-    note.style.color = 'var(--red)';
+    note.textContent = 'Poor fit (R² < 0.95) — results may be unreliable'; note.style.color='var(--red)';
   }
-
   document.getElementById('res-slope').textContent     = slope.toExponential(4);
   document.getElementById('res-intercept').textContent = intercept.toFixed(4);
   document.getElementById('res-r2-val').textContent    = r2.toFixed(4);
   document.getElementById('res-npts').textContent      = n;
 }
 
-function showSampleResults(results, slope, intercept) {
+function showSampleResults(results) {
   const tbody = document.getElementById('results-tbody');
-  if (results.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:16px;">No samples entered</td></tr>';
+  if (!results.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:16px;">No samples</td></tr>';
     return;
   }
   tbody.innerHTML = results.map(r => {
-    const odStr   = isNaN(r.od) ? '—' : r.od.toFixed(4);
+    const odStr   = isNaN(r.od)   ? '—' : r.od.toFixed(4);
     const concStr = isNaN(r.conc) ? '—' : r.conc.toFixed(2);
-    const flagHtml = r.flag === 'extrap'
-      ? '<span class="flag-extrap">Extrapolated</span>'
-      : r.flag === 'below-det'
-      ? '<span class="flag-low">Below detection</span>'
-      : '—';
+    const flagHtml = r.flag==='extrap'    ? '<span class="flag-extrap">Extrapolated</span>'
+                   : r.flag==='below-det' ? '<span class="flag-low">Below detection</span>'
+                   : '—';
     return `<tr>
-      <td>${escHtml(r.name || '—')}</td>
+      <td>${escHtml(r.name||'—')}</td>
       <td>${odStr}</td>
       <td>${r.df}×</td>
       <td class="conc-value">${concStr}</td>
@@ -792,223 +1278,106 @@ function showSampleResults(results, slope, intercept) {
    ═══════════════════════════════════════════════════════════════ */
 
 function drawChart(stdPts, slope, intercept, samples) {
-  const W = 560, H = 300;
-  const ML = 62, MR = 20, MT = 18, MB = 48;
-  const PW = W - ML - MR;
-  const PH = H - MT - MB;
-
-  // Axis range
-  const allX = stdPts.map(p => p.x);
-  const allY = stdPts.map(p => p.y);
-  const maxX = Math.max(...allX) * 1.08 || 2200;
-  const maxY = Math.max(...allY) * 1.12 || 4;
-
-  const xS = v => ML + (v / maxX) * PW;
-  const yS = v => MT + PH - (v / maxY) * PH;
-
-  // Nice ticks
-  const xTicks = niceTicks(0, maxX, 5);
-  const yTicks = niceTicks(0, maxY, 5);
-
-  let svg = '';
-
-  // Background
-  svg += `<rect x="${ML}" y="${MT}" width="${PW}" height="${PH}" fill="var(--surface-subtle)" rx="4"/>`;
-
-  // Grid lines
-  yTicks.forEach(t => {
-    const y = yS(t);
-    svg += `<line x1="${ML}" y1="${y}" x2="${ML+PW}" y2="${y}" stroke="var(--border-subtle)" stroke-width="1"/>`;
-  });
-  xTicks.forEach(t => {
-    const x = xS(t);
-    svg += `<line x1="${x}" y1="${MT}" x2="${x}" y2="${MT+PH}" stroke="var(--border-subtle)" stroke-width="1"/>`;
-  });
-
-  // Regression line
-  const x0 = 0, x1 = maxX;
-  const y0 = slope * x0 + intercept;
-  const y1 = slope * x1 + intercept;
-  svg += `<line x1="${xS(x0)}" y1="${yS(y0)}" x2="${xS(x1)}" y2="${yS(y1)}"
-    stroke="#5c8dff" stroke-width="1.8" stroke-opacity="0.55" stroke-dasharray="4 3"/>`;
-
-  // Standard points
-  stdPts.forEach(p => {
-    svg += `<circle cx="${xS(p.x)}" cy="${yS(p.y)}" r="5"
-      fill="#5c8dff" stroke="#fff" stroke-width="1.5" opacity="0.9"/>`;
-  });
-
-  // Sample points (orange diamonds) — plot at calculated conc on X, avgOD on Y
+  const W=560,H=300,ML=62,MR=20,MT=18,MB=48;
+  const PW=W-ML-MR, PH=H-MT-MB;
+  const maxX = Math.max(...stdPts.map(p=>p.x))*1.08||2200;
+  const maxY = Math.max(...stdPts.map(p=>p.y))*1.12||4;
+  const xS = v => ML+(v/maxX)*PW;
+  const yS = v => MT+PH-(v/maxY)*PH;
+  const xTicks = niceTicks(0,maxX,5);
+  const yTicks = niceTicks(0,maxY,5);
+  let svg='';
+  svg+=`<rect x="${ML}" y="${MT}" width="${PW}" height="${PH}" fill="var(--surface-subtle)" rx="4"/>`;
+  yTicks.forEach(t => { svg+=`<line x1="${ML}" y1="${yS(t)}" x2="${ML+PW}" y2="${yS(t)}" stroke="var(--border-subtle)" stroke-width="1"/>`; });
+  xTicks.forEach(t => { svg+=`<line x1="${xS(t)}" y1="${MT}" x2="${xS(t)}" y2="${MT+PH}" stroke="var(--border-subtle)" stroke-width="1"/>`; });
+  svg+=`<line x1="${xS(0)}" y1="${yS(slope*0+intercept)}" x2="${xS(maxX)}" y2="${yS(slope*maxX+intercept)}" stroke="#5c8dff" stroke-width="1.8" stroke-opacity="0.55" stroke-dasharray="4 3"/>`;
+  stdPts.forEach(p => { svg+=`<circle cx="${xS(p.x)}" cy="${yS(p.y)}" r="5" fill="#5c8dff" stroke="#fff" stroke-width="1.5" opacity="0.9"/>`; });
   samples.forEach(s => {
     if (isNaN(s.od)) return;
-    const rawConc = (s.od - intercept) / slope;
-    const cx = xS(Math.max(0, Math.min(rawConc, maxX)));
-    const cy = yS(Math.max(0, Math.min(s.od, maxY)));
-    const sz = 5;
-    const pts = `${cx},${cy - sz} ${cx + sz},${cy} ${cx},${cy + sz} ${cx - sz},${cy}`;
-    svg += `<polygon points="${pts}" fill="#e07832" stroke="#fff" stroke-width="1.5" opacity="0.9"/>`;
+    const rc=(s.od-intercept)/slope;
+    const cx=xS(Math.max(0,Math.min(rc,maxX))), cy=yS(Math.max(0,Math.min(s.od,maxY))), sz=5;
+    svg+=`<polygon points="${cx},${cy-sz} ${cx+sz},${cy} ${cx},${cy+sz} ${cx-sz},${cy}" fill="#e07832" stroke="#fff" stroke-width="1.5" opacity="0.9"/>`;
   });
-
-  // Axes
-  svg += `<line x1="${ML}" y1="${MT}" x2="${ML}" y2="${MT+PH}" stroke="var(--border)" stroke-width="1.5"/>`;
-  svg += `<line x1="${ML}" y1="${MT+PH}" x2="${ML+PW}" y2="${MT+PH}" stroke="var(--border)" stroke-width="1.5"/>`;
-
-  // X tick labels
-  xTicks.forEach(t => {
-    const x = xS(t);
-    svg += `<text x="${x}" y="${MT+PH+16}" text-anchor="middle"
-      font-size="10" fill="var(--text-muted)" font-family="var(--font)">${fmtTick(t)}</text>`;
-  });
-
-  // Y tick labels
-  yTicks.forEach(t => {
-    const y = yS(t);
-    svg += `<text x="${ML-8}" y="${y+3.5}" text-anchor="end"
-      font-size="10" fill="var(--text-muted)" font-family="var(--font)">${t.toFixed(2)}</text>`;
-  });
-
-  // Axis labels
-  svg += `<text x="${ML + PW/2}" y="${H - 6}" text-anchor="middle"
-    font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600">
-    Concentration (µg/mL)</text>`;
-  svg += `<text x="${12}" y="${MT + PH/2}" text-anchor="middle"
-    font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600"
-    transform="rotate(-90,12,${MT + PH/2})">Absorbance (OD)</text>`;
-
+  svg+=`<line x1="${ML}" y1="${MT}" x2="${ML}" y2="${MT+PH}" stroke="var(--border)" stroke-width="1.5"/>`;
+  svg+=`<line x1="${ML}" y1="${MT+PH}" x2="${ML+PW}" y2="${MT+PH}" stroke="var(--border)" stroke-width="1.5"/>`;
+  xTicks.forEach(t => { svg+=`<text x="${xS(t)}" y="${MT+PH+16}" text-anchor="middle" font-size="10" fill="var(--text-muted)" font-family="var(--font)">${fmtTick(t)}</text>`; });
+  yTicks.forEach(t => { svg+=`<text x="${ML-8}" y="${yS(t)+3.5}" text-anchor="end" font-size="10" fill="var(--text-muted)" font-family="var(--font)">${t.toFixed(2)}</text>`; });
+  svg+=`<text x="${ML+PW/2}" y="${H-6}" text-anchor="middle" font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600">Concentration (µg/mL)</text>`;
+  svg+=`<text x="12" y="${MT+PH/2}" text-anchor="middle" font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600" transform="rotate(-90,12,${MT+PH/2})">Absorbance (OD)</text>`;
   document.getElementById('bca-chart').innerHTML = svg;
 }
 
-function niceTicks(min, max, n) {
-  const range = max - min;
-  const step  = niceNum(range / (n - 1), true);
-  const lo    = Math.floor(min / step) * step;
-  const hi    = Math.ceil(max / step)  * step;
-  const ticks = [];
-  for (let t = lo; t <= hi + step * 0.5; t += step) {
-    if (t >= min - 1e-9 && t <= max + 1e-9) ticks.push(parseFloat(t.toPrecision(10)));
-  }
-  return ticks;
+function niceTicks(min,max,n){
+  const step=niceNum((max-min)/(n-1),true);
+  const lo=Math.floor(min/step)*step, hi=Math.ceil(max/step)*step;
+  const t=[];
+  for(let v=lo;v<=hi+step*0.5;v+=step)
+    if(v>=min-1e-9&&v<=max+1e-9) t.push(parseFloat(v.toPrecision(10)));
+  return t;
 }
-
-function niceNum(x, round) {
-  const exp  = Math.floor(Math.log10(x));
-  const f    = x / Math.pow(10, exp);
-  let nf;
-  if (round) { nf = f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10; }
-  else        { nf = f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10; }
-  return nf * Math.pow(10, exp);
+function niceNum(x,round){
+  const e=Math.floor(Math.log10(x)), f=x/Math.pow(10,e);
+  const nf=round?(f<1.5?1:f<3?2:f<7?5:10):(f<=1?1:f<=2?2:f<=5?5:10);
+  return nf*Math.pow(10,e);
 }
-
-function fmtTick(v) {
-  if (v === 0) return '0';
-  if (v >= 1000) return (v / 1000) + 'k';
-  return v % 1 === 0 ? String(v) : v.toFixed(1);
-}
+function fmtTick(v){ return v===0?'0':v>=1000?(v/1000)+'k':v%1===0?String(v):v.toFixed(1); }
 
 /* ═══════════════════════════════════════════════════════════════
-   CSV Paste Modal
+   CSV Paste Modal (manual mode)
    ═══════════════════════════════════════════════════════════════ */
 
-const STD_HINT = `One row per standard. Columns: <code>Conc, OD1[, OD2, OD3]</code><br>
-  Tab or comma separated. No header required.<br>
-  Example: <code>125, 0.381, 0.376, 0.382</code>`;
-
-const SMP_HINT = `One row per sample. Columns: <code>Name, OD1[, OD2, OD3[, DilutionFactor]]</code><br>
-  Tab or comma separated. No header required.<br>
-  Example: <code>Sample_A, 0.650, 0.648, 1</code>`;
+const STD_HINT = `One row per standard. Columns: <code>Conc, OD1[, OD2, OD3]</code><br>Tab or comma separated. Example: <code>125, 0.381, 0.376, 0.382</code>`;
+const SMP_HINT = `One row per sample. Columns: <code>Name, OD1[, OD2, OD3[, DilutionFactor]]</code><br>Tab or comma separated. Example: <code>Sample_A, 0.650, 0.648, 1</code>`;
 
 function openModal(target) {
   modalTarget = target;
-  document.getElementById('modal-title').textContent =
-    target === 'std' ? 'Paste Standard Curve Data' : 'Paste Sample Data';
-  document.getElementById('modal-hint').innerHTML =
-    target === 'std' ? STD_HINT : SMP_HINT;
-  document.getElementById('modal-textarea').value = '';
+  document.getElementById('modal-title').textContent = target==='std' ? 'Paste Standard Curve Data' : 'Paste Sample Data';
+  document.getElementById('modal-hint').innerHTML    = target==='std' ? STD_HINT : SMP_HINT;
+  document.getElementById('modal-textarea').value   = '';
   document.getElementById('modal-error').style.display = 'none';
   document.getElementById('csv-modal').classList.add('open');
-  setTimeout(() => document.getElementById('modal-textarea').focus(), 50);
+  setTimeout(()=>document.getElementById('modal-textarea').focus(),50);
 }
-
-function closeModal() {
-  document.getElementById('csv-modal').classList.remove('open');
-}
-
-function closeModalOutside(e) {
-  if (e.target === document.getElementById('csv-modal')) closeModal();
-}
+function closeModal() { document.getElementById('csv-modal').classList.remove('open'); }
+function closeModalOutside(e) { if(e.target===document.getElementById('csv-modal')) closeModal(); }
 
 function applyCSV() {
-  const text = document.getElementById('modal-textarea').value.trim();
+  const text  = document.getElementById('modal-textarea').value.trim();
   const errEl = document.getElementById('modal-error');
   errEl.style.display = 'none';
-
-  if (!text) { errEl.textContent = 'Paste is empty.'; errEl.style.display = 'block'; return; }
-
+  if (!text) { errEl.textContent='Paste is empty.'; errEl.style.display='block'; return; }
   try {
-    if (modalTarget === 'std') {
-      const parsed = parseStdCSV(text);
-      if (parsed.length === 0) throw new Error('No valid rows found.');
-      stdRows = parsed;
-      renderStd();
+    if (modalTarget==='std') {
+      const p=parseStdCSV(text); if(!p.length) throw new Error('No valid rows.'); stdRows=p; renderStd();
     } else {
-      const parsed = parseSmpCSV(text);
-      if (parsed.length === 0) throw new Error('No valid rows found.');
-      smpRows = parsed;
-      renderSmp();
+      const p=parseSmpCSV(text); if(!p.length) throw new Error('No valid rows.'); smpRows=p; renderSmp();
     }
     closeModal();
-  } catch(e) {
-    errEl.textContent = 'Parse error: ' + e.message;
-    errEl.style.display = 'block';
-  }
+  } catch(e) { errEl.textContent='Parse error: '+e.message; errEl.style.display='block'; }
 }
 
-function splitLine(line) {
-  // Try tab first, then comma
-  return line.includes('\t') ? line.split('\t') : line.split(',');
-}
+function splitLine(l){ return l.includes('\t')?l.split('\t'):l.split(','); }
 
 function parseStdCSV(text) {
-  return text.split('\n')
-    .map(l => l.trim()).filter(l => l.length > 0)
-    .map((line, idx) => {
-      const cols = splitLine(line).map(c => c.trim());
-      const conc = cols[0];
-      if (isNaN(parseFloat(conc))) throw new Error(`Row ${idx+1}: first column must be a number (concentration).`);
-      return {
-        conc: conc,
-        od1:  cols[1] || '',
-        od2:  cols[2] || '',
-        od3:  cols[3] || '',
-      };
-    });
+  return text.split('\n').map(l=>l.trim()).filter(Boolean).map((line,idx)=>{
+    const cols=splitLine(line).map(c=>c.trim());
+    if(isNaN(parseFloat(cols[0]))) throw new Error(`Row ${idx+1}: first column must be a number.`);
+    return { conc:cols[0], od1:cols[1]||'', od2:cols[2]||'', od3:cols[3]||'' };
+  });
 }
 
 function parseSmpCSV(text) {
-  return text.split('\n')
-    .map(l => l.trim()).filter(l => l.length > 0)
-    .map((line, idx) => {
-      const cols = splitLine(line).map(c => c.trim());
-      if (cols.length < 2) throw new Error(`Row ${idx+1}: need at least name and one OD value.`);
-      const name = cols[0];
-      // Detect if last column is dilution factor (numeric, likely integer ≥ 1)
-      let od1 = '', od2 = '', od3 = '', df = '1';
-      const odCols = cols.slice(1);
-      // If last element looks like a whole number dilution factor and we have > 1 OD col
-      if (odCols.length > 1) {
-        const last = parseFloat(odCols[odCols.length - 1]);
-        const secondLast = parseFloat(odCols[odCols.length - 2]);
-        // Heuristic: if last is integer ≥ 1 and previous is decimal <10, treat as DF
-        if (!isNaN(last) && Number.isInteger(last) && last >= 1 && !isNaN(secondLast) && secondLast < 10) {
-          df = String(last);
-          odCols.pop();
-        }
-      }
-      od1 = odCols[0] || '';
-      od2 = odCols[1] || '';
-      od3 = odCols[2] || '';
-      return { name, od1, od2, od3, df };
-    });
+  return text.split('\n').map(l=>l.trim()).filter(Boolean).map((line,idx)=>{
+    const cols=splitLine(line).map(c=>c.trim());
+    if(cols.length<2) throw new Error(`Row ${idx+1}: need at least name and one OD.`);
+    const name=cols[0], odCols=cols.slice(1);
+    let df='1';
+    if(odCols.length>1){
+      const last=parseFloat(odCols[odCols.length-1]), prev=parseFloat(odCols[odCols.length-2]);
+      if(!isNaN(last)&&Number.isInteger(last)&&last>=1&&!isNaN(prev)&&prev<10){ df=String(last); odCols.pop(); }
+    }
+    return { name, od1:odCols[0]||'', od2:odCols[1]||'', od3:odCols[2]||'', df };
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1016,49 +1385,28 @@ function parseSmpCSV(text) {
    ═══════════════════════════════════════════════════════════════ */
 
 function exportCSV() {
-  if (!lastResult) { alert('Run Calculate first.'); return; }
-  const { fit, sampleResults } = lastResult;
-
-  const lines = [
-    '# BCA Assay Results',
-    `# Slope,${fit.slope.toExponential(6)}`,
-    `# Intercept,${fit.intercept.toFixed(6)}`,
-    `# R2,${fit.r2.toFixed(6)}`,
-    '',
+  if(!lastResult){ alert('Run Calculate first.'); return; }
+  const {fit,sampleResults}=lastResult;
+  const lines=['# BCA Assay Results',`# Slope,${fit.slope.toExponential(6)}`,
+    `# Intercept,${fit.intercept.toFixed(6)}`,`# R2,${fit.r2.toFixed(6)}`,'',
     'Sample Name,Avg OD,Dilution Factor,Protein Conc (µg/mL),Flag',
-    ...sampleResults.map(r =>
-      [
-        `"${(r.name || '').replace(/"/g, '""')}"`,
-        isNaN(r.od) ? '' : r.od.toFixed(4),
-        r.df,
-        isNaN(r.conc) ? '' : r.conc.toFixed(2),
-        r.flag === 'extrap' ? 'Extrapolated'
-          : r.flag === 'below-det' ? 'Below detection'
-          : '',
-      ].join(',')
-    ),
-  ];
-
+    ...sampleResults.map(r=>[
+      `"${(r.name||'').replace(/"/g,'""')}"`,
+      isNaN(r.od)?'':r.od.toFixed(4), r.df,
+      isNaN(r.conc)?'':r.conc.toFixed(2),
+      r.flag==='extrap'?'Extrapolated':r.flag==='below-det'?'Below detection':''
+    ].join(','))];
   labtoolsDownloadText('bca-results.csv', lines.join('\r\n'), 'text/csv');
 }
 
 function copyResults() {
-  if (!lastResult) { alert('Run Calculate first.'); return; }
-  const { sampleResults } = lastResult;
-  const lines = [
-    'Sample Name\tAvg OD\tDilution Factor\tProtein Conc (µg/mL)\tFlag',
-    ...sampleResults.map(r =>
-      [
-        r.name || '',
-        isNaN(r.od) ? '' : r.od.toFixed(4),
-        r.df,
-        isNaN(r.conc) ? '' : r.conc.toFixed(2),
-        r.flag === 'extrap' ? 'Extrapolated'
-          : r.flag === 'below-det' ? 'Below detection'
-          : '',
-      ].join('\t')
-    ),
-  ];
+  if(!lastResult){ alert('Run Calculate first.'); return; }
+  const lines=['Sample Name\tAvg OD\tDilution Factor\tProtein Conc (µg/mL)\tFlag',
+    ...lastResult.sampleResults.map(r=>[
+      r.name||'', isNaN(r.od)?'':r.od.toFixed(4), r.df,
+      isNaN(r.conc)?'':r.conc.toFixed(2),
+      r.flag==='extrap'?'Extrapolated':r.flag==='below-det'?'Below detection':''
+    ].join('\t'))];
   labtoolsCopyText(lines.join('\n'));
 }
 
@@ -1066,15 +1414,8 @@ function copyResults() {
    Utilities
    ═══════════════════════════════════════════════════════════════ */
 
-function fmtAvg(v) {
-  return isNaN(v) ? '—' : v.toFixed(3);
-}
-
-function escHtml(s) {
-  return String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+function fmtAvg(v){ return isNaN(v)?'—':v.toFixed(3); }
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 /* ═══════════════════════════════════════════════════════════════
    Init
