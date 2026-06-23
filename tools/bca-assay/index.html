@@ -1331,33 +1331,50 @@ function showInlineResults() {
    SVG CHART (shared renderer)
 ═══════════════════════════════════════════════════════ */
 function renderChart(targetId, W, H, stdPts, slope, intercept, samples, unit) {
-  const ML=W>400?70:54, MR=W>400?20:14, MT=14, MB=48;
-  const PW=W-ML-MR, PH=H-MT-MB;
+  const sc  = W / 360;                           // proportional scale (baseline: 360px)
+  const ML  = Math.round(54 * sc);
+  const MR  = Math.round(14 * sc);
+  const MT  = Math.round(14 * sc);
+  const MB  = Math.round(48 * sc);
+  const PW  = W - ML - MR;
+  const PH  = H - MT - MB;
   const maxX = Math.max(...stdPts.map(p=>p.x))*1.08||8;
   const maxY = Math.max(...stdPts.map(p=>p.y))*1.12||4;
   const xS = v => ML+(v/maxX)*PW;
   const yS = v => MT+PH-(v/maxY)*PH;
   const xT = niceTicks(0,maxX,5), yT = niceTicks(0,maxY,4);
-  const fs = W>400 ? '12' : '9', fs2 = W>400 ? '13' : '9.5';
+  const fs  = Math.round(9   * sc);
+  const fs2 = Math.round(9.5 * sc);
+  const rad = Math.round(4.5 * sc);
+  const swGrid = Math.max(0.5, sc);
+  const swAxis = Math.max(0.8, 1.2 * sc);
+  const swFit  = Math.max(1,   1.6 * sc);
+  const swDot  = Math.max(0.8, 1.2 * sc);
+  const dash   = `${Math.round(4*sc)} ${Math.round(3*sc)}`;
+  const rx     = Math.max(1, Math.round(3 * sc));
+  const toX    = Math.round(14 * sc);              // tick offset below chart
+  const toYL   = Math.round(6  * sc);              // Y tick offset left of axis
+  const tyAdj  = Math.round(3  * sc);              // Y tick text vertical adjust
+  const ttlOff = Math.round(5  * sc);              // axis title margin
+  const yttlX  = Math.round(10 * sc);              // Y-axis title left offset
   let s='';
-  s+=`<rect x="${ML}" y="${MT}" width="${PW}" height="${PH}" fill="var(--surface-subtle)" rx="3"/>`;
-  yT.forEach(t => s+=`<line x1="${ML}" y1="${yS(t)}" x2="${ML+PW}" y2="${yS(t)}" stroke="var(--border-subtle)" stroke-width="1"/>`);
-  xT.forEach(t => s+=`<line x1="${xS(t)}" y1="${MT}" x2="${xS(t)}" y2="${MT+PH}" stroke="var(--border-subtle)" stroke-width="1"/>`);
-  s+=`<line x1="${xS(0)}" y1="${yS(slope*0+intercept)}" x2="${xS(maxX)}" y2="${yS(slope*maxX+intercept)}" stroke="#5c8dff" stroke-width="1.6" stroke-opacity="0.5" stroke-dasharray="4 3"/>`;
-  const rad = W>400 ? 6 : 4.5;
-  stdPts.forEach(p => s+=`<circle cx="${xS(p.x)}" cy="${yS(p.y)}" r="${rad}" fill="#5c8dff" stroke="#fff" stroke-width="1.2" opacity="0.9"/>`);
+  s+=`<rect x="${ML}" y="${MT}" width="${PW}" height="${PH}" fill="var(--surface-subtle)" rx="${rx}"/>`;
+  yT.forEach(t => s+=`<line x1="${ML}" y1="${yS(t)}" x2="${ML+PW}" y2="${yS(t)}" stroke="var(--border-subtle)" stroke-width="${swGrid}"/>`);
+  xT.forEach(t => s+=`<line x1="${xS(t)}" y1="${MT}" x2="${xS(t)}" y2="${MT+PH}" stroke="var(--border-subtle)" stroke-width="${swGrid}"/>`);
+  s+=`<line x1="${xS(0)}" y1="${yS(slope*0+intercept)}" x2="${xS(maxX)}" y2="${yS(slope*maxX+intercept)}" stroke="#5c8dff" stroke-width="${swFit}" stroke-opacity="0.5" stroke-dasharray="${dash}"/>`;
+  stdPts.forEach(p => s+=`<circle cx="${xS(p.x)}" cy="${yS(p.y)}" r="${rad}" fill="#5c8dff" stroke="#fff" stroke-width="${swDot}" opacity="0.9"/>`);
   samples.forEach(r => {
     if (isNaN(r.od)) return;
     const rc=(r.od-intercept)/slope;
     const cx=xS(Math.max(0,Math.min(rc,maxX))), cy=yS(Math.max(0,Math.min(r.od,maxY))), sz=rad;
-    s+=`<polygon points="${cx},${cy-sz} ${cx+sz},${cy} ${cx},${cy+sz} ${cx-sz},${cy}" fill="#e07832" stroke="#fff" stroke-width="1.2" opacity="0.9"/>`;
+    s+=`<polygon points="${cx},${cy-sz} ${cx+sz},${cy} ${cx},${cy+sz} ${cx-sz},${cy}" fill="#e07832" stroke="#fff" stroke-width="${swDot}" opacity="0.9"/>`;
   });
-  s+=`<line x1="${ML}" y1="${MT}" x2="${ML}" y2="${MT+PH}" stroke="var(--border)" stroke-width="1.2"/>`;
-  s+=`<line x1="${ML}" y1="${MT+PH}" x2="${ML+PW}" y2="${MT+PH}" stroke="var(--border)" stroke-width="1.2"/>`;
-  xT.forEach(t => s+=`<text x="${xS(t)}" y="${MT+PH+14}" text-anchor="middle" font-size="${fs}" fill="var(--text-muted)" font-family="var(--font)">${fmtTk(t)}</text>`);
-  yT.forEach(t => s+=`<text x="${ML-6}" y="${yS(t)+3}" text-anchor="end" font-size="${fs}" fill="var(--text-muted)" font-family="var(--font)">${t.toFixed(2)}</text>`);
-  s+=`<text x="${ML+PW/2}" y="${H-5}" text-anchor="middle" font-size="${fs2}" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600">Concentration (${unit})</text>`;
-  s+=`<text x="10" y="${MT+PH/2}" text-anchor="middle" font-size="${fs2}" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600" transform="rotate(-90,10,${MT+PH/2})">OD (562 nm)</text>`;
+  s+=`<line x1="${ML}" y1="${MT}" x2="${ML}" y2="${MT+PH}" stroke="var(--border)" stroke-width="${swAxis}"/>`;
+  s+=`<line x1="${ML}" y1="${MT+PH}" x2="${ML+PW}" y2="${MT+PH}" stroke="var(--border)" stroke-width="${swAxis}"/>`;
+  xT.forEach(t => s+=`<text x="${xS(t)}" y="${MT+PH+toX}" text-anchor="middle" font-size="${fs}" fill="var(--text-muted)" font-family="var(--font)">${fmtTk(t)}</text>`);
+  yT.forEach(t => s+=`<text x="${ML-toYL}" y="${yS(t)+tyAdj}" text-anchor="end" font-size="${fs}" fill="var(--text-muted)" font-family="var(--font)">${t.toFixed(2)}</text>`);
+  s+=`<text x="${ML+PW/2}" y="${H-ttlOff}" text-anchor="middle" font-size="${fs2}" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600">Concentration (${unit})</text>`;
+  s+=`<text x="${yttlX}" y="${MT+PH/2}" text-anchor="middle" font-size="${fs2}" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600" transform="rotate(-90,${yttlX},${MT+PH/2})">OD (562 nm)</text>`;
   document.getElementById(targetId).innerHTML = s;
 }
 
