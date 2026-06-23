@@ -1,0 +1,1822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BCA Assay Calculator · LabTools</title>
+  <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <script src="../../assets/js/labtools-common.js"></script>
+  <style>
+    /* ── Layout ── */
+    .card { max-width: 1240px; }
+    .lt-page-body { flex: 1; display: flex; justify-content: center; padding: 24px 16px 48px; }
+
+    .page-title { font-size: var(--fs-xl); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 3px; }
+    .page-sub   { font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: 16px; line-height: 1.55; }
+
+    .bca-workspace {
+      display: grid;
+      grid-template-columns: 1fr 390px;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 960px) { .bca-workspace { grid-template-columns: 1fr; } }
+
+    .bca-results-pane { position: sticky; top: 68px; }
+    @media (max-width: 960px) { .bca-results-pane { position: static; } }
+
+    /* ── Mode tabs ── */
+    .mode-tabs {
+      display: flex; background: var(--tag-bg); border-radius: var(--radius-md);
+      padding: 3px; margin-bottom: 18px; gap: 2px; width: fit-content;
+    }
+    .mode-tab {
+      padding: 5px 14px; border: none; background: transparent;
+      border-radius: var(--radius-sm); font-size: var(--fs-xs); font-weight: 600;
+      color: var(--text-muted); cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    }
+    .mode-tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+    .mode-tab:hover:not(.active) { color: var(--text); }
+
+    /* ── Section rows ── */
+    .section-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px; flex-wrap: wrap;
+    }
+    .section-name {
+      font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--text-muted); flex-shrink: 0;
+    }
+    .section-sub { font-size: var(--fs-xs); color: var(--text-dim); }
+
+    /* ── Preset pills ── */
+    .preset-pills { display: flex; gap: 3px; }
+    .preset-pill {
+      padding: 3px 10px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--surface); font-size: var(--fs-xs); font-weight: 600;
+      color: var(--text-muted); cursor: pointer; transition: all 0.12s; white-space: nowrap;
+    }
+    .preset-pill:hover { border-color: var(--blue); color: var(--blue-dark); background: var(--blue-bg); }
+    .preset-pill.active { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; }
+
+    /* ── Reps bar ── */
+    .rep-bar { display: flex; align-items: center; gap: 3px; margin-left: auto; }
+    .rep-bar-label { font-size: var(--fs-xs); color: var(--text-dim); font-weight: 600; margin-right: 2px; letter-spacing: 0.04em; text-transform: uppercase; }
+    .rep-btn {
+      width: 22px; height: 22px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--surface); font-size: var(--fs-xs); font-weight: 700; color: var(--text-muted);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all 0.12s;
+    }
+    .rep-btn.active { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; }
+    .rep-btn:hover:not(.active) { border-color: var(--blue); color: var(--blue-dark); }
+
+    /* ── Data tables ── */
+    .data-table-shell {
+      border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+      background: var(--surface-subtle); overflow: hidden; margin-bottom: 4px;
+    }
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table thead th {
+      background: var(--surface-subtle); padding: 7px 8px;
+      font-size: 0.66rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--text-muted); text-align: left;
+      border-bottom: 1px solid var(--border-subtle); white-space: nowrap;
+    }
+    .data-table thead th.t-right { text-align: right; }
+    .data-table thead th.t-center { text-align: center; }
+    .data-table tbody td {
+      padding: 2px 3px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle;
+    }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+
+    /* Cell inputs */
+    .ci {
+      width: 100%; padding: 5px 7px;
+      border: 1.5px solid transparent; border-radius: var(--radius-sm);
+      font-size: 0.83rem; font-family: var(--font); color: var(--text); background: transparent;
+      outline: none; transition: border-color 0.12s, background 0.12s;
+      font-variant-numeric: tabular-nums;
+    }
+    .ci:focus { border-color: var(--blue); background: var(--surface); }
+    .ci::placeholder { color: var(--text-dim); }
+    .ci-r { text-align: right; }
+    .ci-l { text-align: left; }
+
+    /* Read-only conc for presets */
+    .conc-ro {
+      display: block; font-size: 0.83rem; font-variant-numeric: tabular-nums;
+      color: var(--text-secondary); text-align: right; padding: 5px 8px;
+    }
+
+    /* Avg cell */
+    .avg-cell {
+      font-size: 0.79rem; font-variant-numeric: tabular-nums; color: var(--text-secondary);
+      font-weight: 600; text-align: center; padding: 0 6px; white-space: nowrap; display: block;
+    }
+    .avg-cell.dim { color: var(--text-dim); }
+
+    /* Inline conc result in sample table */
+    .smp-conc-cell {
+      font-size: 0.79rem; font-variant-numeric: tabular-nums; font-weight: 700;
+      text-align: right; padding: 0 8px; color: var(--text-dim); white-space: nowrap;
+    }
+
+    /* Column widths */
+    .col-conc        { width: 94px; }
+    .col-od          { width: 73px; }
+    .col-avg         { width: 64px; }
+    .col-df          { width: 56px; }
+    .col-name        { min-width: 110px; }
+    .col-conc-result { width: 88px; }
+    .col-del         { width: 28px; text-align: center; }
+
+    /* Hidden rep columns */
+    .r2-col, .r3-col { transition: opacity 0.1s; }
+    .hide-col { display: none; }
+
+    /* Delete button */
+    .del-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 20px; height: 20px; margin: auto;
+      border: none; background: transparent; color: var(--text-dim);
+      cursor: pointer; border-radius: var(--radius-sm);
+      font-size: 0.9rem; line-height: 1; transition: background 0.1s, color 0.1s;
+    }
+    .del-btn:hover { background: var(--red-border); color: var(--red); }
+
+    /* Table footer */
+    .table-footer {
+      padding: 5px 8px; border-top: 1px solid var(--border-subtle);
+      background: var(--surface-subtle); display: flex; align-items: center; gap: 8px;
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    }
+    .table-add-btn { padding: 3px 9px !important; font-size: var(--fs-xs) !important; }
+    .table-kbd-hint { font-size: var(--fs-xs); color: var(--text-dim); margin-left: auto; }
+    .kbd {
+      display: inline-block; background: var(--tag-bg); border: 1px solid var(--border);
+      border-radius: 3px; padding: 0 4px; font-size: 0.64rem; font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+
+    /* ── Results pane card ── */
+    .results-card {
+      background: var(--surface); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card); padding: 16px;
+    }
+    .results-pane-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .results-pane-title {
+      font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--text-muted);
+    }
+    .calc-status { font-size: var(--fs-xs); color: var(--text-dim); font-weight: 500; }
+    .calc-status.ok   { color: var(--green-dark); }
+    .calc-status.warn { color: var(--yellow-dark); }
+    .calc-status.err  { color: var(--red); }
+
+    .results-empty {
+      text-align: center; padding: 36px 0; color: var(--text-dim); font-size: var(--fs-sm);
+    }
+    .results-empty-icon { font-size: 1.8rem; margin-bottom: 8px; opacity: 0.4; }
+
+    /* Fit strip */
+    .fit-strip {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      padding: 8px 10px; background: var(--surface-subtle);
+      border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 10px;
+    }
+    .fit-equation { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text); font-weight: 600; flex: 1; min-width: 140px; }
+    .fit-stat {
+      font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-secondary);
+      font-weight: 600; padding: 1px 5px; background: var(--surface);
+      border-radius: var(--radius-xs); border: 1px solid var(--border-subtle);
+      white-space: nowrap;
+    }
+
+    /* Mini stats — kept for inline results mirror */
+    .mini-stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
+    .mini-stat { background: var(--surface-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 6px 8px; }
+    .mini-stat-label { font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 2px; }
+    .mini-stat-val { font-size: 0.78rem; font-weight: 700; color: var(--text); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+    /* Chart */
+    .chart-wrap {
+      border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+      background: var(--surface); padding: 8px; margin-bottom: 10px; overflow: hidden;
+    }
+    .chart-wrap svg { width: 100%; height: auto; display: block; }
+    .chart-legend { display: flex; gap: 12px; margin-top: 6px; font-size: var(--fs-xs); color: var(--text-muted); }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .legend-diamond { width: 8px; height: 8px; transform: rotate(45deg); flex-shrink: 0; }
+
+    /* Chart expand overlay */
+    .chart-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      z-index: 1000; justify-content: center; align-items: center;
+    }
+    .chart-overlay.show { display: flex; }
+    .chart-overlay-card {
+      background: var(--surface); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card); padding: 20px; max-width: 90vw; max-height: 90vh;
+      position: relative;
+    }
+    .chart-overlay-close {
+      position: absolute; top: 8px; right: 12px;
+      border: none; background: transparent; font-size: 1.3rem;
+      cursor: pointer; color: var(--text-muted); line-height: 1;
+    }
+    .chart-overlay-close:hover { color: var(--text); }
+    .chart-overlay svg { width: 100%; height: auto; display: block; max-height: 65vh; }
+
+    /* Cursor hint on chart */
+
+    /* Results table */
+    .res-table-shell {
+      border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+      overflow: hidden; margin-bottom: 8px;
+    }
+    .res-table { width: 100%; border-collapse: collapse; font-size: 0.79rem; }
+    .res-table thead th {
+      background: var(--surface-subtle); padding: 6px 8px; font-size: 0.64rem; font-weight: 700;
+      letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .res-table tbody td { padding: 7px 8px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; }
+    .res-table tbody tr:last-child td { border-bottom: none; }
+    .conc-value { font-family: var(--font-mono); font-weight: 700; color: var(--text); }
+    .flag-extrap {
+      background: var(--yellow-bg); color: var(--yellow-dark); border: 1px solid var(--yellow-border);
+      border-radius: var(--radius-xs); padding: 1px 5px; font-size: 0.62rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .flag-low {
+      background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border);
+      border-radius: var(--radius-xs); padding: 1px 5px; font-size: 0.62rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .export-row { display: flex; gap: 6px; justify-content: flex-end; }
+
+    /* ── Plate 2-column layout ── */
+    .plate-columns {
+      display: grid;
+      grid-template-columns: 1fr 310px;
+      gap: 20px;
+      align-items: start;
+    }
+    .plate-col-grid { min-width: 0; }
+    .plate-col-ctrl {
+      position: sticky; top: 68px;
+    }
+    @media (max-width: 900px) {
+      .plate-columns { grid-template-columns: 1fr; }
+      .plate-col-ctrl { position: static; }
+    }
+
+    /* ── Plate mode ── */
+    .plate-paste-section { margin-bottom: 16px; }
+    .file-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; margin-bottom: 10px;
+      background: var(--surface-subtle); border: 1.5px solid var(--border); border-radius: var(--radius-md);
+    }
+    .file-bar-sep { font-size: var(--fs-xs); color: var(--text-dim); }
+    .plate-textarea {
+      width: 100%; min-height: 120px; padding: 10px 12px;
+      border: 1.5px solid var(--border); border-radius: var(--radius-md);
+      font-size: 0.78rem; font-family: var(--font-mono); color: var(--text); background: var(--surface);
+      outline: none; resize: vertical; margin-bottom: 8px;
+    }
+    .plate-textarea:focus { border-color: var(--blue); }
+    .plate-error { color: var(--red); font-size: var(--fs-sm); margin-bottom: 8px; display: none; }
+
+    /* Collapsed import summary */
+    .paste-summary-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px;
+      background: var(--surface-subtle); border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+    .paste-summary-icon { font-size: 1rem; flex-shrink: 0; }
+    .paste-summary-text { flex: 1; font-size: var(--fs-sm); color: var(--text-secondary); font-weight: 500;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    #plate-grid-section { display: none; }
+    .plate-outer { overflow-x: auto; margin-bottom: 14px; }
+    .plate-grid-wrap {
+      display: inline-grid;
+      grid-template-columns: 20px repeat(12, 36px);
+      grid-template-rows: 20px repeat(8, 36px);
+      gap: 2px; user-select: none;
+    }
+    .plate-col-label, .plate-row-label {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.60rem; font-weight: 700; color: var(--text-dim);
+    }
+    .plate-well {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-size: 0.44rem; line-height: 1.2; cursor: pointer;
+      border: 2px solid transparent; transition: border-color 0.08s, transform 0.06s;
+      position: relative; box-sizing: border-box;
+    }
+    .plate-well:hover { transform: scale(1.1); z-index: 1; }
+    .plate-well:focus-visible {
+      outline: 2px solid var(--blue); outline-offset: 2px;
+      z-index: 2; transform: scale(1.08);
+    }
+    .plate-well.selected { border-color: var(--blue) !important; box-shadow: 0 0 0 1px var(--blue); }
+    .plate-well.assigned-std { background: var(--green-bg) !important; border-color: var(--green-border) !important; }
+    .plate-well.assigned-std .well-label { color: var(--green-dark); font-weight: 700; }
+    .plate-well.assigned-smp { background: #fff4ea !important; border-color: #f4c08a !important; }
+    .plate-well.assigned-smp .well-label { color: #9a4f00; font-weight: 700; }
+    .well-od    { font-size: 0.44rem; opacity: 0.75; }
+    .well-label { font-size: 0.46rem; }
+
+    .plate-legend {
+      display: flex; align-items: center; gap: 8px; font-size: var(--fs-xs);
+      color: var(--text-muted); margin-bottom: 12px;
+    }
+    .plate-legend-bar {
+      width: 80px; height: 8px; border-radius: 4px;
+      background: linear-gradient(to right, #f7f7f5, #3366cc); flex-shrink: 0;
+    }
+
+    /* Template list */
+    .tpl-tabs {
+      display: flex; background: var(--tag-bg); border-radius: var(--radius-md);
+      padding: 3px; margin-bottom: 10px; gap: 2px;
+    }
+    .tpl-tab {
+      flex: 1; padding: 5px 8px; border: none; background: transparent;
+      border-radius: var(--radius-sm); font-size: var(--fs-xs); font-weight: 600;
+      color: var(--text-muted); cursor: pointer; white-space: nowrap; transition: all 0.15s;
+    }
+    .tpl-tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+
+    .tpl-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+    .tpl-row {
+      display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+      border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--surface-subtle); transition: border-color 0.12s;
+    }
+    .tpl-row.tpl-step-active { border-color: var(--blue); background: var(--blue-bg); }
+    .tpl-row.tpl-done { border-color: var(--green-border); background: var(--green-bg); }
+    .tpl-row.tpl-skip { opacity: 0.4; }
+    .tpl-check { display: flex; align-items: center; gap: 6px; cursor: pointer; flex-shrink: 0; }
+    .tpl-check input { cursor: pointer; accent-color: var(--blue); width: 13px; height: 13px; }
+    .tpl-conc { font-size: var(--fs-sm); font-weight: 600; color: var(--text); min-width: 80px; }
+    .tpl-status { flex: 1; font-size: var(--fs-xs); color: var(--green-dark); font-weight: 600; }
+    .tpl-select-btn { padding: 3px 9px; font-size: var(--fs-xs); }
+    .tpl-select-btn.active-step { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue-dark); }
+
+    /* Plate nav banner */
+    #tpl-plate-nav {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 8px 12px; margin-bottom: 12px;
+      background: var(--blue-bg); border: 1.5px solid var(--blue-border);
+      border-radius: var(--radius-md); font-size: var(--fs-sm); color: var(--blue-dark);
+    }
+    #tpl-plate-nav.nav-done { background: var(--green-bg); border-color: var(--green-border); color: var(--green-dark); }
+    #tpl-plate-nav-step { font-weight: 600; flex: 1; }
+    #tpl-plate-nav-btn {
+      padding: 4px 12px; font-size: var(--fs-xs); font-weight: 700;
+      border: 1.5px solid var(--blue-border); border-radius: var(--radius-md);
+      background: var(--surface); color: var(--blue-dark); cursor: pointer;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    #tpl-plate-nav-btn:disabled { opacity: 0.6; cursor: default; }
+    #tpl-plate-nav.nav-done #tpl-plate-nav-btn { display: none; }
+    #tpl-plate-nav-btn.assign-ready { background: var(--blue-dark); color: #fff; border-color: var(--blue-dark); }
+
+    /* Assign panel */
+    .assign-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+    @media (max-width: 600px) { .assign-row { grid-template-columns: 1fr; } }
+    /* In the right control column (310px), stack cards vertically */
+    .plate-col-ctrl .assign-row { grid-template-columns: 1fr; }
+    .assign-card {
+      border: 1.5px solid var(--border); border-radius: var(--radius-md);
+      padding: 12px; background: var(--surface-subtle);
+    }
+    .assign-card-label {
+      font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 8px;
+    }
+    .assign-input-row { display: flex; gap: 6px; align-items: flex-end; flex-wrap: wrap; }
+    .assign-input-row .lt-input { min-height: 32px; font-size: 0.82rem; padding: 5px 8px; }
+
+    /* Assign summary */
+    .assign-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+    .plate-col-ctrl .assign-summary { grid-template-columns: repeat(3, 1fr); font-size: 0.72rem; }
+    .assign-sum-card {
+      border: 1px solid var(--border); border-radius: var(--radius-md);
+      background: var(--surface-subtle); padding: 8px 10px;
+    }
+    .assign-sum-label {
+      font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 3px;
+    }
+    .assign-sum-value { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+    .assign-sum-note { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 1px; }
+    .plate-sel-count { font-size: var(--fs-xs); color: var(--text-muted); margin-bottom: 8px; }
+
+    .tpl-assign-banner {
+      display: flex; align-items: center; gap: 7px; padding: 8px 12px; margin-bottom: 10px;
+      background: var(--blue-bg); border: 1.5px solid var(--blue-border);
+      border-radius: var(--radius-md); font-size: var(--fs-sm); color: var(--blue-dark); font-weight: 600;
+    }
+
+    /* Collapsible template section */
+    #tpl-section.collapsed .tpl-tabs,
+    #tpl-section.collapsed .tpl-list,
+    #tpl-section.collapsed p { display: none; }
+    #tpl-section.collapsed .lt-section-label { margin-bottom: 0; }
+    #tpl-collapse-btn { transition: transform 0.15s; }
+    #tpl-collapse-btn.collapsed { transform: rotate(-90deg); }
+
+    .calc-bar { display: flex; justify-content: center; margin: 20px 0 0; }
+
+    /* ── Plate build banner ── */
+    .build-banner {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 12px 16px; margin-top: 16px;
+      background: var(--green-bg); border: 1.5px solid var(--green-border);
+      border-radius: var(--radius-md);
+    }
+    .build-banner-msg { font-size: var(--fs-sm); color: var(--green-dark); font-weight: 600; }
+    .build-banner-edit { padding: 4px 12px; font-size: var(--fs-xs); flex-shrink: 0; }
+
+    /* ── Plate mode inline results (shown below on mobile/plate mode) ── */
+    #inline-results { display: none; margin-top: 20px; }
+    #inline-results.visible { display: block; }
+    @media (max-width: 960px) {
+      .bca-results-pane #results-content,
+      .bca-results-pane #results-empty { display: none !important; }
+      #inline-results.visible { display: block; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="lt-nav">
+    <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
+    <span class="lt-nav-sep">/</span>
+    <span class="lt-nav-page">BCA Assay Calculator</span>
+  </nav>
+
+  <div class="lt-page-body">
+    <div class="card">
+
+      <h1 class="page-title">BCA Protein Assay</h1>
+      <p class="page-sub">Standard curve fit + sample interpolation · results update live as you type</p>
+
+      <!-- Mode tabs -->
+      <div class="mode-tabs">
+        <button class="mode-tab active" id="tab-raw"    onclick="switchMode('raw')">Raw File (.txt)</button>
+        <button class="mode-tab"        id="tab-grid"   onclick="switchMode('grid')">Paste Grid</button>
+        <button class="mode-tab"        id="tab-manual" onclick="switchMode('manual')">Manual Entry</button>
+      </div>
+
+      <!-- Workspace -->
+      <div class="bca-workspace">
+
+        <!-- ── LEFT: Form pane ── -->
+        <div id="form-pane">
+
+          <!-- ══ MANUAL MODE ══ -->
+          <div id="mode-manual">
+
+            <!-- Standards -->
+            <div class="section-row">
+              <span class="section-name">Standard Curve</span>
+              <div class="preset-pills">
+                <button class="preset-pill active" id="preset-pierce" onclick="setPreset('pierce')">Pierce BCA</button>
+                <button class="preset-pill"        id="preset-basic"  onclick="setPreset('basic')">Basic</button>
+                <button class="preset-pill"        id="preset-custom" onclick="setPreset('custom')">Custom</button>
+              </div>
+              <div class="rep-bar">
+                <span class="rep-bar-label">Reps</span>
+                <button class="rep-btn active" id="rep-btn-1" onclick="setReps(1)" title="1 replicate">1</button>
+                <button class="rep-btn"        id="rep-btn-2" onclick="setReps(2)" title="2 replicates">2</button>
+                <button class="rep-btn"        id="rep-btn-3" onclick="setReps(3)" title="3 replicates">3</button>
+              </div>
+            </div>
+
+            <div class="data-table-shell">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th class="col-conc t-right" id="std-conc-hdr">Conc (µg/mL)</th>
+                    <th class="col-od   t-right">OD 1</th>
+                    <th class="col-od   t-right r2-col">OD 2</th>
+                    <th class="col-od   t-right r3-col">OD 3</th>
+                    <th class="col-avg  t-center">Avg OD</th>
+                    <th class="col-del"></th>
+                  </tr>
+                </thead>
+                <tbody id="std-tbody"></tbody>
+              </table>
+              <div class="table-footer">
+                <button class="lt-btn lt-btn-ghost table-add-btn" onclick="addStdRow()">+ Row</button>
+                <span class="table-kbd-hint"><span class="kbd">↵</span> moves down · paste a column fills ↓</span>
+              </div>
+            </div>
+
+            <!-- Samples -->
+            <div class="section-row" style="margin-top:18px;">
+              <span class="section-name">Samples</span>
+              <span class="section-sub">OD at 562 nm · DF = dilution factor</span>
+            </div>
+
+            <div class="data-table-shell">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th class="col-name">Name</th>
+                    <th class="col-od t-right">OD 1</th>
+                    <th class="col-od t-right r2-col">OD 2</th>
+                    <th class="col-od t-right r3-col">OD 3</th>
+                    <th class="col-df  t-right">DF</th>
+                    <th class="col-conc-result t-right" id="smp-conc-hdr">Conc</th>
+                    <th class="col-del"></th>
+                  </tr>
+                </thead>
+                <tbody id="smp-tbody"></tbody>
+              </table>
+              <div class="table-footer">
+                <button class="lt-btn lt-btn-ghost table-add-btn" onclick="addSmpRow()">+ Sample</button>
+                <span class="table-kbd-hint"><span class="kbd">↵</span> in last row adds a sample</span>
+              </div>
+            </div>
+
+          </div><!-- /#mode-manual -->
+
+
+          <!-- ══ PLATE MODE ══ -->
+          <div id="mode-plate" style="display:none">
+
+            <div class="plate-paste-section">
+            <div id="plate-restore-banner" style="display:none;padding:10px 14px;margin-bottom:12px;background:var(--blue-bg);border:1.5px solid var(--blue-border);border-radius:var(--radius-md);">
+              <span style="font-size:var(--fs-sm);color:var(--blue-dark);font-weight:600;">💾 Saved plate detected</span>
+              <button class="lt-btn lt-btn-primary" style="margin-left:12px;padding:4px 14px;font-size:var(--fs-xs);" onclick="restorePlateState()">Restore</button>
+              <button class="lt-btn lt-btn-ghost" style="padding:4px 12px;font-size:var(--fs-xs);" onclick="clearPlateState();document.getElementById('plate-restore-banner').style.display='none'">Dismiss</button>
+            </div>
+
+            <!-- Expanded import form -->
+            <div id="paste-expanded">
+              <div class="lt-section-label" id="plate-paste-label">Import Raw File</div>
+              <p class="page-sub" id="plate-paste-hint" style="margin-bottom:8px;"></p>
+              <div class="file-bar" id="file-bar" style="display:none">
+                <input type="file" id="file-picker" accept=".txt" style="display:none" onchange="loadFile(this)">
+                <button class="lt-btn lt-btn-primary" onclick="document.getElementById('file-picker').click()">📂 Open File</button>
+                <span class="file-bar-sep">— or paste below ↓</span>
+              </div>
+              <textarea class="plate-textarea" id="plate-textarea" spellcheck="false" placeholder="Paste here…"></textarea>
+              <div class="plate-error" id="plate-error"></div>
+              <button class="lt-btn lt-btn-ghost" style="padding:7px 20px;" onclick="parsePlate()">Parse Plate →</button>
+            </div>
+
+            <!-- Collapsed import summary (after parse) -->
+            <div id="paste-collapsed" style="display:none">
+              <div class="paste-summary-bar">
+                <span class="paste-summary-icon">📄</span>
+                <span class="paste-summary-text" id="paste-summary-text"></span>
+                <button class="lt-btn lt-btn-ghost" style="padding:3px 10px;font-size:0.72rem;flex-shrink:0;" onclick="expandPaste()">Change</button>
+                <button class="lt-btn lt-btn-ghost" style="padding:3px 10px;font-size:0.72rem;flex-shrink:0;" onclick="parsePlate()">Re-parse ↻</button>
+              </div>
+            </div>
+            </div>
+
+            <!-- Plate grid section -->
+            <div id="plate-grid-section">
+              <div class="plate-columns">
+                <!-- Left: Plate visual -->
+                <div class="plate-col-grid">
+                  <div class="lt-section-label">96-Well Plate — OD Values</div>
+
+                  <div class="plate-outer">
+                    <div class="plate-grid-wrap" id="plate-grid"></div>
+                  </div>
+
+                  <div class="plate-legend">
+                    <span>Low</span>
+                    <div class="plate-legend-bar"></div>
+                    <span>High</span>
+                    <span style="flex:1;margin-left:8px;color:var(--text-dim);">Click/drag · Tab/Space · Del</span>
+                    <div style="display:flex;gap:4px;flex-shrink:0;">
+                      <button class="lt-btn lt-btn-ghost" style="padding:2px 8px;font-size:0.70rem;" onclick="selectAll()">All</button>
+                      <button class="lt-btn lt-btn-ghost" style="padding:2px 8px;font-size:0.70rem;" onclick="clearSelection()">Clear</button>
+                      <button class="lt-btn lt-btn-ghost" style="padding:2px 8px;font-size:0.70rem;color:var(--red);" onclick="unassignSelected()">Unassign</button>
+                    </div>
+                  </div>
+
+                  <div id="tpl-plate-nav" style="display:none">
+                    <span id="tpl-plate-nav-step"></span>
+                    <button id="tpl-plate-nav-btn"></button>
+                  </div>
+                </div>
+
+                <!-- Right: Template + Assign -->
+                <div class="plate-col-ctrl">
+                  <div id="tpl-section">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <div class="lt-section-label" style="margin-bottom:0">Standard Template</div>
+                    <div style="display:flex;gap:6px;">
+                      <button class="lt-btn lt-btn-ghost" id="tpl-collapse-btn" style="padding:2px 8px;font-size:0.68rem;" onclick="toggleTplSection()" title="Collapse/expand">▾</button>
+                      <button class="lt-btn lt-btn-ghost" style="padding:3px 8px;font-size:0.72rem;color:var(--red);" onclick="resetTemplate()">Reset Standards</button>
+                    </div>
+                  </div>
+                  <p style="font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:8px;">Uncheck unused concentrations, then click "→ Select wells" to assign.</p>
+
+                  <div class="tpl-tabs">
+                    <button class="tpl-tab active" id="tpl-tab-basic"  onclick="setPlateTemplate('basic')">Basic (0–4 µg/well)</button>
+                    <button class="tpl-tab"        id="tpl-tab-pierce" onclick="setPlateTemplate('pierce')">Pierce BCA Kit</button>
+                  </div>
+                  <div class="tpl-list" id="tpl-list"></div>
+                  </div><!-- /#tpl-section -->
+
+                  <div class="lt-section-label" id="assign-section-label" style="margin-top:12px;">Assign Selected Wells</div>
+                  <p id="plate-sel-count" class="plate-sel-count">No wells selected</p>
+
+                  <div class="tpl-assign-banner" id="tpl-banner" style="display:none">
+                    ← <span id="tpl-banner-text"></span>
+                  </div>
+
+                  <div class="assign-row">
+                    <div class="assign-card" id="assign-std-card">
+                      <div class="assign-card-label" style="color:var(--green-dark);">◼ Standard</div>
+                      <div class="assign-input-row">
+                        <div style="flex:1;min-width:100px;">
+                          <label class="lt-label" id="std-conc-label">Concentration (µg/well)</label>
+                          <input class="lt-input" type="number" min="0" id="assign-std-conc" placeholder="e.g. 4">
+                        </div>
+                        <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;border-color:var(--green-border);color:var(--green-dark);" onclick="assignWells('std')">Assign →</button>
+                      </div>
+                    </div>
+                    <div class="assign-card">
+                      <div class="assign-card-label" style="color:#9a4f00;">◆ Sample</div>
+                      <div class="assign-input-row" style="flex-wrap:wrap;gap:5px;">
+                        <div style="flex:2;min-width:90px;">
+                          <label class="lt-label">Sample Name</label>
+                          <input class="lt-input" type="text" id="assign-smp-name" placeholder="e.g. CS11">
+                        </div>
+                        <div style="flex:1;min-width:60px;">
+                          <label class="lt-label">DF ×</label>
+                          <input class="lt-input" type="number" min="1" id="assign-smp-df" placeholder="1" value="1">
+                        </div>
+                        <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;border-color:#f4c08a;color:#9a4f00;align-self:flex-end;" onclick="assignWells('smp')">Assign →</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="lt-section-label" style="margin-bottom:6px;">Assignment Summary</div>
+                  <div class="assign-summary">
+                    <div class="assign-sum-card">
+                      <div class="assign-sum-label">Standards</div>
+                      <div class="assign-sum-value" id="sum-std-groups">0 groups</div>
+                      <div class="assign-sum-note"  id="sum-std-wells">0 wells</div>
+                    </div>
+                    <div class="assign-sum-card">
+                      <div class="assign-sum-label">Samples</div>
+                      <div class="assign-sum-value" id="sum-smp-groups">0 groups</div>
+                      <div class="assign-sum-note"  id="sum-smp-wells">0 wells</div>
+                    </div>
+                    <div class="assign-sum-card">
+                      <div class="assign-sum-label">Unassigned</div>
+                      <div class="assign-sum-value" id="sum-unassigned">96 wells</div>
+                      <div class="assign-sum-note">Background / unused</div>
+                    </div>
+                  </div>
+
+                  <div class="calc-bar">
+                    <button class="lt-btn lt-btn-primary" style="padding:10px 32px;font-size:0.93rem;" onclick="buildFromPlate()">Calculate →</button>
+                  </div>
+                </div>
+              </div><!-- /.plate-columns -->
+            </div><!-- /#plate-grid-section -->
+          </div><!-- /#mode-plate -->
+
+        </div><!-- /#form-pane -->
+
+
+        <!-- ── RIGHT: Results pane ── -->
+        <div class="bca-results-pane">
+          <div class="results-card">
+            <div class="results-pane-header">
+              <span class="results-pane-title">Live Results</span>
+              <span class="calc-status" id="calc-status">Waiting for data…</span>
+            </div>
+
+            <div class="results-empty" id="results-empty">
+              <div class="results-empty-icon">📊</div>
+              Enter OD values to see results.
+            </div>
+
+            <div id="results-content" style="display:none">
+              <div class="fit-strip">
+                <span class="fit-equation" id="res-equation">—</span>
+                <span class="lt-badge" id="res-r2-badge">—</span>
+                <span class="fit-stat" id="res-slope-inline" title="Slope"></span>
+                <span class="fit-stat" id="res-intercept-inline" title="Intercept"></span>
+                <span class="fit-stat" id="res-npts-inline" title="Points"></span>
+              </div>
+              <div class="chart-wrap" id="chart-wrap" onclick="expandChart()" title="Click to enlarge">
+                <svg id="bca-chart" viewBox="0 0 360 260" xmlns="http://www.w3.org/2000/svg"></svg>
+                <div class="chart-legend">
+                  <div class="legend-item"><div class="legend-dot" style="background:#5c8dff;"></div>Standards</div>
+                  <div class="legend-item"><div class="legend-diamond" style="background:#e07832;"></div>Samples</div>
+                  <div class="legend-item"><div style="width:16px;height:2px;background:#5c8dff;opacity:0.5;flex-shrink:0;margin-top:1px;"></div>Fit</div>
+                </div>
+              </div>
+              <div class="lt-section-label" style="margin-bottom:6px;">Sample Concentrations</div>
+              <div class="res-table-shell">
+                <table class="res-table">
+                  <thead>
+                    <tr>
+                      <th>Sample</th>
+                      <th>Avg OD</th>
+                      <th>DF</th>
+                      <th id="res-conc-header">Conc (µg/mL)</th>
+                      <th>Flag</th>
+                    </tr>
+                  </thead>
+                  <tbody id="results-tbody"></tbody>
+                </table>
+              </div>
+              <div class="export-row">
+                <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="exportCSV()">Export CSV</button>
+                <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="copyResults()">Copy Table</button>
+              </div>
+            </div>
+          </div>
+        </div><!-- /.bca-results-pane -->
+
+      </div><!-- /.bca-workspace -->
+
+      <!-- Chart expand overlay -->
+      <div class="chart-overlay" id="chart-overlay" onclick="this.classList.remove('show')">
+        <div class="chart-overlay-card" onclick="event.stopPropagation()">
+          <button class="chart-overlay-close" onclick="document.getElementById('chart-overlay').classList.remove('show')">×</button>
+          <svg id="bca-chart-large" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+      </div>
+
+      <!-- Plate build confirmation banner -->
+      <div id="plate-build-banner" style="display:none">
+        <div class="lt-divider"></div>
+      </div>
+
+      <!-- Mobile / plate-mode inline results (mirrors right pane) -->
+      <div id="inline-results">
+        <div class="lt-divider"></div>
+        <div id="inline-results-content"></div>
+      </div>
+
+    </div><!-- /.card -->
+  </div>
+
+  <footer class="lt-footer">LabTools &middot; Open source lab utilities</footer>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   CONSTANTS
+═══════════════════════════════════════════════════════ */
+const PL_ROWS = ['A','B','C','D','E','F','G','H'];
+const N_R = 8, N_C = 12;
+
+const PRESETS = {
+  pierce: { name:'Pierce BCA', unit:'µg/mL',  concs:[2000,1500,1000,750,500,250,125,25,0] },
+  basic:  { name:'Basic',      unit:'µg/well', concs:[4,2,1,0.5,0] },
+  custom: { name:'Custom',     unit:'µg/mL',   concs:[] },
+};
+const PLATE_TPLS = [
+  { id:'basic',  name:'Basic (0–4 µg/well)', unit:'µg/well', concs:[4,2,1,0.5,0] },
+  { id:'pierce', name:'Pierce BCA Kit',      unit:'µg/mL',   concs:[2000,1000,500,250,125,25,0] },
+];
+
+/* ═══════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════ */
+let currentMode   = 'manual';
+let currentPreset = 'pierce';
+let numReps       = 1;
+let calcTimer     = null;
+let lastResult    = null;
+let currentFit    = null; // {slope, intercept, r2, unit, minOD, maxOD}
+
+let stdRows = []; // {conc, od1, od2, od3}
+let smpRows = []; // {name, od1, od2, od3, df}
+
+// Plate
+let plateMatrix = null, wellAssigns = {}, selWells = new Set();
+let isDragging = false, dragAnchor = null;
+let plateTplId = 'basic', plateTplActive = [], plateTplStep = -1;
+let tplAutoCollapsed = false;
+
+/* ── localStorage persistence ── */
+const LS_KEY = 'bca-plate-state';
+function savePlateState() {
+  if (!plateMatrix) return;
+  try {
+    const data = {
+      plateMatrix, wellAssigns, currentMode,
+      plateTplId, plateTplActive,
+      textarea: document.getElementById('plate-textarea')?.value || '',
+      savedAt: Date.now()
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(data));
+  } catch(e) { /* quota exceeded — silently skip */ }
+}
+function loadPlateState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    // Expire after 7 days
+    if (Date.now() - data.savedAt > 7 * 24 * 3600 * 1000) { clearPlateState(); return null; }
+    return data;
+  } catch(e) { return null; }
+}
+function clearPlateState() { localStorage.removeItem(LS_KEY); }
+
+function restorePlateState() {
+  const data = loadPlateState();
+  if (!data) { alert('No saved plate data found.'); return; }
+  plateMatrix = data.plateMatrix;
+  wellAssigns = data.wellAssigns || {};
+  currentMode = data.currentMode || 'grid';
+  plateTplId = data.plateTplId || 'basic';
+  plateTplActive = data.plateTplActive || PLATE_TPLS.find(t=>t.id===plateTplId).concs.map(()=>true);
+  plateTplStep = -1;
+  selWells = new Set();
+
+  // Switch to the saved mode
+  switchMode(currentMode);
+  // Restore textarea if it exists
+  if (data.textarea) document.getElementById('plate-textarea').value = data.textarea;
+
+  renderPlate(); initPlateTemplate(); updateAssignSummary();
+  document.getElementById('plate-grid-section').style.display = 'block';
+  document.getElementById('plate-restore-banner').style.display = 'none';
+  collapsePaste('Restored saved plate');
+  schedulePlateCalc();
+}
+
+function collapsePaste(summary) {
+  document.getElementById('paste-expanded').style.display = 'none';
+  document.getElementById('paste-collapsed').style.display = 'block';
+  document.getElementById('paste-summary-text').textContent = summary;
+}
+function expandPaste() {
+  document.getElementById('paste-expanded').style.display = '';
+  document.getElementById('paste-collapsed').style.display = 'none';
+  document.getElementById('plate-textarea').focus();
+}
+/* ═══════════════════════════════════════════════════════
+   MODE SWITCHING
+═══════════════════════════════════════════════════════ */
+const RAW_HINT  = 'Select your plate reader .txt export (SoftMax Pro / SpectraMax), or paste the file content below.';
+const GRID_HINT = 'Paste the 8×12 OD block (tab-separated). Copy the value block from Excel or your reader\'s plate view — no headers needed.';
+
+function switchMode(m) {
+  currentMode = m;
+  ['manual','grid','raw'].forEach(id => document.getElementById(`tab-${id}`).classList.toggle('active', id === m));
+  document.getElementById('mode-manual').style.display = m === 'manual' ? '' : 'none';
+  document.getElementById('mode-plate').style.display  = m !== 'manual' ? '' : 'none';
+  if (m !== 'manual') {
+    document.getElementById('plate-paste-label').textContent = m === 'raw' ? 'Import Raw File' : 'Paste OD Grid';
+    document.getElementById('plate-paste-hint').textContent  = m === 'raw' ? RAW_HINT : GRID_HINT;
+    document.getElementById('plate-textarea').placeholder    = m === 'raw' ? '##BLOCKS= 1\\nPlate:\\t…' : '0.370\\t0.408\\t…';
+    document.getElementById('file-bar').style.display        = m === 'raw' ? 'flex' : 'none';
+    // Show restore banner if saved state exists and no plate loaded yet
+    if (!plateMatrix && loadPlateState()) {
+      document.getElementById('plate-restore-banner').style.display = 'block';
+    }
+    // If not yet parsed, show expanded paste; keep collapsed if already parsed
+    if (!plateMatrix) { expandPaste(); plateFileName = ''; }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   PRESET & REPS
+═══════════════════════════════════════════════════════ */
+function setPreset(pid) {
+  const prev = stdRows.map(r => ({od1:r.od1, od2:r.od2, od3:r.od3}));
+
+  // Warn if OD data will be lost by the switch
+  const hasOD = r => r.od1 || r.od2 || r.od3;
+  const anyOD = stdRows.some(hasOD);
+  if (anyOD && pid !== currentPreset) {
+    const newLen = pid === 'custom' ? 2 : PRESETS[pid].concs.length;
+    const lostRows = prev.slice(newLen).filter(hasOD);
+    if (lostRows.length > 0) {
+      const lostConcs = stdRows.slice(newLen).filter((r,i) => hasOD(prev[newLen+i]))
+        .map(r => r.conc).filter(Boolean).join(', ');
+      if (!confirm(`Switching to "${PRESETS[pid].name}" will discard OD data from ${lostRows.length} row(s)` +
+          (lostConcs ? `: ${lostConcs}` : '') +
+          '.\n\nPreserved rows (by position) will keep their OD values.\n\nContinue?')) return;
+    }
+  }
+
+  currentPreset = pid;
+  const p = PRESETS[pid];
+  if (pid === 'custom') {
+    if (!stdRows.length) stdRows = [{conc:'',od1:'',od2:'',od3:''},{conc:'',od1:'',od2:'',od3:''}];
+  } else {
+    stdRows = p.concs.map((c, i) => ({
+      conc: String(c),
+      od1: prev[i]?.od1 || '',
+      od2: prev[i]?.od2 || '',
+      od3: prev[i]?.od3 || '',
+    }));
+  }
+  ['pierce','basic','custom'].forEach(id =>
+    document.getElementById(`preset-${id}`).classList.toggle('active', id === pid));
+  const unit = PRESETS[pid].unit;
+  document.getElementById('std-conc-hdr').textContent = `Conc (${unit})`;
+  document.getElementById('smp-conc-hdr').textContent = `Conc (${unit})`;
+  document.getElementById('res-conc-header').textContent = `Conc (${unit})`;
+  renderStdTable();
+  scheduleCalc();
+}
+
+function setReps(n) {
+  numReps = n;
+  [1,2,3].forEach(i => document.getElementById(`rep-btn-${i}`).classList.toggle('active', i === n));
+  document.querySelectorAll('.r2-col').forEach(el => el.classList.toggle('hide-col', n < 2));
+  document.querySelectorAll('.r3-col').forEach(el => el.classList.toggle('hide-col', n < 3));
+  scheduleCalc();
+}
+
+/* ═══════════════════════════════════════════════════════
+   RENDER TABLES
+═══════════════════════════════════════════════════════ */
+function renderStdTable() {
+  const isCustom = currentPreset === 'custom';
+  document.getElementById('std-tbody').innerHTML = stdRows.map((r, i) => {
+    const concCell = isCustom
+      ? `<td class="col-conc"><input class="ci ci-r" type="number" min="0" value="${r.conc}" placeholder="0"
+            data-tbl="std" data-row="${i}" data-col="conc"
+            oninput="onStdIn(${i},'conc',this.value)"
+            onkeydown="cellKey(event,'std',${i},'conc')"></td>`
+      : `<td class="col-conc"><span class="conc-ro">${r.conc}</span></td>`;
+    const avg = avgOD(r);
+    return `<tr id="std-tr-${i}">${concCell}
+      <td class="col-od"><input class="ci ci-r" type="number" min="0" step="0.001" value="${r.od1}" placeholder="0.000"
+          data-tbl="std" data-row="${i}" data-col="od1"
+          oninput="onStdIn(${i},'od1',this.value)" onkeydown="cellKey(event,'std',${i},'od1')" onpaste="cellPaste(event,'std',${i},'od1')"></td>
+      <td class="col-od r2-col${numReps<2?' hide-col':''}"><input class="ci ci-r" type="number" min="0" step="0.001" value="${r.od2}" placeholder="—"
+          data-tbl="std" data-row="${i}" data-col="od2"
+          oninput="onStdIn(${i},'od2',this.value)" onkeydown="cellKey(event,'std',${i},'od2')" onpaste="cellPaste(event,'std',${i},'od2')"></td>
+      <td class="col-od r3-col${numReps<3?' hide-col':''}"><input class="ci ci-r" type="number" min="0" step="0.001" value="${r.od3}" placeholder="—"
+          data-tbl="std" data-row="${i}" data-col="od3"
+          oninput="onStdIn(${i},'od3',this.value)" onkeydown="cellKey(event,'std',${i},'od3')" onpaste="cellPaste(event,'std',${i},'od3')"></td>
+      <td class="col-avg"><span class="avg-cell${isNaN(avg)?' dim':''}" id="std-avg-${i}">${fmtA(avg)}</span></td>
+      <td class="col-del"><button class="del-btn" onclick="delStdRow(${i})" title="Remove">×</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderSmpTable() {
+  document.getElementById('smp-tbody').innerHTML = smpRows.map((r, i) => `
+    <tr id="smp-tr-${i}">
+      <td class="col-name"><input class="ci ci-l" type="text" value="${esc(r.name)}" placeholder="Sample name"
+          data-tbl="smp" data-row="${i}" data-col="name"
+          oninput="onSmpIn(${i},'name',this.value)" onkeydown="cellKey(event,'smp',${i},'name')"></td>
+      <td class="col-od"><input class="ci ci-r" type="number" min="0" step="0.001" value="${r.od1}" placeholder="0.000"
+          data-tbl="smp" data-row="${i}" data-col="od1"
+          oninput="onSmpIn(${i},'od1',this.value)" onkeydown="cellKey(event,'smp',${i},'od1')" onpaste="cellPaste(event,'smp',${i},'od1')"></td>
+      <td class="col-od r2-col${numReps<2?' hide-col':''}"><input class="ci ci-r" type="number" min="0" step="0.001" value="${r.od2}" placeholder="—"
+          data-tbl="smp" data-row="${i}" data-col="od2"
+          oninput="onSmpIn(${i},'od2',this.value)" onkeydown="cellKey(event,'smp',${i},'od2')" onpaste="cellPaste(event,'smp',${i},'od2')"></td>
+      <td class="col-od r3-col${numReps<3?' hide-col':''}"><input class="ci ci-r" type="number" min="0" step="0.001" value="${r.od3}" placeholder="—"
+          data-tbl="smp" data-row="${i}" data-col="od3"
+          oninput="onSmpIn(${i},'od3',this.value)" onkeydown="cellKey(event,'smp',${i},'od3')" onpaste="cellPaste(event,'smp',${i},'od3')"></td>
+      <td class="col-df"><input class="ci ci-r" type="number" min="1" step="1" value="${r.df}" placeholder="1"
+          data-tbl="smp" data-row="${i}" data-col="df"
+          oninput="onSmpIn(${i},'df',this.value)" onkeydown="cellKey(event,'smp',${i},'df')"></td>
+      <td class="col-conc-result"><span class="smp-conc-cell" id="smp-conc-${i}">—</span></td>
+      <td class="col-del"><button class="del-btn" onclick="delSmpRow(${i})" title="Remove">×</button></td>
+    </tr>`).join('');
+  updateSmpConcs();
+}
+
+/* ═══════════════════════════════════════════════════════
+   INPUT HANDLERS
+═══════════════════════════════════════════════════════ */
+function onStdIn(i, col, val) {
+  stdRows[i][col] = val;
+  if (col !== 'conc') {
+    const el = document.getElementById(`std-avg-${i}`);
+    if (el) { const v = avgOD(stdRows[i]); el.textContent = fmtA(v); el.className = `avg-cell${isNaN(v)?' dim':''}`; }
+  }
+  scheduleCalc();
+}
+function onSmpIn(i, col, val) { smpRows[i][col] = val; scheduleCalc(); }
+
+/* Enter = move down; works across both tables */
+function cellKey(e, tbl, rowIdx, col) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const rows = tbl === 'std' ? stdRows : smpRows;
+  const isLast = rowIdx === rows.length - 1;
+  if (isLast) {
+    if (tbl === 'std') addStdRow(false);
+    else               addSmpRow(false);
+  }
+  const next = document.querySelector(`[data-tbl="${tbl}"][data-row="${rowIdx+1}"][data-col="${col}"]`);
+  if (next) next.focus();
+}
+
+/* Paste: if multi-line, fill down the column */
+function cellPaste(e, tbl, rowIdx, col) {
+  const raw = (e.clipboardData || window.clipboardData).getData('text');
+  const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length <= 1) return;
+  e.preventDefault();
+  const rows = tbl === 'std' ? stdRows : smpRows;
+  lines.forEach((line, off) => {
+    const idx = rowIdx + off;
+    const val = parseFloat(line.split(/[\t,]/)[0]);
+    if (isNaN(val)) return;
+    while (rows.length <= idx) {
+      if (tbl === 'std') rows.push(newStdRow());
+      else               rows.push(newSmpRow(rows.length));
+    }
+    rows[idx][col] = String(val);
+  });
+  if (tbl === 'std') renderStdTable();
+  else               renderSmpTable();
+  scheduleCalc();
+}
+
+function newStdRow() { return { conc: '', od1: '', od2: '', od3: '' }; }
+function newSmpRow(n) { return { name: n > 0 ? `Sample ${n+1}` : '', od1: '', od2: '', od3: '', df: '1' }; }
+
+function addStdRow(focus=true) {
+  stdRows.push(newStdRow());
+  renderStdTable();
+  if (focus) setTimeout(() => {
+    const el = document.querySelector(`[data-tbl="std"][data-row="${stdRows.length-1}"][data-col="od1"]`);
+    if (el) el.focus();
+  }, 0);
+}
+function delStdRow(i) {
+  if (stdRows.length <= 2) return;
+  stdRows.splice(i, 1); renderStdTable(); scheduleCalc();
+}
+function addSmpRow(focus=true) {
+  smpRows.push(newSmpRow(smpRows.length));
+  renderSmpTable();
+  if (focus) setTimeout(() => {
+    const el = document.querySelector(`[data-tbl="smp"][data-row="${smpRows.length-1}"][data-col="name"]`);
+    if (el) el.focus();
+  }, 0);
+}
+function delSmpRow(i) {
+  smpRows.splice(i, 1);
+  if (!smpRows.length) smpRows.push(newSmpRow(0));
+  renderSmpTable(); scheduleCalc();
+}
+
+/* ═══════════════════════════════════════════════════════
+   LIVE CALCULATION
+═══════════════════════════════════════════════════════ */
+function scheduleCalc() { clearTimeout(calcTimer); calcTimer = setTimeout(runCalc, 280); }
+
+function runCalc() {
+  const pts = stdRows
+    .map(r => ({ x: parseFloat(r.conc), y: avgOD(r) }))
+    .filter(p => !isNaN(p.x) && !isNaN(p.y));
+
+  if (pts.length < 2) {
+    currentFit = null;
+    setStatus(pts.length === 0 ? 'Waiting for data…' : `${pts.length} point — need ≥ 2`, pts.length ? 'warn' : '');
+    showResultsEmpty();
+    updateSmpConcs();
+    return;
+  }
+
+  const fit = linearRegression(pts);
+  if (!fit) { setStatus('Cannot fit (identical concentrations?)', 'err'); showResultsEmpty(); return; }
+
+  const { slope, intercept, r2 } = fit;
+  const minOD = Math.min(...pts.map(p=>p.y));
+  const maxOD = Math.max(...pts.map(p=>p.y));
+  const unit  = PRESETS[currentPreset]?.unit || 'µg/mL';
+  currentFit  = { slope, intercept, r2, unit, minOD, maxOD };
+
+  const sampleResults = smpRows.map(r => {
+    const od = avgOD(r), df = parseFloat(r.df) || 1;
+    if (isNaN(od)) return { name: r.name || '—', od, df, conc: NaN, flag: '' };
+    const rawConc = (od - intercept) / slope;
+    const actConc = rawConc * df;
+    const flag = (actConc<0||rawConc<0) ? 'below-det' : (od<minOD||od>maxOD) ? 'extrap' : '';
+    return { name: r.name || '—', od, df, conc: actConc, flag };
+  }).filter(r => r.name !== '—' || !isNaN(r.od));
+
+  lastResult = { fit, regPoints: pts, sampleResults, unit };
+  showResults(slope, intercept, r2, pts.length, pts, sampleResults, unit);
+  updateSmpConcs();
+}
+
+/* ── Live plate-mode calculation ── */
+let plateCalcTimer = null;
+function schedulePlateCalc() {
+  if (currentMode === 'manual') return;
+  clearTimeout(plateCalcTimer);
+  plateCalcTimer = setTimeout(runPlateCalc, 280);
+}
+
+function runPlateCalc() {
+  if (!plateMatrix) return;
+
+  // Group wells by assignment (same logic as buildFromPlate)
+  const stdM = new Map(), smpM = new Map();
+  for (let r = 0; r < N_R; r++) for (let c = 0; c < N_C; c++) {
+    const k = PL_ROWS[r] + (c + 1), a = wellAssigns[k];
+    if (!a) continue;
+    const od = plateMatrix[r][c];
+    if (a.type === 'std') {
+      if (!stdM.has(a.conc)) stdM.set(a.conc, []);
+      stdM.get(a.conc).push(od);
+    } else {
+      const kk = a.name + '||' + a.df;
+      if (!smpM.has(kk)) smpM.set(kk, { name: a.name, df: a.df, ods: [] });
+      smpM.get(kk).ods.push(od);
+    }
+  }
+
+  if (stdM.size < 2) {
+    currentFit = null;
+    setStatus(stdM.size === 0 ? 'Waiting for data…' : `${stdM.size} standard group — need ≥ 2`, stdM.size ? 'warn' : '');
+    showResultsEmpty();
+    return;
+  }
+
+  // Build rows for runCalc
+  stdRows = [...stdM.entries()].sort((a, b) => a[0] - b[0]).map(([c, ods]) => ({
+    conc: String(c),
+    od1: String(ods[0] || ''),
+    od2: ods.length >= 2 ? String(ods[1]) : '',
+    od3: ods.length >= 3 ? String(ods[2]) : '',
+  }));
+
+  smpRows = [...smpM.values()].map(g => ({
+    name: g.name,
+    od1: String(g.ods[0] || ''),
+    od2: g.ods.length >= 2 ? String(g.ods[1]) : '',
+    od3: g.ods.length >= 3 ? String(g.ods[2]) : '',
+    df: String(g.df),
+  }));
+
+  // Temporarily switch preset unit to match plate template
+  const tpl = PLATE_TPLS.find(t => t.id === plateTplId);
+  const savedPreset = currentPreset;
+  if (tpl) {
+    currentPreset = tpl.id === 'basic' ? 'basic' : 'pierce';
+    document.getElementById('res-conc-header').textContent = `Conc (${tpl.unit})`;
+  }
+
+  runCalc();
+
+  // Restore if needed (but keep results)
+  if (tpl) {
+    document.getElementById('res-conc-header').textContent = `Conc (${tpl.unit})`;
+  }
+}
+
+function updateSmpConcs() {
+  smpRows.forEach((r, i) => {
+    const el = document.getElementById(`smp-conc-${i}`);
+    if (!el) return;
+    if (!currentFit) { el.textContent = '—'; el.style.color = ''; return; }
+    const { slope, intercept, minOD, maxOD } = currentFit;
+    const od = avgOD(r);
+    if (isNaN(od)) { el.textContent = '—'; el.style.color = ''; return; }
+    const df = parseFloat(r.df) || 1;
+    const raw = (od - intercept) / slope;
+    const act = raw * df;
+    if (act < 0 || raw < 0) { el.textContent = '< 0'; el.style.color = 'var(--red)'; }
+    else if (od < minOD || od > maxOD) { el.textContent = act.toFixed(2); el.style.color = 'var(--yellow-dark)'; }
+    else { el.textContent = act.toFixed(2); el.style.color = 'var(--green-dark)'; }
+  });
+}
+
+function showResultsEmpty() {
+  document.getElementById('results-empty').style.display   = '';
+  document.getElementById('results-content').style.display = 'none';
+}
+
+function setStatus(msg, type='') {
+  const el = document.getElementById('calc-status');
+  el.textContent = msg;
+  el.className = 'calc-status' + (type ? ` ${type}` : '');
+}
+
+/* ═══════════════════════════════════════════════════════
+   DISPLAY RESULTS
+═══════════════════════════════════════════════════════ */
+function showResults(slope, intercept, r2, n, stdPts, samples, unit) {
+  document.getElementById('results-empty').style.display   = 'none';
+  document.getElementById('results-content').style.display = '';
+
+  const sign = intercept >= 0 ? '+' : '−';
+  const absI = Math.abs(intercept);
+  document.getElementById('res-equation').textContent     = `OD = ${slope.toExponential(3)}·C ${sign} ${absI.toFixed(4)}`;
+  document.getElementById('res-slope-inline').textContent  = `m=${slope.toExponential(2)}`;
+  document.getElementById('res-intercept-inline').textContent = `b=${intercept.toFixed(3)}`;
+  document.getElementById('res-npts-inline').textContent   = `n=${n}`;
+
+  const badge = document.getElementById('res-r2-badge');
+  const isBasic = currentPreset === 'basic';
+  if (r2 >= 0.99) { badge.className='lt-badge lt-badge-green'; badge.textContent=`R² ${r2.toFixed(4)} ✓`; setStatus(`Good fit (R² ${r2.toFixed(4)})`, 'ok'); }
+  else if (r2 >= 0.95) { badge.className='lt-badge lt-badge-yellow'; badge.textContent=`R² ${r2.toFixed(4)}`; setStatus('Acceptable fit — review standards', 'warn'); }
+  else if (isBasic && r2 >= 0.88) { badge.className='lt-badge lt-badge-yellow'; badge.textContent=`R² ${r2.toFixed(4)}`; setStatus('Marginal — low-end non-linearity expected', 'warn'); }
+  else { badge.className='lt-badge lt-badge-red'; badge.textContent=`R² ${r2.toFixed(4)}`; setStatus(isBasic ? 'Poor fit — check standards' : 'Poor fit — results may be unreliable', 'err'); }
+
+  document.getElementById('res-conc-header').textContent = `Conc (${unit})`;
+  drawChart(stdPts, slope, intercept, samples);
+  showSampleResults(samples, unit);
+}
+
+function showSampleResults(results, unit) {
+  const tbody = document.getElementById('results-tbody');
+  if (!results.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:14px;">No samples entered</td></tr>';
+    return;
+  }
+  tbody.innerHTML = results.map(r => {
+    const odStr   = isNaN(r.od)   ? '—' : r.od.toFixed(4);
+    const concStr = isNaN(r.conc) ? '—' : r.conc.toFixed(2);
+    const flagHtml = r.flag==='extrap'    ? '<span class="flag-extrap">Extrap</span>'
+                   : r.flag==='below-det' ? '<span class="flag-low">Low</span>' : '—';
+    return `<tr>
+      <td>${esc(r.name)}</td>
+      <td>${odStr}</td>
+      <td>${r.df}×</td>
+      <td class="conc-value">${concStr}</td>
+      <td>${flagHtml}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* Mirror right-pane results into the inline area (plate mode / mobile) */
+function showInlineResults() {
+  const target = document.getElementById('inline-results-content');
+  if (!target) return;
+
+  const eq = document.getElementById('res-equation').textContent;
+  const r2b = document.getElementById('res-r2-badge').outerHTML;
+  const sl = document.getElementById('res-slope-inline').textContent;
+  const ic = document.getElementById('res-intercept-inline').textContent;
+  const np = document.getElementById('res-npts-inline').textContent;
+  const chart = document.getElementById('bca-chart').innerHTML;
+  const rtable = document.getElementById('results-tbody').innerHTML;
+  const hdr = document.getElementById('res-conc-header').textContent;
+  const status = document.getElementById('calc-status');
+  const statusText = status ? status.textContent : '';
+  const statusCls = status ? status.className : '';
+
+  target.innerHTML = `
+    <div class="results-card" style="margin-top:0;">
+      <div class="results-pane-header">
+        <span class="results-pane-title">Plate Results</span>
+        <span class="${statusCls}">${statusText}</span>
+      </div>
+      <div class="fit-strip">
+        <span class="fit-equation">${eq}</span>
+        ${r2b}
+        <span class="fit-stat">${sl}</span>
+        <span class="fit-stat">${ic}</span>
+        <span class="fit-stat">${np}</span>
+      </div>
+      <div class="chart-wrap">
+        <svg viewBox="0 0 360 260" xmlns="http://www.w3.org/2000/svg">${chart}</svg>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#5c8dff;"></div>Standards</div>
+          <div class="legend-item"><div class="legend-diamond" style="background:#e07832;"></div>Samples</div>
+          <div class="legend-item"><div style="width:16px;height:2px;background:#5c8dff;opacity:0.5;flex-shrink:0;margin-top:1px;"></div>Fit</div>
+        </div>
+      </div>
+      <div class="lt-section-label" style="margin-bottom:6px;">Sample Concentrations</div>
+      <div class="res-table-shell">
+        <table class="res-table">
+          <thead><tr><th>Sample</th><th>Avg OD</th><th>DF</th><th>${hdr}</th><th>Flag</th></tr></thead>
+          <tbody>${rtable || '<tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:14px;">No samples entered</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div class="export-row">
+        <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="exportCSV()">Export CSV</button>
+        <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="copyResults()">Copy Table</button>
+      </div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SVG CHART (shared renderer)
+═══════════════════════════════════════════════════════ */
+function renderChart(targetId, W, H, stdPts, slope, intercept, samples, unit) {
+  const ML=W>400?70:54, MR=W>400?20:14, MT=14, MB=48;
+  const PW=W-ML-MR, PH=H-MT-MB;
+  const maxX = Math.max(...stdPts.map(p=>p.x))*1.08||8;
+  const maxY = Math.max(...stdPts.map(p=>p.y))*1.12||4;
+  const xS = v => ML+(v/maxX)*PW;
+  const yS = v => MT+PH-(v/maxY)*PH;
+  const xT = niceTicks(0,maxX,5), yT = niceTicks(0,maxY,4);
+  const fs = W>400 ? '12' : '9', fs2 = W>400 ? '13' : '9.5';
+  let s='';
+  s+=`<rect x="${ML}" y="${MT}" width="${PW}" height="${PH}" fill="var(--surface-subtle)" rx="3"/>`;
+  yT.forEach(t => s+=`<line x1="${ML}" y1="${yS(t)}" x2="${ML+PW}" y2="${yS(t)}" stroke="var(--border-subtle)" stroke-width="1"/>`);
+  xT.forEach(t => s+=`<line x1="${xS(t)}" y1="${MT}" x2="${xS(t)}" y2="${MT+PH}" stroke="var(--border-subtle)" stroke-width="1"/>`);
+  s+=`<line x1="${xS(0)}" y1="${yS(slope*0+intercept)}" x2="${xS(maxX)}" y2="${yS(slope*maxX+intercept)}" stroke="#5c8dff" stroke-width="1.6" stroke-opacity="0.5" stroke-dasharray="4 3"/>`;
+  const rad = W>400 ? 6 : 4.5;
+  stdPts.forEach(p => s+=`<circle cx="${xS(p.x)}" cy="${yS(p.y)}" r="${rad}" fill="#5c8dff" stroke="#fff" stroke-width="1.2" opacity="0.9"/>`);
+  samples.forEach(r => {
+    if (isNaN(r.od)) return;
+    const rc=(r.od-intercept)/slope;
+    const cx=xS(Math.max(0,Math.min(rc,maxX))), cy=yS(Math.max(0,Math.min(r.od,maxY))), sz=rad;
+    s+=`<polygon points="${cx},${cy-sz} ${cx+sz},${cy} ${cx},${cy+sz} ${cx-sz},${cy}" fill="#e07832" stroke="#fff" stroke-width="1.2" opacity="0.9"/>`;
+  });
+  s+=`<line x1="${ML}" y1="${MT}" x2="${ML}" y2="${MT+PH}" stroke="var(--border)" stroke-width="1.2"/>`;
+  s+=`<line x1="${ML}" y1="${MT+PH}" x2="${ML+PW}" y2="${MT+PH}" stroke="var(--border)" stroke-width="1.2"/>`;
+  xT.forEach(t => s+=`<text x="${xS(t)}" y="${MT+PH+14}" text-anchor="middle" font-size="${fs}" fill="var(--text-muted)" font-family="var(--font)">${fmtTk(t)}</text>`);
+  yT.forEach(t => s+=`<text x="${ML-6}" y="${yS(t)+3}" text-anchor="end" font-size="${fs}" fill="var(--text-muted)" font-family="var(--font)">${t.toFixed(2)}</text>`);
+  s+=`<text x="${ML+PW/2}" y="${H-5}" text-anchor="middle" font-size="${fs2}" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600">Concentration (${unit})</text>`;
+  s+=`<text x="10" y="${MT+PH/2}" text-anchor="middle" font-size="${fs2}" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600" transform="rotate(-90,10,${MT+PH/2})">OD (562 nm)</text>`;
+  document.getElementById(targetId).innerHTML = s;
+}
+
+function drawChart(stdPts, slope, intercept, samples) {
+  const unit = PRESETS[currentPreset]?.unit || 'µg/mL';
+  renderChart('bca-chart', 360, 260, stdPts, slope, intercept, samples, unit);
+}
+
+function expandChart() {
+  if (!lastResult) return;
+  const { fit, regPoints, sampleResults, unit } = lastResult;
+  renderChart('bca-chart-large', 600, 400, regPoints, fit.slope, fit.intercept, sampleResults, unit);
+  document.getElementById('chart-overlay').classList.add('show');
+}
+
+/* ═══════════════════════════════════════════════════════
+   PLATE MODE (full parity with original)
+═══════════════════════════════════════════════════════ */
+let plateFileName = '';
+
+function loadFile(input) {
+  const f = input.files[0]; if (!f) return;
+  plateFileName = f.name;
+  const r = new FileReader();
+  r.onload = e => { document.getElementById('plate-textarea').value = e.target.result; parsePlate(); };
+  r.readAsText(f); input.value='';
+}
+
+function parsePlateRaw(text) {
+  const lines = text.split('\n').map(l=>l.replace(/\r$/,''));
+  const hi = lines.findIndex(l=>l.includes('Temperature'));
+  if (hi<0) throw new Error('Could not find "Temperature" header line. Is this a SoftMax Pro export?');
+  const dl = lines.slice(hi+1).filter(l=>l.trim()&&!l.startsWith('~'));
+  if (dl.length<N_R) throw new Error(`Expected ${N_R} data rows, found ${dl.length}.`);
+  return dl.slice(0,N_R).map((line,ri)=>{
+    const cols=line.split('\t').slice(2,2+N_C);
+    if(cols.length<N_C) throw new Error(`Row ${PL_ROWS[ri]}: expected 12 columns, found ${cols.length}.`);
+    return cols.map((v,ci)=>{const n=parseFloat(v.trim());if(isNaN(n))throw new Error(`Row ${PL_ROWS[ri]}, col ${ci+1}: "${v}" is not a number.`);return n;});
+  });
+}
+function parsePlateGrid(text) {
+  const lines=text.split('\n').map(l=>l.trim()).filter(l=>l.length);
+  const dl=lines.filter(l=>{const f=l.split(/[\t,]/)[0].trim();return !isNaN(parseFloat(f))||f===''})
+    .filter(l=>l.split(/[\t,]/).map(v=>parseFloat(v.trim())).filter(v=>!isNaN(v)).length>=N_C);
+  if(dl.length<1)throw new Error('No rows with 12+ numeric values found.');
+  if(dl.length<N_R)throw new Error(`Found ${dl.length} row(s) — need ${N_R}.`);
+  return dl.slice(0,N_R).map(line=>line.split(/[\t,]/).map(v=>parseFloat(v.trim())).filter(v=>!isNaN(v)).slice(0,N_C));
+}
+function parsePlate() {
+  const text=document.getElementById('plate-textarea').value.trim();
+  const err=document.getElementById('plate-error');
+  err.style.display='none';
+  if(!text){err.textContent='No content to parse.';err.style.display='block';return;}
+  try {
+    if (currentMode==='raw') {
+      try {
+        plateMatrix = parsePlateRaw(text);
+      } catch(rawErr) {
+        // Fallback: try parsing as a simple grid
+        try { plateMatrix = parsePlateGrid(text); }
+        catch(gridErr) { throw rawErr; } // re-throw original error
+      }
+    } else {
+      plateMatrix = parsePlateGrid(text);
+    }
+    wellAssigns={}; selWells=new Set();
+    renderPlate(); initPlateTemplate(); updateAssignSummary();
+    document.getElementById('plate-grid-section').style.display='block';
+    savePlateState();
+
+    // Collapse import section
+    const summary = plateFileName
+      ? `Loaded: ${plateFileName} (${plateMatrix.flat().length} wells)`
+      : `Pasted data (${N_R}×${N_C} grid)`;
+    collapsePaste(summary);
+  } catch(e){err.textContent='Parse error: '+e.message;err.style.display='block';}
+}
+
+function odColor(od,mn,mx){
+  const t=mx>mn?Math.max(0,Math.min(1,(od-mn)/(mx-mn))):0;
+  return `rgb(${Math.round(247-t*196)},${Math.round(247-t*145)},${Math.round(245-t*41)})`;
+}
+function renderPlate(){
+  const all=plateMatrix.flat(),mn=Math.min(...all),mx=Math.max(...all);
+  const g=document.getElementById('plate-grid');
+  let h='<div></div>';
+  for(let c=1;c<=N_C;c++) h+=`<div class="plate-col-label">${c}</div>`;
+  for(let r=0;r<N_R;r++){
+    h+=`<div class="plate-row-label">${PL_ROWS[r]}</div>`;
+    for(let c=0;c<N_C;c++){
+      const k=PL_ROWS[r]+(c+1);
+      h+=`<div class="plate-well" id="well-${k}" data-key="${k}" data-r="${r}" data-c="${c}"
+        tabindex="0" role="button" aria-label="Well ${k}, OD ${plateMatrix[r][c].toFixed(4)}"
+        style="background:${odColor(plateMatrix[r][c],mn,mx)};"
+        onmousedown="wellDown(event,this)" onmouseenter="wellEnter(this)"
+        onkeydown="wellKey(event,this)"
+        title="${k}: ${plateMatrix[r][c].toFixed(4)}">
+        <span class="well-od">${plateMatrix[r][c].toFixed(3)}</span>
+        <span class="well-label" id="wl-${k}"></span></div>`;
+    }
+  }
+  g.innerHTML=h; refreshWells();
+  document.removeEventListener('mouseup',endDrag);
+  document.addEventListener('mouseup',endDrag);
+}
+function refreshWells(){
+  document.querySelectorAll('.plate-well').forEach(el=>{
+    const k=el.dataset.key; el.classList.remove('selected','assigned-std','assigned-smp');
+    const lb=document.getElementById('wl-'+k);
+    if(selWells.has(k)) el.classList.add('selected');
+    if(wellAssigns[k]){
+      const a=wellAssigns[k];
+      if(a.type==='std'){el.classList.add('assigned-std');if(lb)lb.textContent=a.conc;}
+      else{el.classList.add('assigned-smp');if(lb)lb.textContent=a.name.slice(0,4);}
+    } else if(lb) lb.textContent='';
+  });
+}
+function wellDown(e,el){
+  e.preventDefault(); isDragging=true; dragAnchor=el;
+  if(!e.shiftKey&&!e.ctrlKey&&!e.metaKey) selWells.clear();
+  selWells.add(el.dataset.key); refreshWells(); updatePlateSel();
+}
+function wellEnter(el){
+  if(!isDragging||!dragAnchor)return;
+  const r1=+dragAnchor.dataset.r,c1=+dragAnchor.dataset.c,r2=+el.dataset.r,c2=+el.dataset.c;
+  selWells.clear();
+  for(let r=Math.min(r1,r2);r<=Math.max(r1,r2);r++)
+    for(let c=Math.min(c1,c2);c<=Math.max(c1,c2);c++) selWells.add(PL_ROWS[r]+(c+1));
+  refreshWells(); updatePlateSel();
+}
+function endDrag(){isDragging=false;}
+
+function wellKey(e, el) {
+  const r = +el.dataset.r, c = +el.dataset.c;
+  if (e.key === ' ' || e.key === 'Spacebar') {
+    e.preventDefault();
+    if (!e.shiftKey && !e.ctrlKey && !e.metaKey) selWells.clear();
+    selWells.has(el.dataset.key) ? selWells.delete(el.dataset.key) : selWells.add(el.dataset.key);
+    refreshWells(); updatePlateSel();
+  } else if (e.key === 'Delete' || e.key === 'Backspace') {
+    e.preventDefault();
+    if (wellAssigns[el.dataset.key]) { delete wellAssigns[el.dataset.key]; refreshWells(); updateAssignSummary(); renderTplUI(); schedulePlateCalc(); }
+  } else if (e.key === 'ArrowUp' && r > 0) {
+    e.preventDefault(); document.getElementById(`well-${PL_ROWS[r-1]}${c+1}`)?.focus();
+  } else if (e.key === 'ArrowDown' && r < N_R - 1) {
+    e.preventDefault(); document.getElementById(`well-${PL_ROWS[r+1]}${c+1}`)?.focus();
+  } else if (e.key === 'ArrowLeft' && c > 0) {
+    e.preventDefault(); document.getElementById(`well-${PL_ROWS[r]}${c}`)?.focus();
+  } else if (e.key === 'ArrowRight' && c < N_C - 1) {
+    e.preventDefault(); document.getElementById(`well-${PL_ROWS[r]}${c+2}`)?.focus();
+  }
+}
+function clearSelection(){selWells.clear();refreshWells();updatePlateSel();}
+function selectAll(){
+  for(let r=0;r<N_R;r++) for(let c=0;c<N_C;c++) selWells.add(PL_ROWS[r]+(c+1));
+  refreshWells(); updatePlateSel();
+}
+function updatePlateSel(){
+  const n=selWells.size,keys=[...selWells].sort();
+  document.getElementById('plate-sel-count').textContent=
+    n===0?'No wells selected — click or drag to select'
+    :`${n} well${n>1?'s':''} selected: ${keys.slice(0,8).join(', ')}${n>8?' …':''}`;
+  updatePlateNav();
+}
+function initPlateTemplate(){
+  plateTplId='basic'; plateTplActive=PLATE_TPLS[0].concs.map(()=>true); plateTplStep=-1;
+  tplAutoCollapsed = false;
+  document.getElementById('tpl-banner').style.display='none';
+  document.getElementById('assign-std-conc').value='';
+  renderTplUI(); updateTplUnit();
+}
+function setPlateTemplate(id){
+  plateTplId=id; plateTplActive=PLATE_TPLS.find(t=>t.id===id).concs.map(()=>true); plateTplStep=-1;
+  tplAutoCollapsed = false;
+  document.getElementById('tpl-banner').style.display='none';
+  document.getElementById('assign-std-conc').value='';
+  PLATE_TPLS.forEach(t=>document.getElementById(`tpl-tab-${t.id}`)?.classList.toggle('active',t.id===id));
+  renderTplUI(); updateTplUnit();
+  savePlateState();
+}
+function updateTplUnit(){
+  const unit=PLATE_TPLS.find(t=>t.id===plateTplId)?.unit||'µg/mL';
+  document.getElementById('std-conc-label').textContent=`Concentration (${unit})`;
+}
+function tplToggle(i){
+  plateTplActive[i]=!plateTplActive[i];
+  if(plateTplStep===i){plateTplStep=-1;document.getElementById('tpl-banner').style.display='none';}
+  renderTplUI();
+}
+function tplSetStep(i){
+  plateTplStep=i;
+  // Auto-expand template section
+  const section = document.getElementById('tpl-section');
+  const btn = document.getElementById('tpl-collapse-btn');
+  if (section) { section.classList.remove('collapsed'); btn.classList.remove('collapsed'); }
+  tplAutoCollapsed = false;
+  const tpl=PLATE_TPLS.find(t=>t.id===plateTplId);
+  document.getElementById('assign-std-conc').value=tpl.concs[i];
+  document.getElementById('tpl-banner').style.display='flex';
+  document.getElementById('tpl-banner-text').textContent=`Now assigning ${tpl.concs[i]} ${tpl.unit} — select wells above`;
+  renderTplUI();
+}
+function tplAdvance(){
+  if(plateTplStep<0)return;
+  const tpl=PLATE_TPLS.find(t=>t.id===plateTplId);
+  let next=-1;
+  for(let i=plateTplStep+1;i<tpl.concs.length;i++){if(plateTplActive[i]){next=i;break;}}
+  plateTplStep=-1;
+  if(next>=0) tplSetStep(next);
+  else{document.getElementById('tpl-banner').style.display='none';document.getElementById('assign-std-conc').value='';renderTplUI();}
+}
+function resetTemplate(){
+  const assigned = Object.values(wellAssigns).filter(a=>a.type==='std').length;
+  if (assigned > 0 && !confirm(`This will clear all ${assigned} standard well assignment(s). Continue?`)) return;
+  tplAutoCollapsed = false;
+  Object.keys(wellAssigns).forEach(k=>{if(wellAssigns[k].type==='std')delete wellAssigns[k];});
+  plateTplStep=-1;
+  document.getElementById('tpl-banner').style.display='none';
+  document.getElementById('assign-std-conc').value='';
+  refreshWells(); updateAssignSummary(); renderTplUI();
+  savePlateState();
+  schedulePlateCalc();
+}
+function toggleTplSection() {
+  const section = document.getElementById('tpl-section');
+  const btn = document.getElementById('tpl-collapse-btn');
+  const collapsed = section.classList.toggle('collapsed');
+  btn.classList.toggle('collapsed', collapsed);
+  tplAutoCollapsed = false; // manual toggle overrides auto
+}
+
+function updatePlateNav(){
+  const nav=document.getElementById('tpl-plate-nav'); if(!nav||!plateMatrix)return;
+  const tpl=PLATE_TPLS.find(t=>t.id===plateTplId);
+  const active=tpl.concs.map((c,i)=>({c,i,on:plateTplActive[i]})).filter(s=>s.on);
+  if(!active.length){nav.style.display='none';return;}
+  const done=active.filter(s=>Object.values(wellAssigns).some(a=>a.type==='std'&&a.conc===s.c)).length;
+  const step=document.getElementById('tpl-plate-nav-step'),btn=document.getElementById('tpl-plate-nav-btn');
+  nav.style.display='flex';
+  if(plateTplStep>=0){
+    const sn=active.findIndex(s=>s.i===plateTplStep)+1,c=tpl.concs[plateTplStep];
+    if(selWells.size>0){
+      step.textContent=`Step ${sn}/${active.length}: ${c} ${tpl.unit} — ${selWells.size} well${selWells.size>1?'s':''} selected`;
+      btn.textContent=`Assign as ${c} ${tpl.unit} →`; btn.className='assign-ready'; btn.disabled=false; btn.onclick=()=>assignWells('std');
+    } else {
+      step.textContent=`Step ${sn}/${active.length}: ${c} ${tpl.unit} — select wells above`;
+      btn.textContent='← Selecting…'; btn.className=''; btn.disabled=true;
+    }
+    nav.className='';
+  } else if(done===active.length){
+    step.textContent=`✓ All ${active.length} standards assigned`; nav.className='nav-done';
+  } else {
+    const nxt=active.find(s=>!Object.values(wellAssigns).some(a=>a.type==='std'&&a.conc===s.c));
+    const sn=active.findIndex(s=>s.i===nxt.i)+1;
+    step.textContent=`Step ${sn}/${active.length}: ${nxt.c} ${tpl.unit}`;
+    btn.textContent='→ Select wells'; btn.disabled=false; btn.onclick=()=>tplSetStep(nxt.i); nav.className='';
+  }
+
+  // Hide standard assign card when template step is active (banner handles it)
+  const stdCard = document.getElementById('assign-std-card');
+  const assignRow = stdCard?.parentElement;
+  if (stdCard) stdCard.style.display = plateTplStep >= 0 ? 'none' : '';
+  if (assignRow) assignRow.style.gridTemplateColumns = plateTplStep >= 0 ? '1fr' : '';
+
+  // Update section header to be context-aware
+  const secLabel = document.getElementById('assign-section-label');
+  if (secLabel) secLabel.textContent = plateTplStep >= 0 ? 'Assign Sample Wells' : 'Assign Selected Wells';
+
+  // Auto-collapse template section when all standards done (once)
+  const tplSection = document.getElementById('tpl-section');
+  const tplCollapseBtn = document.getElementById('tpl-collapse-btn');
+  const allDone = done === active.length && active.length > 0;
+  if (tplSection && allDone && !tplAutoCollapsed) {
+    tplSection.classList.add('collapsed');
+    if (tplCollapseBtn) tplCollapseBtn.classList.add('collapsed');
+    tplAutoCollapsed = true;
+  }
+}
+function renderTplUI(){
+  const tpl=PLATE_TPLS.find(t=>t.id===plateTplId);
+  const el=document.getElementById('tpl-list'); if(!el)return;
+  updatePlateNav();
+  el.innerHTML=tpl.concs.map((c,i)=>{
+    const on=plateTplActive[i],isS=plateTplStep===i;
+    const assigned=Object.values(wellAssigns).filter(a=>a.type==='std'&&a.conc===c).length;
+    const done=assigned>0;
+    let rc='tpl-row';
+    if(!on)rc+=' tpl-skip'; else if(isS)rc+=' tpl-step-active'; else if(done)rc+=' tpl-done';
+    const st=on&&done?`✓ ${assigned} well${assigned>1?'s':''}`:'';
+    const bc='lt-btn lt-btn-ghost tpl-select-btn'+(isS?' active-step':'');
+    const bl=isS?'← Selecting…':(done?'↺ Re-select':'→ Select wells');
+    return `<div class="${rc}">
+      <label class="tpl-check"><input type="checkbox" ${on?'checked':''} onchange="tplToggle(${i})">
+        <span class="tpl-conc">${c} ${tpl.unit}</span></label>
+      <span class="tpl-status">${st}</span>
+      ${on?`<button class="${bc}" onclick="tplSetStep(${i})">${bl}</button>`:''}
+    </div>`;
+  }).join('');
+}
+function assignWells(type){
+  if(!selWells.size){alert('Select wells first.');return;}
+  if(type==='std'){
+    const c=parseFloat(document.getElementById('assign-std-conc').value);
+    if(isNaN(c)){alert('Enter a concentration value.');return;}
+    selWells.forEach(k=>{wellAssigns[k]={type:'std',conc:c};});
+    tplAdvance();
+  } else {
+    const name=document.getElementById('assign-smp-name').value.trim();
+    const df=parseFloat(document.getElementById('assign-smp-df').value)||1;
+    if(!name){alert('Enter a sample name.');return;}
+    selWells.forEach(k=>{wellAssigns[k]={type:'smp',name,df};});
+  }
+  selWells.clear(); refreshWells(); updatePlateSel(); updateAssignSummary(); renderTplUI();
+  savePlateState();
+  schedulePlateCalc();
+}
+function unassignSelected(){
+  selWells.forEach(k=>delete wellAssigns[k]);
+  selWells.clear(); refreshWells(); updatePlateSel(); updateAssignSummary(); renderTplUI();
+  savePlateState();
+  schedulePlateCalc();
+}
+function updateAssignSummary(){
+  const stdG=new Map(),smpG=new Map(); let ua=0;
+  for(let r=0;r<N_R;r++) for(let c=0;c<N_C;c++){
+    const k=PL_ROWS[r]+(c+1),a=wellAssigns[k];
+    if(!a){ua++;continue;}
+    const od=plateMatrix?plateMatrix[r][c]:0;
+    if(a.type==='std'){if(!stdG.has(a.conc))stdG.set(a.conc,[]);stdG.get(a.conc).push(od);}
+    else{const kk=a.name+'||'+a.df;if(!smpG.has(kk))smpG.set(kk,{name:a.name,df:a.df,ods:[]});smpG.get(kk).ods.push(od);}
+  }
+  const sw=[...stdG.values()].reduce((s,a)=>s+a.length,0);
+  const smw=[...smpG.values()].reduce((s,g)=>s+g.ods.length,0);
+  document.getElementById('sum-std-groups').textContent=`${stdG.size} group${stdG.size!==1?'s':''}`;
+  document.getElementById('sum-std-wells').textContent=`${sw} well${sw!==1?'s':''}`;
+  document.getElementById('sum-smp-groups').textContent=`${smpG.size} group${smpG.size!==1?'s':''}`;
+  document.getElementById('sum-smp-wells').textContent=`${smw} well${smw!==1?'s':''}`;
+  document.getElementById('sum-unassigned').textContent=`${ua} well${ua!==1?'s':''}`;
+}
+function buildFromPlate(){
+  const stdM=new Map(),smpM=new Map();
+  for(let r=0;r<N_R;r++) for(let c=0;c<N_C;c++){
+    const k=PL_ROWS[r]+(c+1),a=wellAssigns[k]; if(!a)continue;
+    const od=plateMatrix[r][c];
+    if(a.type==='std'){if(!stdM.has(a.conc))stdM.set(a.conc,[]);stdM.get(a.conc).push(od);}
+    else{const kk=a.name+'||'+a.df;if(!smpM.has(kk))smpM.set(kk,{name:a.name,df:a.df,ods:[]});smpM.get(kk).ods.push(od);}
+  }
+  if(stdM.size<2){alert('Need at least 2 standard groups.');return;}
+  if(smpM.size===0){alert('No sample wells assigned.');return;}
+
+  // Warn about >3 replicates being averaged silently
+  const bigStd=[...stdM.entries()].filter(([,ods])=>ods.length>3);
+  const bigSmp=[...smpM.values()].filter(g=>g.ods.length>3);
+  if(bigStd.length||bigSmp.length){
+    const msgs=[];
+    if(bigStd.length) msgs.push(`${bigStd.length} standard group(s) have >3 wells — they will be averaged.`);
+    if(bigSmp.length) msgs.push(`${bigSmp.length} sample group(s) have >3 wells — they will be averaged.`);
+    msgs.push('Consider reducing replicates or reviewing the averages.');
+    if(!confirm(msgs.join('\n\n')+'\n\nContinue?')) return;
+  }
+
+  stdRows=[...stdM.entries()].sort((a,b)=>a[0]-b[0]).map(([c,ods])=>({
+    conc:String(c),
+    od1:ods.length<=3?String(ods[0]||''):String(ods.reduce((s,v)=>s+v,0)/ods.length),
+    od2:ods.length>=2?String(ods[1]):'',
+    od3:ods.length>=3?String(ods[2]):'',
+  }));
+  smpRows=[...smpM.values()].map(g=>({
+    name:g.name,
+    od1:g.ods.length<=3?String(g.ods[0]||''):String(g.ods.reduce((s,v)=>s+v,0)/g.ods.length),
+    od2:g.ods.length>=2?String(g.ods[1]):'',
+    od3:g.ods.length>=3?String(g.ods[2]):'',
+    df:String(g.df),
+  }));
+
+  // Stay in plate mode — show results below
+  runCalc();
+  showInlineResults();
+  document.getElementById('inline-results').classList.add('visible');
+
+  // Show build confirmation banner
+  const banner=document.getElementById('plate-build-banner');
+  const nStd=[...stdM.keys()].length, nSmp=[...smpM.keys()].length;
+  const nStdW=[...stdM.values()].reduce((s,a)=>s+a.length,0);
+  const nSmpW=[...smpM.values()].reduce((s,g)=>s+g.ods.length,0);
+  banner.innerHTML=`<div class="build-banner">
+    <span class="build-banner-msg">✅ Built from plate — ${nStd} standard group${nStd!==1?'s':''} (${nStdW} wells), ${nSmp} sample${nSmp!==1?'s':''} (${nSmpW} wells)</span>
+    <button class="lt-btn lt-btn-ghost build-banner-edit" onclick="switchMode('manual');banner.style.display='none'">Edit Manually →</button>
+  </div>`;
+  banner.style.display='block';
+
+  // Scroll to results
+  setTimeout(()=>document.getElementById('inline-results').scrollIntoView({behavior:'smooth',block:'start'}),100);
+}
+
+/* ═══════════════════════════════════════════════════════
+   EXPORT
+═══════════════════════════════════════════════════════ */
+function exportCSV(){
+  if(!lastResult){alert('No results yet.');return;}
+  const {fit,sampleResults,unit}=lastResult;
+  const lines=['# BCA Assay Results',`# Slope,${fit.slope.toExponential(6)}`,
+    `# Intercept,${fit.intercept.toFixed(6)}`,`# R2,${fit.r2.toFixed(6)}`,'',
+    `Sample Name,Avg OD,Dilution Factor,Protein Conc (${unit}),Flag`,
+    ...sampleResults.map(r=>[`"${(r.name||'').replace(/"/g,'""')}"`,
+      isNaN(r.od)?'':r.od.toFixed(4),r.df,isNaN(r.conc)?'':r.conc.toFixed(2),
+      r.flag==='extrap'?'Extrapolated':r.flag==='below-det'?'Below detection':''].join(','))];
+  labtoolsDownloadText('bca-results.csv',lines.join('\r\n'),'text/csv');
+}
+function copyResults(){
+  if(!lastResult){alert('No results yet.');return;}
+  const {sampleResults,unit}=lastResult;
+  const lines=[`Sample Name\tAvg OD\tDilution Factor\tProtein Conc (${unit})\tFlag`,
+    ...sampleResults.map(r=>[r.name||'',isNaN(r.od)?'':r.od.toFixed(4),r.df,
+      isNaN(r.conc)?'':r.conc.toFixed(2),
+      r.flag==='extrap'?'Extrapolated':r.flag==='below-det'?'Below detection':''].join('\t'))];
+  labtoolsCopyText(lines.join('\n'));
+}
+
+/* ═══════════════════════════════════════════════════════
+   MATH UTILITIES
+═══════════════════════════════════════════════════════ */
+function avgOD(row){
+  const vs=[row.od1,row.od2,row.od3].map(v=>parseFloat(v)).filter(v=>!isNaN(v)&&v>=0);
+  return vs.length?vs.reduce((a,b)=>a+b,0)/vs.length:NaN;
+}
+function linearRegression(pts){
+  const n=pts.length,sx=pts.reduce((s,p)=>s+p.x,0),sy=pts.reduce((s,p)=>s+p.y,0);
+  const sxy=pts.reduce((s,p)=>s+p.x*p.y,0),sx2=pts.reduce((s,p)=>s+p.x*p.x,0);
+  const den=n*sx2-sx*sx; if(den===0)return null;
+  const slope=(n*sxy-sx*sy)/den,intercept=(sy-slope*sx)/n;
+  const ym=sy/n,sst=pts.reduce((s,p)=>s+(p.y-ym)**2,0),ssr=pts.reduce((s,p)=>s+(p.y-(slope*p.x+intercept))**2,0);
+  return {slope,intercept,r2:sst===0?1:1-ssr/sst};
+}
+function niceTicks(mn,mx,n){
+  const step=niceNum((mx-mn)/(n-1),true),lo=Math.floor(mn/step)*step,hi=Math.ceil(mx/step)*step;
+  const t=[];for(let v=lo;v<=hi+step*.5;v+=step)if(v>=mn-1e-9&&v<=mx+1e-9)t.push(parseFloat(v.toPrecision(10)));return t;
+}
+function niceNum(x,round){const e=Math.floor(Math.log10(x)),f=x/Math.pow(10,e);const nf=round?(f<1.5?1:f<3?2:f<7?5:10):(f<=1?1:f<=2?2:f<=5?5:10);return nf*Math.pow(10,e);}
+function fmtTk(v){return v===0?'0':v>=1000?(v/1000)+'k':v%1===0?String(v):v.toFixed(1);}
+function fmtA(v){return isNaN(v)?'—':v.toFixed(3);}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+/* ═══════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════ */
+(function init(){
+  smpRows = [
+    newSmpRow(0),
+    newSmpRow(1),
+    newSmpRow(2),
+  ];
+  setPreset('pierce'); // loads stdRows + renders
+  renderSmpTable();
+  setReps(1);
+
+  // Start in Raw File mode (most common import workflow)
+  switchMode('raw');
+
+  // Check for saved plate state
+  const saved = loadPlateState();
+  if (saved) {
+    document.getElementById('plate-textarea').value = saved.textarea || '';
+  }
+
+  // Auto-focus the textarea for immediate paste
+  setTimeout(() => {
+    document.getElementById('plate-textarea').focus();
+  }, 80);
+})();
+</script>
+</body>
+</html>
