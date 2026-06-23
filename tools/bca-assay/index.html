@@ -736,6 +736,22 @@ function switchMode(m) {
 ═══════════════════════════════════════════════════════ */
 function setPreset(pid) {
   const prev = stdRows.map(r => ({od1:r.od1, od2:r.od2, od3:r.od3}));
+
+  // Warn if OD data will be lost by the switch
+  const hasOD = r => r.od1 || r.od2 || r.od3;
+  const anyOD = stdRows.some(hasOD);
+  if (anyOD && pid !== currentPreset) {
+    const newLen = pid === 'custom' ? 2 : PRESETS[pid].concs.length;
+    const lostRows = prev.slice(newLen).filter(hasOD);
+    if (lostRows.length > 0) {
+      const lostConcs = stdRows.slice(newLen).filter((r,i) => hasOD(prev[newLen+i]))
+        .map(r => r.conc).filter(Boolean).join(', ');
+      if (!confirm(`Switching to "${PRESETS[pid].name}" will discard OD data from ${lostRows.length} row(s)` +
+          (lostConcs ? `: ${lostConcs}` : '') +
+          '.\n\nPreserved rows (by position) will keep their OD values.\n\nContinue?')) return;
+    }
+  }
+
   currentPreset = pid;
   const p = PRESETS[pid];
   if (pid === 'custom') {
