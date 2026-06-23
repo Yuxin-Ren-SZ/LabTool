@@ -297,6 +297,10 @@
       position: relative; box-sizing: border-box;
     }
     .plate-well:hover { transform: scale(1.1); z-index: 1; }
+    .plate-well:focus-visible {
+      outline: 2px solid var(--blue); outline-offset: 2px;
+      z-index: 2; transform: scale(1.08);
+    }
     .plate-well.selected { border-color: var(--blue) !important; box-shadow: 0 0 0 1px var(--blue); }
     .plate-well.assigned-std { background: var(--green-bg) !important; border-color: var(--green-border) !important; }
     .plate-well.assigned-std .well-label { color: var(--green-dark); font-weight: 700; }
@@ -541,7 +545,7 @@
                 <span>Low</span>
                 <div class="plate-legend-bar"></div>
                 <span>High</span>
-                <span style="flex:1;margin-left:8px;color:var(--text-dim);">Click or drag to select wells</span>
+                <span style="flex:1;margin-left:8px;color:var(--text-dim);">Click/drag · Tab/Space · Del to unassign</span>
                 <div style="display:flex;gap:4px;flex-shrink:0;">
                   <button class="lt-btn lt-btn-ghost" style="padding:2px 8px;font-size:0.70rem;" onclick="selectAll()">All</button>
                   <button class="lt-btn lt-btn-ghost" style="padding:2px 8px;font-size:0.70rem;" onclick="clearSelection()">Clear</button>
@@ -1214,8 +1218,10 @@ function renderPlate(){
     for(let c=0;c<N_C;c++){
       const k=PL_ROWS[r]+(c+1);
       h+=`<div class="plate-well" id="well-${k}" data-key="${k}" data-r="${r}" data-c="${c}"
+        tabindex="0" role="button" aria-label="Well ${k}, OD ${plateMatrix[r][c].toFixed(4)}"
         style="background:${odColor(plateMatrix[r][c],mn,mx)};"
         onmousedown="wellDown(event,this)" onmouseenter="wellEnter(this)"
+        onkeydown="wellKey(event,this)"
         title="${k}: ${plateMatrix[r][c].toFixed(4)}">
         <span class="well-od">${plateMatrix[r][c].toFixed(3)}</span>
         <span class="well-label" id="wl-${k}"></span></div>`;
@@ -1251,6 +1257,27 @@ function wellEnter(el){
   refreshWells(); updatePlateSel();
 }
 function endDrag(){isDragging=false;}
+
+function wellKey(e, el) {
+  const r = +el.dataset.r, c = +el.dataset.c;
+  if (e.key === ' ' || e.key === 'Spacebar') {
+    e.preventDefault();
+    if (!e.shiftKey && !e.ctrlKey && !e.metaKey) selWells.clear();
+    selWells.has(el.dataset.key) ? selWells.delete(el.dataset.key) : selWells.add(el.dataset.key);
+    refreshWells(); updatePlateSel();
+  } else if (e.key === 'Delete' || e.key === 'Backspace') {
+    e.preventDefault();
+    if (wellAssigns[el.dataset.key]) { delete wellAssigns[el.dataset.key]; refreshWells(); updateAssignSummary(); renderTplUI(); }
+  } else if (e.key === 'ArrowUp' && r > 0) {
+    e.preventDefault(); document.getElementById(`well-${PL_ROWS[r-1]}${c+1}`)?.focus();
+  } else if (e.key === 'ArrowDown' && r < N_R - 1) {
+    e.preventDefault(); document.getElementById(`well-${PL_ROWS[r+1]}${c+1}`)?.focus();
+  } else if (e.key === 'ArrowLeft' && c > 0) {
+    e.preventDefault(); document.getElementById(`well-${PL_ROWS[r]}${c}`)?.focus();
+  } else if (e.key === 'ArrowRight' && c < N_C - 1) {
+    e.preventDefault(); document.getElementById(`well-${PL_ROWS[r]}${c+2}`)?.focus();
+  }
+}
 function clearSelection(){selWells.clear();refreshWells();updatePlateSel();}
 function selectAll(){
   for(let r=0;r<N_R;r++) for(let c=0;c<N_C;c++) selWells.add(PL_ROWS[r]+(c+1));
