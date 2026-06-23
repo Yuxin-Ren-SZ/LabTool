@@ -8,7 +8,7 @@
   <script src="../../assets/js/labtools-common.js"></script>
   <style>
     /* ── Layout ── */
-    .card { max-width: 1180px; }
+    .card { max-width: 1240px; }
     .lt-page-body { flex: 1; display: flex; justify-content: center; padding: 24px 16px 48px; }
 
     .page-title { font-size: var(--fs-xl); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 3px; }
@@ -260,6 +260,22 @@
     }
     .export-row { display: flex; gap: 6px; justify-content: flex-end; }
 
+    /* ── Plate 2-column layout ── */
+    .plate-columns {
+      display: grid;
+      grid-template-columns: 1fr 310px;
+      gap: 20px;
+      align-items: start;
+    }
+    .plate-col-grid { min-width: 0; }
+    .plate-col-ctrl {
+      position: sticky; top: 68px;
+    }
+    @media (max-width: 900px) {
+      .plate-columns { grid-template-columns: 1fr; }
+      .plate-col-ctrl { position: static; }
+    }
+
     /* ── Plate mode ── */
     .plate-paste-section { margin-bottom: 16px; }
     .file-bar {
@@ -368,6 +384,8 @@
     /* Assign panel */
     .assign-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
     @media (max-width: 600px) { .assign-row { grid-template-columns: 1fr; } }
+    /* In the right control column (310px), stack cards vertically */
+    .plate-col-ctrl .assign-row { grid-template-columns: 1fr; }
     .assign-card {
       border: 1.5px solid var(--border); border-radius: var(--radius-md);
       padding: 12px; background: var(--surface-subtle);
@@ -381,6 +399,7 @@
 
     /* Assign summary */
     .assign-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+    .plate-col-ctrl .assign-summary { grid-template-columns: repeat(3, 1fr); font-size: 0.72rem; }
     .assign-sum-card {
       border: 1px solid var(--border); border-radius: var(--radius-md);
       background: var(--surface-subtle); padding: 8px 10px;
@@ -548,106 +567,110 @@
 
             <!-- Plate grid section -->
             <div id="plate-grid-section">
-              <div class="lt-divider"></div>
-              <div class="lt-section-label">96-Well Plate — OD Values</div>
+              <div class="plate-columns">
+                <!-- Left: Plate visual -->
+                <div class="plate-col-grid">
+                  <div class="lt-section-label">96-Well Plate — OD Values</div>
 
-              <div class="plate-outer">
-                <div class="plate-grid-wrap" id="plate-grid"></div>
-              </div>
+                  <div class="plate-outer">
+                    <div class="plate-grid-wrap" id="plate-grid"></div>
+                  </div>
 
-              <div class="plate-legend">
-                <span>Low</span>
-                <div class="plate-legend-bar"></div>
-                <span>High</span>
-                <span style="flex:1;margin-left:8px;color:var(--text-dim);">Click/drag · Tab/Space · Del to unassign</span>
-                <div style="display:flex;gap:4px;flex-shrink:0;">
-                  <button class="lt-btn lt-btn-ghost" style="padding:2px 8px;font-size:0.70rem;" onclick="selectAll()">All</button>
-                  <button class="lt-btn lt-btn-ghost" style="padding:2px 8px;font-size:0.70rem;" onclick="clearSelection()">Clear</button>
-                  <button class="lt-btn lt-btn-ghost" style="padding:2px 8px;font-size:0.70rem;color:var(--red);" onclick="unassignSelected()">Unassign</button>
-                </div>
-              </div>
-
-              <div id="tpl-plate-nav" style="display:none">
-                <span id="tpl-plate-nav-step"></span>
-                <button id="tpl-plate-nav-btn"></button>
-              </div>
-
-              <div class="lt-divider"></div>
-
-              <div id="tpl-section">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                <div class="lt-section-label" style="margin-bottom:0">Standard Template</div>
-                <div style="display:flex;gap:6px;">
-                  <button class="lt-btn lt-btn-ghost" id="tpl-collapse-btn" style="padding:2px 8px;font-size:0.68rem;" onclick="toggleTplSection()" title="Collapse/expand">▾</button>
-                  <button class="lt-btn lt-btn-ghost" style="padding:3px 8px;font-size:0.72rem;color:var(--red);" onclick="resetTemplate()">Reset Standards</button>
-                </div>
-              </div>
-              <p style="font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:8px;">Uncheck unused concentrations, then click "→ Select wells" to assign.</p>
-
-              <div class="tpl-tabs">
-                <button class="tpl-tab active" id="tpl-tab-basic"  onclick="setPlateTemplate('basic')">Basic (0–4 µg/well)</button>
-                <button class="tpl-tab"        id="tpl-tab-pierce" onclick="setPlateTemplate('pierce')">Pierce BCA Kit</button>
-              </div>
-              <div class="tpl-list" id="tpl-list"></div>
-              </div><!-- /#tpl-section -->
-
-              <div class="lt-divider"></div>
-              <div class="lt-section-label" id="assign-section-label">Assign Selected Wells</div>
-              <p id="plate-sel-count" class="plate-sel-count">No wells selected</p>
-
-              <div class="tpl-assign-banner" id="tpl-banner" style="display:none">
-                ← <span id="tpl-banner-text"></span>
-              </div>
-
-              <div class="assign-row">
-                <div class="assign-card" id="assign-std-card">
-                  <div class="assign-card-label" style="color:var(--green-dark);">◼ Standard</div>
-                  <div class="assign-input-row">
-                    <div style="flex:1;min-width:100px;">
-                      <label class="lt-label" id="std-conc-label">Concentration (µg/well)</label>
-                      <input class="lt-input" type="number" min="0" id="assign-std-conc" placeholder="e.g. 4">
+                  <div class="plate-legend">
+                    <span>Low</span>
+                    <div class="plate-legend-bar"></div>
+                    <span>High</span>
+                    <span style="flex:1;margin-left:8px;color:var(--text-dim);">Click/drag · Tab/Space · Del</span>
+                    <div style="display:flex;gap:4px;flex-shrink:0;">
+                      <button class="lt-btn lt-btn-ghost" style="padding:2px 8px;font-size:0.70rem;" onclick="selectAll()">All</button>
+                      <button class="lt-btn lt-btn-ghost" style="padding:2px 8px;font-size:0.70rem;" onclick="clearSelection()">Clear</button>
+                      <button class="lt-btn lt-btn-ghost" style="padding:2px 8px;font-size:0.70rem;color:var(--red);" onclick="unassignSelected()">Unassign</button>
                     </div>
-                    <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;border-color:var(--green-border);color:var(--green-dark);" onclick="assignWells('std')">Assign →</button>
+                  </div>
+
+                  <div id="tpl-plate-nav" style="display:none">
+                    <span id="tpl-plate-nav-step"></span>
+                    <button id="tpl-plate-nav-btn"></button>
                   </div>
                 </div>
-                <div class="assign-card">
-                  <div class="assign-card-label" style="color:#9a4f00;">◆ Sample</div>
-                  <div class="assign-input-row" style="flex-wrap:wrap;gap:5px;">
-                    <div style="flex:2;min-width:90px;">
-                      <label class="lt-label">Sample Name</label>
-                      <input class="lt-input" type="text" id="assign-smp-name" placeholder="e.g. CS11">
+
+                <!-- Right: Template + Assign -->
+                <div class="plate-col-ctrl">
+                  <div id="tpl-section">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                    <div class="lt-section-label" style="margin-bottom:0">Standard Template</div>
+                    <div style="display:flex;gap:6px;">
+                      <button class="lt-btn lt-btn-ghost" id="tpl-collapse-btn" style="padding:2px 8px;font-size:0.68rem;" onclick="toggleTplSection()" title="Collapse/expand">▾</button>
+                      <button class="lt-btn lt-btn-ghost" style="padding:3px 8px;font-size:0.72rem;color:var(--red);" onclick="resetTemplate()">Reset Standards</button>
                     </div>
-                    <div style="flex:1;min-width:60px;">
-                      <label class="lt-label">DF ×</label>
-                      <input class="lt-input" type="number" min="1" id="assign-smp-df" placeholder="1" value="1">
+                  </div>
+                  <p style="font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:8px;">Uncheck unused concentrations, then click "→ Select wells" to assign.</p>
+
+                  <div class="tpl-tabs">
+                    <button class="tpl-tab active" id="tpl-tab-basic"  onclick="setPlateTemplate('basic')">Basic (0–4 µg/well)</button>
+                    <button class="tpl-tab"        id="tpl-tab-pierce" onclick="setPlateTemplate('pierce')">Pierce BCA Kit</button>
+                  </div>
+                  <div class="tpl-list" id="tpl-list"></div>
+                  </div><!-- /#tpl-section -->
+
+                  <div class="lt-section-label" id="assign-section-label" style="margin-top:12px;">Assign Selected Wells</div>
+                  <p id="plate-sel-count" class="plate-sel-count">No wells selected</p>
+
+                  <div class="tpl-assign-banner" id="tpl-banner" style="display:none">
+                    ← <span id="tpl-banner-text"></span>
+                  </div>
+
+                  <div class="assign-row">
+                    <div class="assign-card" id="assign-std-card">
+                      <div class="assign-card-label" style="color:var(--green-dark);">◼ Standard</div>
+                      <div class="assign-input-row">
+                        <div style="flex:1;min-width:100px;">
+                          <label class="lt-label" id="std-conc-label">Concentration (µg/well)</label>
+                          <input class="lt-input" type="number" min="0" id="assign-std-conc" placeholder="e.g. 4">
+                        </div>
+                        <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;border-color:var(--green-border);color:var(--green-dark);" onclick="assignWells('std')">Assign →</button>
+                      </div>
                     </div>
-                    <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;border-color:#f4c08a;color:#9a4f00;align-self:flex-end;" onclick="assignWells('smp')">Assign →</button>
+                    <div class="assign-card">
+                      <div class="assign-card-label" style="color:#9a4f00;">◆ Sample</div>
+                      <div class="assign-input-row" style="flex-wrap:wrap;gap:5px;">
+                        <div style="flex:2;min-width:90px;">
+                          <label class="lt-label">Sample Name</label>
+                          <input class="lt-input" type="text" id="assign-smp-name" placeholder="e.g. CS11">
+                        </div>
+                        <div style="flex:1;min-width:60px;">
+                          <label class="lt-label">DF ×</label>
+                          <input class="lt-input" type="number" min="1" id="assign-smp-df" placeholder="1" value="1">
+                        </div>
+                        <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;border-color:#f4c08a;color:#9a4f00;align-self:flex-end;" onclick="assignWells('smp')">Assign →</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="lt-section-label" style="margin-bottom:6px;">Assignment Summary</div>
+                  <div class="assign-summary">
+                    <div class="assign-sum-card">
+                      <div class="assign-sum-label">Standards</div>
+                      <div class="assign-sum-value" id="sum-std-groups">0 groups</div>
+                      <div class="assign-sum-note"  id="sum-std-wells">0 wells</div>
+                    </div>
+                    <div class="assign-sum-card">
+                      <div class="assign-sum-label">Samples</div>
+                      <div class="assign-sum-value" id="sum-smp-groups">0 groups</div>
+                      <div class="assign-sum-note"  id="sum-smp-wells">0 wells</div>
+                    </div>
+                    <div class="assign-sum-card">
+                      <div class="assign-sum-label">Unassigned</div>
+                      <div class="assign-sum-value" id="sum-unassigned">96 wells</div>
+                      <div class="assign-sum-note">Background / unused</div>
+                    </div>
+                  </div>
+
+                  <div class="calc-bar">
+                    <button class="lt-btn lt-btn-primary" style="padding:10px 32px;font-size:0.93rem;" onclick="buildFromPlate()">Calculate →</button>
                   </div>
                 </div>
-              </div>
-
-              <div class="lt-section-label" style="margin-bottom:8px;">Assignment Summary</div>
-              <div class="assign-summary">
-                <div class="assign-sum-card">
-                  <div class="assign-sum-label">Standards</div>
-                  <div class="assign-sum-value" id="sum-std-groups">0 groups</div>
-                  <div class="assign-sum-note"  id="sum-std-wells">0 wells</div>
-                </div>
-                <div class="assign-sum-card">
-                  <div class="assign-sum-label">Samples</div>
-                  <div class="assign-sum-value" id="sum-smp-groups">0 groups</div>
-                  <div class="assign-sum-note"  id="sum-smp-wells">0 wells</div>
-                </div>
-                <div class="assign-sum-card">
-                  <div class="assign-sum-label">Unassigned</div>
-                  <div class="assign-sum-value" id="sum-unassigned">96 wells</div>
-                  <div class="assign-sum-note">Background / unused</div>
-                </div>
-              </div>
-
-              <div class="calc-bar">
-                <button class="lt-btn lt-btn-primary" style="padding:10px 32px;font-size:0.93rem;" onclick="buildFromPlate()">Calculate →</button>
-              </div>
+              </div><!-- /.plate-columns -->
             </div><!-- /#plate-grid-section -->
           </div><!-- /#mode-plate -->
 
