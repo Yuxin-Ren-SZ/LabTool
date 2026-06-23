@@ -520,7 +520,12 @@
           <div id="mode-plate" style="display:none">
 
             <div class="plate-paste-section">
-              <div class="lt-section-label" id="plate-paste-label">Import Raw File</div>
+            <div id="plate-restore-banner" style="display:none;padding:10px 14px;margin-bottom:12px;background:var(--blue-bg);border:1.5px solid var(--blue-border);border-radius:var(--radius-md);">
+              <span style="font-size:var(--fs-sm);color:var(--blue-dark);font-weight:600;">💾 Saved plate detected</span>
+              <button class="lt-btn lt-btn-primary" style="margin-left:12px;padding:4px 14px;font-size:var(--fs-xs);" onclick="restorePlateState()">Restore</button>
+              <button class="lt-btn lt-btn-ghost" style="padding:4px 12px;font-size:var(--fs-xs);" onclick="clearPlateState();document.getElementById('plate-restore-banner').style.display='none'">Dismiss</button>
+            </div>
+            <div class="lt-section-label" id="plate-paste-label">Import Raw File</div>
               <p class="page-sub" id="plate-paste-hint" style="margin-bottom:8px;"></p>
               <div class="file-bar" id="file-bar" style="display:none">
                 <input type="file" id="file-picker" accept=".txt" style="display:none" onchange="loadFile(this)">
@@ -748,6 +753,53 @@ let plateMatrix = null, wellAssigns = {}, selWells = new Set();
 let isDragging = false, dragAnchor = null;
 let plateTplId = 'basic', plateTplActive = [], plateTplStep = -1;
 
+/* ── localStorage persistence ── */
+const LS_KEY = 'bca-plate-state';
+function savePlateState() {
+  if (!plateMatrix) return;
+  try {
+    const data = {
+      plateMatrix, wellAssigns, currentMode,
+      plateTplId, plateTplActive,
+      textarea: document.getElementById('plate-textarea')?.value || '',
+      savedAt: Date.now()
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(data));
+  } catch(e) { /* quota exceeded — silently skip */ }
+}
+function loadPlateState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    // Expire after 7 days
+    if (Date.now() - data.savedAt > 7 * 24 * 3600 * 1000) { clearPlateState(); return null; }
+    return data;
+  } catch(e) { return null; }
+}
+function clearPlateState() { localStorage.removeItem(LS_KEY); }
+
+function restorePlateState() {
+  const data = loadPlateState();
+  if (!data) { alert('No saved plate data found.'); return; }
+  plateMatrix = data.plateMatrix;
+  wellAssigns = data.wellAssigns || {};
+  currentMode = data.currentMode || 'grid';
+  plateTplId = data.plateTplId || 'basic';
+  plateTplActive = data.plateTplActive || PLATE_TPLS.find(t=>t.id===plateTplId).concs.map(()=>true);
+  plateTplStep = -1;
+  selWells = new Set();
+
+  // Switch to the saved mode
+  switchMode(currentMode);
+  // Restore textarea if it exists
+  if (data.textarea) document.getElementById('plate-textarea').value = data.textarea;
+
+  renderPlate(); initPlateTemplate(); updateAssignSummary();
+  document.getElementById('plate-grid-section').style.display = 'block';
+  document.getElementById('plate-restore-banner').style.display = 'none';
+}
+
 /* ═══════════════════════════════════════════════════════
    MODE SWITCHING
 ═══════════════════════════════════════════════════════ */
@@ -762,8 +814,12 @@ function switchMode(m) {
   if (m !== 'manual') {
     document.getElementById('plate-paste-label').textContent = m === 'raw' ? 'Import Raw File' : 'Paste OD Grid';
     document.getElementById('plate-paste-hint').textContent  = m === 'raw' ? RAW_HINT : GRID_HINT;
-    document.getElementById('plate-textarea').placeholder    = m === 'raw' ? '##BLOCKS= 1\nPlate:\t…' : '0.370\t0.408\t…';
+    document.getElementById('plate-textarea').placeholder    = m === 'raw' ? '##BLOCKS= 1\\nPlate:\\t…' : '0.370\\t0.408\\t…';
     document.getElementById('file-bar').style.display        = m === 'raw' ? 'flex' : 'none';
+    // Show restore banner if saved state exists and no plate loaded yet
+    if (!plateMatrix && loadPlateState()) {
+      document.getElementById('plate-restore-banner').style.display = 'block';
+    }
   }
 }
 
@@ -1201,6 +1257,7 @@ function parsePlate() {
     wellAssigns={}; selWells=new Set();
     renderPlate(); initPlateTemplate(); updateAssignSummary();
     document.getElementById('plate-grid-section').style.display='block';
+    savePlateState();
   } catch(e){err.textContent='Parse error: '+e.message;err.style.display='block';}
 }
 
@@ -1302,6 +1359,7 @@ function setPlateTemplate(id){
   document.getElementById('assign-std-conc').value='';
   PLATE_TPLS.forEach(t=>document.getElementById(`tpl-tab-${t.id}`)?.classList.toggle('active',t.id===id));
   renderTplUI(); updateTplUnit();
+  savePlateState();
 }
 function updateTplUnit(){
   const unit=PLATE_TPLS.find(t=>t.id===plateTplId)?.unit||'µg/mL';
@@ -1335,6 +1393,7 @@ function resetTemplate(){
   document.getElementById('tpl-banner').style.display='none';
   document.getElementById('assign-std-conc').value='';
   refreshWells(); updateAssignSummary(); renderTplUI();
+  savePlateState();
 }
 function updatePlateNav(){
   const nav=document.getElementById('tpl-plate-nav'); if(!nav||!plateMatrix)return;
@@ -1408,10 +1467,12 @@ function assignWells(type){
     selWells.forEach(k=>{wellAssigns[k]={type:'smp',name,df};});
   }
   selWells.clear(); refreshWells(); updatePlateSel(); updateAssignSummary(); renderTplUI();
+  savePlateState();
 }
 function unassignSelected(){
   selWells.forEach(k=>delete wellAssigns[k]);
   selWells.clear(); refreshWells(); updatePlateSel(); updateAssignSummary(); renderTplUI();
+  savePlateState();
 }
 function updateAssignSummary(){
   const stdG=new Map(),smpG=new Map(); let ua=0;
@@ -1546,6 +1607,16 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
   setPreset('pierce'); // loads stdRows + renders
   renderSmpTable();
   setReps(1);
+
+  // Check for saved plate state
+  const saved = loadPlateState();
+  if (saved) {
+    // Show restore banner when user switches to plate mode
+    // Also pre-load textarea content
+    document.getElementById('plate-textarea').value = saved.textarea || '';
+    // We'll show the banner when they enter plate mode
+  }
+
   // Auto-focus first OD field
   setTimeout(()=>{
     const el=document.querySelector('[data-tbl="std"][data-row="0"][data-col="od1"]');
