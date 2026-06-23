@@ -862,6 +862,7 @@ function restorePlateState() {
   document.getElementById('plate-grid-section').style.display = 'block';
   document.getElementById('plate-restore-banner').style.display = 'none';
   collapsePaste('Restored saved plate');
+  schedulePlateCalc();
 }
 
 function collapsePaste(summary) {
@@ -1120,6 +1121,72 @@ function runCalc() {
   lastResult = { fit, regPoints: pts, sampleResults, unit };
   showResults(slope, intercept, r2, pts.length, pts, sampleResults, unit);
   updateSmpConcs();
+}
+
+/* ── Live plate-mode calculation ── */
+let plateCalcTimer = null;
+function schedulePlateCalc() {
+  if (currentMode === 'manual') return;
+  clearTimeout(plateCalcTimer);
+  plateCalcTimer = setTimeout(runPlateCalc, 280);
+}
+
+function runPlateCalc() {
+  if (!plateMatrix) return;
+
+  // Group wells by assignment (same logic as buildFromPlate)
+  const stdM = new Map(), smpM = new Map();
+  for (let r = 0; r < N_R; r++) for (let c = 0; c < N_C; c++) {
+    const k = PL_ROWS[r] + (c + 1), a = wellAssigns[k];
+    if (!a) continue;
+    const od = plateMatrix[r][c];
+    if (a.type === 'std') {
+      if (!stdM.has(a.conc)) stdM.set(a.conc, []);
+      stdM.get(a.conc).push(od);
+    } else {
+      const kk = a.name + '||' + a.df;
+      if (!smpM.has(kk)) smpM.set(kk, { name: a.name, df: a.df, ods: [] });
+      smpM.get(kk).ods.push(od);
+    }
+  }
+
+  if (stdM.size < 2) {
+    currentFit = null;
+    setStatus(stdM.size === 0 ? 'Waiting for data…' : `${stdM.size} standard group — need ≥ 2`, stdM.size ? 'warn' : '');
+    showResultsEmpty();
+    return;
+  }
+
+  // Build rows for runCalc
+  stdRows = [...stdM.entries()].sort((a, b) => a[0] - b[0]).map(([c, ods]) => ({
+    conc: String(c),
+    od1: String(ods[0] || ''),
+    od2: ods.length >= 2 ? String(ods[1]) : '',
+    od3: ods.length >= 3 ? String(ods[2]) : '',
+  }));
+
+  smpRows = [...smpM.values()].map(g => ({
+    name: g.name,
+    od1: String(g.ods[0] || ''),
+    od2: g.ods.length >= 2 ? String(g.ods[1]) : '',
+    od3: g.ods.length >= 3 ? String(g.ods[2]) : '',
+    df: String(g.df),
+  }));
+
+  // Temporarily switch preset unit to match plate template
+  const tpl = PLATE_TPLS.find(t => t.id === plateTplId);
+  const savedPreset = currentPreset;
+  if (tpl) {
+    currentPreset = tpl.id === 'basic' ? 'basic' : 'pierce';
+    document.getElementById('res-conc-header').textContent = `Conc (${tpl.unit})`;
+  }
+
+  runCalc();
+
+  // Restore if needed (but keep results)
+  if (tpl) {
+    document.getElementById('res-conc-header').textContent = `Conc (${tpl.unit})`;
+  }
 }
 
 function updateSmpConcs() {
@@ -1421,7 +1488,7 @@ function wellKey(e, el) {
     refreshWells(); updatePlateSel();
   } else if (e.key === 'Delete' || e.key === 'Backspace') {
     e.preventDefault();
-    if (wellAssigns[el.dataset.key]) { delete wellAssigns[el.dataset.key]; refreshWells(); updateAssignSummary(); renderTplUI(); }
+    if (wellAssigns[el.dataset.key]) { delete wellAssigns[el.dataset.key]; refreshWells(); updateAssignSummary(); renderTplUI(); schedulePlateCalc(); }
   } else if (e.key === 'ArrowUp' && r > 0) {
     e.preventDefault(); document.getElementById(`well-${PL_ROWS[r-1]}${c+1}`)?.focus();
   } else if (e.key === 'ArrowDown' && r < N_R - 1) {
@@ -1501,6 +1568,7 @@ function resetTemplate(){
   document.getElementById('assign-std-conc').value='';
   refreshWells(); updateAssignSummary(); renderTplUI();
   savePlateState();
+  schedulePlateCalc();
 }
 function toggleTplSection() {
   const section = document.getElementById('tpl-section');
@@ -1593,11 +1661,13 @@ function assignWells(type){
   }
   selWells.clear(); refreshWells(); updatePlateSel(); updateAssignSummary(); renderTplUI();
   savePlateState();
+  schedulePlateCalc();
 }
 function unassignSelected(){
   selWells.forEach(k=>delete wellAssigns[k]);
   selWells.clear(); refreshWells(); updatePlateSel(); updateAssignSummary(); renderTplUI();
   savePlateState();
+  schedulePlateCalc();
 }
 function updateAssignSummary(){
   const stdG=new Map(),smpG=new Map(); let ua=0;
