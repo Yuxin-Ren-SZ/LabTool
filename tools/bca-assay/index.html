@@ -398,6 +398,15 @@
       background: var(--blue-bg); border: 1.5px solid var(--blue-border);
       border-radius: var(--radius-md); font-size: var(--fs-sm); color: var(--blue-dark); font-weight: 600;
     }
+
+    /* Collapsible template section */
+    #tpl-section.collapsed .tpl-tabs,
+    #tpl-section.collapsed .tpl-list,
+    #tpl-section.collapsed p { display: none; }
+    #tpl-section.collapsed .lt-section-label { margin-bottom: 0; }
+    #tpl-collapse-btn { transition: transform 0.15s; }
+    #tpl-collapse-btn.collapsed { transform: rotate(-90deg); }
+
     .calc-bar { display: flex; justify-content: center; margin: 20px 0 0; }
 
     /* ── Plate build banner ── */
@@ -565,9 +574,13 @@
 
               <div class="lt-divider"></div>
 
+              <div id="tpl-section">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
                 <div class="lt-section-label" style="margin-bottom:0">Standard Template</div>
-                <button class="lt-btn lt-btn-ghost" style="padding:3px 8px;font-size:0.72rem;color:var(--red);" onclick="resetTemplate()">Reset Standards</button>
+                <div style="display:flex;gap:6px;">
+                  <button class="lt-btn lt-btn-ghost" id="tpl-collapse-btn" style="padding:2px 8px;font-size:0.68rem;" onclick="toggleTplSection()" title="Collapse/expand">▾</button>
+                  <button class="lt-btn lt-btn-ghost" style="padding:3px 8px;font-size:0.72rem;color:var(--red);" onclick="resetTemplate()">Reset Standards</button>
+                </div>
               </div>
               <p style="font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:8px;">Uncheck unused concentrations, then click "→ Select wells" to assign.</p>
 
@@ -576,6 +589,7 @@
                 <button class="tpl-tab"        id="tpl-tab-pierce" onclick="setPlateTemplate('pierce')">Pierce BCA Kit</button>
               </div>
               <div class="tpl-list" id="tpl-list"></div>
+              </div><!-- /#tpl-section -->
 
               <div class="lt-divider"></div>
               <div class="lt-section-label" id="assign-section-label">Assign Selected Wells</div>
@@ -752,6 +766,7 @@ let smpRows = []; // {name, od1, od2, od3, df}
 let plateMatrix = null, wellAssigns = {}, selWells = new Set();
 let isDragging = false, dragAnchor = null;
 let plateTplId = 'basic', plateTplActive = [], plateTplStep = -1;
+let tplAutoCollapsed = false;
 
 /* ── localStorage persistence ── */
 const LS_KEY = 'bca-plate-state';
@@ -1361,12 +1376,14 @@ function updatePlateSel(){
 }
 function initPlateTemplate(){
   plateTplId='basic'; plateTplActive=PLATE_TPLS[0].concs.map(()=>true); plateTplStep=-1;
+  tplAutoCollapsed = false;
   document.getElementById('tpl-banner').style.display='none';
   document.getElementById('assign-std-conc').value='';
   renderTplUI(); updateTplUnit();
 }
 function setPlateTemplate(id){
   plateTplId=id; plateTplActive=PLATE_TPLS.find(t=>t.id===id).concs.map(()=>true); plateTplStep=-1;
+  tplAutoCollapsed = false;
   document.getElementById('tpl-banner').style.display='none';
   document.getElementById('assign-std-conc').value='';
   PLATE_TPLS.forEach(t=>document.getElementById(`tpl-tab-${t.id}`)?.classList.toggle('active',t.id===id));
@@ -1384,6 +1401,11 @@ function tplToggle(i){
 }
 function tplSetStep(i){
   plateTplStep=i;
+  // Auto-expand template section
+  const section = document.getElementById('tpl-section');
+  const btn = document.getElementById('tpl-collapse-btn');
+  if (section) { section.classList.remove('collapsed'); btn.classList.remove('collapsed'); }
+  tplAutoCollapsed = false;
   const tpl=PLATE_TPLS.find(t=>t.id===plateTplId);
   document.getElementById('assign-std-conc').value=tpl.concs[i];
   document.getElementById('tpl-banner').style.display='flex';
@@ -1402,6 +1424,7 @@ function tplAdvance(){
 function resetTemplate(){
   const assigned = Object.values(wellAssigns).filter(a=>a.type==='std').length;
   if (assigned > 0 && !confirm(`This will clear all ${assigned} standard well assignment(s). Continue?`)) return;
+  tplAutoCollapsed = false;
   Object.keys(wellAssigns).forEach(k=>{if(wellAssigns[k].type==='std')delete wellAssigns[k];});
   plateTplStep=-1;
   document.getElementById('tpl-banner').style.display='none';
@@ -1409,6 +1432,14 @@ function resetTemplate(){
   refreshWells(); updateAssignSummary(); renderTplUI();
   savePlateState();
 }
+function toggleTplSection() {
+  const section = document.getElementById('tpl-section');
+  const btn = document.getElementById('tpl-collapse-btn');
+  const collapsed = section.classList.toggle('collapsed');
+  btn.classList.toggle('collapsed', collapsed);
+  tplAutoCollapsed = false; // manual toggle overrides auto
+}
+
 function updatePlateNav(){
   const nav=document.getElementById('tpl-plate-nav'); if(!nav||!plateMatrix)return;
   const tpl=PLATE_TPLS.find(t=>t.id===plateTplId);
@@ -1445,6 +1476,16 @@ function updatePlateNav(){
   // Update section header to be context-aware
   const secLabel = document.getElementById('assign-section-label');
   if (secLabel) secLabel.textContent = plateTplStep >= 0 ? 'Assign Sample Wells' : 'Assign Selected Wells';
+
+  // Auto-collapse template section when all standards done (once)
+  const tplSection = document.getElementById('tpl-section');
+  const tplCollapseBtn = document.getElementById('tpl-collapse-btn');
+  const allDone = done === active.length && active.length > 0;
+  if (tplSection && allDone && !tplAutoCollapsed) {
+    tplSection.classList.add('collapsed');
+    if (tplCollapseBtn) tplCollapseBtn.classList.add('collapsed');
+    tplAutoCollapsed = true;
+  }
 }
 function renderTplUI(){
   const tpl=PLATE_TPLS.find(t=>t.id===plateTplId);
