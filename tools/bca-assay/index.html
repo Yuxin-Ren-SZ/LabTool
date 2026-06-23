@@ -293,6 +293,17 @@
     .plate-textarea:focus { border-color: var(--blue); }
     .plate-error { color: var(--red); font-size: var(--fs-sm); margin-bottom: 8px; display: none; }
 
+    /* Collapsed import summary */
+    .paste-summary-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px;
+      background: var(--surface-subtle); border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+    .paste-summary-icon { font-size: 1rem; flex-shrink: 0; }
+    .paste-summary-text { flex: 1; font-size: var(--fs-sm); color: var(--text-secondary); font-weight: 500;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
     #plate-grid-section { display: none; }
     .plate-outer { overflow-x: auto; margin-bottom: 14px; }
     .plate-grid-wrap {
@@ -553,16 +564,30 @@
               <button class="lt-btn lt-btn-primary" style="margin-left:12px;padding:4px 14px;font-size:var(--fs-xs);" onclick="restorePlateState()">Restore</button>
               <button class="lt-btn lt-btn-ghost" style="padding:4px 12px;font-size:var(--fs-xs);" onclick="clearPlateState();document.getElementById('plate-restore-banner').style.display='none'">Dismiss</button>
             </div>
-            <div class="lt-section-label" id="plate-paste-label">Import Raw File</div>
+
+            <!-- Expanded import form -->
+            <div id="paste-expanded">
+              <div class="lt-section-label" id="plate-paste-label">Import Raw File</div>
               <p class="page-sub" id="plate-paste-hint" style="margin-bottom:8px;"></p>
               <div class="file-bar" id="file-bar" style="display:none">
                 <input type="file" id="file-picker" accept=".txt" style="display:none" onchange="loadFile(this)">
                 <button class="lt-btn lt-btn-primary" onclick="document.getElementById('file-picker').click()">📂 Open File</button>
-                <span class="file-bar-sep">— or paste content below ↓</span>
+                <span class="file-bar-sep">— or paste below ↓</span>
               </div>
               <textarea class="plate-textarea" id="plate-textarea" spellcheck="false" placeholder="Paste here…"></textarea>
               <div class="plate-error" id="plate-error"></div>
               <button class="lt-btn lt-btn-ghost" style="padding:7px 20px;" onclick="parsePlate()">Parse Plate →</button>
+            </div>
+
+            <!-- Collapsed import summary (after parse) -->
+            <div id="paste-collapsed" style="display:none">
+              <div class="paste-summary-bar">
+                <span class="paste-summary-icon">📄</span>
+                <span class="paste-summary-text" id="paste-summary-text"></span>
+                <button class="lt-btn lt-btn-ghost" style="padding:3px 10px;font-size:0.72rem;flex-shrink:0;" onclick="expandPaste()">Change</button>
+                <button class="lt-btn lt-btn-ghost" style="padding:3px 10px;font-size:0.72rem;flex-shrink:0;" onclick="parsePlate()">Re-parse ↻</button>
+              </div>
+            </div>
             </div>
 
             <!-- Plate grid section -->
@@ -836,8 +861,19 @@ function restorePlateState() {
   renderPlate(); initPlateTemplate(); updateAssignSummary();
   document.getElementById('plate-grid-section').style.display = 'block';
   document.getElementById('plate-restore-banner').style.display = 'none';
+  collapsePaste('Restored saved plate');
 }
 
+function collapsePaste(summary) {
+  document.getElementById('paste-expanded').style.display = 'none';
+  document.getElementById('paste-collapsed').style.display = 'block';
+  document.getElementById('paste-summary-text').textContent = summary;
+}
+function expandPaste() {
+  document.getElementById('paste-expanded').style.display = '';
+  document.getElementById('paste-collapsed').style.display = 'none';
+  document.getElementById('plate-textarea').focus();
+}
 /* ═══════════════════════════════════════════════════════
    MODE SWITCHING
 ═══════════════════════════════════════════════════════ */
@@ -858,6 +894,8 @@ function switchMode(m) {
     if (!plateMatrix && loadPlateState()) {
       document.getElementById('plate-restore-banner').style.display = 'block';
     }
+    // If not yet parsed, show expanded paste; keep collapsed if already parsed
+    if (!plateMatrix) { expandPaste(); plateFileName = ''; }
   }
 }
 
@@ -1260,8 +1298,11 @@ function expandChart() {
 /* ═══════════════════════════════════════════════════════
    PLATE MODE (full parity with original)
 ═══════════════════════════════════════════════════════ */
+let plateFileName = '';
+
 function loadFile(input) {
   const f = input.files[0]; if (!f) return;
+  plateFileName = f.name;
   const r = new FileReader();
   r.onload = e => { document.getElementById('plate-textarea').value = e.target.result; parsePlate(); };
   r.readAsText(f); input.value='';
@@ -1308,6 +1349,12 @@ function parsePlate() {
     renderPlate(); initPlateTemplate(); updateAssignSummary();
     document.getElementById('plate-grid-section').style.display='block';
     savePlateState();
+
+    // Collapse import section
+    const summary = plateFileName
+      ? `Loaded: ${plateFileName} (${plateMatrix.flat().length} wells)`
+      : `Pasted data (${N_R}×${N_C} grid)`;
+    collapsePaste(summary);
   } catch(e){err.textContent='Parse error: '+e.message;err.style.display='block';}
 }
 
