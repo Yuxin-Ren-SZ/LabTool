@@ -267,24 +267,9 @@
     #tpl-plate-nav-btn:disabled { opacity: 0.6; cursor: default; }
     #tpl-plate-nav.nav-done #tpl-plate-nav-btn { display: none; }
 
-    /* ── Sticky assign bar ── */
-    #tpl-sticky-bar {
-      position: fixed; bottom: 0; left: 0; right: 0;
-      background: var(--blue-dark); color: #fff;
-      padding: 12px 24px;
-      display: flex; align-items: center; justify-content: space-between; gap: 16px;
-      z-index: 200;
-      box-shadow: 0 -4px 24px rgba(0,0,0,0.18);
-      font-size: var(--fs-sm);
+    #tpl-plate-nav-btn.assign-ready {
+      background: var(--blue-dark); color: #fff; border-color: var(--blue-dark);
     }
-    #tpl-sticky-bar-text { font-weight: 600; opacity: 0.9; }
-    #tpl-sticky-bar-btn {
-      padding: 9px 20px; background: #fff; color: var(--blue-dark);
-      border: none; border-radius: var(--radius-md);
-      font-size: var(--fs-sm); font-weight: 700; cursor: pointer;
-      white-space: nowrap; transition: opacity 0.12s;
-    }
-    #tpl-sticky-bar-btn:hover { opacity: 0.88; }
 
     /* ── Template assign banner ── */
     .tpl-assign-banner {
@@ -792,12 +777,6 @@
     LabTools &middot; Open source lab utilities
   </footer>
 
-  <!-- ── Sticky assign bar (template mode) ── -->
-  <div id="tpl-sticky-bar" style="display:none">
-    <span id="tpl-sticky-bar-text">0 wells selected</span>
-    <button id="tpl-sticky-bar-btn" onclick="assignWells('std')">Assign →</button>
-  </div>
-
   <!-- ── CSV Paste Modal (manual mode) ── -->
   <div class="modal-overlay" id="csv-modal" onclick="closeModalOutside(event)">
     <div class="modal-box">
@@ -1066,24 +1045,7 @@ function updateSelCount() {
   const label = n === 0 ? 'No wells selected — click wells above to select'
     : `${n} well${n>1?'s':''} selected: ${keys.slice(0,8).join(', ')}${n>8?' …':''}`;
   document.getElementById('assign-sel-count').textContent = label;
-  updateStickyBar();
-}
-
-function updateStickyBar() {
-  const bar   = document.getElementById('tpl-sticky-bar');
-  const text  = document.getElementById('tpl-sticky-bar-text');
-  const btn   = document.getElementById('tpl-sticky-bar-btn');
-  if (!bar) return;
-  if (tplStep >= 0 && selWells.size > 0) {
-    const tpl  = getCurrentTpl();
-    const conc = tpl.concs[tplStep];
-    const n    = selWells.size;
-    text.textContent = `${n} well${n>1?'s':''} selected`;
-    btn.textContent  = `Assign as ${conc} ${tpl.unit} →`;
-    bar.style.display = 'flex';
-  } else {
-    bar.style.display = 'none';
-  }
+  updatePlateNav();
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1130,7 +1092,6 @@ function tplToggle(idx) {
   if (tplStep === idx) {
     tplStep = -1;
     document.getElementById('tpl-banner').style.display = 'none';
-    updateStickyBar();
   }
   renderTemplateUI();
 }
@@ -1144,7 +1105,6 @@ function tplSetStep(idx) {
   document.getElementById('tpl-banner-text').textContent =
     `Now assigning: ${conc} ${tpl.unit} — select wells on the plate above`;
   renderTemplateUI();
-  updateStickyBar();
   document.getElementById('plate-grid').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -1163,7 +1123,6 @@ function tplAdvance() {
     document.getElementById('tpl-banner').style.display = 'none';
     document.getElementById('assign-std-conc').value = '';
     renderTemplateUI();
-    updateStickyBar();
   }
 }
 
@@ -1177,7 +1136,6 @@ function resetTemplate() {
   refreshWellClasses();
   updateAssignSummary();
   renderTemplateUI();
-  updateStickyBar();
 }
 
 function updatePlateNav() {
@@ -1201,9 +1159,19 @@ function updatePlateNav() {
 
   if (tplStep >= 0) {
     const stepNum = activeSteps.findIndex(s => s.i === tplStep) + 1;
-    stepLabel.textContent = `Step ${stepNum}/${activeSteps.length}: ${tpl.concs[tplStep]} ${tpl.unit} — select wells`;
-    navBtn.textContent = '← Selecting…';
-    navBtn.disabled = true;
+    const conc    = tpl.concs[tplStep];
+    if (selWells.size > 0) {
+      stepLabel.textContent = `Step ${stepNum}/${activeSteps.length}: ${conc} ${tpl.unit} — ${selWells.size} well${selWells.size>1?'s':''} selected`;
+      navBtn.textContent    = `Assign as ${conc} ${tpl.unit} →`;
+      navBtn.className      = 'assign-ready';
+      navBtn.disabled       = false;
+      navBtn.onclick        = () => assignWells('std');
+    } else {
+      stepLabel.textContent = `Step ${stepNum}/${activeSteps.length}: ${conc} ${tpl.unit} — select wells above`;
+      navBtn.textContent    = '← Selecting…';
+      navBtn.className      = '';
+      navBtn.disabled       = true;
+    }
     nav.className = '';
   } else if (doneCount === activeSteps.length) {
     stepLabel.textContent = `✓ All ${activeSteps.length} standards assigned`;
