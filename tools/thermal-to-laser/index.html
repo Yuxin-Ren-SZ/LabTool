@@ -476,6 +476,14 @@
   <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
   <span class="lt-nav-sep">/</span>
   <span class="lt-nav-page">Thermal To Laser Label Converter</span>
+  <span style="flex:1"></span>
+  <div class="lt-session-pill-wrap" style="position:relative">
+    <button class="lt-session-pill" id="session-pill" onclick="ltSessionPillToggle()">
+      <span class="lt-session-pill__name" id="session-pill-name">No session</span>
+      <span class="lt-session-pill__caret">▾</span>
+    </button>
+    <div class="lt-session-popover" id="session-popover" hidden></div>
+  </div>
 </nav>
 
 <div class="lt-page-body">
@@ -486,21 +494,12 @@
         <p class="lt-tool-subtitle">Load one or more one-label-per-page thermal-printer PDFs, map them onto a mailing-label sheet, and export a laser-printer-ready PDF with the exact sheet geometry.</p>
       </div>
 
-      <div class="step-bar">
-        <div class="step-pip active" id="step-source">
-          <div class="dot">1</div>
-          Source PDF
-        </div>
-        <div class="step-connector" id="step-connector-1"></div>
-        <div class="step-pip" id="step-layout">
-          <div class="dot">2</div>
-          Layout
-        </div>
-        <div class="step-connector" id="step-connector-2"></div>
-        <div class="step-pip" id="step-export">
-          <div class="dot">3</div>
-          Export
-        </div>
+      <div class="lt-step-mini">
+        <span class="lt-step-mini__item active" id="step-mini-0">Source PDF</span>
+        <span class="lt-step-mini__sep">·</span>
+        <span class="lt-step-mini__item" id="step-mini-1">Layout</span>
+        <span class="lt-step-mini__sep">·</span>
+        <span class="lt-step-mini__item" id="step-mini-2">Export</span>
       </div>
 
       <div class="lt-workspace-grid">

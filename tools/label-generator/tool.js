@@ -84,6 +84,19 @@ document.addEventListener('DOMContentLoaded', init);
 
 // ─── Init ─────────────────────────────────────────────────────
 function init() {
+  // Session init
+  (function() {
+    var sid = new URLSearchParams(location.search).get('s');
+    if (sid) labtoolsSessionSetActive(sid);
+    ltSessionPillRender();
+  })();
+
+  // Label glyph in nav brand area
+  var navPage = document.querySelector('.lg-nav-page');
+  if (navPage && typeof labGlyphHTML === 'function') {
+    navPage.innerHTML = labGlyphHTML('label', 16) + ' Label Generator';
+  }
+
   state.presets = sanitizePresetList((window.LABEL_GENERATOR_PRESET_CONFIG && window.LABEL_GENERATOR_PRESET_CONFIG.presets) || []);
   state.laserPresets = buildSharedLaserPresets();
   state.thermalPresets = state.presets.filter(function (p) { return p.mode === 'thermal'; });
@@ -176,6 +189,11 @@ function bindEvents() {
   document.getElementById('add-datamatrix-btn').addEventListener('click', function () { addField('datamatrix'); });
   document.getElementById('add-csv-btn').addEventListener('click', function () { addField('csvText'); });
   document.getElementById('add-static-btn').addEventListener('click', function () { addField('staticText'); });
+
+  // Field-type segmented control in props panel
+  document.querySelectorAll('[data-field-type]').forEach(function (btn) {
+    btn.addEventListener('click', function () { changeFieldType(btn.dataset.fieldType); });
+  });
 
   // Field list: delegation for select + remove
   document.getElementById('field-list').addEventListener('click', function (e) {
@@ -658,6 +676,17 @@ function addField(type) {
   markOutputDirty(); renderAll();
 }
 
+function changeFieldType(type) {
+  var field = getSelectedField();
+  if (!field || field.type === type) return;
+  if (type === 'datamatrix' && state.template.fields.some(function (f) { return f.type === 'datamatrix' && f.id !== field.id; })) return;
+  field.type = type;
+  if (type === 'staticText') {
+    field.staticText = field.staticText || 'Static Text';
+  }
+  markOutputDirty(); renderAll();
+}
+
 function removeSelectedField() {
   state.template.fields = state.template.fields.filter(function (f) { return f.id !== state.selectedFieldId; });
   state.selectedFieldId = state.template.fields[0] ? state.template.fields[0].id : '';
@@ -1092,6 +1121,11 @@ function renderPropsPanel() {
   document.getElementById('field-label-input').value = field.label;
   document.getElementById('field-align-select').value = field.align || 'left';
   document.getElementById('field-font-scale').value = field.fontScale || 1;
+
+  // Sync field-type segmented control
+  document.querySelectorAll('[data-field-type]').forEach(function (btn) {
+    btn.classList.toggle('active', btn.dataset.fieldType === field.type);
+  });
 
   var sourceRow   = document.getElementById('source-column-row');
   var staticRow   = document.getElementById('static-text-row');

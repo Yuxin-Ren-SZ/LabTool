@@ -81,6 +81,13 @@ const state = {
 document.addEventListener('DOMContentLoaded', init);
 
 function init() {
+  // Session init
+  (function() {
+    const sid = new URLSearchParams(location.search).get('s');
+    if (sid) labtoolsSessionSetActive(sid);
+    ltSessionPillRender();
+  })();
+
   state.builtInPresets = sanitizePresetList(
     (window.THERMAL_TO_LASER_PRESET_CONFIG && window.THERMAL_TO_LASER_PRESET_CONFIG.presets) || [],
     'builtin'
@@ -712,17 +719,13 @@ function collectIncompleteGroups() {
 }
 
 function renderStepProgress() {
-  const step1 = document.getElementById('step-source');
-  const step2 = document.getElementById('step-layout');
-  const step3 = document.getElementById('step-export');
-  const connector1 = document.getElementById('step-connector-1');
-  const connector2 = document.getElementById('step-connector-2');
+  const step1 = document.getElementById('step-mini-0');
+  const step2 = document.getElementById('step-mini-1');
+  const step3 = document.getElementById('step-mini-2');
 
-  step1.className = 'step-pip';
-  step2.className = 'step-pip';
-  step3.className = 'step-pip';
-  connector1.className = 'step-connector';
-  connector2.className = 'step-connector';
+  step1.className = 'lt-step-mini__item';
+  step2.className = 'lt-step-mini__item';
+  step3.className = 'lt-step-mini__item';
 
   if (state.sourcePageCount) {
     step1.classList.add('done');
@@ -732,11 +735,9 @@ function renderStepProgress() {
 
   if (state.sourcePageCount && allGroupsReadyForExport()) {
     step2.classList.add('active');
-    connector1.classList.add('done');
     if (state.outputBytes && !state.outputDirty) {
       step2.classList.add('done');
       step3.classList.add('active');
-      connector2.classList.add('done');
     }
   }
 }

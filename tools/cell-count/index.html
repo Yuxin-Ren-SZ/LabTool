@@ -5,17 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Cell Count Calculator · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
-  <!-- Shared pure-function utilities (avgTwo, fmt, calcCellDensity, makeDiagram, MODES …) -->
   <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
   <style>
-    /* ── Card width (base styles live in labtools.css .card) ── */
-    .card { max-width: 600px; }
-
-    /* Subtitle margin override — matches seeding-calc Step 1 spacing */
-    .lt-tool-subtitle { margin-bottom: 24px; }
-
-    /* Full-width action buttons in this tool */
-    .action-row .btn-reset { width: 100%; }
+    .card { max-width: 900px; }
+    .lt-tool-subtitle { margin-bottom: 20px; }
   </style>
 </head>
 <body>
@@ -24,107 +18,135 @@
 <nav class="lt-nav">
   <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
   <span class="lt-nav-sep">/</span>
-  <span class="lt-nav-page">Cell Count Calculator</span>
+  <span class="lt-nav-page">Cell Count</span>
+  <span style="flex:1"></span>
+  <div class="lt-session-pill-wrap" style="position:relative">
+    <button class="lt-session-pill" id="session-pill" onclick="ltSessionPillToggle()">
+      <span class="lt-session-pill__name" id="session-pill-name">No session</span>
+      <span class="lt-session-pill__caret">▾</span>
+    </button>
+    <div class="lt-session-popover" id="session-popover" hidden></div>
+  </div>
 </nav>
 
 <div class="lt-page-body">
 <div class="card">
 
-  <h1 class="lt-tool-title">🔬 Cell Count Calculator</h1>
+  <h1 class="lt-tool-title">Cell Count Calculator</h1>
   <p class="lt-tool-subtitle">Hemocytometer · Neubauer improved chamber</p>
 
-  <!-- ── Mode selector ── -->
-  <div class="lt-section-label lt-section-label--tight">Counting Mode</div>
-  <div class="mode-selector" id="mode-selector"></div>
-  <div class="mode-desc" id="mode-desc"></div>
+  <div class="lt-workspace-2col">
 
-  <!-- ── Live counts ── -->
-  <div class="group-block" id="live-block">
-    <div class="group-header">🟢 Live Cell Counts</div>
-    <div class="count-row">
-      <div class="count-field">
-        <label>Count 1</label>
-        <input type="number" inputmode="numeric" id="live1" placeholder="e.g. 95" min="0" oninput="calculate()"/>
-      </div>
-      <div class="count-field">
-        <label>Count 2 <span class="lt-opt">(optional — 2nd chamber)</span></label>
-        <input type="number" inputmode="numeric" id="live2" placeholder="optional" min="0" oninput="calculate()"/>
-      </div>
-    </div>
-    <div class="count-hint" id="live-hint"></div>
-    <label class="count-all-row">
-      <input type="checkbox" id="count-all-toggle" onchange="onCountAllToggle()"/>
-      <span class="count-all-label">Count all cells
-        <span class="count-all-sub">— no Trypan Blue, dead section disabled</span>
-      </span>
-    </label>
-  </div>
-
-  <!-- ── Dead counts ── -->
-  <div class="group-block dead-block" id="dead-block">
-    <div class="group-header">
-      🔴 Dead Cell Counts
-      <span class="lt-badge lt-badge-default">optional — Trypan Blue viability</span>
-    </div>
-    <div class="count-row">
-      <div class="count-field">
-        <label>Count 1 <span class="lt-opt">(optional)</span></label>
-        <input type="number" inputmode="numeric" id="dead1" placeholder="optional" min="0" oninput="calculate()"/>
-      </div>
-      <div class="count-field">
-        <label>Count 2 <span class="lt-opt">(optional — 2nd chamber)</span></label>
-        <input type="number" inputmode="numeric" id="dead2" placeholder="optional" min="0" oninput="calculate()"/>
-      </div>
-    </div>
-    <div class="via-note" id="via-note">Enter dead counts above to auto-calculate viability.</div>
-  </div>
-
-  <!-- ── Parameters ── -->
-  <div class="params-row">
+    <!-- ── Left: inputs ── -->
     <div>
-      <label>Dilution Factor</label>
-      <input type="number" inputmode="decimal" id="df" value="20" min="1" oninput="calculate()"/>
-    </div>
+
+      <!-- Mode selector -->
+      <div class="lt-section-label lt-section-label--tight">Counting Mode</div>
+      <div class="mode-selector" id="mode-selector"></div>
+      <div class="mode-desc" id="mode-desc"></div>
+
+      <!-- Live counts -->
+      <div class="group-block" id="live-block">
+        <div class="group-header">🟢 Live Cell Counts</div>
+        <div class="count-row">
+          <div class="count-field">
+            <label>Count 1</label>
+            <input type="number" inputmode="numeric" id="live1" placeholder="e.g. 95" min="0" oninput="calculate()"/>
+          </div>
+          <div class="count-field">
+            <label>Count 2 <span class="lt-opt">(optional — 2nd chamber)</span></label>
+            <input type="number" inputmode="numeric" id="live2" placeholder="optional" min="0" oninput="calculate()"/>
+          </div>
+        </div>
+        <div class="count-hint" id="live-hint"></div>
+        <label class="count-all-row">
+          <input type="checkbox" id="count-all-toggle" onchange="onCountAllToggle()"/>
+          <span class="count-all-label">Count all cells
+            <span class="count-all-sub">— no Trypan Blue, dead section disabled</span>
+          </span>
+        </label>
+      </div>
+
+      <!-- Dead counts -->
+      <div class="group-block dead-block" id="dead-block">
+        <div class="group-header">
+          🔴 Dead Cell Counts
+          <span class="lt-badge lt-badge-default">optional — Trypan Blue viability</span>
+        </div>
+        <div class="count-row">
+          <div class="count-field">
+            <label>Count 1 <span class="lt-opt">(optional)</span></label>
+            <input type="number" inputmode="numeric" id="dead1" placeholder="optional" min="0" oninput="calculate()"/>
+          </div>
+          <div class="count-field">
+            <label>Count 2 <span class="lt-opt">(optional — 2nd chamber)</span></label>
+            <input type="number" inputmode="numeric" id="dead2" placeholder="optional" min="0" oninput="calculate()"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Parameters -->
+      <div class="params-row">
+        <div>
+          <label>Dilution Factor</label>
+          <input type="number" inputmode="decimal" id="df" value="20" min="1" oninput="calculate()"/>
+        </div>
+        <div>
+          <label>Resuspension Volume (mL)</label>
+          <input type="number" inputmode="decimal" id="vol" placeholder="e.g. 1.5" min="0" step="0.1" oninput="calculate()"/>
+        </div>
+      </div>
+
+    </div><!-- /left pane -->
+
+    <!-- ── Right: sticky result card ── -->
     <div>
-      <label>Resuspension Volume (mL)</label>
-      <input type="number" inputmode="decimal" id="vol" placeholder="e.g. 1.5" min="0" step="0.1" oninput="calculate()"/>
-    </div>
-  </div>
+      <div class="lt-result-card">
+        <span class="lt-io-label">Results</span>
 
-  <div class="lt-divider"></div>
+        <div class="lt-result-card-primary" id="res-density">—</div>
+        <div class="lt-result-card-unit" id="res-density-note">cells/mL · Final Concentration</div>
 
-  <!-- ── Results ── -->
-  <div class="results-title">Results</div>
-  <div class="results-grid">
-    <div class="result-box">
-      <div class="r-label">Avg Count</div>
-      <div class="r-value" id="res-avg">—</div>
-      <div class="r-unit"  id="res-avg-note">from counts</div>
-    </div>
-    <div class="result-box hl-green">
-      <div class="r-label">Viability</div>
-      <div class="r-value" id="res-via">—</div>
-      <div class="r-unit"  id="res-via-note">from dead counts</div>
-    </div>
-    <div class="result-box hl-blue">
-      <div class="r-label">Final Concentration</div>
-      <div class="r-value" id="res-density">—</div>
-      <div class="r-unit"  id="res-density-note">cells/mL</div>
-    </div>
-    <div class="result-box hl-blue">
-      <div class="r-label" id="res-total-label">Total Live Cells</div>
-      <div class="r-value" id="res-total">—</div>
-      <div class="r-unit"  id="res-total-note">conc. × vol</div>
-    </div>
-  </div>
-  <div class="unit-legend">K = 1,000 &nbsp;·&nbsp; M = 1,000,000 &nbsp;·&nbsp; B = 1,000,000,000</div>
+        <div class="lt-divider"></div>
 
-  <div class="action-row">
-    <button class="btn-reset" onclick="copyResults()">📋 Copy Results</button>
-    <button class="btn-reset" onclick="downloadCsv()">⬇️ Export CSV</button>
-    <button class="btn-reset" onclick="resetAll()">↺ Reset</button>
-  </div>
-  <div class="export-note" id="export-note">Save or copy results after calculation.</div>
+        <div class="results-grid">
+          <div class="result-box hl-green">
+            <div class="r-label">Viability</div>
+            <div class="r-value" id="res-via">—</div>
+            <div class="r-unit"  id="res-via-note">enter dead counts</div>
+          </div>
+          <div class="result-box hl-blue">
+            <div class="r-label" id="res-total-label">Total Live Cells</div>
+            <div class="r-value" id="res-total">—</div>
+            <div class="r-unit"  id="res-total-note">conc. × vol</div>
+          </div>
+          <div class="result-box">
+            <div class="r-label">Avg Count</div>
+            <div class="r-value" id="res-avg">—</div>
+            <div class="r-unit"  id="res-avg-note">from counts</div>
+          </div>
+        </div>
+
+        <div class="via-note" id="via-note">Enter dead counts to auto-calculate viability.</div>
+        <div class="unit-legend">K = 1,000 · M = 1,000,000 · B = 1,000,000,000</div>
+
+        <div class="lt-divider"></div>
+
+        <div class="action-row">
+          <button class="lt-btn lt-btn-ghost" onclick="copyResults()">📋 Copy</button>
+          <button class="lt-btn lt-btn-ghost" onclick="downloadCsv()">⬇ CSV</button>
+          <button class="lt-btn lt-btn-ghost" onclick="resetAll()">↺ Reset</button>
+        </div>
+        <button class="lt-btn lt-btn-ghost" id="send-seeding-btn"
+                style="width:100%;margin-top:8px" onclick="sendToSeeding()">
+          Send to Seeding →
+        </button>
+        <div class="export-note" id="export-note"></div>
+      </div>
+    </div><!-- /right pane -->
+
+  </div><!-- /lt-workspace-2col -->
+
 </div>
 </div><!-- /lt-page-body -->
 
@@ -132,23 +154,26 @@
 
 <script>
 // ─────────────────────────────────────────────────────────────
+// Session init
+// ─────────────────────────────────────────────────────────────
+(function() {
+  var sid = new URLSearchParams(location.search).get('s');
+  if (sid) labtoolsSessionSetActive(sid);
+  ltSessionPillRender();
+})();
+
+// ─────────────────────────────────────────────────────────────
 // State
 // (makeDiagram, MODES, avgTwo, fmt, calcCellDensity, calcTotalCells,
 //  calcViabilityPct are loaded from assets/js/labtools-calc.js)
 // ─────────────────────────────────────────────────────────────
 
-/** Currently selected counting mode ID (1–4, matching MODES[].id). */
 let currentModeId = 1;
 
 // ─────────────────────────────────────────────────────────────
 // Mode selector UI
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Render the 4-option mode selector grid from the MODES array.
- * Each option shows an SVG diagram and a short label.
- * Called once on init; selectMode() handles subsequent updates.
- */
 function buildModeSelector() {
   const container = document.getElementById('mode-selector');
   container.innerHTML = '';
@@ -162,14 +187,6 @@ function buildModeSelector() {
   });
 }
 
-/**
- * Activate a counting mode by ID:
- * - Marks the clicked option as .active, clears others.
- * - Updates the mode description strip (formula + text).
- * - Propagates the change by triggering calculate().
- *
- * @param {number} id  Mode ID from MODES[].id (1–4)
- */
 function selectMode(id) {
   currentModeId = id;
   document.querySelectorAll('.mode-option').forEach((el, i) => {
@@ -186,16 +203,6 @@ function selectMode(id) {
 // Calculate
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Read all inputs, run shared calculation functions, and write
- * every result field to the DOM. Called on any input change.
- *
- * Calculation chain (using labtools-calc.js utilities):
- *   avgTwo()          → average live/dead counts (handles 1 or 2 chambers)
- *   calcCellDensity() → Final Concentration in cells/mL
- *   calcTotalCells()  → Total cells = density × resuspension volume
- *   calcViabilityPct() → Trypan Blue % viability (optional, requires dead counts)
- */
 function calculate() {
   const mode  = MODES.find(m => m.id === currentModeId);
   const isAll = document.getElementById('count-all-toggle').checked;
@@ -212,7 +219,6 @@ function calculate() {
   const avgLive = liveAvg.val;
   const avgDead = deadAvg.val;
 
-  // Guard: negative counts are physically impossible on a hemocytometer
   if ((!isNaN(live1) && live1 < 0) || (!isNaN(live2) && live2 < 0) ||
       (!isNaN(dead1) && dead1 < 0) || (!isNaN(dead2) && dead2 < 0)) {
     document.getElementById('res-avg').textContent     = '—';
@@ -220,18 +226,16 @@ function calculate() {
     document.getElementById('res-total').textContent   = '—';
     document.getElementById('via-note').textContent    = '⚠ Counts cannot be negative.';
     document.getElementById('via-note').className      = 'via-note';
+    updateSendButton(false);
     return;
   }
 
-  // Core calculations via shared utilities
   const finalDensity = calcCellDensity(avgLive, mode.multiplier, df);
   const totalCells   = calcTotalCells(finalDensity, vol);
+  const hasDeadAny   = !isAll && deadAvg.n > 0;
+  const viability    = hasDeadAny ? calcViabilityPct(avgLive, avgDead) : NaN;
 
-  // Viability — only when dead counts are entered (not in count-all mode)
-  const hasDeadAny = !isAll && deadAvg.n > 0;
-  const viability  = hasDeadAny ? calcViabilityPct(avgLive, avgDead) : NaN;
-
-  // ── Avg count display ──
+  // Avg count
   if (!isNaN(avgLive)) {
     document.getElementById('res-avg').textContent      = avgLive.toFixed(1);
     document.getElementById('res-avg-note').textContent =
@@ -241,60 +245,49 @@ function calculate() {
     document.getElementById('res-avg-note').textContent = 'from counts';
   }
 
-  // ── Viability display — four mutually exclusive branches ──
+  // Viability
   if (isAll) {
-    // Count-all mode: viability is meaningless (no Trypan Blue stain used)
     document.getElementById('res-via').textContent      = 'N/A';
     document.getElementById('res-via-note').textContent = 'count-all mode';
     document.getElementById('via-note').textContent     = 'Dead cell counting disabled — all cells counted as live.';
     document.getElementById('via-note').className       = 'via-note';
   } else if (!isNaN(viability)) {
-    // Valid viability: both live and dead counts are present
     document.getElementById('res-via').textContent      = viability.toFixed(1) + '%';
     document.getElementById('res-via-note').textContent =
       deadAvg.n === 2 ? 'avg of 2 dead counts' : 'from dead count';
     document.getElementById('via-note').textContent     = `✓ Viability: ${viability.toFixed(1)}%`;
     document.getElementById('via-note').className       = 'via-note computed';
   } else if (hasDeadAny) {
-    // Dead counts entered but live count missing → cannot compute yet
     document.getElementById('res-via').textContent      = '—';
     document.getElementById('res-via-note').textContent = 'waiting for live count';
     document.getElementById('via-note').textContent     = 'Waiting for live count to compute viability.';
     document.getElementById('via-note').className       = 'via-note';
   } else {
-    // No dead counts at all — prompt the user
     document.getElementById('res-via').textContent      = '—';
     document.getElementById('res-via-note').textContent = 'enter dead counts above';
-    document.getElementById('via-note').textContent     = 'Enter dead counts above to auto-calculate viability.';
+    document.getElementById('via-note').textContent     = 'Enter dead counts to auto-calculate viability.';
     document.getElementById('via-note').className       = 'via-note';
   }
 
-  // ── Total label changes when counting all cells (no viability distinction) ──
   document.getElementById('res-total-label').textContent =
     isAll ? 'Total Cells' : 'Total Live Cells';
 
-  // ── Final Concentration ──
   document.getElementById('res-density').textContent      = fmt(finalDensity);
-  document.getElementById('res-density-note').textContent = 'cells/mL';
+  document.getElementById('res-density-note').textContent = 'cells/mL · Final Concentration';
 
-  // ── Total cells in tube ──
   document.getElementById('res-total').textContent      = fmt(totalCells);
   document.getElementById('res-total-note').textContent =
     !isNaN(finalDensity) && !isNaN(vol) && vol > 0
       ? 'conc. × ' + vol + ' mL'
       : !isNaN(finalDensity) ? 'enter resuspension vol' : '—';
+
+  updateSendButton(!isNaN(finalDensity));
 }
 
 // ─────────────────────────────────────────────────────────────
 // Count-all toggle
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Handle the "Count all cells" checkbox toggle.
- * When enabled: disables the dead-cell block (greys it out) and
- * clears any previously entered dead counts.
- * When disabled: re-enables the dead-cell block.
- */
 function onCountAllToggle() {
   const isAll = document.getElementById('count-all-toggle').checked;
   const deadBlock = document.getElementById('dead-block');
@@ -307,13 +300,43 @@ function onCountAllToggle() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Send to Seeding
+// ─────────────────────────────────────────────────────────────
+
+function updateSendButton(hasDensity) {
+  const btn = document.getElementById('send-seeding-btn');
+  if (!hasDensity) {
+    btn.disabled = true;
+    btn.title    = 'Enter counts first';
+  } else {
+    const active = labtoolsSessionActive();
+    btn.disabled = !active;
+    btn.title    = active ? '' : 'Start a session to use handoff';
+  }
+}
+
+function sendToSeeding() {
+  const active = labtoolsSessionActive();
+  if (!active) return;
+  const density    = parseFloat(document.getElementById('res-density').textContent.replace(/[^\d.e+\-]/g,''));
+  const totalText  = document.getElementById('res-total').textContent;
+  const viaText    = document.getElementById('res-via').textContent;
+  const vol        = parseFloat(document.getElementById('vol').value);
+  labtoolsSessionScratchWrite(active.id, 'countResult', {
+    density:    isNaN(density) ? null : density,
+    totalCells: totalText !== '—' ? totalText : null,
+    viability:  viaText   !== '—' ? viaText   : null,
+    vol:        isNaN(vol) ? null : vol,
+    live1:      document.getElementById('live1').value,
+    df:         document.getElementById('df').value,
+  });
+  location.href = '../seeding-calc/index.html?s=' + active.id;
+}
+
+// ─────────────────────────────────────────────────────────────
 // Reset
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Clear all inputs and reset UI to the initial blank state.
- * Preserves the default DF (20) and restores the dead-cell block.
- */
 function resetAll() {
   ['live1', 'live2', 'dead1', 'dead2', 'vol'].forEach(id => {
     document.getElementById(id).value = '';
@@ -321,7 +344,7 @@ function resetAll() {
   document.getElementById('df').value = '20';
   document.getElementById('count-all-toggle').checked = false;
   document.getElementById('dead-block').classList.remove('disabled');
-  document.getElementById('export-note').textContent = 'Save or copy results after calculation.';
+  document.getElementById('export-note').textContent = '';
   calculate();
 }
 
@@ -329,12 +352,6 @@ function resetAll() {
 // Export helpers
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Collect current input and result values as a [field, value] row array.
- * Used by both makeCsv() and copyResults() to share formatting logic.
- *
- * @returns {Array<[string, string]>} Rows including a header row.
- */
 function getExportRows() {
   const mode  = MODES.find(m => m.id === currentModeId);
   const isAll = document.getElementById('count-all-toggle').checked;
@@ -356,13 +373,6 @@ function getExportRows() {
   ];
 }
 
-/**
- * Convert a rows array into an RFC-4180 CSV string.
- * All fields are double-quoted; embedded quotes are escaped by doubling.
- *
- * @param {Array<string[]>} rows
- * @returns {string} CSV content
- */
 function makeCsv(rows) {
   return rows.map(r => r.map(cell => {
     const text = String(cell).replace(/"/g, '""');
@@ -370,10 +380,6 @@ function makeCsv(rows) {
   }).join(',')).join('\n');
 }
 
-/**
- * Build a CSV Blob and trigger a browser download via a temporary <a> element.
- * The object URL is revoked immediately after the click to free memory.
- */
 function downloadCsv() {
   const csv  = makeCsv(getExportRows());
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -385,49 +391,15 @@ function downloadCsv() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  document.getElementById('export-note').textContent = 'CSV file generated for download.';
+  document.getElementById('export-note').textContent = 'CSV downloaded.';
 }
 
-/**
- * Copy a plain-text summary of all results to the clipboard.
- * Uses the Clipboard API when available; falls back to execCommand otherwise.
- */
 function copyResults() {
   const text = ['Cell Count Calculator Results', '',
     ...getExportRows().map(r => `${r[0]}: ${r[1]}`)].join('\n');
-
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text)
-      .then(() => {
-        document.getElementById('export-note').textContent = 'Results copied to clipboard.';
-      })
-      .catch(() => fallbackCopyText(text));
-  } else {
-    fallbackCopyText(text);
-  }
-}
-
-/**
- * Legacy clipboard copy for browsers without navigator.clipboard.
- * Creates an off-screen textarea, selects it, and calls execCommand('copy').
- *
- * @param {string} text  Plain text to copy
- */
-function fallbackCopyText(text) {
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.setAttribute('readonly', '');
-  ta.style.position = 'absolute';
-  ta.style.left = '-9999px';
-  document.body.appendChild(ta);
-  ta.select();
-  try {
-    document.execCommand('copy');
-    document.getElementById('export-note').textContent = 'Results copied to clipboard.';
-  } catch {
-    document.getElementById('export-note').textContent = 'Unable to copy — use Export CSV instead.';
-  }
-  document.body.removeChild(ta);
+  labtoolsCopyText(text)
+    .then(() => { document.getElementById('export-note').textContent = 'Copied to clipboard.'; })
+    .catch(() => { document.getElementById('export-note').textContent = 'Copy failed — use Export CSV.'; });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -435,8 +407,6 @@ function fallbackCopyText(text) {
 // ─────────────────────────────────────────────────────────────
 buildModeSelector();
 selectMode(currentModeId);
-
-// Restrict all numeric inputs to digits, decimal point, and +/- signs
 document.querySelectorAll('input[type="number"]')
   .forEach(el => el.addEventListener('keydown', restrictToNumeric));
 </script>

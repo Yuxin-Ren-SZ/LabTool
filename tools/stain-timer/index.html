@@ -6,6 +6,7 @@
   <title>Stain Timer · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
   <style>
     /* ── Card width (base styles live in labtools.css .card) ── */
     .card { max-width: 660px; }
@@ -418,6 +419,14 @@
   <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
   <span class="lt-nav-sep">/</span>
   <span class="lt-nav-page">Stain Timer</span>
+  <span style="flex:1"></span>
+  <div class="lt-session-pill-wrap" style="position:relative">
+    <button class="lt-session-pill" id="session-pill" onclick="ltSessionPillToggle()">
+      <span class="lt-session-pill__name" id="session-pill-name">No session</span>
+      <span class="lt-session-pill__caret">▾</span>
+    </button>
+    <div class="lt-session-popover" id="session-popover" hidden></div>
+  </div>
 </nav>
 
 <div class="lt-page-body">
@@ -426,17 +435,16 @@
   <h1 class="lt-tool-title">⏱ Stain Timer</h1>
   <p class="lt-tool-subtitle">Configurable step-by-step staining protocol timer</p>
 
-  <!-- Step bar -->
-  <div class="step-bar">
-    <div class="step-pip active" id="pip1"><div class="dot">1</div>Protocol</div>
-    <div class="step-connector" id="conn1"></div>
-    <div class="step-pip" id="pip2"><div class="dot">2</div>Run</div>
+  <!-- Tabs (replaces step-bar) -->
+  <div class="lt-tabs">
+    <button class="lt-tab-btn active" id="tab-btn-setup" onclick="switchTimerTab(0)">Edit Protocol</button>
+    <button class="lt-tab-btn"        id="tab-btn-run"   onclick="switchTimerTab(1)">Run ▶</button>
   </div>
 
   <!-- ══════════════════════════════════════════════
        Panel 1 — Protocol Setup
   ══════════════════════════════════════════════ -->
-  <div class="step-panel active" id="panel-setup">
+  <div id="panel-setup">
 
     <div class="lt-section-label lt-section-label--tight">Protocol Steps</div>
 
@@ -476,7 +484,7 @@
         <input type="file" accept=".csv" id="import-input" style="display:none" onchange="importProtocol(event)"/>
       </label>
       <div class="spacer"></div>
-      <button class="btn-run" id="btn-run" onclick="goToRun()">Run Protocol →</button>
+      <button class="btn-run" id="btn-run" onclick="switchTimerTab(1)">Run Protocol →</button>
     </div>
 
   </div><!-- /panel-setup -->
@@ -484,11 +492,7 @@
   <!-- ══════════════════════════════════════════════
        Panel 2 — Run Timer
   ══════════════════════════════════════════════ -->
-  <div class="step-panel" id="panel-run">
-
-    <div class="timer-header">
-      <button class="btn-back" onclick="goToSetup()">← Back to Protocol</button>
-    </div>
+  <div id="panel-run" hidden>
 
     <!-- Current step display -->
     <div class="current-step-block" id="current-block">
@@ -934,72 +938,136 @@ function applyValidationWarnings() {
  * Validate the protocol, then transition to Panel 2 (run timer).
  * Initialises stepResults[] and resets all timer state to idle.
  */
-function goToRun() {
-  syncProtocolFromDOM();
+// ─────────────────────────────────────────────────────────────
+// Tab switching (replaces step-bar navigation)
+// ─────────────────────────────────────────────────────────────
 
-  const err = validateProtocol();
-  if (err) {
-    document.getElementById('validation-msg').textContent = err;
-    return;
+let activeTimerTab = 0;
+
+function switchTimerTab(idx) {
+  if (idx === 1) {
+    // Validate and prepare before switching to Run tab
+    syncProtocolFromDOM();
+    const err = validateProtocol();
+    if (err) {
+      document.getElementById('validation-msg').textContent = err;
+      return;
+    }
+    // Only reset timer state if we were idle (don't interrupt a running timer)
+    if (timerState === 'idle' || timerState === 'done') {
+      currentStep     = 0;
+      timerState      = 'idle';
+      stepEndTime     = null;
+      pausedRemaining = null;
+      stepResults     = protocol.map(s => ({
+        solution: s.solution, durationMin: s.durationMin, durationSec: s.durationSec, slot: s.slot,
+        startedAt: null, actualMs: null
+      }));
+      clearInterval(tickInterval);
+    }
+    renderRunPanel();
+  } else {
+    // Switching back to Edit — stop the timer
+    if (timerState === 'running' || timerState === 'paused') {
+      clearInterval(tickInterval);
+      timerState = 'idle';
+      document.title = 'Stain Timer · LabTools';
+      clearRunState();
+    }
   }
 
-  // Reset timer state
-  currentStep  = 0;
-  timerState   = 'idle';
-  stepEndTime  = null;
-  pausedRemaining = null;
-  stepResults  = protocol.map(s => ({
-    solution: s.solution, durationMin: s.durationMin, durationSec: s.durationSec, slot: s.slot,
-    startedAt: null, actualMs: null
-  }));
-  clearInterval(tickInterval);
+  activeTimerTab = idx;
+  document.getElementById('panel-setup').hidden = (idx !== 0);
+  document.getElementById('panel-run').hidden   = (idx !== 1);
+  document.getElementById('tab-btn-setup').classList.toggle('active', idx === 0);
+  document.getElementById('tab-btn-run').classList.toggle('active',   idx === 1);
+}
+
+// Keep old names as aliases (called by existing code paths)
+function goToRun()   { switchTimerTab(1); }
+function goToSetup() { switchTimerTab(0); }
+
+// ─────────────────────────────────────────────────────────────
+// Run state persistence
+// ─────────────────────────────────────────────────────────────
+
+const RUN_STATE_KEY = 'lt-staintimer-run';
+
+function saveRunState() {
+  try {
+    localStorage.setItem(RUN_STATE_KEY, JSON.stringify({
+      protocol:       protocol,
+      currentStep:    currentStep,
+      timerState:     timerState,
+      stepEndTime:    stepEndTime,
+      pausedRemaining: pausedRemaining,
+      stepResults:    stepResults,
+    }));
+  } catch(e) {}
+}
+
+function clearRunState() {
+  localStorage.removeItem(RUN_STATE_KEY);
+}
+
+function restoreRunState() {
+  const raw = localStorage.getItem(RUN_STATE_KEY);
+  if (!raw) return false;
+  let s;
+  try { s = JSON.parse(raw); } catch(e) { clearRunState(); return false; }
+
+  if (!s || !s.protocol || !s.timerState || s.timerState === 'idle' || s.timerState === 'done') {
+    clearRunState();
+    return false;
+  }
+
+  protocol       = s.protocol;
+  currentStep    = s.currentStep  || 0;
+  timerState     = s.timerState;
+  stepEndTime    = s.stepEndTime;
+  pausedRemaining = s.pausedRemaining;
+  stepResults    = s.stepResults  || [];
+
+  // Rebuild protocol table from restored data
+  renderProtoTable();
+
+  // Past-due detection: if was 'running' but step has already elapsed
+  if (timerState === 'running' && stepEndTime !== null && Date.now() > stepEndTime) {
+    // Step already overran while tab was closed — treat as paused at 0
+    timerState      = 'paused';
+    pausedRemaining = 0;
+  }
+
+  stepResults = protocol.map((step, i) =>
+    (s.stepResults && s.stepResults[i]) ? s.stepResults[i] : {
+      solution: step.solution, durationMin: step.durationMin,
+      durationSec: step.durationSec, slot: step.slot,
+      startedAt: null, actualMs: null
+    });
 
   renderRunPanel();
-  showPanel('run');
-}
 
-/**
- * Return to Panel 1 (protocol editor) from Panel 2.
- * Stops the running timer and resets the tab title.
- */
-function goToSetup() {
-  clearInterval(tickInterval);
-  timerState = 'idle';
-  document.title = 'Stain Timer · LabTools';
-  showPanel('setup', true);
-}
+  // Auto-switch to Run tab
+  activeTimerTab = 1;
+  document.getElementById('panel-setup').hidden = true;
+  document.getElementById('panel-run').hidden   = false;
+  document.getElementById('tab-btn-setup').classList.remove('active');
+  document.getElementById('tab-btn-run').classList.add('active');
 
-// ─────────────────────────────────────────────────────────────
-// Panel navigation
-// ─────────────────────────────────────────────────────────────
-
-/**
- * Show a named panel and update the step-bar pip states.
- * Adds .slide-back for backward animations (right-to-left slide).
- *
- * @param {'setup'|'run'} name  Panel to show
- * @param {boolean} [back]     True when navigating backward (←)
- */
-function showPanel(name, back) {
-  document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
-  const target = document.getElementById('panel-' + name);
-  if (back) target.classList.add('slide-back');
-  else      target.classList.remove('slide-back');
-  target.classList.add('active');
-
-  const pip1 = document.getElementById('pip1');
-  const pip2 = document.getElementById('pip2');
-  const conn = document.getElementById('conn1');
-
-  if (name === 'setup') {
-    pip1.className = 'step-pip active';
-    pip2.className = 'step-pip';
-    conn.className = 'step-connector';
-  } else {
-    pip1.className = 'step-pip done';
-    pip2.className = 'step-pip active';
-    conn.className = 'step-connector done';
+  // Resume if was running, show paused state if paused/at-zero
+  if (timerState === 'paused' && pausedRemaining === 0) {
+    skipStep();
+  } else if (timerState === 'paused') {
+    // Show as paused — user can resume
+    const btn = document.getElementById('btn-start');
+    if (btn) { btn.textContent = '▶ Resume'; btn.className = 'btn-start paused'; }
+  } else if (timerState === 'running') {
+    // Resume the tick
+    tickInterval = setInterval(onTick, 100);
+    onTick();
   }
+
+  return true;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1038,6 +1106,7 @@ function startStep() {
     stepResults[currentStep].startedAt = formatWallClock(stepStartTs);
   }
   timerState = 'running';
+  saveRunState();
   updateControls();
   startTick();
 }
@@ -1050,6 +1119,7 @@ function pauseTimer() {
   clearInterval(tickInterval);
   pausedRemaining = Math.max(0, stepEndTime - Date.now());
   timerState = 'paused';
+  saveRunState();
   updateControls();
   document.title = 'Paused — Stain Timer · LabTools';
 }
@@ -1069,6 +1139,7 @@ function skipStep() {
   if (!stepResults[currentStep].startedAt) {
     stepResults[currentStep].startedAt = formatWallClock(Date.now());
   }
+  saveRunState();
   advanceStep();
 }
 
@@ -1091,6 +1162,7 @@ function resetTimer() {
   document.getElementById('done-banner').style.display = 'none';
   document.getElementById('btn-export-results').disabled = true;
   document.title = 'Stain Timer · LabTools';
+  clearRunState();
   renderRunPanel();
 }
 
@@ -1125,6 +1197,7 @@ function advanceStep() {
   if (currentStep < protocol.length - 1) {
     currentStep++;
     timerState = 'idle';
+    saveRunState();
     updateControls();
     renderRunPanel();
     // Auto-scroll current step into view
@@ -1133,6 +1206,7 @@ function advanceStep() {
   } else {
     // All done
     timerState = 'done';
+    clearRunState();
     onAllDone();
   }
 }
@@ -1588,7 +1662,26 @@ function getMaxAssignedSlot() {
 // ─────────────────────────────────────────────────────────────
 // Init
 // ─────────────────────────────────────────────────────────────
+
+// Session init
+(function() {
+  const sid = new URLSearchParams(location.search).get('s');
+  if (sid) labtoolsSessionSetActive(sid);
+  ltSessionPillRender();
+})();
+
+// Spacebar → toggle start/pause when Run tab is active
+document.addEventListener('keydown', function(e) {
+  if (e.code === 'Space' && activeTimerTab === 1 && !e.target.matches('input, button')) {
+    e.preventDefault();
+    toggleStartPause();
+  }
+});
+
 renderProtoTable();
+if (!restoreRunState()) {
+  // Fresh load — nothing to restore, table already rendered
+}
 </script>
 </body>
 </html>

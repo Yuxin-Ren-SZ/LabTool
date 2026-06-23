@@ -5,43 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Cell Seeding Calculator · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
-  <!-- Shared pure-function utilities: avgTwo, fmt, fmtSig, calcCellDensity, calcTotalCells,
-       calcViabilityPct, bestVolumeDisplay, autoBestConcUnit, restrictToNumeric, makeDiagram, MODES -->
   <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
   <style>
-    /* ── Card width (base styles live in labtools.css .card) ── */
-    .card { max-width: 600px; }
+    .card { max-width: 1000px; }
 
-    /* ── Step 1→2 navigation buttons ── */
-    .nav-row {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-top: 16px; gap: 10px;
-    }
-    .btn-next {
-      padding: 9px 22px;
-      border: none; border-radius: var(--radius-md);
-      background: var(--blue-dark); color: #fff;
-      font-size: 0.88rem; font-weight: 700; font-family: var(--font);
-      cursor: pointer; transition: opacity 0.15s;
-      display: flex; align-items: center; gap: 6px;
-      margin-left: auto;
-    }
-    .btn-next:hover    { opacity: 0.88; }
-    .btn-next:disabled { background: var(--tag-bg); color: var(--text-muted); cursor: not-allowed; opacity: 1; }
-    /* Wider variant used for the Step 2 "Calculate" button */
-    .btn-next--wide    { padding: 10px 24px; font-size: 0.9rem; }
-
-    .btn-back {
-      padding: 9px 16px;
-      border: 1.5px solid var(--border); border-radius: var(--radius-md);
-      background: transparent; font-size: 0.85rem; font-family: var(--font);
-      color: var(--text-secondary); font-weight: 600;
-      cursor: pointer; transition: all 0.15s;
-      display: flex; align-items: center; gap: 6px;
-    }
-    .btn-back:hover { background: var(--surface-hover); }
-
-    /* ── Bypass toggle (skip counting step) ── */
+    /* ── Bypass toggle (Tab 0 — skip counting step) ── */
     .bypass-row {
       display: flex; align-items: center; gap: 8px;
       padding: 10px 12px;
@@ -59,14 +28,12 @@
     .bypass-label { font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); }
     .bypass-label .bypass-sub { font-size: 0.72rem; color: var(--text-muted); font-weight: 400; margin-left: 4px; }
 
-    /* Direct-entry concentration block (visible when bypass is active) */
     .bypass-conc-block {
       background: var(--blue-bg); border: 1.5px solid var(--blue-border);
       border-radius: 10px; padding: 13px 13px 12px; margin-bottom: 10px; display: none;
     }
     .bypass-conc-block.visible { display: block; }
     .bypass-conc-block .group-header { color: var(--blue-dark); }
-    /* Row containing the input and unit label side-by-side */
     .bypass-conc-row {
       position: relative; display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
     }
@@ -79,12 +46,11 @@
     }
     .bypass-conc-block input:focus        { border-color: var(--blue-dark); }
     .bypass-conc-block input::placeholder { color: var(--text-placeholder); font-weight: 400; }
-    /* Unit label (e.g. "M/mL") displayed to the right of the input */
     .bypass-conc-unit {
       font-size: 0.78rem; font-weight: 600; color: var(--blue-dark); white-space: nowrap;
     }
 
-    /* ── Step 2: Dilution (C₁V₁ = C₂V₂) ── */
+    /* ── Dilution (Tab 1) ── */
     .equation-banner {
       background: var(--blue-bg); border: 1.5px solid var(--blue-border);
       border-radius: var(--radius-md); padding: 10px 16px;
@@ -92,21 +58,15 @@
       text-align: center; margin-bottom: 20px; letter-spacing: 0.03em;
       font-family: var(--font-mono);
     }
-
     .dilution-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 12px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;
     }
-
     .dil-field { display: flex; flex-direction: column; gap: 4px; }
     .dil-field label {
       font-size: 0.72rem; font-weight: 700; color: var(--text-secondary);
       text-transform: uppercase; letter-spacing: 0.03em;
       display: flex; align-items: center; gap: 6px;
     }
-    /* Monospace variable tag (C₁, V₂, …) inside each field label */
     .dil-field label .var-tag {
       font-family: var(--font-mono); font-size: 0.78rem; font-weight: 700;
       background: var(--blue-bg); color: var(--blue-dark);
@@ -123,9 +83,7 @@
     }
     .dil-field input:focus        { border-color: var(--blue); }
     .dil-field input::placeholder { color: var(--text-placeholder); }
-    /* .prefilled — value inherited from Step 1 (read-only, blue tint) */
     .dil-field input.prefilled { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue-dark); }
-    /* .solving — field whose value was calculated (green tint) */
     .dil-field input.solving   { background: var(--green-bg); border-color: var(--green-border); color: var(--green-dark); font-weight: 700; }
     .dil-field .unit {
       position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
@@ -133,11 +91,12 @@
     }
     .dil-field .prefill-note { font-size: 0.68rem; color: var(--blue-dark); margin-top: 2px; }
 
-    /* ── Answer box — green confirmation strip ── */
+    /* ── Answer box (result card) ── */
     .answer-box {
       background: var(--green-bg); border: 1.5px solid var(--green-border);
       border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 10px;
     }
+    .answer-box.hidden { display: none; }
     .answer-box .ans-label {
       font-size: 0.70rem; font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.05em; color: var(--green-dark); margin-bottom: 6px;
@@ -145,22 +104,41 @@
     .answer-box .ans-value { font-size: 1.3rem; font-weight: 800; color: var(--green-dark); }
     .answer-box .ans-unit  { font-size: 0.80rem; color: var(--green); margin-left: 4px; font-weight: 500; }
     .answer-box .ans-sub   { font-size: 0.78rem; color: var(--green-dark); margin-top: 4px; opacity: 0.8; }
-    .answer-box.hidden { display: none; }
 
-    /* Centered "Calculate" button row in Step 2 */
-    .calc-btn-row { text-align: center; margin: 16px 0; }
+    /* Tab content spacing */
+    .sc-tab-content { padding-top: 16px; }
 
-    /* Back/reset row at the bottom of Step 2 */
-    .dil-reset-row {
-      display: flex; justify-content: space-between; align-items: center; margin-top: 10px;
+    /* Calculate button (Tab 1) */
+    .calc-btn-row { text-align: center; margin: 16px 0 0; }
+    .btn-calc {
+      padding: 10px 28px;
+      border: none; border-radius: var(--radius-md);
+      background: var(--blue-dark); color: #fff;
+      font-size: 0.9rem; font-weight: 700; font-family: var(--font);
+      cursor: pointer; transition: opacity 0.15s;
     }
+    .btn-calc:hover { opacity: 0.88; }
 
-    /* Export action row override (auto width, no top margin) */
-    .action-row .btn-reset { width: auto; margin-top: 0; padding: 8px 14px; }
-    .export-note { margin-top: 6px; }
+    /* Target density tab */
+    .target-field-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;
+    }
+    .target-field { display: flex; flex-direction: column; gap: 4px; }
+    .target-field label { font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; }
+    .target-field input, .target-field select {
+      padding: 9px 10px; border: 1.5px solid var(--border); border-radius: var(--radius-md);
+      font-size: 0.95rem; font-family: var(--font); color: var(--text);
+      background: var(--surface); outline: none; transition: border-color 0.15s;
+    }
+    .target-field input:focus, .target-field select:focus { border-color: var(--blue); }
+
+    /* Export / action within result card */
+    .action-row { gap: 6px; flex-wrap: wrap; }
+    .export-note { font-size: 0.72rem; color: var(--text-muted); min-height: 1.2em; margin-top: 6px; }
 
     @media (max-width: 480px) {
-      .dilution-grid { grid-template-columns: 1fr; }
+      .dilution-grid    { grid-template-columns: 1fr; }
+      .target-field-row { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -170,291 +148,363 @@
   <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
   <span class="lt-nav-sep">/</span>
   <span class="lt-nav-page">Cell Seeding Calculator</span>
+  <span style="flex:1"></span>
+  <div class="lt-session-pill-wrap" style="position:relative">
+    <button class="lt-session-pill" id="session-pill" onclick="ltSessionPillToggle()">
+      <span class="lt-session-pill__name" id="session-pill-name">No session</span>
+      <span class="lt-session-pill__caret">▾</span>
+    </button>
+    <div class="lt-session-popover" id="session-popover" hidden></div>
+  </div>
 </nav>
 
-<div class="lt-page-body" style="overflow:hidden">
+<div class="lt-page-body">
 <div class="card">
 
-  <!-- ── Step progress bar ── -->
-  <div class="step-bar">
-    <div class="step-pip active" id="pip1">
-      <div class="dot">1</div>
-      Cell Count
-    </div>
-    <div class="step-connector" id="connector"></div>
-    <div class="step-pip" id="pip2">
-      <div class="dot">2</div>
-      Dilution
-    </div>
-  </div>
+  <h1 class="lt-tool-title">Cell Seeding Calculator</h1>
+  <p class="lt-tool-subtitle">Count · dilute · seed — live results in the panel.</p>
 
-  <!-- ════════════════════════════════════
-       STEP 1 — Cell Count
-  ════════════════════════════════════ -->
-  <div class="step-panel active" id="step1">
+  <div class="lt-workspace-2col">
 
-    <h1 class="lt-tool-title">🧮 Cell Count</h1>
-    <p class="lt-tool-subtitle">Count your cells, then proceed to calculate the dilution.</p>
+    <!-- ── Left: tabs + form ── -->
+    <div id="sc-form-col">
 
-    <!-- Bypass toggle -->
-    <label class="bypass-row" id="bypass-row">
-      <input type="checkbox" id="bypass-toggle" onchange="onBypassToggle()"/>
-      <span class="bypass-label">I already have my cell concentration
-        <span class="bypass-sub">— skip the counting step</span>
-      </span>
-    </label>
-
-    <!-- Direct-entry field (visible when bypassed) -->
-    <div class="bypass-conc-block" id="bypass-conc-block">
-      <div class="group-header">📐 Known Concentration</div>
-      <div class="bypass-conc-row">
-        <input type="text" inputmode="decimal" id="bypass-conc"
-               placeholder="e.g. 2"
-               oninput="calcStep1()"/>
-        <span id="bypass-conc-unit" class="bypass-conc-unit">M/mL</span>
+      <div class="lt-tabs">
+        <button class="lt-tab-btn active" id="tab-btn-0" onclick="switchTab(0)">From count</button>
+        <button class="lt-tab-btn"        id="tab-btn-1" onclick="switchTab(1)">From concentration</button>
+        <button class="lt-tab-btn"        id="tab-btn-2" onclick="switchTab(2)">From target</button>
       </div>
-      <div class="lt-pill-group" id="bypass-conc-pills">
-        <button class="lt-pill" title="cells per mL" onclick="setBypassUnit('cells')">cells</button>
-        <button class="lt-pill" title="× 1,000 cells per mL" onclick="setBypassUnit('K')">K</button>
-        <button class="lt-pill active" title="× 1,000,000 cells per mL" onclick="setBypassUnit('M')">M</button>
-        <button class="lt-pill" title="× 1,000,000,000 cells per mL" onclick="setBypassUnit('B')">B</button>
-      </div>
-    </div>
 
-    <!-- Counting section (greyed when bypassed) -->
-    <div id="counting-section">
+      <!-- ════════════════ Tab 0 — From count ════════════════ -->
+      <div class="sc-tab-content" id="tab-count">
 
-    <!-- Mode selector -->
-    <div class="lt-section-label lt-section-label--tight">Counting Mode</div>
-    <div class="mode-selector" id="mode-selector"></div>
-    <div class="mode-desc" id="mode-desc"></div>
-
-    <!-- Live counts -->
-    <div class="group-block" id="live-block">
-      <div class="group-header">🟢 Live Cell Counts</div>
-      <div class="count-row">
-        <div class="count-field">
-          <label>Count 1</label>
-          <input type="number" inputmode="numeric" id="live1" placeholder="e.g. 95" min="0" oninput="calcStep1()"/>
-        </div>
-        <div class="count-field">
-          <label>Count 2 <span class="lt-opt">(optional — 2nd chamber)</span></label>
-          <input type="number" inputmode="numeric" id="live2" placeholder="optional" min="0" oninput="calcStep1()"/>
-        </div>
-      </div>
-      <div class="count-hint" id="live-hint"></div>
-      <label class="count-all-row">
-        <input type="checkbox" id="count-all-toggle" onchange="onCountAllToggle()"/>
-        <span class="count-all-label">Count all cells
-          <span class="count-all-sub">— no Trypan Blue, dead section disabled</span>
-        </span>
-      </label>
-    </div>
-
-    <!-- Dead counts -->
-    <div class="group-block dead-block" id="dead-block">
-      <div class="group-header">
-        🔴 Dead Cell Counts
-        <span class="lt-badge lt-badge-default">optional — Trypan Blue viability</span>
-      </div>
-      <div class="count-row">
-        <div class="count-field">
-          <label>Count 1 <span class="lt-opt">(optional)</span></label>
-          <input type="number" inputmode="numeric" id="dead1" placeholder="optional" min="0" oninput="calcStep1()"/>
-        </div>
-        <div class="count-field">
-          <label>Count 2 <span class="lt-opt">(optional — 2nd chamber)</span></label>
-          <input type="number" inputmode="numeric" id="dead2" placeholder="optional" min="0" oninput="calcStep1()"/>
-        </div>
-      </div>
-      <div class="via-note" id="via-note">Enter dead counts above to auto-calculate viability.</div>
-    </div>
-
-    <!-- Parameters -->
-    <div class="params-row">
-      <div>
-        <label>Dilution Factor</label>
-        <input type="number" inputmode="decimal" id="df" value="20" min="1" oninput="calcStep1()"/>
-      </div>
-      <div>
-        <label>Resuspension Volume (mL)</label>
-        <input type="number" inputmode="decimal" id="vol" placeholder="e.g. 2" min="0" step="0.1" oninput="calcStep1()"/>
-      </div>
-    </div>
-
-    </div><!-- /counting-section -->
-
-    <div class="lt-divider"></div>
-
-    <!-- Results -->
-    <div class="results-title">Results</div>
-    <div class="results-grid">
-      <div class="result-box">
-        <div class="r-label">Avg Count</div>
-        <div class="r-value" id="res-avg">—</div>
-        <div class="r-unit"  id="res-avg-note">from counts</div>
-      </div>
-      <div class="result-box hl-green">
-        <div class="r-label">Viability</div>
-        <div class="r-value" id="res-via">—</div>
-        <div class="r-unit"  id="res-via-note">from dead counts</div>
-      </div>
-      <div class="result-box hl-blue">
-        <div class="r-label">Final Concentration</div>
-        <div class="r-value" id="res-density">—</div>
-        <div class="r-unit"  id="res-density-note">cells/mL</div>
-      </div>
-      <div class="result-box hl-blue">
-        <div class="r-label" id="res-total-label">Total Live Cells</div>
-        <div class="r-value" id="res-total">—</div>
-        <div class="r-unit"  id="res-total-note">conc. × vol</div>
-      </div>
-    </div>
-    <div class="unit-legend">K = 1,000 &nbsp;·&nbsp; M = 1,000,000 &nbsp;·&nbsp; B = 1,000,000,000</div>
-
-    <!-- Export + Nav row -->
-    <div class="action-row">
-      <button class="btn-reset" onclick="copyResults('count')">📋 Copy Results</button>
-      <button class="btn-reset" onclick="downloadCsv('count')">⬇️ Export CSV</button>
-      <button class="btn-reset" onclick="resetStep1()">↺ Reset</button>
-    </div>
-    <div class="export-note" id="export-note-s1"></div>
-
-    <div class="nav-row">
-      <div></div>
-      <button class="btn-next" id="btn-next" onclick="goToStep2()" disabled>
-        Next: Dilution <span>→</span>
-      </button>
-    </div>
-
-  </div><!-- /step1 -->
-
-
-  <!-- ════════════════════════════════════
-       STEP 2 — Dilution (C1V1 = C2V2)
-  ════════════════════════════════════ -->
-  <div class="step-panel" id="step2">
-
-    <h1 class="lt-tool-title">⚗️ Dilution</h1>
-    <p class="lt-tool-subtitle">Leave the unknown field empty, then click Calculate.</p>
-
-    <div class="equation-banner">C₁V₁ = C₂V₂</div>
-
-    <div class="lt-alert lt-alert-danger hidden" id="dilution-error"></div>
-
-    <div class="dilution-grid">
-
-      <!-- C1 — locked from Step 1 -->
-      <div class="dil-field">
-        <label>
-          <span class="var-tag" id="c1-tag">C₁</span>
-          Stock Concentration
+        <!-- Bypass toggle -->
+        <label class="bypass-row" id="bypass-row">
+          <input type="checkbox" id="bypass-toggle" onchange="onBypassToggle()"/>
+          <span class="bypass-label">I already have my concentration
+            <span class="bypass-sub">— skip the counting step</span>
+          </span>
         </label>
-        <div class="unit-wrap">
-          <input type="text" inputmode="decimal" id="c1" placeholder="—"
-                 readonly/>
-          <span class="unit" id="c1-unit">M/mL</span>
+
+        <!-- Direct-entry concentration (visible when bypassed) -->
+        <div class="bypass-conc-block" id="bypass-conc-block">
+          <div class="group-header">📐 Known Concentration</div>
+          <div class="bypass-conc-row">
+            <input type="text" inputmode="decimal" id="bypass-conc"
+                   placeholder="e.g. 2" oninput="calcFromCount()"/>
+            <span id="bypass-conc-unit" class="bypass-conc-unit">M/mL</span>
+          </div>
+          <div class="lt-pill-group" id="bypass-conc-pills">
+            <button class="lt-pill" onclick="setBypassUnit('cells')">cells</button>
+            <button class="lt-pill" onclick="setBypassUnit('K')">K</button>
+            <button class="lt-pill active" onclick="setBypassUnit('M')">M</button>
+            <button class="lt-pill" onclick="setBypassUnit('B')">B</button>
+          </div>
         </div>
-        <div class="prefill-note" id="c1-note">← from Step 1</div>
-        <div class="lt-pill-group" id="c1-pills">
-          <button class="lt-pill" title="cells per mL" onclick="setUnit('c1','cells')">cells</button>
-          <button class="lt-pill" title="× 1,000 cells per mL" onclick="setUnit('c1','K')">K</button>
-          <button class="lt-pill active" title="× 1,000,000 cells per mL" onclick="setUnit('c1','M')">M</button>
-          <button class="lt-pill" title="× 1,000,000,000 cells per mL" onclick="setUnit('c1','B')">B</button>
+
+        <!-- Counting section (greyed when bypassed) -->
+        <div id="counting-section">
+
+          <div class="lt-section-label lt-section-label--tight">Counting Mode</div>
+          <div class="mode-selector" id="mode-selector"></div>
+          <div class="mode-desc" id="mode-desc"></div>
+
+          <div class="group-block" id="live-block">
+            <div class="group-header">🟢 Live Cell Counts</div>
+            <div class="count-row">
+              <div class="count-field">
+                <label>Count 1</label>
+                <input type="number" inputmode="numeric" id="live1" placeholder="e.g. 95" min="0" oninput="calcFromCount()"/>
+              </div>
+              <div class="count-field">
+                <label>Count 2 <span class="lt-opt">(optional — 2nd chamber)</span></label>
+                <input type="number" inputmode="numeric" id="live2" placeholder="optional" min="0" oninput="calcFromCount()"/>
+              </div>
+            </div>
+            <div class="count-hint" id="live-hint"></div>
+            <label class="count-all-row">
+              <input type="checkbox" id="count-all-toggle" onchange="onCountAllToggle()"/>
+              <span class="count-all-label">Count all cells
+                <span class="count-all-sub">— no Trypan Blue, dead section disabled</span>
+              </span>
+            </label>
+          </div>
+
+          <div class="group-block dead-block" id="dead-block">
+            <div class="group-header">
+              🔴 Dead Cell Counts
+              <span class="lt-badge lt-badge-default">optional — Trypan Blue viability</span>
+            </div>
+            <div class="count-row">
+              <div class="count-field">
+                <label>Count 1 <span class="lt-opt">(optional)</span></label>
+                <input type="number" inputmode="numeric" id="dead1" placeholder="optional" min="0" oninput="calcFromCount()"/>
+              </div>
+              <div class="count-field">
+                <label>Count 2 <span class="lt-opt">(optional — 2nd chamber)</span></label>
+                <input type="number" inputmode="numeric" id="dead2" placeholder="optional" min="0" oninput="calcFromCount()"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="params-row">
+            <div>
+              <label>Dilution Factor</label>
+              <input type="number" inputmode="decimal" id="df" value="20" min="1" oninput="calcFromCount()"/>
+            </div>
+            <div>
+              <label>Resuspension Volume (mL)</label>
+              <input type="number" inputmode="decimal" id="vol" placeholder="e.g. 2" min="0" step="0.1" oninput="calcFromCount()"/>
+            </div>
+          </div>
+
+        </div><!-- /counting-section -->
+
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="lt-btn lt-btn-ghost" onclick="resetCount()">↺ Reset</button>
         </div>
+
+      </div><!-- /tab-count -->
+
+      <!-- ════════════════ Tab 1 — From concentration ════════════════ -->
+      <div class="sc-tab-content" id="tab-conc" hidden>
+
+        <div class="equation-banner">C₁V₁ = C₂V₂</div>
+
+        <div class="lt-alert lt-alert-danger hidden" id="dilution-error"></div>
+
+        <div class="dilution-grid">
+
+          <!-- C1 — editable; auto-filled from Tab 0 if available -->
+          <div class="dil-field">
+            <label>
+              <span class="var-tag" id="c1-tag">C₁</span>
+              Stock Concentration
+            </label>
+            <div class="unit-wrap">
+              <input type="text" inputmode="decimal" id="c1" placeholder="leave empty to solve"
+                     oninput="onDilFieldInput('c1')"/>
+              <span class="unit" id="c1-unit">M/mL</span>
+            </div>
+            <div class="prefill-note" id="c1-note" style="display:none">← from Count tab</div>
+            <div class="lt-pill-group" id="c1-pills">
+              <button class="lt-pill" onclick="setUnit('c1','cells')">cells</button>
+              <button class="lt-pill" onclick="setUnit('c1','K')">K</button>
+              <button class="lt-pill active" onclick="setUnit('c1','M')">M</button>
+              <button class="lt-pill" onclick="setUnit('c1','B')">B</button>
+            </div>
+          </div>
+
+          <!-- C2 -->
+          <div class="dil-field">
+            <label>
+              <span class="var-tag" id="c2-tag">C₂</span>
+              Target Concentration
+            </label>
+            <div class="unit-wrap">
+              <input type="text" inputmode="decimal" id="c2" placeholder="leave empty to solve"
+                     oninput="onDilFieldInput('c2')"/>
+              <span class="unit" id="c2-unit">M/mL</span>
+            </div>
+            <div class="lt-pill-group" id="c2-pills">
+              <button class="lt-pill" onclick="setUnit('c2','cells')">cells</button>
+              <button class="lt-pill" onclick="setUnit('c2','K')">K</button>
+              <button class="lt-pill active" onclick="setUnit('c2','M')">M</button>
+              <button class="lt-pill" onclick="setUnit('c2','B')">B</button>
+            </div>
+          </div>
+
+          <!-- V1 -->
+          <div class="dil-field">
+            <label>
+              <span class="var-tag" id="v1-tag">V₁</span>
+              Volume from Stock
+            </label>
+            <div class="unit-wrap">
+              <input type="text" inputmode="decimal" id="v1" placeholder="leave empty to solve"
+                     oninput="onDilFieldInput('v1')"/>
+              <span class="unit" id="v1-unit">mL</span>
+            </div>
+            <div class="lt-pill-group" id="v1-pills">
+              <button class="lt-pill" onclick="setUnit('v1','uL')">µL</button>
+              <button class="lt-pill active" onclick="setUnit('v1','mL')">mL</button>
+              <button class="lt-pill" onclick="setUnit('v1','L')">L</button>
+            </div>
+          </div>
+
+          <!-- V2 -->
+          <div class="dil-field">
+            <label>
+              <span class="var-tag" id="v2-tag">V₂</span>
+              Final Volume
+            </label>
+            <div class="unit-wrap">
+              <input type="text" inputmode="decimal" id="v2" placeholder="leave empty to solve"
+                     oninput="onDilFieldInput('v2')"/>
+              <span class="unit" id="v2-unit">mL</span>
+            </div>
+            <div class="lt-pill-group" id="v2-pills">
+              <button class="lt-pill" onclick="setUnit('v2','uL')">µL</button>
+              <button class="lt-pill active" onclick="setUnit('v2','mL')">mL</button>
+              <button class="lt-pill" onclick="setUnit('v2','L')">L</button>
+            </div>
+          </div>
+
+        </div><!-- /dilution-grid -->
+
+        <div class="calc-btn-row">
+          <button class="btn-calc" onclick="calcFromConc()">Calculate</button>
+        </div>
+
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="lt-btn lt-btn-ghost" onclick="resetConc()">↺ Reset dilution</button>
+        </div>
+
+      </div><!-- /tab-conc -->
+
+      <!-- ════════════════ Tab 2 — From target ════════════════ -->
+      <div class="sc-tab-content" id="tab-target" hidden>
+
+        <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:16px">
+          Know your stock concentration and target seeding — find the volume to add per vessel.
+        </p>
+
+        <div class="target-field-row">
+          <div class="target-field">
+            <label>Target cells per vessel</label>
+            <input type="number" inputmode="decimal" id="tgt-cells"
+                   placeholder="e.g. 100000" min="0" oninput="calcFromTarget()"/>
+          </div>
+          <div class="target-field">
+            <label>Vessel type</label>
+            <select id="tgt-vessel" onchange="onVesselChange()">
+              <option value="T25">T25 flask (7 mL)</option>
+              <option value="T75">T75 flask (15 mL)</option>
+              <option value="T175">T175 flask (40 mL)</option>
+              <option value="6w">6-well plate (2 mL/well)</option>
+              <option value="12w">12-well plate (1 mL/well)</option>
+              <option value="24w" selected>24-well plate (0.5 mL/well)</option>
+              <option value="48w">48-well plate (0.3 mL/well)</option>
+              <option value="96w">96-well plate (0.2 mL/well)</option>
+              <option value="custom">Custom volume…</option>
+            </select>
+          </div>
+          <div class="target-field" id="tgt-custom-vol-field" style="display:none">
+            <label>Custom media volume (mL)</label>
+            <input type="number" inputmode="decimal" id="tgt-custom-vol"
+                   placeholder="e.g. 0.3" min="0" step="0.1" oninput="calcFromTarget()"/>
+          </div>
+          <div class="target-field">
+            <label>Number of vessels</label>
+            <input type="number" inputmode="numeric" id="tgt-n"
+                   value="1" min="1" oninput="calcFromTarget()"/>
+          </div>
+          <div class="target-field">
+            <label>Stock concentration (cells/mL)</label>
+            <input type="number" inputmode="decimal" id="tgt-stock"
+                   placeholder="auto-filled from Count tab" min="0" oninput="calcFromTarget()"/>
+          </div>
+        </div>
+
+        <div style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="lt-btn lt-btn-ghost" onclick="resetTarget()">↺ Reset</button>
+        </div>
+
+      </div><!-- /tab-target -->
+
+    </div><!-- /sc-form-col -->
+
+    <!-- ── Right: sticky result card ── -->
+    <div id="sc-result-col">
+      <div class="lt-result-card">
+        <span class="lt-io-label">Result</span>
+
+        <div class="lt-result-card-primary" id="sc-primary">—</div>
+        <div class="lt-result-card-unit" id="sc-primary-unit">cells/mL · concentration</div>
+
+        <div class="lt-divider"></div>
+
+        <!-- Count tab result section -->
+        <div id="rc-count">
+          <div class="results-grid">
+            <div class="result-box hl-green">
+              <div class="r-label">Viability</div>
+              <div class="r-value" id="res-via">—</div>
+              <div class="r-unit"  id="res-via-note">enter dead counts</div>
+            </div>
+            <div class="result-box hl-blue">
+              <div class="r-label" id="res-total-label">Total Live Cells</div>
+              <div class="r-value" id="res-total">—</div>
+              <div class="r-unit"  id="res-total-note">conc. × vol</div>
+            </div>
+            <div class="result-box">
+              <div class="r-label">Avg Count</div>
+              <div class="r-value" id="res-avg">—</div>
+              <div class="r-unit"  id="res-avg-note">from counts</div>
+            </div>
+          </div>
+          <div class="via-note" id="via-note">Enter dead counts to auto-calculate viability.</div>
+          <div class="unit-legend">K = 1,000 · M = 1,000,000 · B = 1,000,000,000</div>
+
+          <!-- Inline result IDs for SYNC with cell-count -->
+          <!-- res-density is the sc-primary element (set via updateResultCard) -->
+          <!-- res-density-note is sc-primary-unit -->
+          <!-- hidden mirrors for export compatibility -->
+          <span id="res-density"      style="display:none">—</span>
+          <span id="res-density-note" style="display:none">cells/mL</span>
+        </div><!-- /rc-count -->
+
+        <!-- Concentration tab result section -->
+        <div id="rc-conc" hidden>
+          <div class="answer-box hidden" id="answer-box">
+            <div class="ans-label" id="ans-label">Solving for —</div>
+            <div>
+              <span class="ans-value" id="ans-value">—</span>
+              <span class="ans-unit"  id="ans-unit"></span>
+            </div>
+            <div class="ans-sub" id="ans-sub"></div>
+          </div>
+          <div class="lt-alert lt-alert-info hidden" id="media-note"></div>
+          <div class="lt-alert hidden" id="stock-warning"></div>
+        </div><!-- /rc-conc -->
+
+        <!-- Target tab result section -->
+        <div id="rc-target" hidden>
+          <div class="results-grid">
+            <div class="result-box hl-blue">
+              <div class="r-label">Per Vessel</div>
+              <div class="r-value" id="tgt-res-vol">—</div>
+              <div class="r-unit"  id="tgt-res-vol-note">stock to add</div>
+            </div>
+            <div class="result-box">
+              <div class="r-label">Media to Add</div>
+              <div class="r-value" id="tgt-res-media">—</div>
+              <div class="r-unit"  id="tgt-res-media-note">per vessel</div>
+            </div>
+            <div class="result-box">
+              <div class="r-label">Total Stock</div>
+              <div class="r-value" id="tgt-res-total-stock">—</div>
+              <div class="r-unit"  id="tgt-res-total-stock-note">for all vessels</div>
+            </div>
+          </div>
+          <div class="lt-alert lt-alert-info hidden" id="tgt-alert"></div>
+        </div><!-- /rc-target -->
+
+        <div class="lt-divider"></div>
+
+        <div class="action-row">
+          <button class="lt-btn lt-btn-ghost" onclick="copyResultsCurrent()">📋 Copy</button>
+          <button class="lt-btn lt-btn-ghost" onclick="downloadCsvCurrent()">⬇ CSV</button>
+        </div>
+        <button class="lt-btn lt-btn-ghost" id="sc-send-btn"
+                style="width:100%;margin-top:8px" disabled onclick="sendToPlate()">
+          Send to Plate →
+        </button>
+        <div class="export-note" id="export-note"></div>
       </div>
+    </div><!-- /sc-result-col -->
 
-      <!-- C2 -->
-      <div class="dil-field">
-        <label>
-          <span class="var-tag" id="c2-tag">C₂</span>
-          Target Concentration
-        </label>
-        <div class="unit-wrap">
-          <input type="text" inputmode="decimal" id="c2" placeholder="leave empty to solve"
-                 oninput="onDilFieldInput('c2')"/>
-          <span class="unit" id="c2-unit">M/mL</span>
-        </div>
-        <div class="lt-pill-group" id="c2-pills">
-          <button class="lt-pill" title="cells per mL" onclick="setUnit('c2','cells')">cells</button>
-          <button class="lt-pill" title="× 1,000 cells per mL" onclick="setUnit('c2','K')">K</button>
-          <button class="lt-pill active" title="× 1,000,000 cells per mL" onclick="setUnit('c2','M')">M</button>
-          <button class="lt-pill" title="× 1,000,000,000 cells per mL" onclick="setUnit('c2','B')">B</button>
-        </div>
-      </div>
-
-      <!-- V1 -->
-      <div class="dil-field">
-        <label>
-          <span class="var-tag" id="v1-tag">V₁</span>
-          Volume from Stock
-        </label>
-        <div class="unit-wrap">
-          <input type="text" inputmode="decimal" id="v1" placeholder="leave empty to solve"
-                 oninput="onDilFieldInput('v1')"/>
-          <span class="unit" id="v1-unit">mL</span>
-        </div>
-        <div class="lt-pill-group" id="v1-pills">
-          <button class="lt-pill" title="microliters" onclick="setUnit('v1','uL')">µL</button>
-          <button class="lt-pill active" title="milliliters" onclick="setUnit('v1','mL')">mL</button>
-          <button class="lt-pill" title="liters" onclick="setUnit('v1','L')">L</button>
-        </div>
-      </div>
-
-      <!-- V2 -->
-      <div class="dil-field">
-        <label>
-          <span class="var-tag" id="v2-tag">V₂</span>
-          Final Volume
-        </label>
-        <div class="unit-wrap">
-          <input type="text" inputmode="decimal" id="v2" placeholder="leave empty to solve"
-                 oninput="onDilFieldInput('v2')"/>
-          <span class="unit" id="v2-unit">mL</span>
-        </div>
-        <div class="lt-pill-group" id="v2-pills">
-          <button class="lt-pill" title="microliters" onclick="setUnit('v2','uL')">µL</button>
-          <button class="lt-pill active" title="milliliters" onclick="setUnit('v2','mL')">mL</button>
-          <button class="lt-pill" title="liters" onclick="setUnit('v2','L')">L</button>
-        </div>
-      </div>
-
-    </div><!-- /dilution-grid -->
-
-    <div class="calc-btn-row">
-      <button class="btn-next btn-next--wide" onclick="calcDilution()">Calculate</button>
-    </div>
-
-    <!-- Answer box -->
-    <div class="answer-box hidden" id="answer-box">
-      <div class="ans-label" id="ans-label">Solving for —</div>
-      <div>
-        <span class="ans-value" id="ans-value">—</span>
-        <span class="ans-unit"  id="ans-unit"></span>
-      </div>
-      <div class="ans-sub" id="ans-sub"></div>
-    </div>
-
-    <!-- Media to add note -->
-    <div class="lt-alert lt-alert-info hidden" id="media-note"></div>
-
-    <!-- Stock volume warning -->
-    <div class="lt-alert hidden" id="stock-warning"></div>
-
-    <!-- Export row -->
-    <div class="action-row">
-      <button class="btn-reset" onclick="copyResults('full')">📋 Copy All Results</button>
-      <button class="btn-reset" onclick="downloadCsv('full')">⬇️ Export All CSV</button>
-    </div>
-    <div class="export-note" id="export-note-s2"></div>
-
-    <!-- Back / Reset row -->
-    <div class="dil-reset-row">
-      <button class="btn-back" onclick="goToStep1()">← Back</button>
-      <button class="btn-reset" onclick="resetStep2()">↺ Reset dilution</button>
-    </div>
-
-  </div><!-- /step2 -->
+  </div><!-- /lt-workspace-2col -->
 
 </div><!-- /card -->
 </div><!-- /lt-page-body -->
@@ -463,43 +513,61 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════════
-// ⟳ SYNC SECTION — adapted from tools/cell-count/index.html
-//
-//   This section (up to "END SYNC") contains a lightly adapted copy
-//   of the standalone Cell Count Calculator's logic.
-//
-//   If you fix a bug or add a feature to tools/cell-count/index.html,
-//   search this file for "⟳ SYNC" to find and apply the same changes.
-//
-//   Differences from standalone:
-//     • The calculate function is named calcStep1() instead of calculate()
-//     • calcStep1() writes step1FinalDensity for Step 2 to consume
-//     • calcStep1() also updates btn-next disabled state
-//     • Bypass mode (skip counting) is added before the main counting logic
+// Session init
 // ═══════════════════════════════════════════════════════════════════
+(function() {
+  var sid = new URLSearchParams(location.search).get('s');
+  if (sid) labtoolsSessionSetActive(sid);
+  ltSessionPillRender();
+})();
 
-// ─────────────────────────────────────────────────────────────
-// State
+// ═══════════════════════════════════════════════════════════════════
+// Shared state
 // (avgTwo, fmt, fmtSig, calcCellDensity, calcTotalCells, calcViabilityPct,
 //  bestVolumeDisplay, autoBestConcUnit, restrictToNumeric, makeDiagram, MODES
 //  are all from labtools-calc.js)
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
 
-/** Currently selected counting mode ID (1–4, matching MODES[].id). */
-let currentModeId     = 1;
-/** Final concentration (cells/mL) from Step 1, passed to the Step 2 dilution solver. */
-let step1FinalDensity = NaN;
-/** Resuspension volume (mL) from Step 1, used for stock-volume warnings in Step 2. */
-let step1TotalVolML   = NaN;
+let currentModeId   = 1;
+let scCountDensity  = NaN;  // density from Tab 0, shared with Tab 1 (C₁) and Tab 2 (stock)
+let scCountVolML    = NaN;  // resuspension vol from Tab 0, for stock-volume warnings
+let activeTab       = 0;
 
-// ─────────────────────────────────────────────────────────────
-// Mode selector UI  [⟳ SYNC with cell-count/index.html]
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// Tab switching
+// ═══════════════════════════════════════════════════════════════════
+function switchTab(idx) {
+  activeTab = idx;
+  ['tab-count','tab-conc','tab-target'].forEach((id, i) => {
+    document.getElementById(id).hidden = (i !== idx);
+  });
+  [0,1,2].forEach(i => {
+    document.getElementById('tab-btn-' + i).classList.toggle('active', i === idx);
+  });
+  ['rc-count','rc-conc','rc-target'].forEach((id, i) => {
+    document.getElementById(id).hidden = (i !== idx);
+  });
 
-/**
- * Render the 4-option counting mode selector from the MODES array.
- * Identical to cell-count's buildModeSelector(); called once at init.
- */
+  // Pre-fill Tab 1 C₁ from count tab result
+  if (idx === 1 && !isNaN(scCountDensity)) {
+    prefillC1(scCountDensity);
+  }
+  // Pre-fill Tab 2 stock from count tab result
+  if (idx === 2 && !isNaN(scCountDensity)) {
+    const el = document.getElementById('tgt-stock');
+    if (!el.value) el.value = scCountDensity.toExponential(3);
+    calcFromTarget();
+  }
+
+  updateSendButton();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ⟳ SYNC SECTION — adapted from tools/cell-count/index.html
+//   (function renamed: calcStep1 → calcFromCount)
+//   Result element IDs are kept identical to cell-count for SYNC.
+// ═══════════════════════════════════════════════════════════════════
+
 function buildModeSelector() {
   const container = document.getElementById('mode-selector');
   container.innerHTML = '';
@@ -512,12 +580,6 @@ function buildModeSelector() {
   });
 }
 
-/**
- * Activate a counting mode by ID and trigger a Step 1 recalculation.
- * Identical to cell-count's selectMode(); [⟳ SYNC]
- *
- * @param {number} id  Mode ID from MODES[].id (1–4)
- */
 function selectMode(id) {
   currentModeId = id;
   document.querySelectorAll('.mode-option').forEach((el, i) =>
@@ -526,57 +588,37 @@ function selectMode(id) {
   document.getElementById('mode-desc').innerHTML =
     `<span class="formula-inline">${m.formulaNote}</span>${m.desc}`;
   document.getElementById('live-hint').textContent = m.hint;
-  calcStep1();
+  calcFromCount();
 }
 
-// ─────────────────────────────────────────────────────────────
-// Step 1 helpers  [⟳ SYNC with cell-count/index.html]
-// ─────────────────────────────────────────────────────────────
-
-/**
- * Parse a text input value as a plain number, accepting comma-formatted
- * values (e.g. "1,500,000") and K/M/B suffix notation (e.g. "1.5M").
- * Used for the bypass concentration input and Step 2 dilution fields.
- *
- * @param {string} id  Element ID to read
- * @returns {number} Parsed base value, or NaN if empty/unparseable
- */
 function getNumVal(id) {
   const val = document.getElementById(id).value.trim();
   if (!val) return NaN;
   let clean = val.replace(/,/g, '');
   const suffixMatch = clean.match(/^([0-9.]+)\s*(K|M|B)$/i);
   if (suffixMatch) {
-    const num    = parseFloat(suffixMatch[1]);
-    const suffix = suffixMatch[2].toUpperCase();
-    const mult   = suffix === 'K' ? 1e3 : suffix === 'M' ? 1e6 : 1e9;
+    const num  = parseFloat(suffixMatch[1]);
+    const mult = suffixMatch[2].toUpperCase() === 'K' ? 1e3 : suffixMatch[2].toUpperCase() === 'M' ? 1e6 : 1e9;
     return num * mult;
-  }
-  if (/^[0-9.e+-]+$/i.test(clean)) {
-    const parsed = parseFloat(clean);
-    return isNaN(parsed) ? NaN : parsed;
   }
   return parseFloat(clean);
 }
 
-/** Strip commas when the user focuses a text input so editing is easy. */
 function setupCommaInput(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.addEventListener('focus', function () {
+  el.addEventListener('focus', function() {
     const n = parseFloat(this.value.replace(/,/g, ''));
     this.value = isNaN(n) ? '' : n.toString();
   });
-  el.addEventListener('blur', function () { applyCommaFormat(this); });
-  el.addEventListener('keydown', function (e) { if (e.key === 'Enter') this.blur(); });
+  el.addEventListener('blur', function() { applyCommaFormat(this); });
+  el.addEventListener('keydown', function(e) { if (e.key === 'Enter') this.blur(); });
 }
 
-/** Re-insert thousands commas into a text input value after editing. */
 function applyCommaFormat(el) {
   let raw = el.value.replace(/[^0-9.]/g, '');
   const dot = raw.indexOf('.');
-  if (dot !== -1)
-    raw = raw.slice(0, dot + 1) + raw.slice(dot + 1).replace(/\./g, '');
+  if (dot !== -1) raw = raw.slice(0, dot + 1) + raw.slice(dot + 1).replace(/\./g, '');
   if (raw === '' || raw === '.') { el.value = raw; return; }
   const parts  = raw.split('.');
   const intStr = parts[0] === '' ? '0' : parts[0];
@@ -585,13 +627,6 @@ function applyCommaFormat(el) {
   el.value = intVal.toLocaleString('en-US') + decPart;
 }
 
-/**
- * Handle the "I already have my cell concentration" bypass checkbox.
- * When enabled: shows the direct-entry block, greys the counting section,
- * and clears all counting inputs.
- * When disabled: hides the direct-entry block, re-enables counting, clears
- * the bypass concentration field.
- */
 function onBypassToggle() {
   const bypassed = document.getElementById('bypass-toggle').checked;
   document.getElementById('bypass-row').classList.toggle('active', bypassed);
@@ -604,30 +639,19 @@ function onBypassToggle() {
   } else {
     document.getElementById('bypass-conc').value = '';
   }
-  calcStep1();
+  calcFromCount();
 }
 
-/**
- * Handle the "Count all cells" checkbox in Step 1.
- * Disables the dead-cell block (greys it, clears inputs) when checked.
- * [⟳ SYNC with cell-count/index.html]
- */
 function onCountAllToggle() {
   const isAll = document.getElementById('count-all-toggle').checked;
-  const deadBlock = document.getElementById('dead-block');
-  deadBlock.classList.toggle('disabled', isAll);
+  document.getElementById('dead-block').classList.toggle('disabled', isAll);
   if (isAll) {
     document.getElementById('dead1').value = '';
     document.getElementById('dead2').value = '';
   }
-  calcStep1();
+  calcFromCount();
 }
 
-// ─────────────────────────────────────────────────────────────
-// Bypass concentration unit
-// (defined independently from Step 2's CONC_UNITS so Step 1
-//  bypass works even before Step 2 is initialised)
-// ─────────────────────────────────────────────────────────────
 const BYPASS_CONC_UNITS = {
   cells: { label: 'cells/mL', baseVal: 1   },
   K:     { label: 'K/mL',     baseVal: 1e3 },
@@ -636,41 +660,26 @@ const BYPASS_CONC_UNITS = {
 };
 let bypassConcUnitKey = 'M';
 
-/**
- * Switch the bypass concentration display unit (cells / K / M / B).
- * Converts the currently displayed value so the underlying cells/mL
- * quantity is preserved when the user changes units.
- *
- * @param {string} unitKey  Key from BYPASS_CONC_UNITS ('cells'|'K'|'M'|'B')
- */
 function setBypassUnit(unitKey) {
   const oldUnit = BYPASS_CONC_UNITS[bypassConcUnitKey];
   bypassConcUnitKey = unitKey;
   const newUnit = BYPASS_CONC_UNITS[unitKey];
-
   document.getElementById('bypass-conc-unit').textContent = newUnit.label;
   document.querySelectorAll('#bypass-conc-pills .lt-pill').forEach(b =>
     b.classList.toggle('active', b.textContent.trim() === unitKey));
-
-  // Convert displayed value to the new unit
   const el  = document.getElementById('bypass-conc');
   const raw = parseFloat(el.value.replace(/,/g, ''));
   if (!isNaN(raw)) el.value = String(parseFloat((raw * oldUnit.baseVal / newUnit.baseVal).toPrecision(4)));
-
-  calcStep1();
+  calcFromCount();
 }
 
-// ─────────────────────────────────────────────────────────────
-// Step 1 calculate  [⟳ SYNC with cell-count/index.html — calcStep1 ≈ calculate]
-// ─────────────────────────────────────────────────────────────
-function calcStep1() {
-  // ── Bypass mode: user enters known concentration directly ──
+function calcFromCount() {
   const bypassed = document.getElementById('bypass-toggle').checked;
   if (bypassed) {
     const bypassRaw = getNumVal('bypass-conc');
     const bypassVal = isNaN(bypassRaw) ? NaN : bypassRaw * BYPASS_CONC_UNITS[bypassConcUnitKey].baseVal;
-    step1FinalDensity = (!isNaN(bypassVal) && bypassVal > 0) ? bypassVal : NaN;
-    step1TotalVolML   = NaN; // no resuspension volume in bypass mode
+    scCountDensity = (!isNaN(bypassVal) && bypassVal > 0) ? bypassVal : NaN;
+    scCountVolML   = NaN;
 
     document.getElementById('res-avg').textContent       = '—';
     document.getElementById('res-avg-note').textContent  = 'bypassed';
@@ -679,11 +688,11 @@ function calcStep1() {
     document.getElementById('via-note').textContent      = '';
     document.getElementById('via-note').className        = 'via-note';
     document.getElementById('res-total-label').textContent = 'Total Cells';
-    document.getElementById('res-density').textContent      = fmt(step1FinalDensity);
-    document.getElementById('res-density-note').textContent = !isNaN(step1FinalDensity) ? 'cells/mL (entered)' : 'cells/mL';
     document.getElementById('res-total').textContent        = '—';
     document.getElementById('res-total-note').textContent   = '—';
-    document.getElementById('btn-next').disabled = isNaN(step1FinalDensity);
+
+    updateCountResultCard(scCountDensity, 'cells/mL · entered directly');
+    updateSendButton();
     return;
   }
 
@@ -691,23 +700,22 @@ function calcStep1() {
   const isAll = document.getElementById('count-all-toggle').checked;
   const df    = parseFloat(document.getElementById('df').value);
   const vol   = parseFloat(document.getElementById('vol').value);
-  step1TotalVolML = (!isNaN(vol) && vol > 0) ? vol : NaN;
+  scCountVolML = (!isNaN(vol) && vol > 0) ? vol : NaN;
 
   const live1 = parseFloat(document.getElementById('live1').value);
   const live2 = parseFloat(document.getElementById('live2').value);
   const dead1 = parseFloat(document.getElementById('dead1').value);
   const dead2 = parseFloat(document.getElementById('dead2').value);
 
-  // Guard: negative counts are physically impossible  [⟳ SYNC fix]
   if ((!isNaN(live1) && live1 < 0) || (!isNaN(live2) && live2 < 0) ||
       (!isNaN(dead1) && dead1 < 0) || (!isNaN(dead2) && dead2 < 0)) {
-    step1FinalDensity = NaN;
+    scCountDensity = NaN;
     document.getElementById('res-avg').textContent      = '—';
-    document.getElementById('res-density').textContent  = '—';
     document.getElementById('res-total').textContent    = '—';
     document.getElementById('via-note').textContent     = '⚠ Counts cannot be negative.';
     document.getElementById('via-note').className       = 'via-note';
-    document.getElementById('btn-next').disabled = true;
+    updateCountResultCard(NaN);
+    updateSendButton();
     return;
   }
 
@@ -716,13 +724,10 @@ function calcStep1() {
   const avgLive = liveAvg.val;
   const avgDead = deadAvg.val;
 
-  // Core calculations via shared utilities
   const finalDensity = calcCellDensity(avgLive, mode.multiplier, df);
   const totalCells   = calcTotalCells(finalDensity, vol);
+  scCountDensity = finalDensity;
 
-  step1FinalDensity = finalDensity; // pass to Step 2
-
-  // Viability — only when dead counts are entered (not in count-all mode)
   const hasDeadAny = !isAll && deadAvg.n > 0;
   const viability  = hasDeadAny ? calcViabilityPct(avgLive, avgDead) : NaN;
 
@@ -751,99 +756,35 @@ function calcStep1() {
   } else {
     document.getElementById('res-via').textContent      = '—';
     document.getElementById('res-via-note').textContent = 'enter dead counts above';
-    document.getElementById('via-note').textContent     = 'Enter dead counts above to auto-calculate viability.';
+    document.getElementById('via-note').textContent     = 'Enter dead counts to auto-calculate viability.';
     document.getElementById('via-note').className       = 'via-note';
   }
 
-  // total label
   document.getElementById('res-total-label').textContent = isAll ? 'Total Cells' : 'Total Live Cells';
-
-  // density + total
-  document.getElementById('res-density').textContent      = fmt(finalDensity);
-  document.getElementById('res-density-note').textContent = 'cells/mL';
-  document.getElementById('res-total').textContent        = fmt(totalCells);
-  document.getElementById('res-total-note').textContent   =
+  document.getElementById('res-total').textContent = fmt(totalCells);
+  document.getElementById('res-total-note').textContent =
     !isNaN(finalDensity) && !isNaN(vol) && vol > 0 ? `conc. × ${vol} mL`
     : !isNaN(finalDensity) ? 'enter resuspension vol' : '—';
 
-  // enable Next button only when we have a valid density
-  document.getElementById('btn-next').disabled = isNaN(finalDensity);
+  // hidden mirrors for export compatibility
+  document.getElementById('res-density').textContent      = fmt(finalDensity);
+  document.getElementById('res-density-note').textContent = 'cells/mL';
+
+  updateCountResultCard(finalDensity);
+  updateSendButton();
+}
+
+// ⟳ END SYNC
+
+function updateCountResultCard(density, unitLabel) {
+  document.getElementById('sc-primary').textContent     = fmt(density);
+  document.getElementById('sc-primary-unit').textContent = unitLabel || 'cells/mL · Final Concentration';
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ⟳ END SYNC (tools/cell-count/index.html)
+// Tab 1 — From concentration (C₁V₁ = C₂V₂)
 // ═══════════════════════════════════════════════════════════════════
 
-
-// ─────────────────────────────────────────────────────────────
-// Step navigation
-// ─────────────────────────────────────────────────────────────
-
-/**
- * Transition from Step 1 (cell count) to Step 2 (dilution).
- * Pre-fills C₁ with the Step 1 final density, selecting the best
- * display unit automatically via autoBestConcUnit(). Slides step2 in
- * from the right and updates the step-bar pip states.
- */
-function goToStep2() {
-  // Pre-fill C1 from Step 1 density — auto-select the best unit scale
-  const c1Input = document.getElementById('c1');
-  if (!isNaN(step1FinalDensity)) {
-    const u = autoBestConcUnit(step1FinalDensity);
-    dilState.c1.unitKey = u.pillText === 'cells' ? 'cells' : u.pillText;
-    document.getElementById('c1-unit').textContent = u.label;
-    document.querySelectorAll('#c1-pills .lt-pill').forEach(b =>
-      b.classList.toggle('active', b.textContent.trim() === u.pillText));
-    c1Input.value = fmt4(step1FinalDensity / u.mult);
-    document.getElementById('c1-note').style.display = '';
-  } else {
-    c1Input.value = '';
-    document.getElementById('c1-note').style.display = 'none';
-  }
-  renderDilFieldState('c1');
-  hideDilError();
-  document.getElementById('answer-box').classList.add('hidden');
-  document.getElementById('media-note').classList.add('hidden');
-  document.getElementById('stock-warning').className = 'lt-alert hidden';
-
-  document.getElementById('step1').classList.remove('active');
-  const s2 = document.getElementById('step2');
-  s2.classList.add('active');
-  s2.classList.remove('slide-back');
-  void s2.offsetWidth; // force reflow for animation
-
-  document.getElementById('pip1').classList.remove('active');
-  document.getElementById('pip1').classList.add('done');
-  document.getElementById('pip2').classList.add('active');
-  document.getElementById('connector').classList.add('done');
-}
-
-/**
- * Slide back to Step 1 from Step 2.
- * Adds .slide-back to trigger the leftward slide animation and
- * resets the step-bar pip states to reflect Step 1 being active.
- */
-function goToStep1() {
-  document.getElementById('step2').classList.remove('active');
-  const s1 = document.getElementById('step1');
-  s1.classList.remove('slide-back'); // reset so animation re-triggers
-  s1.classList.add('active');
-  void s1.offsetWidth; // force reflow
-  s1.classList.add('slide-back');
-
-  document.getElementById('pip2').classList.remove('active');
-  document.getElementById('pip1').classList.remove('done');
-  document.getElementById('pip1').classList.add('active');
-  document.getElementById('connector').classList.remove('done');
-}
-
-
-// ─────────────────────────────────────────────────────────────
-// Step 2 — Unit registry
-// Base units: concentration in cells/mL, volume in µL.
-// Formula: C1_base × V1_base = C2_base × V2_base
-// (mixed units cancel identically on both sides)
-// ─────────────────────────────────────────────────────────────
 const CONC_UNITS = {
   cells: { label: 'cells/mL', baseVal: 1   },
   K:     { label: 'K/mL',     baseVal: 1e3 },
@@ -851,33 +792,21 @@ const CONC_UNITS = {
   B:     { label: 'B/mL',     baseVal: 1e9 },
 };
 const VOL_UNITS = {
-  uL: { label: 'µL', baseVal: 1    },
-  mL: { label: 'mL', baseVal: 1e3  },
-  L:  { label: 'L',  baseVal: 1e6  },
+  uL: { label: 'µL', baseVal: 1   },
+  mL: { label: 'mL', baseVal: 1e3 },
+  L:  { label: 'L',  baseVal: 1e6 },
 };
-const FIELD_UNITS = {
-  c1: CONC_UNITS, c2: CONC_UNITS,
-  v1: VOL_UNITS,  v2: VOL_UNITS,
-};
+const FIELD_UNITS = { c1: CONC_UNITS, c2: CONC_UNITS, v1: VOL_UNITS, v2: VOL_UNITS };
 
-// Per-field state. 'from': 'inherited' | 'input' | 'calculated'
 const dilState = {
-  c1: { from: 'inherited', unitKey: 'M'  },
-  c2: { from: 'input',     unitKey: 'M'  },
-  v1: { from: 'input',     unitKey: 'mL' },
-  v2: { from: 'input',     unitKey: 'mL' },
+  c1: { from: 'input', unitKey: 'M'  },
+  c2: { from: 'input', unitKey: 'M'  },
+  v1: { from: 'input', unitKey: 'mL' },
+  v2: { from: 'input', unitKey: 'mL' },
 };
 
-/** Return the active unit object for a field. */
-function getUnit(field) {
-  return FIELD_UNITS[field][dilState[field].unitKey];
-}
+function getUnit(field) { return FIELD_UNITS[field][dilState[field].unitKey]; }
 
-/**
- * Parse a field's displayed value into base units.
- * Accepts plain numbers and comma-formatted numbers.
- * Returns NaN if the field is empty or unparseable.
- */
 function getBaseVal(field) {
   const raw = document.getElementById(field).value.replace(/,/g, '').trim();
   if (raw === '') return NaN;
@@ -885,180 +814,129 @@ function getBaseVal(field) {
   return isNaN(n) ? NaN : n * getUnit(field).baseVal;
 }
 
-/** Format a number to at most 4 significant figures for display. */
 function fmt4(n) {
   if (!isFinite(n) || n == null) return '—';
   if (n === 0) return '0';
   const abs = Math.abs(n);
   if (abs < 1e-3) return parseFloat(n.toPrecision(4)).toExponential();
-  if (abs >= 1e4)  return parseFloat(n.toPrecision(4)).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  if (abs >= 1e4) return parseFloat(n.toPrecision(4)).toLocaleString('en-US', { maximumFractionDigits: 0 });
   return parseFloat(n.toPrecision(4)).toString();
 }
 
-/** Sync an input's CSS classes and readonly state to its dilState. */
 function renderDilFieldState(field) {
   const el  = document.getElementById(field);
   const tag = document.getElementById(field + '-tag');
   const s   = dilState[field].from;
-  el.classList.toggle('prefilled',  s === 'inherited');
-  el.classList.toggle('solving',    s === 'calculated');
-  el.readOnly = (s === 'inherited');
+  el.classList.toggle('prefilled', s === 'inherited');
+  el.classList.toggle('solving',   s === 'calculated');
+  el.readOnly = false; // all fields are always editable in the new design
   if (tag) tag.classList.toggle('solving', s === 'calculated');
 }
 
-/** Called on every keystroke in an editable dilution field. */
 function onDilFieldInput(field) {
-  if (dilState[field].from === 'calculated') {
+  if (dilState[field].from !== 'input') {
     dilState[field].from = 'input';
     renderDilFieldState(field);
+    if (field === 'c1') document.getElementById('c1-note').style.display = 'none';
   }
 }
 
-/**
- * Switch the display unit for a field.
- * Converts the currently displayed value so the underlying quantity is preserved.
- */
 function setUnit(field, unitKey) {
   const oldUnit = getUnit(field);
   dilState[field].unitKey = unitKey;
   const newUnit = getUnit(field);
-
-  // Update label and active pill
   document.getElementById(field + '-unit').textContent = newUnit.label;
   document.querySelectorAll('#' + field + '-pills .lt-pill').forEach(b =>
     b.classList.toggle('active', b.textContent.trim() === unitKey ||
       (unitKey === 'uL' && b.textContent.trim() === 'µL')));
-
-  // Convert displayed value to the new unit (preserves base quantity)
-  const el  = document.getElementById(field);
+  const el = document.getElementById(field);
   const raw = parseFloat(el.value.replace(/,/g, ''));
-  if (!isNaN(raw)) {
-    el.value = fmt4(raw * oldUnit.baseVal / newUnit.baseVal);
-  }
+  if (!isNaN(raw)) el.value = fmt4(raw * oldUnit.baseVal / newUnit.baseVal);
 }
 
-/** Show the dilution error strip with a message. */
+function prefillC1(density) {
+  const u = autoBestConcUnit(density);
+  dilState.c1.unitKey = u.pillText === 'cells' ? 'cells' : u.pillText;
+  dilState.c1.from    = 'inherited';
+  document.getElementById('c1-unit').textContent = u.label;
+  document.querySelectorAll('#c1-pills .lt-pill').forEach(b =>
+    b.classList.toggle('active', b.textContent.trim() === u.pillText));
+  document.getElementById('c1').value       = fmt4(density / u.mult);
+  document.getElementById('c1-note').style.display = '';
+  renderDilFieldState('c1');
+}
+
 function showDilError(msg) {
   const el = document.getElementById('dilution-error');
-  el.textContent = msg;
-  el.classList.remove('hidden');
+  el.textContent = msg; el.classList.remove('hidden');
 }
-
-/** Hide the dilution error strip and clear its message. */
 function hideDilError() {
   const el = document.getElementById('dilution-error');
-  el.textContent = '';
-  el.classList.add('hidden');
+  el.textContent = ''; el.classList.add('hidden');
 }
 
-
-// ─────────────────────────────────────────────────────────────
-// Step 2 — Dilution solver (C₁V₁ = C₂V₂)
-// ─────────────────────────────────────────────────────────────
-
-/**
- * Solve the dilution equation C₁V₁ = C₂V₂ for the one empty field.
- *
- * Logic:
- * 1. Read all four fields as base-unit values (cells/mL and µL).
- * 2. If exactly one is empty, solve for it algebraically.
- * 3. If all four are filled, re-solve the previously calculated field.
- * 4. Write the result into the input, show the answer box, and compute
- *    a "media to add" note (V₂ − V₁) plus a stock-volume warning
- *    when V₁ approaches or exceeds the Step 1 resuspension volume.
- */
-function calcDilution() {
+function calcFromConc() {
   hideDilError();
-
   const ansBox    = document.getElementById('answer-box');
   const mediaNote = document.getElementById('media-note');
 
-  // Gather base-unit values; collect empty (non-C1) fields
-  const baseVals = {};
+  const baseVals    = {};
   const emptyFields = [];
-
   for (const id of ['c1', 'c2', 'v1', 'v2']) {
     const val = getBaseVal(id);
-    if (isNaN(val)) {
-      emptyFields.push(id);
-    } else {
-      baseVals[id] = val;
-    }
+    if (isNaN(val)) emptyFields.push(id);
+    else baseVals[id] = val;
   }
 
-  // C1 is always locked — it should never be empty
-  if (emptyFields.includes('c1')) {
-    showDilError('C₁ is inherited from Step 1 — go back if the concentration needs updating.');
-    ansBox.classList.add('hidden');
-    mediaNote.classList.add('hidden');
-    return;
-  }
-
-  // Determine which field to solve
   let solve = null;
-
   if (emptyFields.length === 1) {
-    // Exactly one empty: solve for it
     solve = emptyFields[0];
   } else if (emptyFields.length === 0) {
-    // All filled — re-solve the previously calculated field if one exists
-    solve = ['c2', 'v1', 'v2'].find(id => dilState[id].from === 'calculated') || null;
+    solve = ['c1', 'c2', 'v1', 'v2'].find(id => dilState[id].from === 'calculated') || null;
     if (!solve) {
       showDilError('All fields are filled. Clear the value you want to solve for, then click Calculate.');
-      ansBox.classList.add('hidden');
-      mediaNote.classList.add('hidden');
+      ansBox.classList.add('hidden'); mediaNote.classList.add('hidden');
+      document.getElementById('sc-primary').textContent = '—';
       return;
     }
-    // Remove the calculated field's value from baseVals so it is re-derived
     delete baseVals[solve];
   } else {
     showDilError(`${emptyFields.length} fields are empty — fill all but one, then click Calculate.`);
-    ansBox.classList.add('hidden');
-    mediaNote.classList.add('hidden');
+    ansBox.classList.add('hidden'); mediaNote.classList.add('hidden');
+    document.getElementById('sc-primary').textContent = '—';
     return;
   }
 
-  // Validate positive values (negative concentrations/volumes are physically impossible)
   for (const [id, val] of Object.entries(baseVals)) {
     if (val <= 0) {
       showDilError(`${id.toUpperCase()} must be a positive value.`);
-      ansBox.classList.add('hidden');
-      mediaNote.classList.add('hidden');
+      ansBox.classList.add('hidden'); mediaNote.classList.add('hidden');
       return;
     }
   }
 
-  // Solve using base units: C1 × V1 = C2 × V2
   const { c1, c2, v1, v2 } = baseVals;
   let result_base;
+  if (solve === 'c1') result_base = (c2 * v2) / v1;
   if (solve === 'c2') result_base = (c1 * v1) / v2;
   if (solve === 'v1') result_base = (c2 * v2) / c1;
   if (solve === 'v2') result_base = (c1 * v1) / c2;
 
   if (!isFinite(result_base) || result_base <= 0) {
     showDilError('Invalid result — check that all inputs are positive numbers.');
-    ansBox.classList.add('hidden');
-    mediaNote.classList.add('hidden');
+    ansBox.classList.add('hidden'); mediaNote.classList.add('hidden');
     return;
   }
 
   const result_disp = result_base / getUnit(solve).baseVal;
 
-  // Update field state: reset any old 'calculated' field → 'input', mark new solve
-  for (const id of ['c2', 'v1', 'v2']) {
-    if (id !== solve && dilState[id].from === 'calculated') {
-      dilState[id].from = 'input';
-    }
+  for (const id of ['c1', 'c2', 'v1', 'v2']) {
+    if (id !== solve && dilState[id].from === 'calculated') dilState[id].from = 'input';
   }
   dilState[solve].from = 'calculated';
-
-  // Write result into the solved input
   document.getElementById(solve).value = fmt4(result_disp);
-
-  // Sync all field visual states
   ['c1', 'c2', 'v1', 'v2'].forEach(renderDilFieldState);
 
-  // ── Answer box ──
   const FIELD_LABELS = {
     c1: 'C₁ — Stock Concentration', c2: 'C₂ — Target Concentration',
     v1: 'V₁ — Volume from Stock',   v2: 'V₂ — Final Volume',
@@ -1067,25 +945,22 @@ function calcDilution() {
   document.getElementById('ans-value').textContent = fmt4(result_disp);
   document.getElementById('ans-unit').textContent  = getUnit(solve).label;
 
-  // Verification equation (all values in their display units)
-  const allBase = { c1: baseVals.c1, c2: baseVals.c2, v1: baseVals.v1, v2: baseVals.v2 };
+  const allBase = { c1: baseVals.c1 || result_base, c2: baseVals.c2 || result_base,
+                    v1: baseVals.v1 || result_base, v2: baseVals.v2 || result_base };
   allBase[solve] = result_base;
-  const dc1 = fmt4(allBase.c1 / getUnit('c1').baseVal);
-  const dc2 = fmt4(allBase.c2 / getUnit('c2').baseVal);
-  const dv1 = fmt4(allBase.v1 / getUnit('v1').baseVal);
-  const dv2 = fmt4(allBase.v2 / getUnit('v2').baseVal);
   document.getElementById('ans-sub').textContent =
-    `${dc1} ${getUnit('c1').label} × ${dv1} ${getUnit('v1').label}` +
-    ` = ${dc2} ${getUnit('c2').label} × ${dv2} ${getUnit('v2').label}`;
-
+    `${fmt4(allBase.c1 / getUnit('c1').baseVal)} ${getUnit('c1').label} × ${fmt4(allBase.v1 / getUnit('v1').baseVal)} ${getUnit('v1').label}` +
+    ` = ${fmt4(allBase.c2 / getUnit('c2').baseVal)} ${getUnit('c2').label} × ${fmt4(allBase.v2 / getUnit('v2').baseVal)} ${getUnit('v2').label}`;
   ansBox.classList.remove('hidden');
 
-  // ── Media-to-add note ──
-  // V base units are µL; bestVolumeDisplay() takes mL, so divide by 1000
+  // Update primary result card
+  document.getElementById('sc-primary').textContent      = fmt4(result_disp);
+  document.getElementById('sc-primary-unit').textContent = getUnit(solve).label + ' — ' + FIELD_LABELS[solve].split(' — ')[1];
+
+  // Media-to-add note (base units are µL for volumes)
   const v1_uL = allBase.v1;
   const v2_uL = allBase.v2;
   const mediaToAdd_uL = v2_uL - v1_uL;
-
   if (isFinite(mediaToAdd_uL) && mediaToAdd_uL >= 0) {
     const mDisp = bestVolumeDisplay(mediaToAdd_uL / 1000);
     const sDisp = bestVolumeDisplay(v1_uL / 1000);
@@ -1101,24 +976,22 @@ function calcDilution() {
     mediaNote.classList.add('hidden');
   }
 
-  // ── Stock volume warning ──
+  // Stock volume warning
   const stockWarn = document.getElementById('stock-warning');
   const v1_mL = v1_uL / 1000;
-  if (isFinite(v1_mL) && !isNaN(step1TotalVolML)) {
-    const pct = (v1_mL / step1TotalVolML) * 100;
+  if (isFinite(v1_mL) && !isNaN(scCountVolML)) {
+    const pct     = (v1_mL / scCountVolML) * 100;
     const v1Disp  = bestVolumeDisplay(v1_mL);
-    const totDisp = bestVolumeDisplay(step1TotalVolML);
+    const totDisp = bestVolumeDisplay(scCountVolML);
     if (pct >= 100) {
       stockWarn.textContent =
         `⛔ Insufficient stock: you need ${fmt4(v1Disp.val)} ${v1Disp.unit} from stock, ` +
-        `but your total resuspension volume is only ${fmt4(totDisp.val)} ${totDisp.unit}. ` +
-        `This dilution cannot be made — try resuspending in a larger volume or choosing a higher target density.`;
+        `but your total resuspension volume is only ${fmt4(totDisp.val)} ${totDisp.unit}.`;
       stockWarn.className = 'lt-alert lt-alert-danger';
     } else if (pct >= 90) {
       stockWarn.textContent =
         `⚠ Low stock: you need ${fmt4(v1Disp.val)} ${v1Disp.unit} from stock ` +
-        `(${pct.toFixed(0)}% of your ${fmt4(totDisp.val)} ${totDisp.unit} resuspension volume). ` +
-        `You may not have enough — consider a smaller final volume or a higher target density.`;
+        `(${pct.toFixed(0)}% of your ${fmt4(totDisp.val)} ${totDisp.unit} resuspension volume).`;
       stockWarn.className = 'lt-alert lt-alert-warn';
     } else {
       stockWarn.className = 'lt-alert hidden';
@@ -1126,84 +999,156 @@ function calcDilution() {
   } else {
     stockWarn.className = 'lt-alert hidden';
   }
+
+  updateSendButton();
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// Tab 2 — From target density
+// ═══════════════════════════════════════════════════════════════════
 
-// ─────────────────────────────────────────────────────────────
+const VESSEL_VOLS = {
+  T25: 7.0, T75: 15.0, T175: 40.0,
+  '6w': 2.0, '12w': 1.0, '24w': 0.5, '48w': 0.3, '96w': 0.2,
+};
+
+function onVesselChange() {
+  const v = document.getElementById('tgt-vessel').value;
+  document.getElementById('tgt-custom-vol-field').style.display = v === 'custom' ? '' : 'none';
+  calcFromTarget();
+}
+
+function calcFromTarget() {
+  const vesselKey  = document.getElementById('tgt-vessel').value;
+  const vesselVol  = vesselKey === 'custom'
+    ? parseFloat(document.getElementById('tgt-custom-vol').value)
+    : VESSEL_VOLS[vesselKey];
+  const nVessels   = parseFloat(document.getElementById('tgt-n').value) || 1;
+  const targetCells = parseFloat(document.getElementById('tgt-cells').value);
+  const stockConc  = parseFloat(document.getElementById('tgt-stock').value);
+
+  const tgtAlert   = document.getElementById('tgt-alert');
+
+  if (isNaN(targetCells) || isNaN(stockConc) || isNaN(vesselVol) || vesselVol <= 0) {
+    document.getElementById('sc-primary').textContent      = '—';
+    document.getElementById('sc-primary-unit').textContent = 'µL · stock per vessel';
+    document.getElementById('tgt-res-vol').textContent     = '—';
+    document.getElementById('tgt-res-media').textContent   = '—';
+    document.getElementById('tgt-res-total-stock').textContent = '—';
+    tgtAlert.classList.add('hidden');
+    return;
+  }
+
+  const stockVolML  = targetCells / stockConc;       // mL stock per vessel
+  const stockVoluL  = stockVolML * 1000;             // µL stock per vessel
+  const mediaML     = vesselVol - stockVolML;        // mL media per vessel
+  const totalStockuL = stockVoluL * nVessels;
+
+  const volDisp   = bestVolumeDisplay(stockVolML);
+  const mediaDisp = bestVolumeDisplay(mediaML > 0 ? mediaML : 0);
+  const totalDisp = bestVolumeDisplay(totalStockuL / 1000);
+
+  document.getElementById('sc-primary').textContent      = `${fmt4(volDisp.val)} ${volDisp.unit}`;
+  document.getElementById('sc-primary-unit').textContent = 'stock per vessel';
+
+  document.getElementById('tgt-res-vol').textContent            = `${fmt4(volDisp.val)} ${volDisp.unit}`;
+  document.getElementById('tgt-res-vol-note').textContent       = 'stock to add';
+  document.getElementById('tgt-res-media').textContent          = `${fmt4(mediaDisp.val)} ${mediaDisp.unit}`;
+  document.getElementById('tgt-res-media-note').textContent     = 'per vessel';
+  document.getElementById('tgt-res-total-stock').textContent    = `${fmt4(totalDisp.val)} ${totalDisp.unit}`;
+  document.getElementById('tgt-res-total-stock-note').textContent = `for ${nVessels} vessel${nVessels !== 1 ? 's' : ''}`;
+
+  if (stockVolML > vesselVol) {
+    tgtAlert.textContent = `⚠ Stock volume (${fmt4(volDisp.val)} ${volDisp.unit}) exceeds vessel volume (${vesselVol} mL). Lower target cells or use a higher stock concentration.`;
+    tgtAlert.className = 'lt-alert lt-alert-warn';
+    tgtAlert.classList.remove('hidden');
+  } else {
+    tgtAlert.classList.add('hidden');
+  }
+
+  updateSendButton();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Send to Plate
+// ═══════════════════════════════════════════════════════════════════
+
+function updateSendButton() {
+  const btn    = document.getElementById('sc-send-btn');
+  const active = labtoolsSessionActive();
+  const hasDensity = !isNaN(scCountDensity);
+  btn.disabled = !active || !hasDensity;
+  btn.title    = !active ? 'Start a session to use handoff' : !hasDensity ? 'Run a count first' : '';
+}
+
+function sendToPlate() {
+  const active = labtoolsSessionActive();
+  if (!active || isNaN(scCountDensity)) return;
+  labtoolsSessionScratchWrite(active.id, 'seedingResult', {
+    density:    scCountDensity,
+    totalCells: document.getElementById('res-total').textContent,
+    viability:  document.getElementById('res-via').textContent,
+  });
+  location.href = '../experiment-layout/index.html?s=' + active.id;
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // Resets
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
 
-/**
- * Reset all Step 1 inputs (counts, DF, volume, bypass) to defaults.
- * Restores the bypass unit to M/mL and triggers a recalculation.
- */
-function resetStep1() {
+function resetCount() {
   document.getElementById('bypass-toggle').checked = false;
   document.getElementById('bypass-row').classList.remove('active');
   document.getElementById('bypass-conc-block').classList.remove('visible');
   document.getElementById('bypass-conc').value = '';
-  setBypassUnit('M'); // reset unit to default
+  setBypassUnit('M');
   document.getElementById('counting-section').classList.remove('lt-disabled');
-  ['live1', 'live2', 'dead1', 'dead2', 'vol'].forEach(id =>
-    document.getElementById(id).value = '');
+  ['live1', 'live2', 'dead1', 'dead2', 'vol'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('df').value = '20';
   document.getElementById('count-all-toggle').checked = false;
   document.getElementById('dead-block').classList.remove('disabled');
-  calcStep1();
+  calcFromCount();
 }
 
-/**
- * Clear editable Step 2 fields (C₂, V₁, V₂) and restore C₁ from the
- * Step 1 density. Hides the answer box, media note, and all warnings.
- */
-function resetStep2() {
-  // Clear editable fields and reset their state
-  for (const id of ['c2', 'v1', 'v2']) {
+function resetConc() {
+  for (const id of ['c1', 'c2', 'v1', 'v2']) {
     document.getElementById(id).value = '';
     dilState[id].from = 'input';
   }
-
-  // Restore C1 with best auto-selected unit from Step 1 density
-  const c1El = document.getElementById('c1');
-  if (!isNaN(step1FinalDensity)) {
-    const u = autoBestConcUnit(step1FinalDensity);
-    dilState.c1.unitKey = u.pillText === 'cells' ? 'cells' : u.pillText;
-    document.getElementById('c1-unit').textContent = u.label;
-    document.querySelectorAll('#c1-pills .lt-pill').forEach(b =>
-      b.classList.toggle('active', b.textContent.trim() === u.pillText));
-    c1El.value = fmt4(step1FinalDensity / u.mult);
-  } else {
-    c1El.value = '';
+  // Re-prefill C₁ from count result if available
+  if (!isNaN(scCountDensity)) {
+    prefillC1(scCountDensity);
   }
-
-  // Sync all visual states
   ['c1', 'c2', 'v1', 'v2'].forEach(renderDilFieldState);
-
-  // Hide answer, media note, stock warning, and error
   document.getElementById('answer-box').classList.add('hidden');
   document.getElementById('media-note').classList.add('hidden');
   document.getElementById('stock-warning').className = 'lt-alert hidden';
+  document.getElementById('sc-primary').textContent      = '—';
+  document.getElementById('sc-primary-unit').textContent = '—';
   hideDilError();
 }
 
+function resetTarget() {
+  document.getElementById('tgt-cells').value       = '';
+  document.getElementById('tgt-n').value           = '1';
+  document.getElementById('tgt-stock').value       = '';
+  document.getElementById('tgt-vessel').value      = '24w';
+  document.getElementById('tgt-custom-vol').value  = '';
+  document.getElementById('tgt-custom-vol-field').style.display = 'none';
+  calcFromTarget();
+}
 
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
 // Export helpers
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
 
-/**
- * Collect Step 1 (cell count) values as [field, value] rows.
- * Returns a minimal bypass summary when the bypass mode is active.
- *
- * @returns {Array<[string, string]>}
- */
 function getCellCountRows() {
   const bypassed = document.getElementById('bypass-toggle').checked;
   if (bypassed) {
     return [
       ['=== Cell Count ===', ''],
-      ['Mode',                            'Bypass — concentration entered directly'],
-      ['Known concentration (cells/mL)',  document.getElementById('bypass-conc').value || ''],
+      ['Mode',                           'Bypass — concentration entered directly'],
+      ['Known concentration (cells/mL)', document.getElementById('bypass-conc').value || ''],
       ['Final concentration (cells/mL)', document.getElementById('res-density').textContent],
     ];
   }
@@ -1211,53 +1156,47 @@ function getCellCountRows() {
   const isAll = document.getElementById('count-all-toggle').checked;
   return [
     ['=== Cell Count ===', ''],
-    ['Counting mode',                     mode.tag.replace(/\n/g, ' ')],
-    ['Formula',                           mode.formulaNote],
-    ['Count all cells (no Trypan Blue)',  isAll ? 'Yes' : 'No'],
-    ['Live count 1',                      document.getElementById('live1').value || ''],
-    ['Live count 2',                      document.getElementById('live2').value || ''],
-    ['Dead count 1',                      document.getElementById('dead1').value || ''],
-    ['Dead count 2',                      document.getElementById('dead2').value || ''],
-    ['Dilution factor',                   document.getElementById('df').value   || ''],
-    ['Resuspension volume (mL)',          document.getElementById('vol').value  || ''],
-    ['Average live count',               document.getElementById('res-avg').textContent],
-    ['Viability',                         document.getElementById('res-via').textContent],
-    ['Final concentration (cells/mL)',    document.getElementById('res-density').textContent],
-    ['Total cells',                       document.getElementById('res-total').textContent],
+    ['Counting mode',                    mode.tag.replace(/\n/g, ' ')],
+    ['Formula',                          mode.formulaNote],
+    ['Count all cells',                  isAll ? 'Yes' : 'No'],
+    ['Live count 1',                     document.getElementById('live1').value || ''],
+    ['Live count 2',                     document.getElementById('live2').value || ''],
+    ['Dead count 1',                     document.getElementById('dead1').value || ''],
+    ['Dead count 2',                     document.getElementById('dead2').value || ''],
+    ['Dilution factor',                  document.getElementById('df').value   || ''],
+    ['Resuspension volume (mL)',         document.getElementById('vol').value  || ''],
+    ['Average live count',              document.getElementById('res-avg').textContent],
+    ['Viability',                        document.getElementById('res-via').textContent],
+    ['Final concentration (cells/mL)',   document.getElementById('res-density').textContent],
+    ['Total cells',                      document.getElementById('res-total').textContent],
   ];
 }
 
-/**
- * Collect Step 2 (dilution) values as [field, value] rows.
- * Includes the solved field, its value, and the media-to-add note.
- *
- * @returns {Array<[string, string]>}
- */
 function getDilutionRows() {
-  const ansLabel  = document.getElementById('ans-label').textContent;
-  const ansValue  = document.getElementById('ans-value').textContent;
-  const ansUnit   = document.getElementById('ans-unit').textContent;
-  const mediaText = document.getElementById('media-note').classList.contains('hidden')
-    ? '' : document.getElementById('media-note').innerText;
   return [
     ['=== Dilution (C₁V₁ = C₂V₂) ===', ''],
-    [`C₁ — Stock concentration (${getUnit('c1').label})`,  document.getElementById('c1').value],
-    [`V₁ — Volume from stock (${getUnit('v1').label})`,    document.getElementById('v1').value],
-    [`C₂ — Target concentration (${getUnit('c2').label})`, document.getElementById('c2').value],
-    [`V₂ — Final volume (${getUnit('v2').label})`,         document.getElementById('v2').value],
-    ['Solved for',    ansLabel.replace('Solved: ', '')],
-    ['Solved value',  ansValue + (ansUnit ? ' ' + ansUnit : '')],
-    ['Media to add',  mediaText],
+    [`C₁ (${getUnit('c1').label})`,  document.getElementById('c1').value],
+    [`V₁ (${getUnit('v1').label})`,  document.getElementById('v1').value],
+    [`C₂ (${getUnit('c2').label})`,  document.getElementById('c2').value],
+    [`V₂ (${getUnit('v2').label})`,  document.getElementById('v2').value],
+    ['Solved for', document.getElementById('ans-label').textContent.replace('Solved: ', '')],
+    ['Solved value', document.getElementById('ans-value').textContent + ' ' + document.getElementById('ans-unit').textContent],
   ];
 }
 
-/**
- * Convert a rows array into an RFC-4180 CSV string.
- * All fields are double-quoted; embedded quotes are escaped by doubling.
- *
- * @param {Array<string[]>} rows
- * @returns {string}
- */
+function getTargetRows() {
+  return [
+    ['=== From Target Density ===', ''],
+    ['Target cells per vessel', document.getElementById('tgt-cells').value || ''],
+    ['Vessel volume (mL)', document.getElementById('tgt-vessel').value],
+    ['Number of vessels', document.getElementById('tgt-n').value || ''],
+    ['Stock concentration (cells/mL)', document.getElementById('tgt-stock').value || ''],
+    ['Stock volume per vessel', document.getElementById('tgt-res-vol').textContent],
+    ['Media volume per vessel', document.getElementById('tgt-res-media').textContent],
+    ['Total stock needed', document.getElementById('tgt-res-total-stock').textContent],
+  ];
+}
+
 function makeCsv(rows) {
   return rows.map(r => r.map(cell => {
     const text = String(cell).replace(/"/g, '""');
@@ -1265,103 +1204,53 @@ function makeCsv(rows) {
   }).join(',')).join('\n');
 }
 
-/**
- * Write a status message to the export note below whichever step is
- * currently active (Step 1 or Step 2).
- *
- * @param {string} msg
- */
-function setExportNote(msg) {
-  const s1     = document.getElementById('step1');
-  const noteId = s1.classList.contains('active') ? 'export-note-s1' : 'export-note-s2';
-  document.getElementById(noteId).textContent = msg;
-}
-
-/**
- * Download results as a CSV file.
- *
- * @param {'count'|'full'} scope
- *   'count' — Step 1 data only.
- *   'full'  — Step 1 + Step 2 dilution data combined.
- */
-function downloadCsv(scope) {
-  const rows = scope === 'full'
-    ? [...getCellCountRows(), ['', ''], ...getDilutionRows()]
-    : getCellCountRows();
+function downloadCsvCurrent() {
+  const rows = activeTab === 0 ? getCellCountRows()
+             : activeTab === 1 ? getDilutionRows()
+             : getTargetRows();
   const csv  = makeCsv([['Field', 'Value'], ...rows]);
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = scope === 'full' ? 'seeding-calc-results.csv' : 'cell-count-results.csv';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  a.download = 'seeding-calc-results.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  setExportNote('CSV file generated for download.');
+  document.getElementById('export-note').textContent = 'CSV downloaded.';
 }
 
-/**
- * Copy a plain-text summary to the clipboard.
- * Falls back to the textarea execCommand technique for older browsers.
- *
- * @param {'count'|'full'} scope  Same as downloadCsv().
- */
-function copyResults(scope) {
-  const rows = scope === 'full'
-    ? [...getCellCountRows(), ['', ''], ...getDilutionRows()]
-    : getCellCountRows();
-  const text = ['Cell Seeding Calculator Results', '',
-    ...rows.map(r => `${r[0]}: ${r[1]}`)].join('\n');
-
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text)
-      .then(() => setExportNote('Results copied to clipboard.'))
-      .catch(() => fallbackCopyText(text));
-  } else {
-    fallbackCopyText(text);
-  }
+function copyResultsCurrent() {
+  const rows = activeTab === 0 ? getCellCountRows()
+             : activeTab === 1 ? getDilutionRows()
+             : getTargetRows();
+  const text = ['Cell Seeding Calculator', '', ...rows.map(r => `${r[0]}: ${r[1]}`)].join('\n');
+  labtoolsCopyText(text)
+    .then(() => { document.getElementById('export-note').textContent = 'Copied to clipboard.'; })
+    .catch(() => { document.getElementById('export-note').textContent = 'Copy failed — use CSV instead.'; });
 }
 
-/**
- * Legacy clipboard copy via document.execCommand('copy').
- * Used when navigator.clipboard is unavailable (non-HTTPS or older browsers).
- *
- * @param {string} text
- */
-function fallbackCopyText(text) {
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.setAttribute('readonly', '');
-  ta.style.position = 'absolute';
-  ta.style.left = '-9999px';
-  document.body.appendChild(ta);
-  ta.select();
-  try {
-    document.execCommand('copy');
-    setExportNote('Results copied to clipboard.');
-  } catch {
-    setExportNote('Unable to copy — use Export CSV instead.');
-  }
-  document.body.removeChild(ta);
-}
-
-
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
 // Init
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
 buildModeSelector();
 selectMode(currentModeId);
-document.getElementById('c1-note').style.display = 'none';
 setupCommaInput('bypass-conc');
-// c1 is readonly (inherited from Step 1) — no comma input setup needed
 setupCommaInput('c2');
-// Apply initial visual state to all dilution fields
 ['c1', 'c2', 'v1', 'v2'].forEach(renderDilFieldState);
-
-// Restrict all number inputs; text-based dilution fields handle their own parsing
 document.querySelectorAll('input[type="number"]')
   .forEach(el => el.addEventListener('keydown', restrictToNumeric));
+
+// Restore from session scratch (pre-fill from cell-count handoff)
+(function() {
+  const active = labtoolsSessionActive();
+  if (!active) return;
+  const cr = labtoolsSessionScratchRead(active.id, 'countResult', null);
+  if (!cr) return;
+  if (cr.live1) document.getElementById('live1').value = cr.live1;
+  if (cr.df)    document.getElementById('df').value    = cr.df;
+  if (cr.vol)   document.getElementById('vol').value   = cr.vol;
+  calcFromCount();
+})();
 </script>
 </body>
 </html>

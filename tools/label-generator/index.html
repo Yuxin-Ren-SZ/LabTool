@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Label Generator · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <script src="../../assets/js/labtools-glyphs.js"></script>
   <script src="../../assets/js/labtools-common.js"></script>
   <script src="../thermal-to-laser/preset-config.js"></script>
   <script src="./preset-config.js"></script>
@@ -38,7 +39,7 @@
     }
     .lg-nav-brand { font-weight: 700; font-size: 0.92rem; color: var(--text); text-decoration: none; }
     .lg-nav-sep   { color: var(--text-dim); font-size: 1rem; }
-    .lg-nav-page  { font-size: 0.86rem; color: var(--text-muted); font-weight: 500; }
+    .lg-nav-page  { font-size: 0.86rem; color: var(--text-muted); font-weight: 500; display:inline-flex; align-items:center; gap:5px; }
     .lg-nav-spacer { flex: 1; }
     .lg-nav-pill {
       display: inline-flex; align-items: center; gap: 6px;
@@ -798,7 +799,14 @@
   <a class="lg-nav-brand" href="../../index.html">🔬 LabTools</a>
   <span class="lg-nav-sep">/</span>
   <span class="lg-nav-page">Label Generator</span>
-  <span class="lg-nav-spacer"></span>
+  <span class="lg-nav-spacer" id="lg-nav-spacer"></span>
+  <div class="lt-session-pill-wrap" style="position:relative">
+    <button class="lt-session-pill" id="session-pill" onclick="ltSessionPillToggle()">
+      <span class="lt-session-pill__name" id="session-pill-name">No session</span>
+      <span class="lt-session-pill__caret">▾</span>
+    </button>
+    <div class="lt-session-popover" id="session-popover" hidden></div>
+  </div>
   <span class="lg-nav-pill" id="nav-pill-rows" style="display:none;">
     <!-- database icon + N rows — rendered by JS -->
   </span>
@@ -971,6 +979,14 @@
           <button class="lg-props-remove" id="remove-field-btn" type="button">Remove</button>
         </div>
         <div class="lg-props-form">
+          <div class="lg-props-row" id="field-type-row">
+            <span class="lt-io-label">Field Type</span>
+            <div class="lt-segmented" id="field-type-seg" aria-label="Field type">
+              <button type="button" class="lt-segmented-btn" data-field-type="datamatrix">Data Matrix</button>
+              <button type="button" class="lt-segmented-btn" data-field-type="csvText">CSV Text</button>
+              <button type="button" class="lt-segmented-btn" data-field-type="staticText">Static Text</button>
+            </div>
+          </div>
           <div class="lg-props-row">
             <label class="lg-field-label" for="field-label-input">Field name</label>
             <input class="lg-input" id="field-label-input" type="text" />

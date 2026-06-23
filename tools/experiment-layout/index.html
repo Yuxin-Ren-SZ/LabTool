@@ -8,7 +8,7 @@
   <script src="../../assets/js/labtools-common.js"></script>
   <style>
     .card {
-      width: fit-content;
+      width: auto;
       max-width: calc(100vw - 32px);
       padding: 24px;
     }
@@ -80,19 +80,8 @@
       margin: 0;
     }
 
-    .workspace {
-      display: flex;
-      flex-wrap: nowrap;
-      gap: 18px;
-      align-items: start;
-      justify-content: center;
-    }
-
     .plate-stage {
-      flex: 0 1 auto;
       min-width: 0;
-      width: fit-content;
-      max-width: calc(100% - 336px);
       overflow: auto;
     }
 
@@ -526,21 +515,6 @@
       .control-strip {
         grid-template-columns: 1fr;
       }
-
-      .workspace {
-        flex-direction: column;
-      }
-
-      .plate-stage {
-        width: 100%;
-        max-width: 100%;
-      }
-
-      .side-panel {
-        flex: none;
-        width: 100%;
-        order: -1;
-      }
     }
 
     @media (max-width: 560px) {
@@ -570,9 +544,14 @@
       .lt-footer,
       .layout-actions,
       .control-strip,
-      .side-panel,
+      .lt-3col-left,
+      .lt-3col-right,
       .status-line {
         display: none !important;
+      }
+
+      .lt-workspace-3col {
+        display: block;
       }
 
       .lt-page-body {
@@ -668,7 +647,15 @@
 <nav class="lt-nav">
   <a class="lt-nav-brand" href="../../index.html">&#128300; LabTools</a>
   <span class="lt-nav-sep">/</span>
-  <span class="lt-nav-page">Well Plate Map Generator</span>
+  <span class="lt-nav-page">Well Plate Map</span>
+  <span style="flex:1"></span>
+  <div class="lt-session-pill-wrap" style="position:relative">
+    <button class="lt-session-pill" id="session-pill" onclick="ltSessionPillToggle()">
+      <span class="lt-session-pill__name" id="session-pill-name">No session</span>
+      <span class="lt-session-pill__caret">▾</span>
+    </button>
+    <div class="lt-session-popover" id="session-popover" hidden></div>
+  </div>
 </nav>
 
 <div class="lt-page-body">
@@ -678,12 +665,6 @@
     <div>
       <h1 class="lt-tool-title">Well Plate Map Generator</h1>
       <p class="lt-tool-subtitle">Map treatment groups onto standard multi-well plates.</p>
-    </div>
-    <div class="layout-actions">
-      <button class="btn-reset" type="button" id="export-csv-btn">Export CSV</button>
-      <button class="btn-reset" type="button" id="export-png-btn">Export PNG</button>
-      <button class="btn-reset" type="button" id="print-btn">Print Layout</button>
-      <button class="btn-reset" type="button" id="reset-btn">Reset Plate</button>
     </div>
   </div>
 
@@ -707,7 +688,41 @@
   <div class="print-summary" id="print-summary"></div>
   <div class="print-legend" id="print-legend" aria-label="Printed group legend"></div>
 
-  <div class="workspace">
+  <div class="lt-workspace-3col">
+
+    <!-- Left pane: groups + selection -->
+    <aside class="lt-3col-left" style="border:1px solid var(--border-subtle);border-radius:var(--radius-lg);background:var(--surface-subtle);padding:14px" aria-label="Groups and selection">
+
+      <div class="lt-section-label lt-section-label--tight">Groups</div>
+      <div class="group-create">
+        <input class="lt-input" id="new-group-name" type="text" maxlength="32" placeholder="Group name" />
+        <button class="btn-reset" type="button" id="add-group-btn">Add</button>
+      </div>
+      <div class="group-list" id="group-list"></div>
+
+      <div class="lt-divider" style="margin:14px 0 10px"></div>
+
+      <div class="lt-section-label lt-section-label--tight">Selection</div>
+      <div class="selection-meter">
+        <div class="meter-box">
+          <div class="meter-label">Wells</div>
+          <div class="meter-value" id="selected-count">0</div>
+        </div>
+        <div class="meter-box">
+          <div class="meter-label">Copied</div>
+          <div class="meter-value" id="clipboard-count">0</div>
+        </div>
+      </div>
+      <div class="button-grid">
+        <button class="lt-btn lt-btn-primary" type="button" id="assign-btn">Assign</button>
+        <button class="btn-reset" type="button" id="clear-btn">Clear</button>
+        <button class="btn-reset" type="button" id="copy-btn">Copy</button>
+        <button class="btn-reset" type="button" id="paste-btn">Paste</button>
+      </div>
+
+    </aside>
+
+    <!-- Center pane: plate canvas -->
     <div class="plate-stage" id="plate-stage">
       <div class="plate-stage-shell" id="plate-stage-shell">
         <div class="plate-frame" id="plate-frame">
@@ -718,46 +733,30 @@
           <div class="plate-grid" id="plate-grid" role="grid" aria-label="Well plate layout"></div>
         </div>
       </div>
+      <div class="lt-alert lt-alert-info status-line" id="status-line" style="margin-top:10px">Ready.</div>
     </div>
 
-    <aside class="side-panel" aria-label="Layout controls">
-      <div class="side-section">
-        <div class="lt-section-label lt-section-label--tight">Selection</div>
-        <div class="selection-meter">
-          <div class="meter-box">
-            <div class="meter-label">Wells</div>
-            <div class="meter-value" id="selected-count">0</div>
-          </div>
-          <div class="meter-box">
-            <div class="meter-label">Copied</div>
-            <div class="meter-value" id="clipboard-count">0</div>
-          </div>
-        </div>
-        <div class="button-grid">
-          <button class="lt-btn lt-btn-primary" type="button" id="assign-btn">Assign</button>
-          <button class="btn-reset" type="button" id="clear-btn">Clear</button>
-          <button class="btn-reset" type="button" id="copy-btn">Copy</button>
-          <button class="btn-reset" type="button" id="paste-btn">Paste</button>
-        </div>
+    <!-- Right pane: legend + actions -->
+    <aside class="lt-3col-right" style="border:1px solid var(--border-subtle);border-radius:var(--radius-lg);background:var(--surface-subtle);padding:14px" aria-label="Legend and export">
+
+      <div class="lt-section-label lt-section-label--tight">Legend</div>
+      <div id="legend-list"></div>
+
+      <div class="lt-divider" style="margin:14px 0 10px"></div>
+
+      <div class="lt-section-label lt-section-label--tight">Export</div>
+      <div class="layout-actions" style="justify-content:flex-start;flex-direction:column;gap:6px">
+        <button class="lt-btn lt-btn-ghost" type="button" id="export-csv-btn" style="width:100%">Export CSV</button>
+        <button class="lt-btn lt-btn-ghost" type="button" id="export-png-btn" style="width:100%">Export PNG</button>
+        <button class="lt-btn lt-btn-ghost" type="button" id="print-btn" style="width:100%">Print Layout</button>
+        <button class="lt-btn lt-btn-ghost" type="button" id="reset-btn" style="width:100%">Reset Plate</button>
       </div>
 
-      <div class="side-section">
-        <div class="lt-section-label lt-section-label--tight">Groups</div>
-        <div class="group-create">
-          <input class="lt-input" id="new-group-name" type="text" maxlength="32" placeholder="Group name" />
-          <button class="btn-reset" type="button" id="add-group-btn">Add</button>
-        </div>
-        <div class="group-list" id="group-list"></div>
-      </div>
+      <div id="seeding-note" class="lt-alert lt-alert-info" style="display:none;margin-top:12px"></div>
 
-      <div class="side-section">
-        <div class="lt-section-label lt-section-label--tight">Legend</div>
-        <div id="legend-list"></div>
-      </div>
     </aside>
-  </div>
 
-  <div class="lt-alert lt-alert-info status-line" id="status-line">Ready.</div>
+  </div>
 
 </div>
 </div>
@@ -899,6 +898,25 @@ let plateRenderRaf = 0;
 let currentPlatePxPerMm = PLATE_SCALE_LIMITS.min;
 
 const els = {};
+
+// Session init
+(function() {
+  var sid = new URLSearchParams(location.search).get('s');
+  if (sid) labtoolsSessionSetActive(sid);
+  ltSessionPillRender();
+  // Show seeding result note if coming from seeding-calc
+  var active = labtoolsSessionActive();
+  if (active) {
+    var sr = labtoolsSessionScratchRead(active.id, 'seedingResult', null);
+    if (sr && sr.density) {
+      var note = document.getElementById('seeding-note');
+      if (note) {
+        note.style.display = '';
+        note.textContent = 'From Seeding: ' + (sr.density >= 1e6 ? (sr.density/1e6).toFixed(2) + ' M/mL' : (sr.density/1e3).toFixed(1) + ' K/mL');
+      }
+    }
+  }
+})();
 
 document.addEventListener('DOMContentLoaded', init);
 
