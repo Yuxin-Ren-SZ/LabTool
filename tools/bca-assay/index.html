@@ -445,9 +445,9 @@
 
       <!-- Mode tabs -->
       <div class="mode-tabs">
-        <button class="mode-tab active" id="tab-manual" onclick="switchMode('manual')">Manual Entry</button>
+        <button class="mode-tab active" id="tab-raw"    onclick="switchMode('raw')">Raw File (.txt)</button>
         <button class="mode-tab"        id="tab-grid"   onclick="switchMode('grid')">Paste Grid</button>
-        <button class="mode-tab"        id="tab-raw"    onclick="switchMode('raw')">Raw File (.txt)</button>
+        <button class="mode-tab"        id="tab-manual" onclick="switchMode('manual')">Manual Entry</button>
       </div>
 
       <!-- Workspace -->
@@ -1663,19 +1663,18 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
   renderSmpTable();
   setReps(1);
 
+  // Start in Raw File mode (most common import workflow)
+  switchMode('raw');
+
   // Check for saved plate state
   const saved = loadPlateState();
   if (saved) {
-    // Show restore banner when user switches to plate mode
-    // Also pre-load textarea content
     document.getElementById('plate-textarea').value = saved.textarea || '';
-    // We'll show the banner when they enter plate mode
   }
 
-  // Auto-focus first OD field
-  setTimeout(()=>{
-    const el=document.querySelector('[data-tbl="std"][data-row="0"][data-col="od1"]');
-    if(el) el.focus();
+  // Auto-focus the textarea for immediate paste
+  setTimeout(() => {
+    document.getElementById('plate-textarea').focus();
   }, 80);
 })();
 </script>
