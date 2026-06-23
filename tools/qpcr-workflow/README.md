@@ -1,0 +1,187 @@
+# RT-qPCR Workflow Assistant
+
+Browser-only RT-qPCR planning and relative-expression helper for LabTools. It supports 96-well plate planning, reagent scaling, nucleic-acid concentration calculations, and exploratory ΔΔCt analysis from pasted or uploaded CSV-style data.
+
+Part of the [LabTools](../../) collection.
+
+## Scope
+
+This tool is intended for:
+
+- planning 96-well RT-qPCR layouts before pipetting
+- calculating primer master mix and sample cDNA/H2O mix volumes
+- calculating RNA, DNA, or other nucleic-acid input volume from concentration data
+- running single- or multi-reference ΔΔCt calculations from tidy Cq rows
+- exporting browser-generated CSV tables for manual review
+
+This tool is not intended for:
+
+- diagnostic interpretation
+- instrument-specific binary file parsing
+- automatic validation against a kit, primer set, or thermocycler protocol
+- replacing final manual review of the exported plate map and calculations
+
+All work happens in the browser. The page has no build step, server dependency, or external runtime package.
+
+## Workflow
+
+1. Open the **Scope** page to confirm the workflow matches the intended use.
+2. Enter samples, assays, reference genes, control treatment, technical replicates, and layout mode on **Setup**.
+3. Review the generated plate map and loading guide on **Plate**.
+4. Edit reagent recipe and overage assumptions on **Reagents**.
+5. Paste or upload concentration rows on **Nucleic Acid**.
+6. Paste or upload tidy Cq rows on **ΔΔCt**.
+7. Export the generated CSV tables needed for review.
+
+The page starts blank by design. Template downloads and placeholders describe accepted formats, but no test dataset is loaded into the tool.
+
+## Input Formats
+
+Samples can be entered as a comma-separated list or one sample per line:
+
+```text
+CellLine_control, CellLine_treatment
+```
+
+Assays can be entered as a comma-separated list or as CSV:
+
+```text
+gene,assay_type,efficiency
+ReferenceGene,reference,2
+TargetGene,target,1.95
+```
+
+Nucleic-acid measurement CSV accepts common headers such as `concentration_ng_per_uL`, `Concentration`, `Conc.`, `Nucleic Acid`, `Nucleic Acid ng/uL`, `A260/A280`, and `A260/A230`.
+
+Tidy Cq CSV accepts headers such as `sample_name`, `sample`, `Sample`, `assay/gene`, `target`, `Target`, `gene`, `Cq`, `Ct`, `CellLineName`, and `Treatment`.
+
+## Plate Layout
+
+The current tool supports 96-well plates. Layout modes are:
+
+- `Pipetting-friendly auto layout`
+- `Sample rows / target column groups`
+- `Target rows / sample column groups`
+- `Compact fill, only as a fallback`
+
+The default auto layout tries sample rows / target column groups first. This keeps:
+
+- one sample per row when possible
+- one target per adjacent column group
+- technical replicates beside each other
+- overflow samples in a right-side mini matrix when clean space remains
+
+The layout export includes:
+
+```text
+plate, well, row, column, sample, target, replicate,
+block_type, loading_group, sample_group, target_group
+```
+
+The plate preview is rendered as a fixed HTML table to reduce browser differences. It should still be manually checked in the target browser and on the target machine before relying on the layout for pipetting.
+
+### 9 Samples x 3 Targets x Triplicates
+
+For 9 samples, 3 targets (`Actin`, `WNT5A`, `MAPK8`), and 3 technical replicates, the first 8 samples use the primary matrix:
+
+```text
+Rows A-H = samples 1-8
+Columns 1-3 = Actin triplicates
+Columns 4-6 = WNT5A triplicates
+Columns 7-9 = MAPK8 triplicates
+```
+
+Example primary rows:
+
+```text
+A1-A3 = sample 1 + Actin
+A4-A6 = sample 1 + WNT5A
+A7-A9 = sample 1 + MAPK8
+
+B1-B3 = sample 2 + Actin
+B4-B6 = sample 2 + WNT5A
+B7-B9 = sample 2 + MAPK8
+```
+
+The 9th sample uses the right-side overflow matrix:
+
+```text
+A10-A12 = sample 9 + Actin triplicates
+B10-B12 = sample 9 + WNT5A triplicates
+C10-C12 = sample 9 + MAPK8 triplicates
+```
+
+This avoids random scattered placement while still using the open right-side columns.
+
+### Target Overflow On The Same Plate
+
+When there are more targets than fit in rows A-H, the auto layout tries a target-row matrix and uses the remaining right-side columns for a second clean matrix before starting another plate.
+
+For 3 samples, 10 targets, and triplicates:
+
+```text
+Primary matrix:
+- Columns 1-3 = sample 1
+- Columns 4-6 = sample 2
+- Columns 7-9 = sample 3
+- Rows A-H = targets 1-8
+
+Right-side overflow matrix:
+- Columns 10-12 = overflow target triplicates
+- A10-A12 = sample 1 + target 9
+- B10-B12 = sample 1 + target 10
+- C10-C12 = sample 2 + target 9
+- D10-D12 = sample 2 + target 10
+- E10-E12 = sample 3 + target 9
+- F10-F12 = sample 3 + target 10
+```
+
+This keeps all 90 reactions on one 96-well plate without random placement.
+
+## Reagents And Overage
+
+Prepared reaction count is explicit:
+
+```text
+prepared reactions = wells + extra reactions + ceiling(wells x overage percent)
+```
+
+Primer master mix is calculated per assay from editable per-reaction volumes:
+
+```text
+master mix uL = master mix per reaction x prepared reactions
+forward primer uL = forward primer per reaction x prepared reactions
+reverse primer uL = reverse primer per reaction x prepared reactions
+```
+
+Sample cDNA/H2O mix is calculated per sample:
+
+```text
+H2O uL = water per reaction x prepared reactions
+cDNA uL = cDNA per reaction x prepared reactions
+```
+
+## Nucleic Acid Calculation
+
+The nucleic-acid page is not Nanodrop-specific. It can use Nanodrop, Qubit, plate reader, or manual concentration rows if the concentration is represented as ng/uL.
+
+```text
+sample volume uL = target mass ng / concentration ng/uL
+diluent uL = final volume uL - sample volume uL
+```
+
+QC flags mark missing concentration, sample volume greater than final volume, negative diluent, and purity ratios below the configured thresholds.
+
+## ΔΔCt Analysis
+
+Reference genes are customizable. One or more reference genes can be used. Multiple references use the mean reference Cq per sample for ΔCt.
+
+```text
+ΔCt = mean target Cq - mean reference Cq
+ΔΔCt = ΔCt - mean control ΔCt within the same CellLineName and target
+fold change = PCR efficiency ^ -ΔΔCt
+```
+
+PCR efficiency is configurable. `2.0` represents ideal 100% amplification efficiency. Assay CSV rows can define per-target efficiency, or the page can use one default efficiency for every target.
+
+The ΔΔCt page includes a compact visualization of mean ΔΔCt by cell line, treatment, and target. Exported CSV keeps the underlying rows for review.
