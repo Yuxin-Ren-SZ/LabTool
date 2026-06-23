@@ -230,6 +230,14 @@
       cursor: pointer; color: var(--text-muted); line-height: 1;
     }
     .chart-overlay-close:hover { color: var(--text); }
+    .chart-overlay-export {
+      position: absolute; top: 8px; right: 40px;
+      border: 1.5px solid var(--blue-border); background: var(--blue-bg);
+      color: var(--blue-dark); font-size: 0.72rem; font-weight: 600;
+      padding: 3px 10px; border-radius: var(--radius-sm); cursor: pointer; line-height: 1;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .chart-overlay-export:hover { background: var(--blue); color: #fff; border-color: var(--blue); }
     .chart-overlay svg { width: 100%; height: auto; display: block; max-height: 65vh; }
 
     /* Cursor hint on chart */
@@ -747,6 +755,7 @@
                 </table>
               </div>
               <div class="export-row">
+                <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="exportFigure()">Export Figure</button>
                 <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="exportCSV()">Export CSV</button>
                 <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="copyResults()">Copy Table</button>
               </div>
@@ -760,6 +769,7 @@
       <div class="chart-overlay" id="chart-overlay" onclick="this.classList.remove('show')">
         <div class="chart-overlay-card" onclick="event.stopPropagation()">
           <button class="chart-overlay-close" onclick="document.getElementById('chart-overlay').classList.remove('show')">×</button>
+          <button class="chart-overlay-export" onclick="exportFigure();document.getElementById('chart-overlay').classList.remove('show')">Export PNG</button>
           <svg id="bca-chart-large" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg"></svg>
         </div>
       </div>
@@ -1310,6 +1320,7 @@ function showInlineResults() {
         </table>
       </div>
       <div class="export-row">
+        <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="exportFigure()">Export Figure</button>
         <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="exportCSV()">Export CSV</button>
         <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="copyResults()">Copy Table</button>
       </div>
@@ -1764,6 +1775,65 @@ function copyResults(){
       isNaN(r.conc)?'':r.conc.toFixed(2),
       r.flag==='extrap'?'Extrapolated':r.flag==='below-det'?'Below detection':''].join('\t'))];
   labtoolsCopyText(lines.join('\n'));
+}
+
+function exportFigure() {
+  if (!lastResult) { alert('No chart to export.'); return; }
+  const { fit, regPoints, sampleResults, unit } = lastResult;
+
+  // Create hidden high-res SVG for 600 DPI export (6" × 4" at 600 DPI → 3600×2400)
+  const tmp = document.createElement('div');
+  tmp.style.cssText = 'position:absolute;visibility:hidden;width:0;height:0;overflow:hidden;';
+  tmp.innerHTML = '<svg id="__bca-export-svg" viewBox="0 0 3600 2400" xmlns="http://www.w3.org/2000/svg"></svg>';
+  document.body.appendChild(tmp);
+  renderChart('__bca-export-svg', 3600, 2400, regPoints, fit.slope, fit.intercept, sampleResults, unit);
+
+  // Resolve CSS variables so the serialized SVG is self-contained
+  const svgEl = document.getElementById('__bca-export-svg');
+  const cs = getComputedStyle(document.documentElement);
+  const resolveCSS = (val) => {
+    if (!val || !val.includes('var(')) return val;
+    return val.replace(/var\((--[\w-]+)\)/g, (_, v) => cs.getPropertyValue(v).trim() || '#000');
+  };
+  (function walk(el) {
+    for (const a of ['fill', 'stroke', 'font-family']) {
+      const v = el.getAttribute(a);
+      if (v && v.includes('var(')) el.setAttribute(a, resolveCSS(v));
+    }
+    const st = el.getAttribute('style');
+    if (st && st.includes('var(')) el.setAttribute('style', resolveCSS(st));
+    for (const c of el.children) walk(c);
+  })(svgEl);
+
+  const svgStr = '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(svgEl);
+  const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+
+  const img = new Image();
+  img.onload = function () {
+    const canvas = document.createElement('canvas');
+    canvas.width = 3600;
+    canvas.height = 2400;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 3600, 2400);
+    ctx.drawImage(img, 0, 0, 3600, 2400);
+    canvas.toBlob(function (png) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(png);
+      a.download = 'bca-standard-curve.png';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      URL.revokeObjectURL(url);
+      document.body.removeChild(tmp);
+    }, 'image/png');
+  };
+  img.onerror = function () {
+    URL.revokeObjectURL(url);
+    document.body.removeChild(tmp);
+    alert('Failed to export figure. Try again or check browser console.');
+  };
+  img.src = url;
 }
 
 /* ═══════════════════════════════════════════════════════
