@@ -189,8 +189,14 @@
       border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 10px;
     }
     .fit-equation { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text); font-weight: 600; flex: 1; min-width: 140px; }
+    .fit-stat {
+      font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-secondary);
+      font-weight: 600; padding: 1px 5px; background: var(--surface);
+      border-radius: var(--radius-xs); border: 1px solid var(--border-subtle);
+      white-space: nowrap;
+    }
 
-    /* Mini stats */
+    /* Mini stats — kept for inline results mirror */
     .mini-stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
     .mini-stat { background: var(--surface-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 6px 8px; }
     .mini-stat-label { font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 2px; }
@@ -206,6 +212,27 @@
     .legend-item { display: flex; align-items: center; gap: 5px; }
     .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .legend-diamond { width: 8px; height: 8px; transform: rotate(45deg); flex-shrink: 0; }
+
+    /* Chart expand overlay */
+    .chart-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      z-index: 1000; justify-content: center; align-items: center;
+    }
+    .chart-overlay.show { display: flex; }
+    .chart-overlay-card {
+      background: var(--surface); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-card); padding: 20px; max-width: 90vw; max-height: 90vh;
+      position: relative;
+    }
+    .chart-overlay-close {
+      position: absolute; top: 8px; right: 12px;
+      border: none; background: transparent; font-size: 1.3rem;
+      cursor: pointer; color: var(--text-muted); line-height: 1;
+    }
+    .chart-overlay-close:hover { color: var(--text); }
+    .chart-overlay svg { width: 100%; height: auto; display: block; max-height: 65vh; }
+
+    /* Cursor hint on chart */
 
     /* Results table */
     .res-table-shell {
@@ -621,15 +648,12 @@
               <div class="fit-strip">
                 <span class="fit-equation" id="res-equation">—</span>
                 <span class="lt-badge" id="res-r2-badge">—</span>
+                <span class="fit-stat" id="res-slope-inline" title="Slope"></span>
+                <span class="fit-stat" id="res-intercept-inline" title="Intercept"></span>
+                <span class="fit-stat" id="res-npts-inline" title="Points"></span>
               </div>
-              <div class="mini-stats-row">
-                <div class="mini-stat"><div class="mini-stat-label">Slope</div><div class="mini-stat-val" id="res-slope">—</div></div>
-                <div class="mini-stat"><div class="mini-stat-label">Intercept</div><div class="mini-stat-val" id="res-intercept">—</div></div>
-                <div class="mini-stat"><div class="mini-stat-label">R²</div><div class="mini-stat-val" id="res-r2-val">—</div></div>
-                <div class="mini-stat"><div class="mini-stat-label">Pts</div><div class="mini-stat-val" id="res-npts">—</div></div>
-              </div>
-              <div class="chart-wrap">
-                <svg id="bca-chart" viewBox="0 0 360 200" xmlns="http://www.w3.org/2000/svg"></svg>
+              <div class="chart-wrap" id="chart-wrap" onclick="expandChart()" title="Click to enlarge">
+                <svg id="bca-chart" viewBox="0 0 360 260" xmlns="http://www.w3.org/2000/svg"></svg>
                 <div class="chart-legend">
                   <div class="legend-item"><div class="legend-dot" style="background:#5c8dff;"></div>Standards</div>
                   <div class="legend-item"><div class="legend-diamond" style="background:#e07832;"></div>Samples</div>
@@ -660,6 +684,14 @@
         </div><!-- /.bca-results-pane -->
 
       </div><!-- /.bca-workspace -->
+
+      <!-- Chart expand overlay -->
+      <div class="chart-overlay" id="chart-overlay" onclick="this.classList.remove('show')">
+        <div class="chart-overlay-card" onclick="event.stopPropagation()">
+          <button class="chart-overlay-close" onclick="document.getElementById('chart-overlay').classList.remove('show')">×</button>
+          <svg id="bca-chart-large" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+      </div>
 
       <!-- Plate build confirmation banner -->
       <div id="plate-build-banner" style="display:none">
@@ -991,16 +1023,15 @@ function showResults(slope, intercept, r2, n, stdPts, samples, unit) {
 
   const sign = intercept >= 0 ? '+' : '−';
   const absI = Math.abs(intercept);
-  document.getElementById('res-equation').textContent = `OD = ${slope.toExponential(3)}·C ${sign} ${absI.toFixed(4)}`;
-  document.getElementById('res-slope').textContent     = slope.toExponential(3);
-  document.getElementById('res-intercept').textContent = intercept.toFixed(4);
-  document.getElementById('res-r2-val').textContent    = r2.toFixed(4);
-  document.getElementById('res-npts').textContent      = n;
+  document.getElementById('res-equation').textContent     = `OD = ${slope.toExponential(3)}·C ${sign} ${absI.toFixed(4)}`;
+  document.getElementById('res-slope-inline').textContent  = `m=${slope.toExponential(2)}`;
+  document.getElementById('res-intercept-inline').textContent = `b=${intercept.toFixed(3)}`;
+  document.getElementById('res-npts-inline').textContent   = `n=${n}`;
 
   const badge = document.getElementById('res-r2-badge');
-  if (r2 >= 0.99) { badge.className='lt-badge lt-badge-green'; badge.textContent=`R² = ${r2.toFixed(4)} ✓`; setStatus(`Good fit (R² ${r2.toFixed(4)})`, 'ok'); }
-  else if (r2 >= 0.95) { badge.className='lt-badge lt-badge-yellow'; badge.textContent=`R² = ${r2.toFixed(4)}`; setStatus('Acceptable fit — review standards', 'warn'); }
-  else { badge.className='lt-badge lt-badge-red'; badge.textContent=`R² = ${r2.toFixed(4)}`; setStatus('Poor fit — results may be unreliable', 'err'); }
+  if (r2 >= 0.99) { badge.className='lt-badge lt-badge-green'; badge.textContent=`R² ${r2.toFixed(4)} ✓`; setStatus(`Good fit (R² ${r2.toFixed(4)})`, 'ok'); }
+  else if (r2 >= 0.95) { badge.className='lt-badge lt-badge-yellow'; badge.textContent=`R² ${r2.toFixed(4)}`; setStatus('Acceptable fit — review standards', 'warn'); }
+  else { badge.className='lt-badge lt-badge-red'; badge.textContent=`R² ${r2.toFixed(4)}`; setStatus('Poor fit — results may be unreliable', 'err'); }
 
   document.getElementById('res-conc-header').textContent = `Conc (${unit})`;
   drawChart(stdPts, slope, intercept, samples);
@@ -1033,13 +1064,11 @@ function showInlineResults() {
   const target = document.getElementById('inline-results-content');
   if (!target) return;
 
-  // Build a self-contained results card
   const eq = document.getElementById('res-equation').textContent;
   const r2b = document.getElementById('res-r2-badge').outerHTML;
-  const sl = document.getElementById('res-slope').textContent;
-  const ic = document.getElementById('res-intercept').textContent;
-  const r2v = document.getElementById('res-r2-val').textContent;
-  const np = document.getElementById('res-npts').textContent;
+  const sl = document.getElementById('res-slope-inline').textContent;
+  const ic = document.getElementById('res-intercept-inline').textContent;
+  const np = document.getElementById('res-npts-inline').textContent;
   const chart = document.getElementById('bca-chart').innerHTML;
   const rtable = document.getElementById('results-tbody').innerHTML;
   const hdr = document.getElementById('res-conc-header').textContent;
@@ -1056,15 +1085,12 @@ function showInlineResults() {
       <div class="fit-strip">
         <span class="fit-equation">${eq}</span>
         ${r2b}
-      </div>
-      <div class="mini-stats-row">
-        <div class="mini-stat"><div class="mini-stat-label">Slope</div><div class="mini-stat-val">${sl}</div></div>
-        <div class="mini-stat"><div class="mini-stat-label">Intercept</div><div class="mini-stat-val">${ic}</div></div>
-        <div class="mini-stat"><div class="mini-stat-label">R²</div><div class="mini-stat-val">${r2v}</div></div>
-        <div class="mini-stat"><div class="mini-stat-label">Pts</div><div class="mini-stat-val">${np}</div></div>
+        <span class="fit-stat">${sl}</span>
+        <span class="fit-stat">${ic}</span>
+        <span class="fit-stat">${np}</span>
       </div>
       <div class="chart-wrap">
-        <svg id="bca-chart-inline" viewBox="0 0 360 200" xmlns="http://www.w3.org/2000/svg">${chart}</svg>
+        <svg viewBox="0 0 360 260" xmlns="http://www.w3.org/2000/svg">${chart}</svg>
         <div class="chart-legend">
           <div class="legend-item"><div class="legend-dot" style="background:#5c8dff;"></div>Standards</div>
           <div class="legend-item"><div class="legend-diamond" style="background:#e07832;"></div>Samples</div>
@@ -1086,36 +1112,49 @@ function showInlineResults() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   SVG CHART (compact)
+   SVG CHART (shared renderer)
 ═══════════════════════════════════════════════════════ */
-function drawChart(stdPts, slope, intercept, samples) {
-  const W=360,H=200,ML=54,MR=14,MT=14,MB=40;
+function renderChart(targetId, W, H, stdPts, slope, intercept, samples, unit) {
+  const ML=W>400?70:54, MR=W>400?20:14, MT=14, MB=48;
   const PW=W-ML-MR, PH=H-MT-MB;
   const maxX = Math.max(...stdPts.map(p=>p.x))*1.08||8;
   const maxY = Math.max(...stdPts.map(p=>p.y))*1.12||4;
   const xS = v => ML+(v/maxX)*PW;
   const yS = v => MT+PH-(v/maxY)*PH;
   const xT = niceTicks(0,maxX,5), yT = niceTicks(0,maxY,4);
+  const fs = W>400 ? '12' : '9', fs2 = W>400 ? '13' : '9.5';
   let s='';
   s+=`<rect x="${ML}" y="${MT}" width="${PW}" height="${PH}" fill="var(--surface-subtle)" rx="3"/>`;
   yT.forEach(t => s+=`<line x1="${ML}" y1="${yS(t)}" x2="${ML+PW}" y2="${yS(t)}" stroke="var(--border-subtle)" stroke-width="1"/>`);
   xT.forEach(t => s+=`<line x1="${xS(t)}" y1="${MT}" x2="${xS(t)}" y2="${MT+PH}" stroke="var(--border-subtle)" stroke-width="1"/>`);
   s+=`<line x1="${xS(0)}" y1="${yS(slope*0+intercept)}" x2="${xS(maxX)}" y2="${yS(slope*maxX+intercept)}" stroke="#5c8dff" stroke-width="1.6" stroke-opacity="0.5" stroke-dasharray="4 3"/>`;
-  stdPts.forEach(p => s+=`<circle cx="${xS(p.x)}" cy="${yS(p.y)}" r="4.5" fill="#5c8dff" stroke="#fff" stroke-width="1.2" opacity="0.9"/>`);
+  const rad = W>400 ? 6 : 4.5;
+  stdPts.forEach(p => s+=`<circle cx="${xS(p.x)}" cy="${yS(p.y)}" r="${rad}" fill="#5c8dff" stroke="#fff" stroke-width="1.2" opacity="0.9"/>`);
   samples.forEach(r => {
     if (isNaN(r.od)) return;
     const rc=(r.od-intercept)/slope;
-    const cx=xS(Math.max(0,Math.min(rc,maxX))), cy=yS(Math.max(0,Math.min(r.od,maxY))), sz=4.5;
+    const cx=xS(Math.max(0,Math.min(rc,maxX))), cy=yS(Math.max(0,Math.min(r.od,maxY))), sz=rad;
     s+=`<polygon points="${cx},${cy-sz} ${cx+sz},${cy} ${cx},${cy+sz} ${cx-sz},${cy}" fill="#e07832" stroke="#fff" stroke-width="1.2" opacity="0.9"/>`;
   });
   s+=`<line x1="${ML}" y1="${MT}" x2="${ML}" y2="${MT+PH}" stroke="var(--border)" stroke-width="1.2"/>`;
   s+=`<line x1="${ML}" y1="${MT+PH}" x2="${ML+PW}" y2="${MT+PH}" stroke="var(--border)" stroke-width="1.2"/>`;
-  xT.forEach(t => s+=`<text x="${xS(t)}" y="${MT+PH+13}" text-anchor="middle" font-size="9" fill="var(--text-muted)" font-family="var(--font)">${fmtTk(t)}</text>`);
-  yT.forEach(t => s+=`<text x="${ML-6}" y="${yS(t)+3}" text-anchor="end" font-size="9" fill="var(--text-muted)" font-family="var(--font)">${t.toFixed(2)}</text>`);
+  xT.forEach(t => s+=`<text x="${xS(t)}" y="${MT+PH+14}" text-anchor="middle" font-size="${fs}" fill="var(--text-muted)" font-family="var(--font)">${fmtTk(t)}</text>`);
+  yT.forEach(t => s+=`<text x="${ML-6}" y="${yS(t)+3}" text-anchor="end" font-size="${fs}" fill="var(--text-muted)" font-family="var(--font)">${t.toFixed(2)}</text>`);
+  s+=`<text x="${ML+PW/2}" y="${H-5}" text-anchor="middle" font-size="${fs2}" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600">Concentration (${unit})</text>`;
+  s+=`<text x="10" y="${MT+PH/2}" text-anchor="middle" font-size="${fs2}" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600" transform="rotate(-90,10,${MT+PH/2})">OD (562 nm)</text>`;
+  document.getElementById(targetId).innerHTML = s;
+}
+
+function drawChart(stdPts, slope, intercept, samples) {
   const unit = PRESETS[currentPreset]?.unit || 'µg/mL';
-  s+=`<text x="${ML+PW/2}" y="${H-5}" text-anchor="middle" font-size="9.5" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600">Concentration (${unit})</text>`;
-  s+=`<text x="10" y="${MT+PH/2}" text-anchor="middle" font-size="9.5" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600" transform="rotate(-90,10,${MT+PH/2})">OD (562 nm)</text>`;
-  document.getElementById('bca-chart').innerHTML = s;
+  renderChart('bca-chart', 360, 260, stdPts, slope, intercept, samples, unit);
+}
+
+function expandChart() {
+  if (!lastResult) return;
+  const { fit, regPoints, sampleResults, unit } = lastResult;
+  renderChart('bca-chart-large', 600, 400, regPoints, fit.slope, fit.intercept, sampleResults, unit);
+  document.getElementById('chart-overlay').classList.add('show');
 }
 
 /* ═══════════════════════════════════════════════════════
