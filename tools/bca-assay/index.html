@@ -542,7 +542,7 @@
               <div class="tpl-list" id="tpl-list"></div>
 
               <div class="lt-divider"></div>
-              <div class="lt-section-label">Assign Selected Wells</div>
+              <div class="lt-section-label" id="assign-section-label">Assign Selected Wells</div>
               <p id="plate-sel-count" class="plate-sel-count">No wells selected</p>
 
               <div class="tpl-assign-banner" id="tpl-banner" style="display:none">
@@ -550,7 +550,7 @@
               </div>
 
               <div class="assign-row">
-                <div class="assign-card">
+                <div class="assign-card" id="assign-std-card">
                   <div class="assign-card-label" style="color:var(--green-dark);">◼ Standard</div>
                   <div class="assign-input-row">
                     <div style="flex:1;min-width:100px;">
@@ -1280,6 +1280,16 @@ function updatePlateNav(){
     step.textContent=`Step ${sn}/${active.length}: ${nxt.c} ${tpl.unit}`;
     btn.textContent='→ Select wells'; btn.disabled=false; btn.onclick=()=>tplSetStep(nxt.i); nav.className='';
   }
+
+  // Hide standard assign card when template step is active (banner handles it)
+  const stdCard = document.getElementById('assign-std-card');
+  const assignRow = stdCard?.parentElement;
+  if (stdCard) stdCard.style.display = plateTplStep >= 0 ? 'none' : '';
+  if (assignRow) assignRow.style.gridTemplateColumns = plateTplStep >= 0 ? '1fr' : '';
+
+  // Update section header to be context-aware
+  const secLabel = document.getElementById('assign-section-label');
+  if (secLabel) secLabel.textContent = plateTplStep >= 0 ? 'Assign Sample Wells' : 'Assign Selected Wells';
 }
 function renderTplUI(){
   const tpl=PLATE_TPLS.find(t=>t.id===plateTplId);
