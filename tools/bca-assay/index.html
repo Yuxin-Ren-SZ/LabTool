@@ -1089,9 +1089,11 @@ function showResults(slope, intercept, r2, n, stdPts, samples, unit) {
   document.getElementById('res-npts-inline').textContent   = `n=${n}`;
 
   const badge = document.getElementById('res-r2-badge');
+  const isBasic = currentPreset === 'basic';
   if (r2 >= 0.99) { badge.className='lt-badge lt-badge-green'; badge.textContent=`R² ${r2.toFixed(4)} ✓`; setStatus(`Good fit (R² ${r2.toFixed(4)})`, 'ok'); }
   else if (r2 >= 0.95) { badge.className='lt-badge lt-badge-yellow'; badge.textContent=`R² ${r2.toFixed(4)}`; setStatus('Acceptable fit — review standards', 'warn'); }
-  else { badge.className='lt-badge lt-badge-red'; badge.textContent=`R² ${r2.toFixed(4)}`; setStatus('Poor fit — results may be unreliable', 'err'); }
+  else if (isBasic && r2 >= 0.88) { badge.className='lt-badge lt-badge-yellow'; badge.textContent=`R² ${r2.toFixed(4)}`; setStatus('Marginal — low-end non-linearity expected', 'warn'); }
+  else { badge.className='lt-badge lt-badge-red'; badge.textContent=`R² ${r2.toFixed(4)}`; setStatus(isBasic ? 'Poor fit — check standards' : 'Poor fit — results may be unreliable', 'err'); }
 
   document.getElementById('res-conc-header').textContent = `Conc (${unit})`;
   drawChart(stdPts, slope, intercept, samples);
@@ -1253,7 +1255,17 @@ function parsePlate() {
   err.style.display='none';
   if(!text){err.textContent='No content to parse.';err.style.display='block';return;}
   try {
-    plateMatrix = currentMode==='raw'?parsePlateRaw(text):parsePlateGrid(text);
+    if (currentMode==='raw') {
+      try {
+        plateMatrix = parsePlateRaw(text);
+      } catch(rawErr) {
+        // Fallback: try parsing as a simple grid
+        try { plateMatrix = parsePlateGrid(text); }
+        catch(gridErr) { throw rawErr; } // re-throw original error
+      }
+    } else {
+      plateMatrix = parsePlateGrid(text);
+    }
     wellAssigns={}; selWells=new Set();
     renderPlate(); initPlateTemplate(); updateAssignSummary();
     document.getElementById('plate-grid-section').style.display='block';
@@ -1388,6 +1400,8 @@ function tplAdvance(){
   else{document.getElementById('tpl-banner').style.display='none';document.getElementById('assign-std-conc').value='';renderTplUI();}
 }
 function resetTemplate(){
+  const assigned = Object.values(wellAssigns).filter(a=>a.type==='std').length;
+  if (assigned > 0 && !confirm(`This will clear all ${assigned} standard well assignment(s). Continue?`)) return;
   Object.keys(wellAssigns).forEach(k=>{if(wellAssigns[k].type==='std')delete wellAssigns[k];});
   plateTplStep=-1;
   document.getElementById('tpl-banner').style.display='none';
