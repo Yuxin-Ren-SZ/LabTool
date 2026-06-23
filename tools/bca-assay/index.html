@@ -247,6 +247,26 @@
     .tpl-select-btn { padding: 4px 10px; font-size: var(--fs-xs); }
     .tpl-select-btn.active-step { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue-dark); }
 
+    /* ── Plate-level template nav ── */
+    #tpl-plate-nav {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 9px 14px; margin-bottom: 16px;
+      background: var(--blue-bg); border: 1.5px solid var(--blue-border);
+      border-radius: var(--radius-md); font-size: var(--fs-sm); color: var(--blue-dark);
+    }
+    #tpl-plate-nav.nav-done {
+      background: var(--green-bg); border-color: var(--green-border); color: var(--green-dark);
+    }
+    #tpl-plate-nav-step { font-weight: 600; flex: 1; }
+    #tpl-plate-nav-btn {
+      padding: 5px 14px; font-size: var(--fs-xs); font-weight: 700;
+      border: 1.5px solid var(--blue-border); border-radius: var(--radius-md);
+      background: var(--surface); color: var(--blue-dark); cursor: pointer;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    #tpl-plate-nav-btn:disabled { opacity: 0.6; cursor: default; }
+    #tpl-plate-nav.nav-done #tpl-plate-nav-btn { display: none; }
+
     /* ── Sticky assign bar ── */
     #tpl-sticky-bar {
       position: fixed; bottom: 0; left: 0; right: 0;
@@ -583,6 +603,12 @@
               <button class="lt-btn lt-btn-ghost" style="padding:3px 9px;font-size:0.72rem;" onclick="clearSelection()">Clear</button>
               <button class="lt-btn lt-btn-ghost" style="padding:3px 9px;font-size:0.72rem;color:var(--red);" onclick="unassignSelected()">Unassign</button>
             </div>
+          </div>
+
+          <!-- Template step nav (shown when template active) -->
+          <div id="tpl-plate-nav" style="display:none">
+            <span id="tpl-plate-nav-step"></span>
+            <button id="tpl-plate-nav-btn"></button>
           </div>
 
           <div class="lt-divider"></div>
@@ -1154,11 +1180,53 @@ function resetTemplate() {
   updateStickyBar();
 }
 
+function updatePlateNav() {
+  const nav = document.getElementById('tpl-plate-nav');
+  if (!nav || !plateMatrix) return;
+
+  const tpl         = getCurrentTpl();
+  const activeSteps = tpl.concs
+    .map((conc, i) => ({ conc, i, active: tplActive[i] }))
+    .filter(s => s.active);
+
+  if (activeSteps.length === 0) { nav.style.display = 'none'; return; }
+
+  const doneCount = activeSteps.filter(s =>
+    Object.values(wellAssigns).some(a => a.type === 'std' && a.conc === s.conc)
+  ).length;
+
+  const stepLabel = document.getElementById('tpl-plate-nav-step');
+  const navBtn    = document.getElementById('tpl-plate-nav-btn');
+  nav.style.display = 'flex';
+
+  if (tplStep >= 0) {
+    const stepNum = activeSteps.findIndex(s => s.i === tplStep) + 1;
+    stepLabel.textContent = `Step ${stepNum}/${activeSteps.length}: ${tpl.concs[tplStep]} ${tpl.unit} — select wells`;
+    navBtn.textContent = '← Selecting…';
+    navBtn.disabled = true;
+    nav.className = '';
+  } else if (doneCount === activeSteps.length) {
+    stepLabel.textContent = `✓ All ${activeSteps.length} standards assigned`;
+    nav.className = 'nav-done';
+  } else {
+    const next    = activeSteps.find(s =>
+      !Object.values(wellAssigns).some(a => a.type === 'std' && a.conc === s.conc)
+    );
+    const stepNum = activeSteps.findIndex(s => s.i === next.i) + 1;
+    stepLabel.textContent = `Step ${stepNum}/${activeSteps.length}: ${next.conc} ${tpl.unit}`;
+    navBtn.textContent    = '→ Select wells';
+    navBtn.disabled       = false;
+    navBtn.onclick        = () => tplSetStep(next.i);
+    nav.className = '';
+  }
+}
+
 function renderTemplateUI() {
   const tpl    = getCurrentTpl();
   const listEl = document.getElementById('tpl-list');
   if (!listEl) return;
 
+  updatePlateNav();
   listEl.innerHTML = tpl.concs.map((conc, i) => {
     const active = tplActive[i];
     const isStep = tplStep === i;
