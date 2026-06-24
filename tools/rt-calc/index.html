@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RT Calculator · LabTools</title>
+  <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <script src="../../assets/js/labtools-common.js"></script>
+  <style>
+    .card { max-width: 1100px; }
+
+    /* ── Page header ── */
+    .page-title { font-size: var(--fs-xl); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 3px; }
+    .page-sub   { font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: 16px; line-height: 1.55; }
+
+    /* ── Mode tabs (BCA-style pill) ── */
+    .mode-tabs {
+      display: flex; background: var(--tag-bg); border-radius: var(--radius-md);
+      padding: 3px; margin-bottom: 18px; gap: 2px; width: fit-content;
+    }
+    .mode-tab {
+      padding: 5px 14px; border: none; background: transparent;
+      border-radius: var(--radius-sm); font-size: var(--fs-xs); font-weight: 600;
+      color: var(--text-muted); cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    }
+    .mode-tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+    .mode-tab:hover:not(.active) { color: var(--text); }
+
+    /* ── Section rows ── */
+    .section-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px; flex-wrap: wrap;
+    }
+    .section-name {
+      font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--text-muted); flex-shrink: 0;
+    }
+
+    /* ── Config inputs inline ── */
+    .cfg-input {
+      width: 62px; padding: 5px 7px;
+      border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      font-size: 0.83rem; font-family: var(--font); color: var(--text);
+      text-align: right; outline: none; transition: border-color 0.12s;
+      font-variant-numeric: tabular-nums;
+    }
+    .cfg-input:focus { border-color: var(--blue); }
+    .cfg-unit {
+      font-size: var(--fs-xs); color: var(--text-dim); margin-right: 12px;
+    }
+
+    /* ── Import section (collapsible) ── */
+    .import-section {
+      background: var(--surface-subtle); border: 1.5px solid var(--border-subtle);
+      border-radius: var(--radius-md); margin-bottom: 14px; overflow: hidden;
+    }
+    .import-section.collapsed .import-body { display: none; }
+    .import-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 14px; cursor: pointer; user-select: none;
+    }
+    .import-section:not(.collapsed) .import-header {
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .import-header .section-name { margin-bottom: 0; }
+    .import-chevron {
+      margin-left: auto; font-size: 0.7rem; color: var(--text-muted);
+      transition: transform 0.2s;
+    }
+    .import-section:not(.collapsed) .import-chevron { transform: rotate(180deg); }
+
+    .import-body { padding: 12px 14px 10px; }
+    .import-actions {
+      display: flex; gap: 8px; margin-bottom: 10px; align-items: center;
+    }
+    .btn-sm {
+      padding: 5px 12px; border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm); background: var(--surface);
+      font-size: var(--fs-xs); font-weight: 600; font-family: var(--font);
+      color: var(--text-secondary); cursor: pointer; transition: all 0.12s;
+    }
+    .btn-sm:hover { border-color: var(--blue); color: var(--blue-dark); background: var(--blue-bg); }
+    .btn-sm.primary {
+      background: var(--blue-dark); border-color: var(--blue-dark); color: #fff;
+    }
+    .btn-sm.primary:hover { opacity: 0.88; background: var(--blue-dark); }
+    .btn-sm.primary:disabled {
+      background: var(--tag-bg); border-color: var(--border); color: var(--text-muted); cursor: not-allowed;
+    }
+    .file-info {
+      font-size: var(--fs-xs); color: var(--text-muted);
+      display: none; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .file-info.visible { display: inline; }
+
+    .import-textarea {
+      width: 100%; min-height: 80px; max-height: 160px; padding: 8px 10px;
+      border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      font-size: 0.72rem; font-family: var(--font-mono); color: var(--text);
+      resize: vertical; outline: none;
+    }
+    .import-textarea:focus { border-color: var(--blue); }
+    .import-hint {
+      font-size: 0.65rem; color: var(--text-dim); margin-top: 5px;
+    }
+
+    /* Import summary bar (collapsed state) */
+    .import-summary {
+      display: none; padding: 9px 14px;
+      background: var(--green-bg); border-top: 1.5px solid var(--green-border);
+      align-items: center; gap: 8px;
+      font-size: var(--fs-xs); font-weight: 600; color: var(--green-dark);
+    }
+    .import-summary.visible { display: flex; }
+    .import-summary .btn-sm {
+      margin-left: auto; border-color: var(--green-dark); color: var(--green-dark);
+    }
+    .import-summary .btn-sm:hover { background: var(--green-dark); color: #fff; border-color: var(--green-dark); }
+
+    /* ── Data tables ── */
+    .data-table-shell {
+      border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+      background: var(--surface-subtle); overflow: hidden; margin-bottom: 8px;
+    }
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table thead th {
+      background: var(--surface-subtle); padding: 7px 8px;
+      font-size: 0.66rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--text-muted); text-align: left;
+      border-bottom: 1px solid var(--border-subtle); white-space: nowrap;
+    }
+    .data-table thead th.t-right { text-align: right; }
+    .data-table thead th.t-center { text-align: center; }
+    .data-table tbody td {
+      padding: 5px 8px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle;
+    }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+    .data-table tbody tr:hover { background: rgba(0,0,0,0.015); }
+
+    .name-cell { font-weight: 600; }
+    .num-cell { text-align: right; font-variant-numeric: tabular-nums; }
+    .ratio-cell { text-align: right; font-size: 0.78rem; color: var(--text-secondary); }
+
+    .scale-select {
+      padding: 3px 6px; border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm); font-size: 0.78rem;
+      font-family: var(--font); color: var(--text);
+      background: var(--surface); cursor: pointer; outline: none;
+    }
+    .scale-select:focus { border-color: var(--blue); }
+
+    .conc-ro { text-align: right; font-weight: 600; color: var(--blue-dark); }
+    .vol-ro { text-align: right; font-weight: 600; }
+
+    /* ── Status badges ── */
+    .status-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 10px; font-size: 0.7rem;
+      font-weight: 700; white-space: nowrap;
+    }
+    .status-tag.ok    { background: var(--green-bg); color: var(--green-dark); }
+    .status-tag.warn  { background: var(--yellow-bg); color: var(--yellow-dark); }
+    .status-tag.warn .excess-note {
+      font-weight: 400; font-size: 0.65rem;
+    }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center; padding: 40px 24px; color: var(--text-muted);
+    }
+    .empty-state .empty-icon { font-size: 2rem; margin-bottom: 8px; opacity: 0.5; }
+    .empty-state .empty-title { font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); }
+    .empty-state .empty-desc { font-size: 0.75rem; line-height: 1.6; max-width: 400px; margin: 0 auto; }
+
+    /* ── Batch summary ── */
+    .batch-card {
+      background: var(--blue-bg); border: 1.5px solid var(--blue-border);
+      border-radius: var(--radius-md); padding: 12px 16px; display: none;
+    }
+    .batch-card.visible { display: block; }
+    .batch-card .section-name { color: var(--blue-dark); margin-bottom: 8px; display: block; }
+    .batch-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
+    }
+    .batch-item {
+      background: var(--surface); border-radius: var(--radius-md); padding: 8px 10px;
+    }
+    .batch-item .batch-label {
+      font-size: 0.66rem; font-weight: 700; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px;
+    }
+    .batch-item .batch-value {
+      font-size: 0.92rem; font-weight: 700; color: var(--blue-dark);
+      font-family: var(--font-mono);
+    }
+    .batch-item .batch-unit { font-size: 0.68rem; color: var(--text-muted); font-weight: 400; }
+
+    /* ── Manual entry ── */
+    .manual-row {
+      display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap;
+      margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-subtle);
+    }
+    .manual-row .field-wrap { flex: 1; min-width: 120px; }
+    .manual-row label {
+      display: block; font-size: 0.66rem; font-weight: 700; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px;
+    }
+    .manual-row input {
+      width: 100%; padding: 6px 8px; border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm); font-size: 0.83rem; font-family: var(--font);
+      color: var(--text); outline: none;
+    }
+    .manual-row input:focus { border-color: var(--blue); }
+
+    @media (max-width: 760px) {
+      .data-table { font-size: 0.72rem; }
+      .data-table th, .data-table td { padding: 4px 5px; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="lt-nav">
+    <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
+    <span class="lt-nav-sep">/</span>
+    <span class="lt-nav-page">RT Calculator</span>
+  </nav>
+
+  <div class="lt-page-body">
+    <div class="card">
+
+      <h1 class="page-title">Reverse Transcription Calculator</h1>
+      <p class="page-sub">NEB LunaScript RT — import Nanodrop CSV, auto-scale reaction volume, calculate reagent batch totals. <span style="color:var(--text-dim);font-size:0.65rem;">v2</span></p>
+
+      <!-- Mode tabs -->
+      <div class="mode-tabs" id="modeTabs">
+        <button class="mode-tab active" data-mode="super"  id="tab-super">Super Mix</button>
+        <button class="mode-tab"        data-mode="master" id="tab-master">Master Mix</button>
+      </div>
+
+      <!-- Reagent config -->
+      <div class="section-row" id="reagentRow">
+        <span class="section-name">Reagents</span>
+        <span id="fldBaseVol">
+          Rxn Vol
+          <input type="number" class="cfg-input" id="cfgBaseVol" value="20" step="1" min="10" max="50" style="width:52px;" />
+          <span class="cfg-unit">µL</span>
+        </span>
+        <span id="fldSuperMix">
+          Super Mix
+          <input type="number" class="cfg-input" id="cfgSuperMix" value="4" step="0.1" min="0" />
+          <span class="cfg-unit">µL</span>
+        </span>
+        <span id="fldMasterMix" style="display:none">
+          Master Mix
+          <input type="number" class="cfg-input" id="cfgMasterMix" value="4" step="0.1" min="0" />
+          <span class="cfg-unit">µL</span>
+        </span>
+        <span id="fldRandomPrimer" style="display:none">
+          Random Primer
+          <input type="number" class="cfg-input" id="cfgRandomPrimer" value="2" step="0.1" min="0" />
+          <span class="cfg-unit">µL</span>
+        </span>
+        <span style="margin-left:12px;">Target RNA</span>
+        <input type="number" class="cfg-input" id="cfgTargetRNA" value="1000" step="50" min="10" style="width:72px;" />
+        <span class="cfg-unit">ng / rxn</span>
+        <span>Rxn / sample</span>
+        <input type="number" class="cfg-input" id="cfgReactions" value="1" step="1" min="1" max="100" style="width:50px;" />
+        <span class="cfg-unit">×</span>
+        <span style="margin-left:12px;">Max RNA Vol</span>
+        <input type="number" class="cfg-input" id="cfgMaxRNAVol" value="19" step="0.5" min="1" max="40" style="width:58px;" />
+        <span class="cfg-unit">µL</span>
+      </div>
+
+      <!-- Import section -->
+      <div class="import-section" id="importSection">
+        <div class="import-header" id="importHeader">
+          <span class="section-name">Import Nanodrop CSV</span>
+          <span class="import-chevron">▼</span>
+        </div>
+        <div class="import-body">
+          <div class="import-actions">
+            <input type="file" id="fileInput" accept=".csv,.txt" style="display:none" />
+            <button class="btn-sm" id="btnFile">Open File…</button>
+            <span class="file-info" id="fileInfo"></span>
+            <button class="btn-sm primary" id="btnParse" disabled>Parse &amp; Load</button>
+          </div>
+          <textarea class="import-textarea" id="csvTextarea"
+            placeholder="Or paste Nanodrop CSV here (tab-separated, UTF-8/UTF-16)…"></textarea>
+          <p class="import-hint">
+            Expected columns: Sample Name, Nucleic Acid(ng/uL), A260/A280, A260/A230. Auto-names samples if the column is empty.
+          </p>
+        </div>
+        <div class="import-summary" id="importSummary">
+          <span id="importSummaryText"></span>
+          <button class="btn-sm" id="btnChangeImport">Change</button>
+        </div>
+      </div>
+
+      <!-- Sample table -->
+      <div class="data-table-shell" id="tableShell">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">📋</div>
+          <div class="empty-title">No samples loaded</div>
+          <div class="empty-desc">
+            Import a Nanodrop CSV file or use manual entry below to add samples.
+          </div>
+        </div>
+        <table class="data-table" id="sampleTable" style="display:none">
+          <thead>
+            <tr>
+              <th>Sample</th>
+              <th class="t-right">Conc (ng/µL)</th>
+              <th class="t-right">A260/A280</th>
+              <th class="t-right">A260/A230</th>
+              <th class="t-center">Scale</th>
+              <th class="t-right">RNA Vol</th>
+              <th class="t-right">Water</th>
+              <th class="t-right">RNA Used</th>
+              <th class="t-right">cDNA Conc</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="sampleBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Export -->
+      <div class="section-row" id="exportRow" style="margin-top:4px;display:none;">
+        <span class="section-name">Export</span>
+        <button class="btn-sm" id="btnCopyCSV">Copy CSV</button>
+        <button class="btn-sm" id="btnDownloadCSV">Download CSV</button>
+      </div>
+
+      <!-- Manual entry -->
+      <div class="manual-row" id="manualEntry">
+        <div class="field-wrap">
+          <label>Sample Name</label>
+          <input type="text" id="manName" placeholder="e.g. Sample A" />
+        </div>
+        <div class="field-wrap">
+          <label>Conc (ng/µL)</label>
+          <input type="number" id="manConc" placeholder="0" step="0.1" min="0" />
+        </div>
+        <button class="btn-sm primary" id="btnAddManual" style="padding-top:7px;padding-bottom:7px;">Add</button>
+      </div>
+
+      <!-- Batch summary -->
+      <div class="batch-card" id="batchCard" style="margin-top:12px;">
+        <span class="section-name">Batch Totals</span>
+        <div class="batch-grid" id="batchGrid"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer class="lt-footer">LabTools · Open source lab utilities</footer>
+
+<script>
+'use strict';
+
+// ── State ──────────────────────────────────────────────────────────────
+const LS_KEY = 'rt-calc-state';
+const LS_VERSION = 2;  // bump to clear stale localStorage from older versions
+let mode = 'super';
+let samples = [];       // { name, conc, a260_280, a260_230, scale }
+let collapsed = false;
+
+// Volume scales
+const SCALES = [
+  { label: '1×', value: 1, total: 20 },
+  { label: '1.5×', value: 1.5, total: 30 },
+  { label: '2×', value: 2, total: 40 },
+  { label: 'Auto', value: -1 }
+];
+
+// ── DOM refs ───────────────────────────────────────────────────────────
+const $modeTabs = document.getElementById('modeTabs');
+const $fldSuperMix = document.getElementById('fldSuperMix');
+const $fldMasterMix = document.getElementById('fldMasterMix');
+const $fldRandomPrimer = document.getElementById('fldRandomPrimer');
+const $cfgTargetRNA = document.getElementById('cfgTargetRNA');
+const $cfgReactions = document.getElementById('cfgReactions');
+const $importSection = document.getElementById('importSection');
+const $importHeader = document.getElementById('importHeader');
+const $csvTextarea = document.getElementById('csvTextarea');
+const $btnParse = document.getElementById('btnParse');
+const $btnFile = document.getElementById('btnFile');
+const $fileInput = document.getElementById('fileInput');
+const $fileInfo = document.getElementById('fileInfo');
+const $importSummary = document.getElementById('importSummary');
+const $importSummaryText = document.getElementById('importSummaryText');
+const $btnChangeImport = document.getElementById('btnChangeImport');
+const $sampleTable = document.getElementById('sampleTable');
+const $sampleBody = document.getElementById('sampleBody');
+const $emptyState = document.getElementById('emptyState');
+const $batchCard = document.getElementById('batchCard');
+const $batchGrid = document.getElementById('batchGrid');
+const $manualEntry = document.getElementById('manualEntry');
+const $exportRow = document.getElementById('exportRow');
+const $btnAddManual = document.getElementById('btnAddManual');
+
+// ── Persistence ────────────────────────────────────────────────────────
+function saveState() {
+  if (samples.length === 0) { localStorage.removeItem(LS_KEY); return; }
+  const clean = samples.map(s => { const { _result, ...r } = s; return r; });
+  localStorage.setItem(LS_KEY, JSON.stringify({
+    v: LS_VERSION,
+    mode, samples: clean, collapsed,
+    targetRNA: parseFloat($cfgTargetRNA.value) || 1000,
+    maxRNAVol: parseFloat(document.getElementById('cfgMaxRNAVol').value) || 19,
+    reactions: parseInt($cfgReactions.value) || 1,
+    superMix: parseFloat(document.getElementById('cfgSuperMix').value) || 4,
+    masterMix: parseFloat(document.getElementById('cfgMasterMix').value) || 4,
+    randomPrimer: parseFloat(document.getElementById('cfgRandomPrimer').value) || 2,
+    baseVol: parseFloat(document.getElementById('cfgBaseVol').value) || 20,
+    savedAt: Date.now()
+  }));
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (data.v !== LS_VERSION) { localStorage.removeItem(LS_KEY); return null; }
+    if (Date.now() - data.savedAt > 7 * 24 * 3600 * 1000) {
+      localStorage.removeItem(LS_KEY); return null;
+    }
+    return data;
+  } catch (e) { return null; }
+}
+
+// ── Reagents ───────────────────────────────────────────────────────────
+function getBaseReagents() {
+  if (mode === 'super') {
+    return { 'Super Mix': parseFloat(document.getElementById('cfgSuperMix').value) || 4 };
+  }
+  return {
+    'Master Mix': parseFloat(document.getElementById('cfgMasterMix').value) || 4,
+    'Random Primer': parseFloat(document.getElementById('cfgRandomPrimer').value) || 2
+  };
+}
+
+function reagentMap(scale) {
+  const base = getBaseReagents();
+  const scaled = {};
+  for (const [name, vol] of Object.entries(base)) {
+    scaled[name] = +((vol * scale).toFixed(1));
+  }
+  return scaled;
+}
+
+function totalReagentVol(scale) {
+  const r = reagentMap(scale);
+  return +Object.values(r).reduce((a, b) => a + b, 0).toFixed(1);
+}
+
+function totalVol(scale) {
+  const base = parseFloat(document.getElementById('cfgBaseVol').value) || 20;
+  return base * scale;
+}
+
+// ── Calculation ────────────────────────────────────────────────────────
+function calcSample(conc, userScale, baseTarget, maxRNAVol) {
+  const totalRNA = +(conc * maxRNAVol).toFixed(0);  // total ng available in sample
+
+  if (userScale > 0) {
+    const s = userScale;
+    const rxnAvail = +(totalVol(s) - totalReagentVol(s)).toFixed(1);
+    const target = +(baseTarget * s).toFixed(0);
+    const needed = +(target / conc).toFixed(1);
+    const rnaVol = Math.min(needed, rxnAvail, maxRNAVol);
+    const water = +(rxnAvail - rnaVol).toFixed(1);
+    const rnaUsed = +(rnaVol * conc).toFixed(0);
+    if (needed <= rnaVol + 0.05 && rnaUsed >= target - 0.5) {
+      return { scale: s, rnaVol: needed, water, rnaUsed: target, status: 'ok', target };
+    }
+    const cappedBy = (needed > maxRNAVol || totalRNA < target) && maxRNAVol < rxnAvail ? 'limit' : 'volume';
+    return { scale: s, rnaVol, water, rnaUsed, status: 'capped', excess: +(target - rnaUsed).toFixed(0), cappedBy, target };
+  }
+
+  // Auto: determine max scale from total RNA, then try to fit
+  let scale = 1;
+  if (totalRNA >= baseTarget * 2) scale = 2;
+  else if (totalRNA >= baseTarget * 1.5) scale = 1.5;
+
+  const s = scale;
+  const rxnAvail = +(totalVol(s) - totalReagentVol(s)).toFixed(1);
+  const target = +(baseTarget * s).toFixed(0);
+  const needed = +(target / conc).toFixed(1);
+  if (needed <= rxnAvail && needed <= maxRNAVol) {
+    const water = +(rxnAvail - needed).toFixed(1);
+    return { scale: s, rnaVol: needed, water, rnaUsed: target, status: 'ok', target };
+  }
+  // Target doesn't fit at this scale — cap at max possible for this scale
+  const rnaVol = Math.min(maxRNAVol, rxnAvail);
+  const water = +(rxnAvail - rnaVol).toFixed(1);
+  const rnaUsed = +(rnaVol * conc).toFixed(0);
+  const autoNeeded = +(target / conc).toFixed(1);
+  const cappedBy = (autoNeeded > maxRNAVol || totalRNA < target) && maxRNAVol < rxnAvail ? 'limit' : 'volume';
+  return { scale: s, rnaVol, water, rnaUsed, status: 'capped', excess: +(target - rnaUsed).toFixed(0), cappedBy, target };
+}
+
+// ── Render ─────────────────────────────────────────────────────────────
+function renderTable() {
+  const targetRNA = parseFloat($cfgTargetRNA.value) || 1000;
+  const maxRNAVol = parseFloat(document.getElementById('cfgMaxRNAVol').value) || 19;
+  const reactions = parseInt($cfgReactions.value) || 1;
+
+  if (samples.length === 0) {
+    $sampleTable.style.display = 'none';
+    $emptyState.style.display = '';
+    $batchCard.classList.remove('visible');
+    $manualEntry.style.display = '';
+    return;
+  }
+
+  $sampleTable.style.display = '';
+  $emptyState.style.display = 'none';
+  $manualEntry.style.display = '';
+  $exportRow.style.display = samples.length > 0 ? '' : 'none';
+
+  let html = '';
+  const batchTotals = {};
+
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i];
+    const res = calcSample(s.conc, s.scale, targetRNA, maxRNAVol);
+    s._result = res;
+
+    const rmap = reagentMap(res.scale);
+    const scaleLabel = res.scale === 1 ? '1×' : res.scale === 1.5 ? '1.5×' : '2×';
+    const cdnaConc = +(res.rnaUsed / totalVol(res.scale)).toFixed(1);
+
+    let scaleOpts = '';
+    for (const sc of SCALES) {
+      const sel = (sc.value === s.scale) ? ' selected' : '';
+      scaleOpts += `<option value="${sc.value}"${sel}>${sc.label}</option>`;
+    }
+
+    let statusHtml;
+    if (res.status === 'ok') {
+      const autoTag = s.scale < 0 ? ' (auto)' : '';
+      statusHtml = `<span class="status-tag ok">✓ ${scaleLabel}${autoTag}</span>`;
+    } else {
+      const reason = res.cappedBy === 'limit' ? `${maxRNAVol} µL limit` : `rxn vol`;
+      const excessText = res.excess > 0 ? ` <span class="excess-note">${res.excess} ng → −80°C</span>` : '';
+      statusHtml = `<span class="status-tag warn">⚠ Capped (${reason})${excessText}</span>`;
+    }
+
+    html += `<tr data-idx="${i}">
+      <td class="name-cell">${escHtml(s.name)}</td>
+      <td class="num-cell">${s.conc.toFixed(1)}</td>
+      <td class="ratio-cell">${s.a260_280 != null ? s.a260_280.toFixed(2) : '—'}</td>
+      <td class="ratio-cell">${s.a260_230 != null ? s.a260_230.toFixed(2) : '—'}</td>
+      <td class="t-center"><select class="scale-select" data-idx="${i}" data-field="scale">${scaleOpts}</select></td>
+      <td class="conc-ro">${res.rnaVol.toFixed(1)} µL</td>
+      <td class="vol-ro">${res.water.toFixed(1)} µL</td>
+      <td class="num-cell">${res.rnaUsed} ng</td>
+      <td class="num-cell">${cdnaConc} ng/µL</td>
+      <td>${statusHtml}</td>
+    </tr>`;
+
+    for (const [name, vol] of Object.entries(rmap)) {
+      batchTotals[name] = (batchTotals[name] || 0) + vol * reactions;
+    }
+    batchTotals['Nuclease-free Water'] = (batchTotals['Nuclease-free Water'] || 0) + res.water * reactions;
+  }
+
+  $sampleBody.innerHTML = html;
+
+  // Batch summary
+  if (samples.length > 0) {
+    $batchCard.classList.add('visible');
+    let batchHtml = '';
+    for (const [name, vol] of Object.entries(batchTotals)) {
+      batchHtml += `<div class="batch-item">
+        <div class="batch-label">${name}</div>
+        <div class="batch-value">${vol.toFixed(1)} <span class="batch-unit">µL</span></div>
+      </div>`;
+    }
+    $batchGrid.innerHTML = batchHtml;
+  }
+
+  // Attach scale listeners
+  document.querySelectorAll('.scale-select').forEach(sel => {
+    sel.addEventListener('change', function() {
+      const idx = parseInt(this.dataset.idx);
+      samples[idx].scale = parseFloat(this.value);
+      renderTable();
+      saveState();
+    });
+  });
+
+  // Auto-collapse import
+  if (!collapsed) {
+    collapseImport();
+  }
+}
+
+function escHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+// ── Collapse / expand import ───────────────────────────────────────────
+function collapseImport() {
+  $importSection.classList.add('collapsed');
+  collapsed = true;
+  if (samples.length > 0) {
+    $importSummaryText.textContent = `Loaded ${samples.length} sample${samples.length > 1 ? 's' : ''}`;
+    $importSummary.classList.add('visible');
+  }
+}
+
+function expandImport() {
+  $importSection.classList.remove('collapsed');
+  collapsed = false;
+  $importSummary.classList.remove('visible');
+}
+
+// ── CSV parsing ────────────────────────────────────────────────────────
+function parseCSV(text) {
+  // Normalize line endings
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = normalized.split('\n').filter(l => l.trim());
+  if (lines.length < 2) return { error: 'CSV too short — need at least a header + 1 data row' };
+
+  const header = lines[0].split('\t');
+  const colIdx = {};
+  for (let i = 0; i < header.length; i++) {
+    const h = header[i].trim().toLowerCase().replace(/\s+/g, ' ').replace(/[\u00A0]/g, ' ');
+    colIdx[h] = i;
+  }
+
+  // Detect required column: "Nucleic Acid(ng/uL)" or "Corrected (ng/uL)"
+  const nameCol = colIdx['sample name'];
+  let concCol = colIdx['nucleic acid(ng/ul)'] ?? colIdx['nucleic acid(ng/µl)'];
+  const correctedCol = colIdx['corrected (ng/ul)'] ?? colIdx['corrected (ng/µl)'];
+  // If main conc column not found, try corrected
+  if (concCol == null) concCol = correctedCol;
+
+  if (concCol == null) {
+    return { error: `Missing concentration column. Found: ${Object.keys(colIdx).join(', ')}. Need "Nucleic Acid(ng/uL)" or "Corrected (ng/uL)".` };
+  }
+
+  const a260_280Col = colIdx['a260/a280'] ?? colIdx['260/280'];
+  const a260_230Col = colIdx['a260/a230'] ?? colIdx['260/230'];
+
+  const parsed = [];
+  let autoNameIdx = 0;
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split('\t');
+
+    // Try main conc first, then corrected
+    let concStr = (cols[concCol] || '').trim();
+    // If main column is empty but corrected exists, use corrected
+    const mainConcCol = colIdx['nucleic acid(ng/ul)'] ?? colIdx['nucleic acid(ng/µl)'];
+    if (mainConcCol != null && correctedCol != null) {
+      const mainVal = (cols[mainConcCol] || '').trim();
+      if (!mainVal || isNaN(parseFloat(mainVal))) {
+        const corrVal = (cols[correctedCol] || '').trim();
+        if (corrVal && !isNaN(parseFloat(corrVal))) concStr = corrVal;
+      }
+    }
+
+    const conc = parseFloat(concStr);
+    if (isNaN(conc) || conc <= 0) continue;  // skip empty readings
+
+    // Sample name — auto-generate if empty
+    let name = '';
+    if (nameCol != null) {
+      name = (cols[nameCol] || '').trim();
+    }
+    if (!name) {
+      autoNameIdx++;
+      // Try to use a readable name from nearby columns (e.g. impurity info)
+      name = `Sample ${autoNameIdx}`;
+    }
+
+    const a260_280 = a260_280Col != null ? parseFloat(cols[a260_280Col]) || null : null;
+    const a260_230 = a260_230Col != null ? parseFloat(cols[a260_230Col]) || null : null;
+
+    parsed.push({
+      name,
+      conc,
+      a260_280: isNaN(a260_280) ? null : a260_280,
+      a260_230: isNaN(a260_230) ? null : a260_230,
+      scale: -1  // auto by default
+    });
+  }
+
+  if (parsed.length === 0) {
+    return { error: 'No valid data rows found. Check that the CSV has concentration values.' };
+  }
+
+  return { samples: parsed };
+}
+
+// ── Event handlers ─────────────────────────────────────────────────────
+$modeTabs.addEventListener('click', function(e) {
+  const tab = e.target.closest('.mode-tab');
+  if (!tab) return;
+  mode = tab.dataset.mode;
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  if (mode === 'super') {
+    $fldSuperMix.style.display = ''; $fldMasterMix.style.display = 'none'; $fldRandomPrimer.style.display = 'none';
+  } else {
+    $fldSuperMix.style.display = 'none'; $fldMasterMix.style.display = ''; $fldRandomPrimer.style.display = '';
+  }
+  renderTable();
+  saveState();
+});
+
+$importHeader.addEventListener('click', function() {
+  if ($importSection.classList.contains('collapsed')) {
+    expandImport();
+    saveState();
+  }
+});
+
+$btnChangeImport.addEventListener('click', function(e) {
+  e.stopPropagation();
+  expandImport();
+  saveState();
+});
+
+$btnFile.addEventListener('click', function() { $fileInput.click(); });
+
+$fileInput.addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  $fileInfo.textContent = file.name;
+  $fileInfo.classList.add('visible');
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const bytes = new Uint8Array(e.target.result);
+    let text;
+    // Detect UTF-16 by BOM (FF FE = LE, FE FF = BE)
+    if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
+      text = new TextDecoder('utf-16le').decode(bytes);
+    } else if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
+      text = new TextDecoder('utf-16be').decode(bytes);
+    } else {
+      // Try UTF-8 first; if we see null bytes, fall back to UTF-16LE
+      text = new TextDecoder('utf-8').decode(bytes);
+      if (text.indexOf('\0') !== -1) {
+        text = new TextDecoder('utf-16le').decode(bytes);
+      }
+    }
+    $csvTextarea.value = text;
+    $btnParse.disabled = false;
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+$csvTextarea.addEventListener('input', function() {
+  $btnParse.disabled = !this.value.trim();
+});
+
+$btnParse.addEventListener('click', function() {
+  const text = $csvTextarea.value.trim();
+  if (!text) return;
+  const result = parseCSV(text);
+  if (result.error) {
+    alert('Parse error: ' + result.error);
+    return;
+  }
+  samples = result.samples;
+  renderTable();
+  saveState();
+});
+
+$btnAddManual.addEventListener('click', function() {
+  const name = document.getElementById('manName').value.trim();
+  const conc = parseFloat(document.getElementById('manConc').value);
+  if (!name || isNaN(conc) || conc <= 0) {
+    alert('Please enter a sample name and valid concentration.');
+    return;
+  }
+  samples.push({ name, conc, a260_280: null, a260_230: null, scale: -1 });
+  document.getElementById('manName').value = '';
+  document.getElementById('manConc').value = '';
+  renderTable();
+  saveState();
+});
+
+// Recalculate on config changes
+function onConfigChange() { renderTable(); saveState(); }
+document.querySelectorAll('#reagentRow input').forEach(inp => {
+  inp.addEventListener('input', onConfigChange);
+});
+$cfgTargetRNA.addEventListener('input', onConfigChange);
+$cfgReactions.addEventListener('input', onConfigChange);
+document.getElementById('cfgMaxRNAVol').addEventListener('input', onConfigChange);
+document.getElementById('cfgBaseVol').addEventListener('input', onConfigChange);
+
+// ── Export ──────────────────────────────────────────────────────────────
+function buildExportCSV() {
+  const targetRNA = parseFloat($cfgTargetRNA.value) || 1000;
+  const maxRNAVol = parseFloat(document.getElementById('cfgMaxRNAVol').value) || 19;
+  const header = 'Sample,Conc (ng/µL),A260/A280,A260/A230,Scale,RNA Vol (µL),Water (µL),RNA Used (ng),cDNA Conc (ng/µL),Status';
+  const rows = samples.map(s => {
+    const res = calcSample(s.conc, s.scale, targetRNA, maxRNAVol);
+    const scaleLabel = res.scale === 1 ? '1×' : res.scale === 1.5 ? '1.5×' : '2×';
+    const cdnaConc = +(res.rnaUsed / totalVol(res.scale)).toFixed(1);
+    const status = res.status === 'ok' ? `OK ${scaleLabel}` : `Capped (${res.cappedBy || 'volume'})`;
+    return `${s.name},${s.conc.toFixed(1)},${s.a260_280 != null ? s.a260_280.toFixed(2) : ''},${s.a260_230 != null ? s.a260_230.toFixed(2) : ''},${scaleLabel},${res.rnaVol.toFixed(1)},${res.water.toFixed(1)},${res.rnaUsed},${cdnaConc},${status}`;
+  });
+  return header + '\n' + rows.join('\n');
+}
+
+document.getElementById('btnCopyCSV').addEventListener('click', function() {
+  const csv = buildExportCSV();
+  labtoolsCopyText(csv).then(() => {
+    this.textContent = 'Copied!';
+    setTimeout(() => { this.textContent = 'Copy CSV'; }, 1500);
+  }).catch(() => {
+    // fallback: select text manually
+    const ta = document.createElement('textarea');
+    ta.value = csv; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    alert('Press Ctrl+C / Cmd+C to copy, then close this dialog.');
+    document.body.removeChild(ta);
+  });
+});
+
+document.getElementById('btnDownloadCSV').addEventListener('click', function() {
+  const csv = buildExportCSV();
+  const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  const a = document.createElement('a');
+  a.href = dataUri;
+  a.download = 'rt-calc-results.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+});
+
+// ── Init ────────────────────────────────────────────────────────────────
+function init() {
+  const saved = loadState();
+  if (saved) {
+    mode = saved.mode || 'super';
+    samples = saved.samples || [];
+    collapsed = saved.collapsed || false;
+    if (saved.targetRNA != null) $cfgTargetRNA.value = saved.targetRNA;
+    if (saved.maxRNAVol != null) document.getElementById('cfgMaxRNAVol').value = saved.maxRNAVol;
+    if (saved.reactions != null) $cfgReactions.value = saved.reactions;
+    if (saved.superMix != null) document.getElementById('cfgSuperMix').value = saved.superMix;
+    if (saved.masterMix != null) document.getElementById('cfgMasterMix').value = saved.masterMix;
+    if (saved.randomPrimer != null) document.getElementById('cfgRandomPrimer').value = saved.randomPrimer;
+    if (saved.baseVol != null) document.getElementById('cfgBaseVol').value = saved.baseVol;
+
+    document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+    const activeTab = document.querySelector(`.mode-tab[data-mode="${mode}"]`);
+    if (activeTab) activeTab.classList.add('active');
+
+    if (mode === 'super') {
+      $fldSuperMix.style.display = ''; $fldMasterMix.style.display = 'none'; $fldRandomPrimer.style.display = 'none';
+    } else {
+      $fldSuperMix.style.display = 'none'; $fldMasterMix.style.display = ''; $fldRandomPrimer.style.display = '';
+    }
+
+    if (collapsed && samples.length > 0) {
+      $importSection.classList.add('collapsed');
+      $importSummaryText.textContent = `Loaded ${samples.length} sample${samples.length > 1 ? 's' : ''}`;
+      $importSummary.classList.add('visible');
+    }
+    renderTable();
+  }
+}
+
+init();
+</script>
+
+</body>
+</html>
