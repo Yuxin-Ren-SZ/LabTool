@@ -909,37 +909,34 @@ $btnReset.addEventListener('click', resetAll);
 
 // ── Init ────────────────────────────────────────────────────────────────
 function init() {
-  const saved = loadState();
-  if (saved) {
-    mode = saved.mode || 'super';
-    samples = saved.samples || [];
-    collapsed = saved.collapsed || false;
-    if (saved.targetRNA != null) $cfgTargetRNA.value = saved.targetRNA;
-    if (saved.maxRNAVol != null) document.getElementById('cfgMaxRNAVol').value = saved.maxRNAVol;
-    if (saved.reactions != null) $cfgReactions.value = saved.reactions;
-    if (saved.superMix != null) document.getElementById('cfgSuperMix').value = saved.superMix;
-    if (saved.masterMix != null) document.getElementById('cfgMasterMix').value = saved.masterMix;
-    if (saved.randomPrimer != null) document.getElementById('cfgRandomPrimer').value = saved.randomPrimer;
-    if (saved.baseVol != null) document.getElementById('cfgBaseVol').value = saved.baseVol;
+  // Persistence is disabled — drop any stale state saved by older versions
+  // so it can never be restored.
+  try { localStorage.removeItem(LS_KEY); } catch (e) {}
 
-    document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
-    const activeTab = document.querySelector(`.mode-tab[data-mode="${mode}"]`);
-    if (activeTab) activeTab.classList.add('active');
+  // Stop the browser from auto-restoring previously typed values on reload.
+  document.querySelectorAll('input').forEach(i => i.setAttribute('autocomplete', 'off'));
 
-    if (mode === 'super') {
-      $fldSuperMix.style.display = ''; $fldMasterMix.style.display = 'none'; $fldRandomPrimer.style.display = 'none';
-    } else {
-      $fldSuperMix.style.display = 'none'; $fldMasterMix.style.display = ''; $fldRandomPrimer.style.display = '';
-    }
+  // Force every config field to its default, ignoring any browser-restored value.
+  document.getElementById('cfgBaseVol').value = '20';
+  document.getElementById('cfgSuperMix').value = '4';
+  document.getElementById('cfgMasterMix').value = '4';
+  document.getElementById('cfgRandomPrimer').value = '2';
+  $cfgTargetRNA.value = '1000';
+  $cfgReactions.value = '1';
+  document.getElementById('cfgMaxRNAVol').value = '19';
 
-    if (collapsed && samples.length > 0) {
-      $importSection.classList.add('collapsed');
-      $importSummaryText.textContent = `Loaded ${samples.length} sample${samples.length > 1 ? 's' : ''}`;
-      $importSummary.classList.add('visible');
-    }
-    renderTable();
-  }
+  mode = 'super';
+  samples = [];
+  collapsed = false;
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.mode-tab[data-mode="super"]').classList.add('active');
+  $fldSuperMix.style.display = ''; $fldMasterMix.style.display = 'none'; $fldRandomPrimer.style.display = 'none';
+
+  renderTable();
 }
+
+// Re-apply a clean state if the page is restored from the bfcache (back/forward).
+window.addEventListener('pageshow', function (e) { if (e.persisted) init(); });
 
 init();
 </script>
