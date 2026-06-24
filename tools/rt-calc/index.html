@@ -234,6 +234,16 @@
       <h1 class="page-title">Reverse Transcription Calculator</h1>
       <p class="page-sub">NEB LunaScript RT — import Nanodrop CSV, auto-scale reaction volume, calculate reagent batch totals. <span style="color:var(--text-dim);font-size:0.65rem;">v2</span></p>
 
+      <!-- Kit preset -->
+      <div class="section-row" id="presetRow">
+        <span class="section-name">Kit Preset</span>
+        <select class="cfg-input" id="cfgPreset" style="width:auto;text-align:left;">
+          <option value="e3010">LunaScript RT SuperMix Kit · NEB E3010</option>
+          <option value="e3025_rp">LunaScript RT MasterMix Kit · NEB E3025 · Random Primer</option>
+          <option value="e3025_dt">LunaScript RT MasterMix Kit · NEB E3025 · Oligo-d(T)₂₃VN</option>
+        </select>
+      </div>
+
       <!-- Mode tabs -->
       <div class="mode-tabs" id="modeTabs">
         <button class="mode-tab active" data-mode="super"  id="tab-super">Super Mix</button>
@@ -259,8 +269,8 @@
           <span class="cfg-unit">µL</span>
         </span>
         <span id="fldRandomPrimer" style="display:none">
-          Random Primer
-          <input type="number" class="cfg-input" id="cfgRandomPrimer" value="2" step="0.1" min="0" />
+          <span id="lblPrimer">Random Primer</span>
+          <input type="number" class="cfg-input" id="cfgRandomPrimer" value="1" step="0.1" min="0" />
           <span class="cfg-unit">µL</span>
         </span>
         <span style="margin-left:12px;">Target RNA</span>
@@ -377,6 +387,18 @@ const SCALES = [
   { label: 'Auto', value: -1 }
 ];
 
+// NEB LunaScript kit presets — standard 20 µL reaction setups.
+//   E3010 SuperMix: 4 µL of 5X SuperMix (primers included).
+//   E3025 MasterMix (primer-free): 4 µL of 5X MasterMix + a separate primer —
+//     Random Primer Mix 60 µM → 1 µL, or Oligo-d(T)23VN 50 µM → 2 µL.
+const KIT_PRESETS = {
+  e3010:    { mode: 'super',  baseVol: 20, superMix: 4 },
+  e3025_rp: { mode: 'master', baseVol: 20, masterMix: 4, primer: 1, primerName: 'Random Primer' },
+  e3025_dt: { mode: 'master', baseVol: 20, masterMix: 4, primer: 2, primerName: 'Oligo-d(T)' },
+};
+// Display/label for the master-mix primer reagent (also used as its batch key).
+let primerName = 'Random Primer';
+
 // ── DOM refs ───────────────────────────────────────────────────────────
 const $modeTabs = document.getElementById('modeTabs');
 const $fldSuperMix = document.getElementById('fldSuperMix');
@@ -448,10 +470,32 @@ function getBaseReagents() {
   if (mode === 'super') {
     return { 'Super Mix': parseFloat(document.getElementById('cfgSuperMix').value) || 4 };
   }
-  return {
-    'Master Mix': parseFloat(document.getElementById('cfgMasterMix').value) || 4,
-    'Random Primer': parseFloat(document.getElementById('cfgRandomPrimer').value) || 2
-  };
+  const out = { 'Master Mix': parseFloat(document.getElementById('cfgMasterMix').value) || 4 };
+  out[primerName] = parseFloat(document.getElementById('cfgRandomPrimer').value) || 0;
+  return out;
+}
+
+// Apply a kit preset: set mode, reagent volumes, and primer label.
+function applyPreset(key) {
+  const p = KIT_PRESETS[key];
+  if (!p) return;
+  mode = p.mode;
+  document.getElementById('cfgBaseVol').value = p.baseVol;
+  if (p.mode === 'super') {
+    document.getElementById('cfgSuperMix').value = p.superMix;
+  } else {
+    document.getElementById('cfgMasterMix').value = p.masterMix;
+    document.getElementById('cfgRandomPrimer').value = p.primer;
+    primerName = p.primerName;
+    document.getElementById('lblPrimer').textContent = p.primerName;
+  }
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+  if (mode === 'super') {
+    $fldSuperMix.style.display = ''; $fldMasterMix.style.display = 'none'; $fldRandomPrimer.style.display = 'none';
+  } else {
+    $fldSuperMix.style.display = 'none'; $fldMasterMix.style.display = ''; $fldRandomPrimer.style.display = '';
+  }
+  renderTable();
 }
 
 function reagentMap(scale) {
@@ -747,6 +791,11 @@ $modeTabs.addEventListener('click', function(e) {
   saveState();
 });
 
+document.getElementById('cfgPreset').addEventListener('change', function() {
+  applyPreset(this.value);
+  saveState();
+});
+
 $importHeader.addEventListener('click', function() {
   if ($importSection.classList.contains('collapsed')) {
     expandImport();
@@ -876,22 +925,19 @@ document.getElementById('btnDownloadCSV').addEventListener('click', function() {
 function resetAll() {
   if (samples.length > 0 && !confirm('Clear all samples and reset settings?')) return;
   samples = [];
-  mode = 'super';
   collapsed = false;
 
   // Restore config inputs to their defaults
-  document.getElementById('cfgBaseVol').value = '20';
   document.getElementById('cfgSuperMix').value = '4';
   document.getElementById('cfgMasterMix').value = '4';
-  document.getElementById('cfgRandomPrimer').value = '2';
+  document.getElementById('cfgRandomPrimer').value = '1';
   $cfgTargetRNA.value = '1000';
   $cfgReactions.value = '1';
   document.getElementById('cfgMaxRNAVol').value = '19';
 
-  // Reset mode tabs to Super Mix
-  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
-  document.querySelector('.mode-tab[data-mode="super"]').classList.add('active');
-  $fldSuperMix.style.display = ''; $fldMasterMix.style.display = 'none'; $fldRandomPrimer.style.display = 'none';
+  // Reset to the default SuperMix kit (E3010) — sets mode, volumes, tabs.
+  document.getElementById('cfgPreset').value = 'e3010';
+  applyPreset('e3010');
 
   // Clear and re-open the import section
   $csvTextarea.value = '';
@@ -917,22 +963,19 @@ function init() {
   document.querySelectorAll('input').forEach(i => i.setAttribute('autocomplete', 'off'));
 
   // Force every config field to its default, ignoring any browser-restored value.
-  document.getElementById('cfgBaseVol').value = '20';
   document.getElementById('cfgSuperMix').value = '4';
   document.getElementById('cfgMasterMix').value = '4';
-  document.getElementById('cfgRandomPrimer').value = '2';
+  document.getElementById('cfgRandomPrimer').value = '1';
   $cfgTargetRNA.value = '1000';
   $cfgReactions.value = '1';
   document.getElementById('cfgMaxRNAVol').value = '19';
 
-  mode = 'super';
   samples = [];
   collapsed = false;
-  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
-  document.querySelector('.mode-tab[data-mode="super"]').classList.add('active');
-  $fldSuperMix.style.display = ''; $fldMasterMix.style.display = 'none'; $fldRandomPrimer.style.display = 'none';
 
-  renderTable();
+  // Default to the SuperMix kit (E3010); applyPreset sets mode, volumes, tabs.
+  document.getElementById('cfgPreset').value = 'e3010';
+  applyPreset('e3010');
 }
 
 // Re-apply a clean state if the page is restored from the bfcache (back/forward).
