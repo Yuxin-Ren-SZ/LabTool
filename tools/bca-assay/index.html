@@ -1170,16 +1170,16 @@ function runPlateCalc() {
   // Build rows for runCalc
   stdRows = [...stdM.entries()].sort((a, b) => a[0] - b[0]).map(([c, ods]) => ({
     conc: String(c),
-    od1: String(ods[0] || ''),
-    od2: ods.length >= 2 ? String(ods[1]) : '',
-    od3: ods.length >= 3 ? String(ods[2]) : '',
+    od1: ods.length<=3 ? String(ods[0] || '') : String(ods.reduce((s,v)=>s+v,0)/ods.length),
+    od2: (ods.length===2||ods.length===3) ? String(ods[1]) : '',
+    od3: ods.length===3 ? String(ods[2]) : '',
   }));
 
   smpRows = [...smpM.values()].map(g => ({
     name: g.name,
-    od1: String(g.ods[0] || ''),
-    od2: g.ods.length >= 2 ? String(g.ods[1]) : '',
-    od3: g.ods.length >= 3 ? String(g.ods[2]) : '',
+    od1: g.ods.length<=3 ? String(g.ods[0] || '') : String(g.ods.reduce((s,v)=>s+v,0)/g.ods.length),
+    od2: (g.ods.length===2||g.ods.length===3) ? String(g.ods[1]) : '',
+    od3: g.ods.length===3 ? String(g.ods[2]) : '',
     df: String(g.df),
   }));
 
@@ -1193,10 +1193,8 @@ function runPlateCalc() {
 
   runCalc();
 
-  // Restore if needed (but keep results)
-  if (tpl) {
-    document.getElementById('res-conc-header').textContent = `Conc (${tpl.unit})`;
-  }
+  // Restore preset state (results/header already reflect the plate template)
+  currentPreset = savedPreset;
 }
 
 function updateSmpConcs() {
@@ -1739,14 +1737,14 @@ function buildFromPlate(){
   stdRows=[...stdM.entries()].sort((a,b)=>a[0]-b[0]).map(([c,ods])=>({
     conc:String(c),
     od1:ods.length<=3?String(ods[0]||''):String(ods.reduce((s,v)=>s+v,0)/ods.length),
-    od2:ods.length>=2?String(ods[1]):'',
-    od3:ods.length>=3?String(ods[2]):'',
+    od2:(ods.length===2||ods.length===3)?String(ods[1]):'',
+    od3:ods.length===3?String(ods[2]):'',
   }));
   smpRows=[...smpM.values()].map(g=>({
     name:g.name,
     od1:g.ods.length<=3?String(g.ods[0]||''):String(g.ods.reduce((s,v)=>s+v,0)/g.ods.length),
-    od2:g.ods.length>=2?String(g.ods[1]):'',
-    od3:g.ods.length>=3?String(g.ods[2]):'',
+    od2:(g.ods.length===2||g.ods.length===3)?String(g.ods[1]):'',
+    od3:g.ods.length===3?String(g.ods[2]):'',
     df:String(g.df),
   }));
 
