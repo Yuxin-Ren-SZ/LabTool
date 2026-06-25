@@ -136,8 +136,34 @@
 
     .empty-state { text-align: center; padding: 18px; color: var(--text-muted); font-size: var(--fs-sm); }
 
+    /* ── Selection / bulk-assign bar ── */
+    .sel-bar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      margin-top: 12px; padding: 10px 12px;
+      background: var(--surface-subtle); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+    }
+    .sel-bar.has-sel { border-color: var(--blue-border); background: var(--blue-bg); }
+    .sel-count { font-size: var(--fs-sm); font-weight: 700; color: var(--text-secondary); white-space: nowrap; }
+    .sel-count b { color: var(--blue-dark); }
+    .grp-input {
+      flex: 1; min-width: 150px; max-width: 280px; padding: 6px 10px;
+      border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      font-size: var(--fs-sm); font-family: var(--font); color: var(--text);
+      background: var(--surface); outline: none; transition: border-color 0.12s;
+    }
+    .grp-input:focus { border-color: var(--blue); }
+    .sel-spacer { flex: 1 1 auto; }
+    #plateSvg { touch-action: none; -webkit-user-select: none; user-select: none; }
+    .col-lbl, .row-lbl { cursor: pointer; }
+
+    /* table checkbox column */
+    table.data th.chk-col, table.data td.chk-col { width: 30px; text-align: center; padding-left: 6px; padding-right: 6px; }
+    .row-chk, .all-chk { cursor: pointer; }
+
     @media (max-width: 640px) {
       .section-tools { width: 100%; margin-left: 0; }
+      .grp-input { max-width: none; }
     }
   </style>
 </head>
@@ -197,6 +223,7 @@
                 <button data-mode="call" class="active">Final call</button>
                 <button data-mode="cq">Cq gradient</button>
                 <button data-mode="target">Target</button>
+                <button data-mode="sample">Sample</button>
               </div>
               <button class="btn-sm" id="btnPlatePng">PNG</button>
             </div>
@@ -204,8 +231,25 @@
           <div class="plate-wrap">
             <svg id="plateSvg" xmlns="http://www.w3.org/2000/svg"></svg>
           </div>
+
+          <!-- Selection + bulk group assignment -->
+          <div class="sel-bar" id="selBar">
+            <span class="sel-count" id="selCount"><b>0</b> wells selected</span>
+            <input class="grp-input" id="grpInput" list="sampleNameList" placeholder="Group / sample name…" autocomplete="off" />
+            <datalist id="sampleNameList"></datalist>
+            <button class="btn-sm primary" id="btnAssign">Assign to selection</button>
+            <button class="btn-sm" id="btnClearName">Clear name</button>
+            <span class="sel-spacer"></span>
+            <button class="btn-sm" id="btnSelPos">Select positives</button>
+            <button class="btn-sm" id="btnSelAll">Select all</button>
+            <button class="btn-sm" id="btnSelNone">Clear selection</button>
+          </div>
           <div class="plate-legend" id="plateLegend"></div>
-          <p class="drop-zone-sub" style="margin-top:8px;">Click a well to toggle its amplification curve in the chart below.</p>
+          <p class="drop-zone-sub" style="margin-top:8px;">
+            Drag across wells to select a block, click row/column headers to select a whole row/column, or
+            tick rows in the table (Shift-click for a range). Type a name and <b>Assign to selection</b> to
+            group them — the chart plots the current selection.
+          </p>
         </div>
 
         <!-- Amplification curves -->
@@ -331,10 +375,14 @@ const state = {
   fltDye: '',
   fltCall: '',
   ampScale: 'linear',
-  selected: new Set(),   // "WELL|DYE" plotted in chart
+  selWells: new Set(),   // WELL ids selected (drives grouping + chart)
   sort: { col: 'well', dir: 1 },
   files: [],             // {name, type}
+  wellsPresent: new Set(),
+  plateGeom: null,       // { ML, MT, pitch, rad, nRows, nCols }
+  lastRowIdx: null,      // for Shift-range selection in the table
 };
+const drag = { active: false, mode: 'add', baseline: null, start: null, last: null };
 
 const $ = id => document.getElementById(id);
 const NULLISH = /^(no cq|n\/a|no reference|no tm|---|\s*)$/i;
@@ -567,7 +615,9 @@ async function handleFiles(fileList) {
   state.notes = parsed.notes;
   state.byKey = new Map();
   state.sampleByWell = {};
-  state.selected = new Set();
+  state.selWells = new Set();
+  state.wellsPresent = new Set(state.records.map(r => r.well));
+  state.lastRowIdx = null;
 
   for (const r of state.records) {
     const key = r.well + '|' + r.dye;
@@ -616,6 +666,7 @@ function renderAll() {
   renderDDControls();
   renderDD();
   renderChart();
+  updateSelBar();
 }
 
 function renderFileList() {
@@ -672,9 +723,18 @@ function targetColor(target) {
   const i = state.targets.indexOf(target);
   return PALETTE[(i < 0 ? 0 : i) % PALETTE.length];
 }
+function sortedSamples() {
+  return uniq(state.records.map(r => r.sampleName).filter(Boolean)).sort();
+}
+function sampleColor(name) {
+  if (!name) return '#eef0f2';
+  const i = sortedSamples().indexOf(name);
+  return PALETTE[(i < 0 ? 0 : i) % PALETTE.length];
+}
 function wellFill(r, range) {
   if (state.plateMode === 'call') return r.call === '+' ? '#57a85a' : (r.call === '-' ? '#eceae6' : '#f5f4f2');
   if (state.plateMode === 'target') return r.cq != null ? targetColor(r.target) : '#f0efed';
+  if (state.plateMode === 'sample') return sampleColor(r.sampleName);
   // cq gradient: low Cq (abundant) = dark green, high Cq = pale
   if (r.cq == null || !range) return '#f0efed';
   const t = range.max === range.min ? 0 : (r.cq - range.min) / (range.max - range.min);
@@ -688,35 +748,35 @@ function renderPlate() {
   const ML = 26, MT = 22, pitch = 38, rad = 15;
   const W = ML + nCols * pitch + 8;
   const H = MT + nRows * pitch + 8;
+  state.plateGeom = { ML, MT, pitch, rad, nRows, nCols };
   const range = cqRange(state.plateDye);
   const byWell = new Map(recs.map(r => [r.well, r]));
 
   let s = '';
-  // column labels
+  // column labels (clickable: select whole column)
   for (let c = 0; c < nCols; c++) {
     const x = ML + c * pitch + pitch / 2;
-    s += `<text x="${x}" y="${MT - 7}" text-anchor="middle" font-size="11" fill="var(--text-muted)" font-family="var(--font)">${c + 1}</text>`;
+    s += `<text class="col-lbl" data-col="${c}" x="${x}" y="${MT - 7}" text-anchor="middle" font-size="11" fill="var(--text-muted)" font-family="var(--font)">${c + 1}</text>`;
   }
   for (let row = 0; row < nRows; row++) {
     const rowLetter = String.fromCharCode(65 + row);
     const y = MT + row * pitch + pitch / 2;
-    s += `<text x="${ML - 9}" y="${y + 4}" text-anchor="middle" font-size="11" fill="var(--text-muted)" font-family="var(--font)">${rowLetter}</text>`;
+    s += `<text class="row-lbl" data-row="${row}" x="${ML - 9}" y="${y + 4}" text-anchor="middle" font-size="11" fill="var(--text-muted)" font-family="var(--font)">${rowLetter}</text>`;
     for (let c = 0; c < nCols; c++) {
       const well = rowLetter + (c + 1);
       const cx = ML + c * pitch + pitch / 2;
       const cy = MT + row * pitch + pitch / 2;
       const r = byWell.get(well);
       const fill = r ? wellFill(r, range) : '#fafafa';
-      const key = well + '|' + state.plateDye;
-      const isSel = state.selected.has(key);
+      const isSel = state.selWells.has(well);
       const stroke = isSel ? 'var(--blue-dark)' : '#d8d6d0';
-      const sw = isSel ? 2.5 : 1.2;
+      const sw = isSel ? 3 : 1.2;
       const label = r ? cqLabel(r) : '';
-      const tip = r ? `${well} · ${state.plateDye}${r.sampleName ? ' · ' + r.sampleName : ''} · ${r.target}\nCq: ${r.cq != null ? r.cq.toFixed(2) : 'No Cq'} · Call: ${r.call || '—'}` : well;
-      s += `<g class="well-g" data-well="${well}" style="cursor:pointer">`;
+      const tip = r ? `${well}${r.sampleName ? ' · ' + r.sampleName : ''} · ${state.plateDye} · ${r.target}\nCq: ${r.cq != null ? r.cq.toFixed(2) : 'No Cq'} · Call: ${r.call || '—'}` : well;
+      s += `<g class="well-g" style="pointer-events:none">`;
       s += `<title>${esc(tip)}</title>`;
       s += `<circle cx="${cx}" cy="${cy}" r="${rad}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
-      if (label) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" font-size="8.5" fill="${labelColor(fill)}" font-family="var(--font-mono)" style="pointer-events:none">${label}</text>`;
+      if (label) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" font-size="8.5" fill="${labelColor(fill)}" font-family="var(--font-mono)">${label}</text>`;
       s += `</g>`;
     }
   }
@@ -725,9 +785,6 @@ function renderPlate() {
   svg.setAttribute('width', W);
   svg.setAttribute('height', H);
   svg.innerHTML = s;
-  svg.querySelectorAll('.well-g').forEach(g => {
-    g.addEventListener('click', () => toggleSelect(g.dataset.well + '|' + state.plateDye));
-  });
   renderLegend(range);
 }
 function cqLabel(r) {
@@ -752,17 +809,106 @@ function renderLegend(range) {
     wrap.innerHTML = `<span>Cq ${range.min.toFixed(1)}` +
       `<span class="legend-bar" style="margin:0 6px;background:linear-gradient(90deg,#2d7a2d,#dcefdc)"></span>${range.max.toFixed(1)}</span>` +
       `<span><span class="legend-swatch" style="background:#f0efed"></span>No Cq</span>`;
+  } else if (state.plateMode === 'sample') {
+    const samples = sortedSamples();
+    if (!samples.length) { wrap.innerHTML = '<span>No samples named yet — select wells and Assign a name.</span>'; return; }
+    wrap.innerHTML = samples.map(n =>
+      `<span><span class="legend-swatch" style="background:${sampleColor(n)}"></span>${esc(n)}</span>`).join('') +
+      `<span><span class="legend-swatch" style="background:#eef0f2"></span>Unassigned</span>`;
   } else {
     wrap.innerHTML = state.targets.map(t =>
       `<span><span class="legend-swatch" style="background:${targetColor(t)}"></span>${esc(t)}</span>`).join('');
   }
 }
 
-function toggleSelect(key) {
-  if (state.selected.has(key)) state.selected.delete(key); else state.selected.add(key);
+// ── Well selection (drives grouping + chart) ────────────────────────────────
+function setWellSel(well, on) {
+  if (!state.wellsPresent.has(well)) return;
+  if (on) state.selWells.add(well); else state.selWells.delete(well);
+}
+function selectWells(wells, on) { for (const w of wells) setWellSel(w, on); }
+// Apply a rectangular block (between two {row,col} cells) to a baseline set.
+function applyRect(baseline, a, b, on) {
+  state.selWells = new Set(baseline);
+  const r0 = Math.min(a.row, b.row), r1 = Math.max(a.row, b.row);
+  const c0 = Math.min(a.col, b.col), c1 = Math.max(a.col, b.col);
+  for (let row = r0; row <= r1; row++)
+    for (let col = c0; col <= c1; col++)
+      setWellSel(String.fromCharCode(65 + row) + (col + 1), on);
+}
+function wellsInRow(row) {
+  const L = String.fromCharCode(65 + row);
+  return Array.from({ length: state.plateGeom.nCols }, (_, c) => L + (c + 1)).filter(w => state.wellsPresent.has(w));
+}
+function wellsInCol(col) {
+  return Array.from({ length: state.plateGeom.nRows }, (_, r) => String.fromCharCode(65 + r) + (col + 1)).filter(w => state.wellsPresent.has(w));
+}
+// Refresh everything affected by a selection change.
+function refreshSelection(full) {
   renderPlate();
-  renderChart();
-  syncRowChecks();
+  updateSelBar();
+  if (full !== false) { renderChart(); syncRowChecks(); }
+}
+function updateSelBar() {
+  const n = state.selWells.size;
+  $('selCount').innerHTML = `<b>${n}</b> well${n === 1 ? '' : 's'} selected`;
+  $('selBar').classList.toggle('has-sel', n > 0);
+  $('btnAssign').disabled = n === 0;
+  $('btnClearName').disabled = n === 0;
+  $('btnSelNone').disabled = n === 0;
+  updateDatalist();
+}
+function updateDatalist() {
+  $('sampleNameList').innerHTML = sortedSamples().map(n => `<option value="${esc(n)}"></option>`).join('');
+}
+
+// Map a pointer event to a {row,col} cell on the plate, or null if outside the grid.
+function svgCell(svg, e) {
+  const g = state.plateGeom; if (!g) return null;
+  const ctm = svg.getScreenCTM(); if (!ctm) return null;
+  const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  const p = pt.matrixTransform(ctm.inverse());
+  const col = Math.floor((p.x - g.ML) / g.pitch);
+  const row = Math.floor((p.y - g.MT) / g.pitch);
+  if (row < 0 || col < 0 || row >= g.nRows || col >= g.nCols) return null;
+  return { row, col };
+}
+function onPlateDown(e) {
+  const t = e.target;
+  // Row / column header click → toggle that whole row / column.
+  if (t.classList && t.classList.contains('row-lbl')) { e.preventDefault(); toggleLine(wellsInRow(+t.dataset.row)); return; }
+  if (t.classList && t.classList.contains('col-lbl')) { e.preventDefault(); toggleLine(wellsInCol(+t.dataset.col)); return; }
+  const cell = svgCell($('plateSvg'), e);
+  if (!cell) return;
+  e.preventDefault();
+  const startWell = String.fromCharCode(65 + cell.row) + (cell.col + 1);
+  if (!state.wellsPresent.has(startWell)) return;
+  drag.active = true;
+  drag.mode = state.selWells.has(startWell) ? 'remove' : 'add'; // toggle-drag like a spreadsheet
+  drag.baseline = new Set(state.selWells);
+  drag.start = cell; drag.last = cell;
+  applyRect(drag.baseline, cell, cell, drag.mode === 'add');
+  refreshSelection(false);          // light: plate + bar only while dragging
+  try { $('plateSvg').setPointerCapture(e.pointerId); } catch (_) {}
+}
+function onPlateMove(e) {
+  if (!drag.active) return;
+  const cell = svgCell($('plateSvg'), e);
+  if (!cell || (cell.row === drag.last.row && cell.col === drag.last.col)) return;
+  drag.last = cell;
+  applyRect(drag.baseline, drag.start, cell, drag.mode === 'add');
+  refreshSelection(false);
+}
+function onPlateUp(e) {
+  if (!drag.active) return;
+  drag.active = false;
+  try { $('plateSvg').releasePointerCapture(e.pointerId); } catch (_) {}
+  renderChart(); renderTable();     // finalize chart + table checkboxes
+}
+function toggleLine(wells) {
+  const allSel = wells.length > 0 && wells.every(w => state.selWells.has(w));
+  selectWells(wells, !allSel);
+  refreshSelection(); renderTable();
 }
 
 // ── Results table ──────────────────────────────────────────────────────────
@@ -778,19 +924,25 @@ const COLS = [
 ];
 
 function renderTable() {
+  const rows = filteredRows();
   const head = $('resHead');
-  head.innerHTML = `<th></th>` + COLS.map(c => {
-    const ind = state.sort.col === c.key ? `<span class="sort-ind">${state.sort.dir > 0 ? '▲' : '▼'}</span>` : '';
-    return `<th data-col="${c.key}" class="${c.num ? 'num' : ''}">${c.label}${ind}</th>`;
-  }).join('');
+  const allSel = rows.length > 0 && rows.every(r => state.selWells.has(r.well));
+  head.innerHTML = `<th class="chk-col"><input type="checkbox" class="all-chk" title="Select all rows shown"${allSel ? ' checked' : ''}></th>` +
+    COLS.map(c => {
+      const ind = state.sort.col === c.key ? `<span class="sort-ind">${state.sort.dir > 0 ? '▲' : '▼'}</span>` : '';
+      return `<th data-col="${c.key}" class="${c.num ? 'num' : ''}">${c.label}${ind}</th>`;
+    }).join('');
   head.querySelectorAll('th[data-col]').forEach(th =>
     th.addEventListener('click', () => { sortBy(th.dataset.col); }));
+  head.querySelector('.all-chk').addEventListener('change', function () {
+    selectWells(rows.map(r => r.well), this.checked);
+    refreshSelection();
+    renderTable();
+  });
 
-  const rows = filteredRows();
   const body = $('resBody');
-  body.innerHTML = rows.map(r => {
-    const key = r.well + '|' + r.dye;
-    const checked = state.selected.has(key) ? 'checked' : '';
+  body.innerHTML = rows.map((r, i) => {
+    const checked = state.selWells.has(r.well) ? 'checked' : '';
     const cells = COLS.map(c => {
       let v = r[c.key];
       if (c.edit) {
@@ -806,14 +958,26 @@ function renderTable() {
       }
       return `<td>${esc(v == null ? '' : String(v)) || '—'}</td>`;
     }).join('');
-    return `<tr data-key="${key}"><td><input type="checkbox" class="row-chk" data-key="${key}" ${checked}></td>${cells}</tr>`;
+    return `<tr data-well="${r.well}"><td class="chk-col"><input type="checkbox" class="row-chk" data-well="${r.well}" data-idx="${i}" ${checked}></td>${cells}</tr>`;
   }).join('');
 
   body.querySelectorAll('.sample-input').forEach(inp => {
     inp.addEventListener('change', () => { setSample(inp.dataset.well, inp.value); });
   });
   body.querySelectorAll('.row-chk').forEach(chk => {
-    chk.addEventListener('change', () => toggleSelect(chk.dataset.key));
+    chk.addEventListener('click', function (e) {
+      const idx = +this.dataset.idx;
+      const on = this.checked;
+      if (e.shiftKey && state.lastRowIdx != null) {
+        const lo = Math.min(idx, state.lastRowIdx), hi = Math.max(idx, state.lastRowIdx);
+        selectWells(rows.slice(lo, hi + 1).map(r => r.well), on);
+      } else {
+        setWellSel(this.dataset.well, on);
+      }
+      state.lastRowIdx = idx;
+      refreshSelection();
+      renderTable();
+    });
   });
 }
 
@@ -843,16 +1007,34 @@ function sortBy(col) {
 }
 function setSample(well, name) {
   state.sampleByWell[well] = name.trim();
+  afterSampleChange();
+}
+// Assign / clear a name for every selected well in one action.
+function assignGroup(name) {
+  if (!state.selWells.size) return;
+  const n = name.trim();
+  for (const w of state.selWells) state.sampleByWell[w] = n;
+  afterSampleChange();
+}
+function afterSampleChange() {
   applySampleNames();
   renderSummary();
+  renderTable();
   renderSummaryTable();
   renderDDControls();
   renderDD();
+  updateDatalist();
+  if (state.plateMode === 'sample') renderPlate();
 }
 function syncRowChecks() {
   document.querySelectorAll('.row-chk').forEach(chk => {
-    chk.checked = state.selected.has(chk.dataset.key);
+    chk.checked = state.selWells.has(chk.dataset.well);
   });
+  const all = document.querySelector('.all-chk');
+  if (all) {
+    const rows = Array.from(document.querySelectorAll('.row-chk'));
+    all.checked = rows.length > 0 && rows.every(c => c.checked);
+  }
 }
 
 // ── Grouped summary ─────────────────────────────────────────────────────────
@@ -950,12 +1132,20 @@ function renderDD() {
 
 // ── Amplification chart (SVG string, mirrors bca-assay) ─────────────────────
 function renderChart() {
-  const keys = Array.from(state.selected);
   const svg = $('ampSvg');
   const empty = $('ampEmpty');
-  const series = keys.map(k => ({ key: k, rec: state.byKey.get(k) }))
-    .filter(o => o.rec && o.rec.series && o.rec.series.length);
-  if (!series.length) { svg.innerHTML = ''; svg.style.display = 'none'; empty.style.display = 'block'; return; }
+  const series = Array.from(state.selWells)
+    .map(w => ({ rec: state.byKey.get(w + '|' + state.plateDye) }))
+    .filter(o => o.rec && o.rec.series && o.rec.series.length)
+    .sort((a, b) => a.rec.row - b.rec.row || a.rec.colIdx - b.rec.colIdx);
+  if (!series.length) {
+    svg.innerHTML = ''; svg.style.display = 'none'; empty.style.display = 'block';
+    const anySel = state.selWells.size > 0;
+    empty.textContent = anySel
+      ? `Selected wells have no amplification trace for ${state.plateDye}. Import the Amplification Plots export, or switch the plate dye.`
+      : 'Select wells in the plate or table to plot their curves.';
+    return;
+  }
   svg.style.display = 'block'; empty.style.display = 'none';
 
   const W = 720, H = 380, ML = 56, MR = 16, MT = 14, MB = 44;
@@ -1126,7 +1316,7 @@ function init() {
   });
   fi.addEventListener('change', () => { if (fi.files.length) handleFiles(fi.files); });
 
-  $('plateDye').addEventListener('change', e => { state.plateDye = e.target.value; renderSummary(); renderPlate(); });
+  $('plateDye').addEventListener('change', e => { state.plateDye = e.target.value; renderSummary(); renderPlate(); renderChart(); });
   $('plateMode').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     state.plateMode = b.dataset.mode;
@@ -1139,12 +1329,32 @@ function init() {
   $('fltDye').addEventListener('change', e => { state.fltDye = e.target.value; renderTable(); });
   $('fltCall').addEventListener('change', e => { state.fltCall = e.target.value; renderTable(); });
 
-  $('btnPlotPos').addEventListener('click', () => {
-    state.records.filter(r => r.dye === state.plateDye && r.call === '+' && r.series && r.series.length)
-      .forEach(r => state.selected.add(r.well + '|' + r.dye));
-    renderPlate(); renderChart(); syncRowChecks();
+  // Plate drag-to-select
+  const psvg = $('plateSvg');
+  psvg.addEventListener('pointerdown', onPlateDown);
+  psvg.addEventListener('pointermove', onPlateMove);
+  window.addEventListener('pointerup', onPlateUp);
+
+  // Selection bar
+  $('btnAssign').addEventListener('click', function () {
+    if (!state.selWells.size) return;
+    assignGroup($('grpInput').value);
+    flash(this, 'Assigned ✓', 'Assign to selection');
   });
-  $('btnPlotClear').addEventListener('click', () => { state.selected.clear(); renderPlate(); renderChart(); syncRowChecks(); });
+  $('grpInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnAssign').click(); });
+  $('btnClearName').addEventListener('click', () => assignGroup(''));
+  $('btnSelPos').addEventListener('click', () => {
+    selectWells(state.records.filter(r => r.dye === state.plateDye && r.call === '+').map(r => r.well), true);
+    refreshSelection(); renderTable();
+  });
+  $('btnSelAll').addEventListener('click', () => { selectWells(Array.from(state.wellsPresent), true); refreshSelection(); renderTable(); });
+  $('btnSelNone').addEventListener('click', () => { state.selWells.clear(); state.lastRowIdx = null; refreshSelection(); renderTable(); });
+
+  $('btnPlotPos').addEventListener('click', () => {
+    selectWells(state.records.filter(r => r.dye === state.plateDye && r.call === '+' && r.series && r.series.length).map(r => r.well), true);
+    refreshSelection(); renderTable();
+  });
+  $('btnPlotClear').addEventListener('click', () => { state.selWells.clear(); state.lastRowIdx = null; refreshSelection(); renderTable(); });
 
   $('btnCopy').addEventListener('click', function () {
     labtoolsCopyText(resultsTSV()).then(() => flash(this, 'Copied!', 'Copy TSV')).catch(() => {});
@@ -1153,7 +1363,7 @@ function init() {
   $('btnDdCsv').addEventListener('click', () => labtoolsDownloadText(exportName('ddcq.csv'), ddCsv(), 'text/csv'));
   $('btnPlatePng').addEventListener('click', () => svgToPng($('plateSvg'), exportName('plate.png')));
   $('btnAmpPng').addEventListener('click', () => {
-    if (!state.selected.size) { showError('Select wells to plot before exporting the chart.'); return; }
+    if (!state.selWells.size) { showError('Select wells to plot before exporting the chart.'); return; }
     svgToPng($('ampSvg'), exportName('amplification.png'));
   });
 
@@ -1161,7 +1371,8 @@ function init() {
   $('ddCal').addEventListener('change', renderDD);
 
   $('btnResetAll').addEventListener('click', () => {
-    Object.assign(state, { records: [], byKey: new Map(), sampleByWell: {}, selected: new Set(), files: [] });
+    Object.assign(state, { records: [], byKey: new Map(), sampleByWell: {}, selWells: new Set(),
+      wellsPresent: new Set(), files: [], lastRowIdx: null });
     $('results').style.display = 'none';
     $('fileList').innerHTML = '';
     $('fileInput').value = '';
