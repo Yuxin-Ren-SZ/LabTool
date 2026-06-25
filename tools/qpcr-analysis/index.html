@@ -161,6 +161,33 @@
     table.data th.chk-col, table.data td.chk-col { width: 30px; text-align: center; padding-left: 6px; padding-right: 6px; }
     .row-chk, .all-chk { cursor: pointer; }
 
+    /* assign-field toggle inside the selection bar */
+    .seg.sel-field button { padding: 5px 10px; }
+
+    /* threshold input */
+    .thr-input {
+      width: 86px; padding: 5px 8px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      font-size: var(--fs-sm); font-family: var(--font-mono); color: var(--text); background: var(--surface);
+      outline: none; text-align: right; transition: border-color 0.12s;
+    }
+    .thr-input:focus { border-color: var(--blue); }
+    .thr-input:disabled { opacity: 0.5; }
+    .thr-custom { color: var(--yellow-dark); font-weight: 700; }
+
+    /* ΔΔCq reference-gene chips */
+    .dd-ref-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .ref-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .ref-chip {
+      display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px;
+      border: 1.5px solid var(--border); border-radius: 999px; background: var(--surface);
+      font-size: var(--fs-sm); font-weight: 600; color: var(--text-secondary); cursor: pointer;
+      user-select: none; transition: all 0.12s;
+    }
+    .ref-chip:hover { border-color: var(--text-dim); }
+    .ref-chip.on { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue-dark); }
+    .ref-chip input { display: none; }
+    .ref-chip .tick { font-size: 0.72rem; }
+
     @media (max-width: 640px) {
       .section-tools { width: 100%; margin-left: 0; }
       .grp-input { max-width: none; }
@@ -235,10 +262,14 @@
           <!-- Selection + bulk group assignment -->
           <div class="sel-bar" id="selBar">
             <span class="sel-count" id="selCount"><b>0</b> wells selected</span>
-            <input class="grp-input" id="grpInput" list="sampleNameList" placeholder="Group / sample name…" autocomplete="off" />
+            <div class="seg sel-field" id="assignField">
+              <button data-field="sample" class="active">Sample</button>
+              <button data-field="target">Gene</button>
+            </div>
+            <input class="grp-input" id="grpInput" list="sampleNameList" placeholder="Sample name…" autocomplete="off" />
             <datalist id="sampleNameList"></datalist>
             <button class="btn-sm primary" id="btnAssign">Assign to selection</button>
-            <button class="btn-sm" id="btnClearName">Clear name</button>
+            <button class="btn-sm" id="btnClearName">Clear</button>
             <span class="sel-spacer"></span>
             <button class="btn-sm" id="btnSelPos">Select positives</button>
             <button class="btn-sm" id="btnSelAll">Select all</button>
@@ -247,8 +278,8 @@
           <div class="plate-legend" id="plateLegend"></div>
           <p class="drop-zone-sub" style="margin-top:8px;">
             Drag across wells to select a block, click row/column headers to select a whole row/column, or
-            tick rows in the table (Shift-click for a range). Type a name and <b>Assign to selection</b> to
-            group them — the chart plots the current selection.
+            tick rows in the table (Shift-click for a range). Choose <b>Sample</b> or <b>Gene</b>, type a name,
+            and <b>Assign to selection</b>. Gene labels apply to the current plate dye and feed ΔΔCq.
           </p>
         </div>
 
@@ -257,6 +288,10 @@
           <div class="section-head">
             <span class="section-title">Amplification curves</span>
             <div class="section-tools">
+              <span class="mini-label" id="thrLabel">Threshold (ΔR)</span>
+              <input type="number" class="thr-input" id="thrInput" step="any" min="0" title="Threshold for the current dye — Cq is recomputed from the curves" />
+              <button class="btn-sm" id="btnThrReset" title="Restore the instrument threshold">Reset</button>
+              <span class="sel-spacer" style="flex:0 0 6px;"></span>
               <span class="mini-label">Scale</span>
               <div class="seg" id="ampScale">
                 <button data-scale="linear" class="active">Linear</button>
@@ -297,7 +332,8 @@
             </table>
           </div>
           <p class="drop-zone-sub" style="margin-top:8px;">
-            Sample names are editable — type to label wells; replicates that share a name are grouped below.
+            Sample names are editable inline — type to label a well; replicates that share a name are grouped
+            below. For many wells at once, select on the plate and use <b>Assign to selection</b> above.
           </p>
         </div>
 
@@ -320,22 +356,25 @@
         <div class="section">
           <div class="section-head">
             <span class="section-title">ΔΔCq relative quantification</span>
-            <div class="section-tools" id="ddTools" style="display:none;">
-              <span class="mini-label">Reference target</span>
-              <select class="mini-select" id="ddRef"></select>
+            <div class="section-tools" id="ddTools">
               <span class="mini-label">Calibrator sample</span>
               <select class="mini-select" id="ddCal"></select>
+              <button class="btn-sm primary" id="btnDdRecalc">Recalculate</button>
               <button class="btn-sm" id="btnDdCsv">CSV</button>
             </div>
           </div>
+          <div class="dd-ref-row" id="ddRefRow">
+            <span class="mini-label">Reference gene(s)</span>
+            <div class="ref-chips" id="ddRefChips"></div>
+          </div>
           <div class="lt-alert lt-alert-info" id="ddAlert">
-            ΔΔCq needs at least two targets with Cq values and named samples. Assign sample names in the
-            results table and ensure a reference (housekeeping) target was run.
+            ΔΔCq needs at least two genes with Cq (≥1 reference + ≥1 gene of interest) and named samples.
+            Use the <b>Gene</b> assignment above to label wells, pick reference gene(s), then a calibrator sample.
           </div>
           <div class="tbl-scroll" id="ddTableWrap" style="display:none;">
             <table class="data" id="ddTable">
               <thead><tr>
-                <th>Sample</th><th>Target</th>
+                <th>Sample</th><th>Gene</th>
                 <th class="num">Mean Cq</th><th class="num">Ref Cq</th>
                 <th class="num">ΔCq</th><th class="num">ΔΔCq</th><th class="num">Fold (2^−ΔΔCq)</th>
               </tr></thead>
@@ -381,6 +420,13 @@ const state = {
   wellsPresent: new Set(),
   plateGeom: null,       // { ML, MT, pitch, rad, nRows, nCols }
   lastRowIdx: null,      // for Shift-range selection in the table
+  assignField: 'sample', // bulk-assign target field: 'sample' | 'target'
+  targetByKey: {},       // "WELL|DYE" -> gene name override
+  thresholds: {},        // dye -> threshold (ΔR) used for Cq
+  customThr: {},         // dye -> true when user overrode the instrument threshold
+  ddRefs: new Set(),     // reference gene names for ΔΔCq
+  ddRefsInit: false,     // whether default references were auto-picked
+  ddCal: '',             // calibrator sample
 };
 const drag = { active: false, mode: 'add', baseline: null, start: null, last: null };
 
@@ -618,11 +664,21 @@ async function handleFiles(fileList) {
   state.selWells = new Set();
   state.wellsPresent = new Set(state.records.map(r => r.well));
   state.lastRowIdx = null;
+  state.targetByKey = {};
+  state.thresholds = {};
+  state.customThr = {};
+  state.ddRefs = new Set();
+  state.ddRefsInit = false;
+  state.ddCal = '';
 
   for (const r of state.records) {
     const key = r.well + '|' + r.dye;
     state.byKey.set(key, r);
     if (parsed.amp && parsed.amp.has(key)) r.series = parsed.amp.get(key);
+    // remember the instrument values so a custom threshold can be reset
+    r.cq0 = r.cq; r.call0 = r.call; r.threshold0 = r.threshold; r.target0 = r.target;
+    // seed per-dye threshold from the instrument value
+    if (state.thresholds[r.dye] == null && r.threshold != null) state.thresholds[r.dye] = r.threshold;
     // sample name: prefer Plate Setup, else any non-empty Well Name from tabular
     if (state.sampleByWell[r.well] == null) {
       let s = '';
@@ -632,9 +688,10 @@ async function handleFiles(fileList) {
     }
   }
   applySampleNames();
+  applyTargetNames();
 
   state.dyes = uniq(state.records.map(r => r.dye)).filter(Boolean);
-  state.targets = uniq(state.records.map(r => r.target)).filter(Boolean);
+  recomputeTargets();
   // default plate dye = dye with most positive calls
   state.plateDye = bestDye();
   state.fltDye = '';
@@ -645,6 +702,46 @@ async function handleFiles(fileList) {
 
 function applySampleNames() {
   for (const r of state.records) r.sampleName = state.sampleByWell[r.well] || '';
+}
+function applyTargetNames() {
+  for (const r of state.records) {
+    const o = state.targetByKey[r.well + '|' + r.dye];
+    r.target = (o != null && o !== '') ? o : r.target0;
+  }
+}
+function recomputeTargets() {
+  state.targets = uniq(state.records.map(r => r.target)).filter(Boolean);
+}
+// Compute Cq as the (interpolated) cycle where ΔR crosses the threshold.
+function computeCq(series, thr) {
+  if (!series || !series.length || thr == null) return null;
+  if (series[0].fluor >= thr) return series[0].cycle;
+  for (let i = 1; i < series.length; i++) {
+    const a = series[i - 1], b = series[i];
+    if (a.fluor < thr && b.fluor >= thr) {
+      const f = (thr - a.fluor) / (b.fluor - a.fluor);
+      return a.cycle + f * (b.cycle - a.cycle);
+    }
+  }
+  return null;
+}
+// Recompute Cq + call for one dye from its threshold (or restore instrument values).
+function refreshDyeCq(dye) {
+  const recs = state.records.filter(r => r.dye === dye);
+  if (!state.customThr[dye]) {
+    for (const r of recs) { r.cq = r.cq0; r.call = r.call0; r.threshold = r.threshold0; }
+    return;
+  }
+  const thr = state.thresholds[dye];
+  for (const r of recs) {
+    r.threshold = thr;
+    if (r.series && r.series.length) { r.cq = computeCq(r.series, thr); r.call = r.cq != null ? '+' : '-'; }
+    else { r.cq = null; r.call = '-'; }
+  }
+}
+// Whether the current plate dye can recompute Cq (needs amplification traces).
+function dyeHasSeries(dye) {
+  return state.records.some(r => r.dye === dye && r.series && r.series.length);
 }
 function uniq(arr) { return Array.from(new Set(arr)); }
 function bestDye() {
@@ -667,6 +764,7 @@ function renderAll() {
   renderDD();
   renderChart();
   updateSelBar();
+  updateThrInput();
 }
 
 function renderFileList() {
@@ -859,7 +957,60 @@ function updateSelBar() {
   updateDatalist();
 }
 function updateDatalist() {
-  $('sampleNameList').innerHTML = sortedSamples().map(n => `<option value="${esc(n)}"></option>`).join('');
+  const names = state.assignField === 'target' ? state.targets.slice().sort() : sortedSamples();
+  $('sampleNameList').innerHTML = names.map(n => `<option value="${esc(n)}"></option>`).join('');
+}
+function setAssignField(field) {
+  state.assignField = field;
+  $('grpInput').placeholder = field === 'target' ? 'Gene / target name…' : 'Sample name…';
+  updateDatalist();
+}
+
+// ── Threshold control (per current plate dye) ───────────────────────────────
+function updateThrInput() {
+  const dye = state.plateDye;
+  const inp = $('thrInput');
+  const hasSeries = dyeHasSeries(dye);
+  inp.disabled = !hasSeries;
+  const v = state.thresholds[dye];
+  inp.value = v != null ? +v.toFixed(4) : '';
+  $('thrLabel').innerHTML = state.customThr[dye]
+    ? `Threshold (ΔR) <span class="thr-custom">· custom</span>`
+    : 'Threshold (ΔR)';
+  $('btnThrReset').disabled = !state.customThr[dye];
+  inp.title = hasSeries
+    ? 'Threshold for the current dye — Cq is recomputed from the curves'
+    : 'Import the Amplification Plots export to recompute Cq at a custom threshold';
+}
+function applyThreshold(val) {
+  const dye = state.plateDye;
+  if (!dyeHasSeries(dye)) { showError('Import the Amplification Plots export to recompute Cq at a custom threshold.'); updateThrInput(); return; }
+  if (!Number.isFinite(val) || val <= 0) { updateThrInput(); return; }
+  showError('');
+  state.thresholds[dye] = val;
+  state.customThr[dye] = true;
+  refreshDyeCq(dye);
+  renderAfterCq();
+}
+function resetThreshold() {
+  const dye = state.plateDye;
+  state.customThr[dye] = false;
+  // restore the instrument threshold value for display
+  const r0 = state.records.find(r => r.dye === dye && r.threshold0 != null);
+  if (r0) state.thresholds[dye] = r0.threshold0;
+  refreshDyeCq(dye);
+  renderAfterCq();
+}
+// Re-render everything that depends on Cq / call values.
+function renderAfterCq() {
+  renderSummary();
+  renderPlate();
+  renderTable();
+  renderSummaryTable();
+  renderDDControls();
+  renderDD();
+  renderChart();
+  updateThrInput();
 }
 
 // Map a pointer event to a {row,col} cell on the plate, or null if outside the grid.
@@ -1009,22 +1160,30 @@ function setSample(well, name) {
   state.sampleByWell[well] = name.trim();
   afterSampleChange();
 }
-// Assign / clear a name for every selected well in one action.
-function assignGroup(name) {
+// Assign / clear a Sample or Gene name for every selected well in one action.
+function assignToSelection(name) {
   if (!state.selWells.size) return;
   const n = name.trim();
-  for (const w of state.selWells) state.sampleByWell[w] = n;
+  if (state.assignField === 'target') {
+    for (const w of state.selWells) {
+      const key = w + '|' + state.plateDye;
+      if (state.byKey.has(key)) state.targetByKey[key] = n;
+    }
+    applyTargetNames(); recomputeTargets();
+  } else {
+    for (const w of state.selWells) state.sampleByWell[w] = n;
+  }
   afterSampleChange();
 }
 function afterSampleChange() {
   applySampleNames();
   renderSummary();
+  renderPlate();
   renderTable();
   renderSummaryTable();
   renderDDControls();
   renderDD();
   updateDatalist();
-  if (state.plateMode === 'sample') renderPlate();
 }
 function syncRowChecks() {
   document.querySelectorAll('.row-chk').forEach(chk => {
@@ -1080,35 +1239,81 @@ function meanCqFor(sample, target) {
   const cqs = state.records.filter(r => (r.sampleName || r.well) === sample && r.target === target && r.cq != null).map(r => r.cq);
   return cqs.length ? mean(cqs) : null;
 }
+// Combined reference Cq for a sample = mean Cq across the selected reference genes
+// (the arithmetic mean of Cq equals the geometric mean of quantities — geNorm-style).
+function refCqFor(sample, refs) {
+  if (!refs.length) return null;
+  const vals = refs.map(t => meanCqFor(sample, t));
+  if (vals.some(v => v == null)) return null;       // require every reference for the sample
+  return mean(vals);
+}
+const HOUSEKEEPING = /^(gapdh|actb|b-?actin|β-?actin|b2m|18s|hprt1?|ppia|tbp|ywhaz|rpl\d|rps\d|gusb|tubb|sdha|pgk1|ubc)$/i;
+// Samples for ΔΔCq: the named groups if any exist, else fall back to well ids.
+function ddSamples() {
+  const named = namedSamples();
+  return named.length ? named : uniq(state.records.map(r => r.sampleName || r.well)).filter(Boolean);
+}
+
 function renderDDControls() {
   const tgts = targetsWithCq();
-  const samples = namedSamples();
-  const enabled = tgts.length >= 2 && samples.length >= 1;
-  $('ddTools').style.display = enabled ? 'flex' : 'none';
-  $('ddAlert').style.display = enabled ? 'none' : 'block';
-  $('ddTableWrap').style.display = enabled ? 'block' : 'none';
-  if (!enabled) return;
-  const ref = $('ddRef'), cal = $('ddCal');
-  const prevRef = ref.value, prevCal = cal.value;
-  ref.innerHTML = tgts.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+  // First time we have ≥2 genes, auto-pick any housekeeping-looking ones as references.
+  if (!state.ddRefsInit && tgts.length >= 2) {
+    tgts.filter(t => HOUSEKEEPING.test(t)).forEach(t => state.ddRefs.add(t));
+    state.ddRefsInit = true;
+  }
+  // Drop references that no longer exist.
+  for (const r of Array.from(state.ddRefs)) if (!tgts.includes(r)) state.ddRefs.delete(r);
+
+  // Reference-gene chips
+  $('ddRefChips').innerHTML = tgts.length
+    ? tgts.map(t => {
+        const on = state.ddRefs.has(t);
+        return `<label class="ref-chip ${on ? 'on' : ''}" data-gene="${esc(t)}">` +
+          `<span class="tick">${on ? '✓' : '+'}</span>${esc(t)}</label>`;
+      }).join('')
+    : `<span class="drop-zone-sub">No genes with Cq yet — assign Gene labels above.</span>`;
+  $('ddRefChips').querySelectorAll('.ref-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const g = chip.dataset.gene;
+      if (state.ddRefs.has(g)) state.ddRefs.delete(g); else state.ddRefs.add(g);
+      renderDDControls(); renderDD();
+    });
+  });
+
+  // Calibrator select
+  const samples = ddSamples();
+  const cal = $('ddCal');
+  if (!samples.includes(state.ddCal)) state.ddCal = samples[0] || '';
   cal.innerHTML = samples.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
-  if (tgts.includes(prevRef)) ref.value = prevRef;
-  if (samples.includes(prevCal)) cal.value = prevCal;
+  cal.value = state.ddCal;
+
+  // Gating + guidance
+  const refs = Array.from(state.ddRefs);
+  const goi = tgts.filter(t => !state.ddRefs.has(t));
+  let msg = '';
+  if (tgts.length < 2) msg = 'ΔΔCq needs at least two genes with Cq. Use the Gene assignment above to label wells (e.g. a target and a housekeeping gene).';
+  else if (!refs.length) msg = 'Select at least one reference (housekeeping) gene above.';
+  else if (!goi.length) msg = 'All genes are marked as reference — leave at least one gene of interest unselected.';
+  else if (!samples.length) msg = 'Name your samples so replicates can be grouped.';
+  const ready = !msg;
+  $('ddAlert').style.display = ready ? 'none' : 'block';
+  if (!ready) $('ddAlert').innerHTML = msg;
+  $('ddTableWrap').style.display = ready ? 'block' : 'none';
+  $('btnDdCsv').disabled = !ready;
 }
 function ddResults() {
-  const refTarget = $('ddRef').value;
-  const calibrator = $('ddCal').value;
-  const tgts = targetsWithCq().filter(t => t !== refTarget);
-  const samples = uniq(state.records.map(r => r.sampleName || r.well)).filter(Boolean);
+  const refs = Array.from(state.ddRefs);
+  const calibrator = state.ddCal;
+  const goi = targetsWithCq().filter(t => !state.ddRefs.has(t));
+  const samples = ddSamples();
   const out = [];
-  // ΔCq for calibrator per target (cache)
-  for (const t of tgts) {
-    const calRefCq = meanCqFor(calibrator, refTarget);
+  for (const t of goi) {
+    const calRefCq = refCqFor(calibrator, refs);
     const calTgtCq = meanCqFor(calibrator, t);
     const calDelta = (calTgtCq != null && calRefCq != null) ? calTgtCq - calRefCq : null;
     for (const sm of samples) {
       const tgtCq = meanCqFor(sm, t);
-      const refCq = meanCqFor(sm, refTarget);
+      const refCq = refCqFor(sm, refs);
       if (tgtCq == null || refCq == null) continue;
       const dCq = tgtCq - refCq;
       const ddCq = calDelta != null ? dCq - calDelta : null;
@@ -1127,7 +1332,7 @@ function renderDD() {
     `<td class="num">${r.dCq.toFixed(2)}</td>` +
     `<td class="num">${r.ddCq != null ? r.ddCq.toFixed(2) : '—'}</td>` +
     `<td class="num">${r.fold != null ? r.fold.toFixed(3) : '—'}</td></tr>`).join('') ||
-    `<tr><td colspan="7" class="empty-state">No paired target/reference Cq values.</td></tr>`;
+    `<tr><td colspan="7" class="empty-state">No paired gene/reference Cq values for the named samples.</td></tr>`;
 }
 
 // ── Amplification chart (SVG string, mirrors bca-assay) ─────────────────────
@@ -1316,7 +1521,7 @@ function init() {
   });
   fi.addEventListener('change', () => { if (fi.files.length) handleFiles(fi.files); });
 
-  $('plateDye').addEventListener('change', e => { state.plateDye = e.target.value; renderSummary(); renderPlate(); renderChart(); });
+  $('plateDye').addEventListener('change', e => { state.plateDye = e.target.value; renderSummary(); renderPlate(); renderChart(); updateThrInput(); });
   $('plateMode').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     state.plateMode = b.dataset.mode;
@@ -1325,6 +1530,16 @@ function init() {
   $('ampScale').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     state.ampScale = b.dataset.scale; setActive($('ampScale'), b); renderChart();
+  });
+
+  // Adjustable threshold (recomputes Cq for the current dye from the curves)
+  $('thrInput').addEventListener('change', e => applyThreshold(parseFloat(e.target.value)));
+  $('btnThrReset').addEventListener('click', resetThreshold);
+
+  // Assign field (Sample vs Gene)
+  $('assignField').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    setActive($('assignField'), b); setAssignField(b.dataset.field);
   });
   $('fltDye').addEventListener('change', e => { state.fltDye = e.target.value; renderTable(); });
   $('fltCall').addEventListener('change', e => { state.fltCall = e.target.value; renderTable(); });
@@ -1338,11 +1553,11 @@ function init() {
   // Selection bar
   $('btnAssign').addEventListener('click', function () {
     if (!state.selWells.size) return;
-    assignGroup($('grpInput').value);
+    assignToSelection($('grpInput').value);
     flash(this, 'Assigned ✓', 'Assign to selection');
   });
   $('grpInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnAssign').click(); });
-  $('btnClearName').addEventListener('click', () => assignGroup(''));
+  $('btnClearName').addEventListener('click', () => assignToSelection(''));
   $('btnSelPos').addEventListener('click', () => {
     selectWells(state.records.filter(r => r.dye === state.plateDye && r.call === '+').map(r => r.well), true);
     refreshSelection(); renderTable();
@@ -1367,12 +1582,13 @@ function init() {
     svgToPng($('ampSvg'), exportName('amplification.png'));
   });
 
-  $('ddRef').addEventListener('change', renderDD);
-  $('ddCal').addEventListener('change', renderDD);
+  $('ddCal').addEventListener('change', e => { state.ddCal = e.target.value; renderDD(); });
+  $('btnDdRecalc').addEventListener('click', function () { renderDDControls(); renderDD(); flash(this, 'Recalculated ✓', 'Recalculate'); });
 
   $('btnResetAll').addEventListener('click', () => {
     Object.assign(state, { records: [], byKey: new Map(), sampleByWell: {}, selWells: new Set(),
-      wellsPresent: new Set(), files: [], lastRowIdx: null });
+      wellsPresent: new Set(), files: [], lastRowIdx: null, targetByKey: {}, thresholds: {},
+      customThr: {}, ddRefs: new Set(), ddRefsInit: false, ddCal: '' });
     $('results').style.display = 'none';
     $('fileList').innerHTML = '';
     $('fileInput').value = '';

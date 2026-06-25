@@ -25,15 +25,24 @@ UTF-8 and UTF-16 (with BOM) encodings are both handled.
 
 - **Run summary** — experiment name, dyes, targets, well/positive counts, thermal profile.
 - **Plate overview** — 96-well (or detected size) heatmap, colored by Final Call,
-  Cq gradient, or target. Click a well to plot its curve. Export as PNG.
-- **Results table** — sortable and filterable (by dye / call). Sample names are
-  **editable inline**; replicates that share a name are grouped automatically.
-- **Amplification curves** — overlay selected wells' ΔR traces with per-dye threshold
-  lines, linear or log scale. Export as PNG.
-- **Per-sample / target summary** — n, positives, mean Cq, SD Cq per (sample, target, dye).
-- **ΔΔCq relative quantification** — pick a reference (housekeeping) target and a
-  calibrator sample to compute ΔCq, ΔΔCq, and fold change (2^−ΔΔCq). Requires at least
-  two targets with Cq values and named samples; otherwise the section explains what's missing.
+  Cq gradient, target, or assigned sample. Export as PNG.
+- **Multi-well selection & bulk assignment** — drag a rectangle across the plate, click
+  row/column headers, or tick table rows (Shift-click for ranges). Then assign a
+  **Sample** name or a **Gene** label to the whole selection at once. Gene labels apply to
+  the current plate dye, so you can name the assay each well carries even though the
+  Agilent export only records the dye.
+- **Adjustable threshold** — override the instrument threshold per dye; Cq and Final Call
+  are **recomputed from the amplification curves** (interpolated threshold crossing) and
+  flow through to every table and the ΔΔCq. Reset restores the instrument values.
+  (Requires the Amplification Plots export.)
+- **Results table** — sortable and filterable (by dye / call). Sample names editable inline.
+- **Amplification curves** — overlay selected wells' ΔR traces with the threshold line,
+  linear or log scale. Export as PNG.
+- **Per-sample / target summary** — n, positives, mean Cq, SD Cq per (sample, gene, dye).
+- **ΔΔCq relative quantification** — choose **one or more reference genes** (their Cq are
+  averaged, geNorm-style), a calibrator sample, then **Recalculate** to get ΔCq, ΔΔCq, and
+  fold change (2^−ΔΔCq). Updates automatically as you assign samples/genes or change the
+  threshold; the section explains what's missing until it can compute.
 
 ## Outputs
 
