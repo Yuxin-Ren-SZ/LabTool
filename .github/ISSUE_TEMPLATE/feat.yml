@@ -68,6 +68,7 @@ body:
         - stain-timer
         - thermal-to-laser
         - drug-dosage
+        - qpcr-analysis
     validations:
       required: false
 

@@ -1,0 +1,1694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>qPCR Analysis · LabTools</title>
+  <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <script src="../../assets/js/labtools-common.js"></script>
+  <style>
+    .card { max-width: 1180px; }
+
+    /* ── Page header ── */
+    .page-title { font-size: var(--fs-xl); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 3px; }
+    .page-sub   { font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: 18px; line-height: 1.55; }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 1.5px dashed var(--border); border-radius: var(--radius-md);
+      background: var(--surface-subtle); padding: 26px 20px; text-align: center;
+      transition: border-color 0.15s, background 0.15s; cursor: pointer;
+    }
+    .drop-zone.drag { border-color: var(--blue); background: var(--blue-bg); }
+    .drop-zone-icon  { font-size: 1.8rem; margin-bottom: 8px; }
+    .drop-zone-main  { font-size: var(--fs-base); font-weight: 600; color: var(--text); }
+    .drop-zone-sub   { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+    .drop-zone-link  { color: var(--blue-dark); font-weight: 700; text-decoration: underline; }
+
+    /* ── File status list ── */
+    .file-list { margin-top: 12px; display: flex; flex-direction: column; gap: 5px; }
+    .file-row  {
+      display: flex; align-items: center; gap: 9px; font-size: var(--fs-sm);
+      padding: 6px 10px; background: var(--surface-subtle);
+      border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);
+    }
+    .file-row .fname { font-family: var(--font-mono); color: var(--text-secondary); flex: 1;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Sections ── */
+    .section { margin-top: 26px; }
+    .section-head {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: var(--fs-base); font-weight: 700; color: var(--text);
+      letter-spacing: -0.01em;
+    }
+    .section-tools { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    /* ── Run summary chips ── */
+    .summary-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+    }
+    .summary-item {
+      background: var(--surface-subtle); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md); padding: 10px 12px;
+    }
+    .summary-k { font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--text-muted); font-weight: 700; }
+    .summary-v { font-size: var(--fs-md); font-weight: 700; color: var(--text); margin-top: 3px;
+      font-variant-numeric: tabular-nums; }
+    .summary-v small { font-weight: 500; color: var(--text-muted); font-size: var(--fs-xs); }
+
+    /* ── Generic small button (matches lt-btn but compact) ── */
+    .btn-sm {
+      display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px;
+      border: 1.5px solid var(--border); background: var(--surface); color: var(--text);
+      border-radius: var(--radius-sm); font-size: var(--fs-sm); font-weight: 600;
+      font-family: var(--font); cursor: pointer; transition: all 0.13s; white-space: nowrap;
+    }
+    .btn-sm:hover { background: var(--surface-hover); border-color: var(--text-dim); }
+    .btn-sm.primary { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; }
+    .btn-sm.primary:hover { opacity: 0.9; }
+    .btn-sm:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Segmented control ── */
+    .seg { display: inline-flex; background: var(--tag-bg); border-radius: var(--radius-md); padding: 3px; gap: 2px; }
+    .seg button {
+      padding: 5px 12px; border: none; background: transparent; border-radius: var(--radius-sm);
+      font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted); cursor: pointer; transition: all 0.13s;
+    }
+    .seg button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+    .seg button:hover:not(.active) { color: var(--text); }
+
+    .mini-select {
+      padding: 5px 8px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      font-size: var(--fs-sm); font-family: var(--font); color: var(--text); background: var(--surface);
+      outline: none; cursor: pointer;
+    }
+    .mini-label { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 600; }
+
+    /* ── Plate ── */
+    .plate-wrap { overflow-x: auto; }
+    #plateSvg { max-width: 100%; height: auto; display: block; }
+    .plate-legend { display: flex; align-items: center; gap: 14px; margin-top: 10px; flex-wrap: wrap;
+      font-size: var(--fs-xs); color: var(--text-secondary); }
+    .legend-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px;
+      margin-right: 5px; border: 1px solid rgba(0,0,0,0.08); }
+    .legend-bar { width: 120px; height: 12px; border-radius: 3px; vertical-align: -2px;
+      border: 1px solid rgba(0,0,0,0.08); }
+
+    /* ── Chart ── */
+    .chart-wrap { background: var(--surface-subtle); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md); padding: 8px; }
+    #ampSvg { width: 100%; height: auto; display: block; }
+    .chart-empty { text-align: center; color: var(--text-muted); font-size: var(--fs-sm); padding: 40px 10px; }
+
+    /* ── Tables ── */
+    .tbl-scroll { overflow-x: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+    table.data { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+    table.data th, table.data td { padding: 7px 10px; text-align: left; white-space: nowrap; }
+    table.data thead th {
+      background: var(--surface-subtle); color: var(--text-secondary); font-weight: 700;
+      font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border); position: sticky; top: 0;
+    }
+    table.data.sortable thead th { cursor: pointer; user-select: none; }
+    table.data.sortable thead th:hover { color: var(--text); }
+    table.data tbody tr { border-bottom: 1px solid var(--border-subtle); }
+    table.data tbody tr:hover { background: var(--surface-hover); }
+    table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .sort-ind { font-size: 0.6rem; color: var(--text-dim); margin-left: 3px; }
+    .results-scroll { max-height: 460px; overflow-y: auto; }
+
+    .sample-input {
+      width: 110px; padding: 3px 6px; border: 1px solid transparent; border-radius: var(--radius-xs);
+      font-size: var(--fs-sm); font-family: var(--font); color: var(--text); background: transparent;
+      outline: none; transition: border-color 0.12s, background 0.12s;
+    }
+    .sample-input:hover  { border-color: var(--border); background: var(--surface); }
+    .sample-input:focus  { border-color: var(--blue); background: var(--surface); }
+    .sample-input::placeholder { color: var(--text-placeholder); font-style: italic; }
+
+    .call-pos { color: var(--green-dark); font-weight: 700; }
+    .call-neg { color: var(--text-dim); }
+
+    .empty-state { text-align: center; padding: 18px; color: var(--text-muted); font-size: var(--fs-sm); }
+
+    /* ── Selection / bulk-assign bar ── */
+    .sel-bar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      margin-top: 12px; padding: 10px 12px;
+      background: var(--surface-subtle); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+    }
+    .sel-bar.has-sel { border-color: var(--blue-border); background: var(--blue-bg); }
+    .sel-count { font-size: var(--fs-sm); font-weight: 700; color: var(--text-secondary); white-space: nowrap; }
+    .sel-count b { color: var(--blue-dark); }
+    .grp-input {
+      flex: 1; min-width: 150px; max-width: 280px; padding: 6px 10px;
+      border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      font-size: var(--fs-sm); font-family: var(--font); color: var(--text);
+      background: var(--surface); outline: none; transition: border-color 0.12s;
+    }
+    .grp-input:focus { border-color: var(--blue); }
+    .sel-spacer { flex: 1 1 auto; }
+    #plateSvg { touch-action: none; -webkit-user-select: none; user-select: none; }
+    .col-lbl, .row-lbl { cursor: pointer; }
+
+    /* table checkbox column */
+    table.data th.chk-col, table.data td.chk-col { width: 30px; text-align: center; padding-left: 6px; padding-right: 6px; }
+    .row-chk, .all-chk { cursor: pointer; }
+
+    /* assign-field toggle inside the selection bar */
+    .seg.sel-field button { padding: 5px 10px; }
+
+    /* threshold input */
+    .thr-input {
+      width: 86px; padding: 5px 8px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      font-size: var(--fs-sm); font-family: var(--font-mono); color: var(--text); background: var(--surface);
+      outline: none; text-align: right; transition: border-color 0.12s;
+    }
+    .thr-input:focus { border-color: var(--blue); }
+    .thr-input:disabled { opacity: 0.5; }
+    .thr-custom { color: var(--yellow-dark); font-weight: 700; }
+
+    /* ΔΔCq reference-gene chips */
+    .dd-ref-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .ref-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .ref-chip {
+      display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px;
+      border: 1.5px solid var(--border); border-radius: 999px; background: var(--surface);
+      font-size: var(--fs-sm); font-weight: 600; color: var(--text-secondary); cursor: pointer;
+      user-select: none; transition: all 0.12s;
+    }
+    .ref-chip:hover { border-color: var(--text-dim); }
+    .ref-chip.on { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue-dark); }
+    .ref-chip input { display: none; }
+    .ref-chip .tick { font-size: 0.72rem; }
+
+    @media (max-width: 640px) {
+      .section-tools { width: 100%; margin-left: 0; }
+      .grp-input { max-width: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="lt-nav">
+    <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
+    <span class="lt-nav-sep">/</span>
+    <span class="lt-nav-page">qPCR Analysis</span>
+  </nav>
+
+  <div class="lt-page-body">
+    <div class="card">
+
+      <h1 class="page-title">qPCR Analysis</h1>
+      <p class="page-sub">
+        Drop the text exports from your Agilent qPCR run (AriaMx / Stratagene Mx) to view a plate
+        overview, browse Cq results, overlay amplification curves, summarize replicates, and compute
+        ΔΔCq relative quantification. Everything runs in your browser — nothing is uploaded.
+      </p>
+
+      <!-- ── Import ── -->
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".txt,.csv" multiple style="display:none" />
+        <div class="drop-zone-icon">📄</div>
+        <div class="drop-zone-main">Drop exported <code>.txt</code> files here</div>
+        <div class="drop-zone-sub">
+          or <span class="drop-zone-link">browse…</span><br/>
+          Tabular Results is required · Amplification Plots, Plate Setup, Thermal Profile &amp; Notes optional<br/>
+          Also accepts a <b>Well Plate Map Generator</b> <code>.csv</code> to label samples by group
+        </div>
+      </div>
+      <div class="file-list" id="fileList"></div>
+      <div class="lt-alert lt-alert-danger hidden" id="errAlert" style="margin-top:12px;"></div>
+
+      <!-- ── Results (hidden until a Tabular Results file is parsed) ── -->
+      <div id="results" style="display:none;">
+
+        <!-- Run summary -->
+        <div class="section">
+          <div class="section-head">
+            <span class="section-title">Run summary</span>
+            <div class="section-tools">
+              <button class="btn-sm" id="btnResetAll">Clear &amp; start over</button>
+            </div>
+          </div>
+          <div class="summary-grid" id="summaryGrid"></div>
+        </div>
+
+        <!-- Plate overview -->
+        <div class="section">
+          <div class="section-head">
+            <span class="section-title">Plate overview</span>
+            <div class="section-tools">
+              <span class="mini-label">Dye</span>
+              <select class="mini-select" id="plateDye"></select>
+              <div class="seg" id="plateMode">
+                <button data-mode="call" class="active">Final call</button>
+                <button data-mode="cq">Cq gradient</button>
+                <button data-mode="target">Target</button>
+                <button data-mode="sample">Sample</button>
+              </div>
+              <button class="btn-sm" id="btnPlatePng">PNG</button>
+            </div>
+          </div>
+          <div class="plate-wrap">
+            <svg id="plateSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+
+          <!-- Selection + bulk group assignment -->
+          <div class="sel-bar" id="selBar">
+            <span class="sel-count" id="selCount"><b>0</b> wells selected</span>
+            <div class="seg sel-field" id="assignField">
+              <button data-field="sample" class="active">Sample</button>
+              <button data-field="target">Gene</button>
+            </div>
+            <input class="grp-input" id="grpInput" list="sampleNameList" placeholder="Sample name…" autocomplete="off" />
+            <datalist id="sampleNameList"></datalist>
+            <button class="btn-sm primary" id="btnAssign">Assign to selection</button>
+            <button class="btn-sm" id="btnClearName">Clear</button>
+            <span class="sel-spacer"></span>
+            <button class="btn-sm" id="btnSelPos">Select positives</button>
+            <button class="btn-sm" id="btnSelAll">Select all</button>
+            <button class="btn-sm" id="btnSelNone">Clear selection</button>
+          </div>
+          <div class="plate-legend" id="plateLegend"></div>
+          <p class="drop-zone-sub" style="margin-top:8px;">
+            Drag across wells to select a block, click row/column headers to select a whole row/column, or
+            tick rows in the table (Shift-click for a range). Choose <b>Sample</b> or <b>Gene</b>, type a name,
+            and <b>Assign to selection</b>. Gene labels apply to the current plate dye and feed ΔΔCq.
+          </p>
+        </div>
+
+        <!-- Amplification curves -->
+        <div class="section" id="ampSection">
+          <div class="section-head">
+            <span class="section-title">Amplification curves</span>
+            <div class="section-tools">
+              <span class="mini-label" id="thrLabel">Threshold (ΔR)</span>
+              <input type="number" class="thr-input" id="thrInput" step="any" min="0" title="Threshold for the current dye — Cq is recomputed from the curves" />
+              <button class="btn-sm" id="btnThrReset" title="Restore the instrument threshold">Reset</button>
+              <span class="sel-spacer" style="flex:0 0 6px;"></span>
+              <span class="mini-label">Color by</span>
+              <select class="mini-select" id="ampGroupBy">
+                <option value="sample">Sample</option>
+                <option value="gene">Gene</option>
+                <option value="sampleGene">Sample × Gene</option>
+                <option value="call">Call</option>
+                <option value="well">Well</option>
+              </select>
+              <div class="seg" id="ampLayout">
+                <button data-layout="together" class="active">Together</button>
+                <button data-layout="separate">Separate</button>
+              </div>
+              <div class="seg" id="ampScale">
+                <button data-scale="linear" class="active">Linear</button>
+                <button data-scale="log">Log</button>
+              </div>
+              <button class="btn-sm" id="btnPlotPos">Plot all positives</button>
+              <button class="btn-sm" id="btnPlotClear">Clear</button>
+              <button class="btn-sm" id="btnAmpPng">PNG</button>
+            </div>
+          </div>
+          <div class="chart-wrap">
+            <svg id="ampSvg" viewBox="0 0 720 380" xmlns="http://www.w3.org/2000/svg"></svg>
+            <div class="chart-empty" id="ampEmpty">Select wells in the plate or table to plot their curves.</div>
+          </div>
+        </div>
+
+        <!-- Results table -->
+        <div class="section">
+          <div class="section-head">
+            <span class="section-title">Results</span>
+            <div class="section-tools">
+              <span class="mini-label">Dye</span>
+              <select class="mini-select" id="fltDye"></select>
+              <span class="mini-label">Call</span>
+              <select class="mini-select" id="fltCall">
+                <option value="">All</option>
+                <option value="+">Positive</option>
+                <option value="-">Negative</option>
+              </select>
+              <button class="btn-sm" id="btnCopy">Copy CSV</button>
+              <button class="btn-sm" id="btnCsv">Download CSV</button>
+            </div>
+          </div>
+          <div class="tbl-scroll results-scroll">
+            <table class="data sortable" id="resTable">
+              <thead><tr id="resHead"></tr></thead>
+              <tbody id="resBody"></tbody>
+            </table>
+          </div>
+          <p class="drop-zone-sub" style="margin-top:8px;">
+            Sample names are editable inline — type to label a well; replicates that share a name are grouped
+            below. For many wells at once, select on the plate and use <b>Assign to selection</b> above.
+          </p>
+        </div>
+
+        <!-- Per-target summary -->
+        <div class="section">
+          <div class="section-head"><span class="section-title">Per-sample / target summary</span></div>
+          <div class="tbl-scroll">
+            <table class="data" id="sumTable">
+              <thead><tr>
+                <th>Sample</th><th>Target</th><th>Dye</th>
+                <th class="num">n</th><th class="num">Positive</th>
+                <th class="num">Mean Cq</th><th class="num">SD Cq</th>
+              </tr></thead>
+              <tbody id="sumBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ΔΔCq -->
+        <div class="section">
+          <div class="section-head">
+            <span class="section-title">ΔΔCq relative quantification</span>
+            <div class="section-tools" id="ddTools">
+              <span class="mini-label">Calibrator sample</span>
+              <select class="mini-select" id="ddCal"></select>
+              <button class="btn-sm primary" id="btnDdRecalc">Recalculate</button>
+              <button class="btn-sm" id="btnDdCsv">CSV</button>
+            </div>
+          </div>
+          <div class="dd-ref-row" id="ddRefRow">
+            <span class="mini-label">Reference gene(s)</span>
+            <div class="ref-chips" id="ddRefChips"></div>
+          </div>
+          <div class="lt-alert lt-alert-info" id="ddAlert">
+            ΔΔCq needs at least two genes with Cq (≥1 reference + ≥1 gene of interest) and named samples.
+            Use the <b>Gene</b> assignment above to label wells, pick reference gene(s), then a calibrator sample.
+          </div>
+          <div class="tbl-scroll" id="ddTableWrap" style="display:none;">
+            <table class="data" id="ddTable">
+              <thead><tr>
+                <th>Sample</th><th>Gene</th>
+                <th class="num">Mean Cq</th><th class="num">Ref Cq</th>
+                <th class="num">ΔCq</th><th class="num">ΔΔCq</th><th class="num">Fold (2^−ΔΔCq)</th>
+              </tr></thead>
+              <tbody id="ddBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <footer class="lt-footer">LabTools · Open source lab utilities</footer>
+
+<script>
+'use strict';
+
+// ════════════════════════════════════════════════════════════════════════
+//  qPCR Analysis — parses Agilent AriaMx / Stratagene Mx tab-separated exports.
+//  No persistence: this is one-off file analysis (see init()).
+// ════════════════════════════════════════════════════════════════════════
+
+const LS_KEY = 'qpcr-analysis-state'; // only used to clear any stale data on load
+
+// ── State ────────────────────────────────────────────────────────────────
+const state = {
+  expName: '',
+  records: [],           // merged per well×dye records
+  byKey: new Map(),      // "WELL|DYE" -> record
+  sampleByWell: {},      // WELL -> sample name (editable, in-memory only)
+  thermal: null,
+  notes: '',
+  dyes: [],
+  targets: [],
+  plateDye: '',
+  plateMode: 'call',
+  fltDye: '',
+  fltCall: '',
+  ampScale: 'linear',
+  selWells: new Set(),   // WELL ids selected (drives grouping + chart)
+  sort: { col: 'well', dir: 1 },
+  files: [],             // {name, type}
+  wellsPresent: new Set(),
+  plateGeom: null,       // { ML, MT, pitch, rad, nRows, nCols }
+  lastRowIdx: null,      // for Shift-range selection in the table
+  assignField: 'sample', // bulk-assign target field: 'sample' | 'target'
+  targetByKey: {},       // "WELL|DYE" -> gene name override
+  thresholds: {},        // dye -> threshold (ΔR) used for Cq
+  customThr: {},         // dye -> true when user overrode the instrument threshold
+  ddRefs: new Set(),     // reference gene names for ΔΔCq
+  ddRefsInit: false,     // whether default references were auto-picked
+  ddCal: '',             // calibrator sample
+  chartGroupBy: 'sample',// curve color grouping: sample | gene | sampleGene | call | well
+  chartLayout: 'together', // together | separate (small multiples)
+};
+const drag = { active: false, mode: 'add', baseline: null, start: null, last: null };
+
+const $ = id => document.getElementById(id);
+const NULLISH = /^(no cq|n\/a|no reference|no tm|---|\s*)$/i;
+const PALETTE = ['#5c8dff','#e07832','#57a85a','#b15cd1','#d9a700','#3bb5b0','#e0567a','#7b8794'];
+
+// ── Generic parsing helpers ───────────────────────────────────────────────
+function splitLines(text) {
+  return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+}
+function cleanCell(s) { return (s == null ? '' : s).trim(); }
+function isNullish(s) { return NULLISH.test(cleanCell(s)); }
+function numOrNull(s) {
+  if (isNullish(s)) return null;
+  const v = parseFloat(cleanCell(s));
+  return Number.isFinite(v) ? v : null;
+}
+
+// Detect which export a file is, from its content.
+function detectType(text) {
+  const lines = splitLines(text).filter(l => l.trim());
+  if (!lines.length) return 'unknown';
+  const head = lines[0];
+  const lower = head.toLowerCase();
+  // Well Plate Map Generator CSV (comma-delimited, has well + group columns, no tabs)
+  if (head.indexOf('\t') === -1) {
+    const cl = parseCsvLine(head).map(c => c.trim().toLowerCase());
+    if (cl.includes('well') && cl.includes('group')) return 'platelayout';
+  }
+  const cells = head.split('\t').map(cleanCell);
+  const headerHas = s => cells.some(c => c.toLowerCase().startsWith(s));
+  if (headerHas('well') && cells.some(c => /^cq\b|^cq \(/.test(c.toLowerCase()))) return 'tabular';
+  if (cells[0] && cells[0].indexOf(',') !== -1 && /cycles/i.test(head)) return 'amplification';
+  if (headerHas('well') && headerHas('sample name')) return 'platesetup';
+  if (lower.startsWith('segment')) return 'thermal';
+  if (lower.startsWith('date')) return 'notes';
+  return 'unknown';
+}
+// Minimal CSV line parser with quote handling.
+function parseCsvLine(line) {
+  const out = []; let cur = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (q) {
+      if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; }
+      else cur += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === ',') { out.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+// Well Plate Map Generator CSV → Map(well -> group name).
+function parsePlateLayout(text) {
+  const lines = splitLines(text).filter(l => l.trim().length);
+  const map = new Map();
+  if (lines.length < 2) return map;
+  const header = parseCsvLine(lines[0]).map(h => h.trim().toLowerCase());
+  const iWell = header.indexOf('well'), iGroup = header.indexOf('group');
+  if (iWell < 0 || iGroup < 0) return map;
+  for (let i = 1; i < lines.length; i++) {
+    const c = parseCsvLine(lines[i]);
+    const well = cleanCell(c[iWell]), grp = cleanCell(c[iGroup]);
+    if (well && grp) map.set(well, grp);
+  }
+  return map;
+}
+
+// Tabular Results: 1 row per well × dye.
+function parseTabular(text) {
+  const lines = splitLines(text).filter(l => l.trim().length);
+  if (lines.length < 2) return { error: 'Tabular Results file has no data rows.' };
+  const header = lines[0].split('\t').map(c => cleanCell(c).toLowerCase());
+  const find = pred => header.findIndex(pred);
+  const startsWith = p => (h => h.startsWith(p));
+  const col = {
+    well:     find(h => h === 'well'),
+    wellType: find(h => h === 'well type'),
+    wellName: find(h => h === 'well name'),
+    dye:      find(h => h === 'dye'),
+    target:   find(h => h === 'target'),
+    replicate:find(h => h === 'replicate'),
+    cq:       find(h => h === 'cq' || h.startsWith('cq (')),
+    call:     find(startsWith('final call')),
+    threshold:find(startsWith('threshold')),
+    blStart:  find(startsWith('baseline start')),
+    blEnd:    find(startsWith('baseline end')),
+    quantity: find(startsWith('quantity (')),
+    eff:      find(startsWith('efficiency')),
+    cqAvg:    find(startsWith('cq avg')),
+    cqSd:     find(startsWith('cq sd')),
+  };
+  if (col.well < 0 || col.dye < 0 || col.cq < 0) {
+    return { error: 'Could not find Well / Dye / Cq columns — is this the Tabular Results export?' };
+  }
+  const recs = [];
+  for (let i = 1; i < lines.length; i++) {
+    const c = lines[i].split('\t');
+    const get = idx => idx >= 0 ? cleanCell(c[idx]) : '';
+    const well = get(col.well);
+    if (!well) continue;
+    const callRaw = get(col.call);
+    const call = callRaw === '+' ? '+' : (callRaw === '-' ? '-' : null);
+    recs.push({
+      well,
+      row: well.charCodeAt(0) - 65,
+      colIdx: (parseInt(well.slice(1), 10) || 1) - 1,
+      wellType: get(col.wellType),
+      wellName: isNullish(get(col.wellName)) ? '' : get(col.wellName),
+      dye: get(col.dye),
+      target: get(col.target) || get(col.dye),
+      replicate: isNullish(get(col.replicate)) ? '' : get(col.replicate),
+      cq: numOrNull(get(col.cq)),
+      call,
+      threshold: numOrNull(get(col.threshold)),
+      blStart: numOrNull(get(col.blStart)),
+      blEnd: numOrNull(get(col.blEnd)),
+      quantity: numOrNull(get(col.quantity)),
+      eff: numOrNull(get(col.eff)),
+      cqAvg: numOrNull(get(col.cqAvg)),
+      cqSd: numOrNull(get(col.cqSd)),
+      series: null,
+      sampleName: '',
+    });
+  }
+  if (!recs.length) return { error: 'No well rows parsed from Tabular Results.' };
+  return { recs };
+}
+
+// Amplification Plots: blocks "WELL, DYE, TYPE \t Cycles \t Fluorescence", then cycle rows.
+function parseAmplification(text) {
+  const lines = splitLines(text);
+  const map = new Map();
+  let key = null, series = null;
+  for (const line of lines) {
+    if (!line.trim()) { key = null; series = null; continue; }
+    const cells = line.split('\t');
+    const first = cleanCell(cells[0]);
+    if (first.indexOf(',') !== -1 && /cycles/i.test(line)) {
+      const parts = first.split(',').map(s => s.trim());
+      const well = parts[0], dye = parts[1] || '';
+      key = well + '|' + dye;
+      series = [];
+      map.set(key, series);
+      continue;
+    }
+    if (series) {
+      const cycle = numOrNull(cells[1]);
+      const fluor = numOrNull(cells[2]);
+      if (cycle != null && fluor != null) series.push({ cycle, fluor });
+    }
+  }
+  return map;
+}
+
+// Plate Setup: pull sample names.
+function parsePlateSetup(text) {
+  const lines = splitLines(text).filter(l => l.trim().length);
+  if (lines.length < 2) return new Map();
+  const header = lines[0].split('\t').map(c => cleanCell(c).toLowerCase());
+  const iWell = header.findIndex(h => h === 'well');
+  const iSample = header.findIndex(h => h.startsWith('sample name'));
+  const iName = header.findIndex(h => h === 'well name');
+  const map = new Map();
+  if (iWell < 0) return map;
+  for (let i = 1; i < lines.length; i++) {
+    const c = lines[i].split('\t');
+    const well = cleanCell(c[iWell]);
+    if (!well) continue;
+    const sample = iSample >= 0 && !isNullish(c[iSample]) ? cleanCell(c[iSample]) : '';
+    const wname  = iName   >= 0 && !isNullish(c[iName])   ? cleanCell(c[iName])   : '';
+    if (!map.has(well)) map.set(well, { sampleName: sample, wellName: wname });
+  }
+  return map;
+}
+
+// Thermal Profile: extract a one-line summary + cycle count.
+function parseThermal(text) {
+  const lines = splitLines(text).filter(l => l.trim().length);
+  if (lines.length < 2) return null;
+  const header = lines[0].split('\t').map(c => cleanCell(c).toLowerCase());
+  const iSeg = header.findIndex(h => h.startsWith('segment'));
+  const iTemp = header.findIndex(h => h.startsWith('temperature') && !h.includes('step'));
+  const iDur = header.findIndex(h => h.startsWith('duration'));
+  const iCyc = header.findIndex(h => h === 'cycle');
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const c = lines[i].split('\t').map(cleanCell);
+    if (!c[iSeg]) continue;
+    rows.push({ segment: c[iSeg], temp: c[iTemp], dur: c[iDur], cycle: parseInt(c[iCyc], 10) || 1 });
+  }
+  // Amplification cycle count = largest repeated cycle value
+  const maxCycle = rows.reduce((m, r) => Math.max(m, r.cycle), 0);
+  // Build a compact summary from the amplification segment(s)
+  const amp = rows.filter(r => /ampl/i.test(r.segment));
+  let summary = '';
+  if (amp.length) {
+    const steps = amp.map(r => `${r.temp} °C ${fmtDur(r.dur)}`).join(' → ');
+    summary = `${maxCycle}× [${steps}]`;
+  }
+  return { rows, maxCycle, summary };
+}
+function fmtDur(d) {
+  // "00:00:15" -> "15s", "00:02:00" -> "2m"
+  const m = /^(\d+):(\d+):(\d+)$/.exec(d || '');
+  if (!m) return d || '';
+  const h = +m[1], mi = +m[2], s = +m[3];
+  if (h) return `${h}h${mi ? mi + 'm' : ''}`;
+  if (mi) return `${mi}m${s ? s + 's' : ''}`;
+  return `${s}s`;
+}
+
+function parseNotes(text) {
+  const lines = splitLines(text).filter(l => l.trim().length);
+  if (lines.length < 2) return '';
+  const c = lines[1].split('\t').map(cleanCell);
+  const note = c[1] || '';
+  return /no experiment notes/i.test(note) ? '' : note;
+}
+
+function stripSuffix(name) {
+  // "CX169 IVH E D7 - Tabular Results.txt" -> "CX169 IVH E D7"
+  return name.replace(/\.[^.]+$/, '').replace(/\s*-\s*(tabular results|amplification plots|plate setup|thermal profile|experiment notes).*$/i, '').trim();
+}
+
+// ── File reading (UTF-16 BOM detection, mirrors rt-calc) ──────────────────
+function decodeBuffer(buf) {
+  const bytes = new Uint8Array(buf);
+  if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) return new TextDecoder('utf-16le').decode(bytes);
+  if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) return new TextDecoder('utf-16be').decode(bytes);
+  let text = new TextDecoder('utf-8').decode(bytes);
+  if (text.indexOf('\0') !== -1) text = new TextDecoder('utf-16le').decode(bytes);
+  return text;
+}
+
+async function handleFiles(fileList) {
+  showError('');
+  const files = Array.from(fileList).filter(f => /\.(txt|csv)$/i.test(f.name) && !f.name.startsWith('._'));
+  if (!files.length) { showError('No .txt/.csv files found. Export the run as tab-separated text from the Agilent software.'); return; }
+
+  const parsed = { tabular: null, amp: null, setup: null, thermal: null, notes: '', layout: null };
+  const seen = [];
+  for (const f of files) {
+    let text;
+    try { text = decodeBuffer(await labtoolsReadFileAsArrayBuffer(f)); }
+    catch (e) { seen.push({ name: f.name, type: 'unknown' }); continue; }
+    const type = detectType(text);
+    seen.push({ name: f.name, type });
+    if (type === 'tabular' && !parsed.tabular) parsed.tabular = { name: f.name, res: parseTabular(text) };
+    else if (type === 'amplification') parsed.amp = parseAmplification(text);
+    else if (type === 'platesetup') parsed.setup = parsePlateSetup(text);
+    else if (type === 'thermal') parsed.thermal = parseThermal(text);
+    else if (type === 'notes') parsed.notes = parseNotes(text);
+    else if (type === 'platelayout') parsed.layout = parsePlateLayout(text);
+  }
+  state.files = seen;
+  renderFileList();
+
+  if (!parsed.tabular) { showError('No Tabular Results file recognized. It is required — it holds the Cq values and calls.'); return; }
+  if (parsed.tabular.res.error) { showError(parsed.tabular.res.error); return; }
+
+  // Build state
+  state.expName = stripSuffix(parsed.tabular.name);
+  state.records = parsed.tabular.res.recs;
+  state.thermal = parsed.thermal;
+  state.notes = parsed.notes;
+  state.byKey = new Map();
+  state.sampleByWell = {};
+  state.selWells = new Set();
+  state.wellsPresent = new Set(state.records.map(r => r.well));
+  state.lastRowIdx = null;
+  state.targetByKey = {};
+  state.thresholds = {};
+  state.customThr = {};
+  state.ddRefs = new Set();
+  state.ddRefsInit = false;
+  state.ddCal = '';
+
+  for (const r of state.records) {
+    const key = r.well + '|' + r.dye;
+    state.byKey.set(key, r);
+    if (parsed.amp && parsed.amp.has(key)) r.series = parsed.amp.get(key);
+    // remember the instrument values so a custom threshold can be reset
+    r.cq0 = r.cq; r.call0 = r.call; r.threshold0 = r.threshold; r.target0 = r.target;
+    // seed per-dye threshold from the instrument value
+    if (state.thresholds[r.dye] == null && r.threshold != null) state.thresholds[r.dye] = r.threshold;
+    // sample name: prefer Plate Setup, else any non-empty Well Name from tabular
+    if (state.sampleByWell[r.well] == null) {
+      let s = '';
+      if (parsed.setup && parsed.setup.has(r.well)) s = parsed.setup.get(r.well).sampleName || '';
+      if (!s && r.wellName) s = r.wellName;
+      state.sampleByWell[r.well] = s;
+    }
+  }
+  // Well Plate Map Generator groups take priority as sample names
+  if (parsed.layout) {
+    for (const [well, grp] of parsed.layout) {
+      if (state.wellsPresent.has(well)) state.sampleByWell[well] = grp;
+    }
+  }
+  applySampleNames();
+  applyTargetNames();
+
+  state.dyes = uniq(state.records.map(r => r.dye)).filter(Boolean);
+  recomputeTargets();
+  // default plate dye = dye with most positive calls
+  state.plateDye = bestDye();
+  state.fltDye = '';
+
+  $('results').style.display = 'block';
+  renderAll();
+}
+
+function applySampleNames() {
+  for (const r of state.records) r.sampleName = state.sampleByWell[r.well] || '';
+}
+function applyTargetNames() {
+  for (const r of state.records) {
+    const o = state.targetByKey[r.well + '|' + r.dye];
+    r.target = (o != null && o !== '') ? o : r.target0;
+  }
+}
+function recomputeTargets() {
+  state.targets = uniq(state.records.map(r => r.target)).filter(Boolean);
+}
+// Compute Cq as the (interpolated) cycle where ΔR crosses the threshold.
+function computeCq(series, thr) {
+  if (!series || !series.length || thr == null) return null;
+  if (series[0].fluor >= thr) return series[0].cycle;
+  for (let i = 1; i < series.length; i++) {
+    const a = series[i - 1], b = series[i];
+    if (a.fluor < thr && b.fluor >= thr) {
+      const f = (thr - a.fluor) / (b.fluor - a.fluor);
+      return a.cycle + f * (b.cycle - a.cycle);
+    }
+  }
+  return null;
+}
+// Recompute Cq + call for one dye from its threshold (or restore instrument values).
+function refreshDyeCq(dye) {
+  const recs = state.records.filter(r => r.dye === dye);
+  if (!state.customThr[dye]) {
+    for (const r of recs) { r.cq = r.cq0; r.call = r.call0; r.threshold = r.threshold0; }
+    return;
+  }
+  const thr = state.thresholds[dye];
+  for (const r of recs) {
+    r.threshold = thr;
+    if (r.series && r.series.length) { r.cq = computeCq(r.series, thr); r.call = r.cq != null ? '+' : '-'; }
+    else { r.cq = null; r.call = '-'; }
+  }
+}
+// Whether the current plate dye can recompute Cq (needs amplification traces).
+function dyeHasSeries(dye) {
+  return state.records.some(r => r.dye === dye && r.series && r.series.length);
+}
+function uniq(arr) { return Array.from(new Set(arr)); }
+function bestDye() {
+  let best = state.dyes[0] || '', bestN = -1;
+  for (const d of state.dyes) {
+    const n = state.records.filter(r => r.dye === d && r.call === '+').length;
+    if (n > bestN) { bestN = n; best = d; }
+  }
+  return best;
+}
+
+// ── Rendering ─────────────────────────────────────────────────────────────
+function renderAll() {
+  renderSummary();
+  renderPlateControls();
+  renderPlate();
+  renderTable();
+  renderSummaryTable();
+  renderDDControls();
+  renderDD();
+  renderChart();
+  updateSelBar();
+  updateThrInput();
+}
+
+function renderFileList() {
+  const wrap = $('fileList');
+  const labels = { tabular: 'Tabular Results', amplification: 'Amplification Plots', platesetup: 'Plate Setup',
+    thermal: 'Thermal Profile', notes: 'Experiment Notes', platelayout: 'Plate Map (groups)', unknown: 'Not recognized' };
+  wrap.innerHTML = state.files.map(f => {
+    const ok = f.type !== 'unknown';
+    const badge = ok ? 'lt-badge-green' : 'lt-badge-default';
+    return `<div class="file-row"><span>📄</span><span class="fname">${esc(f.name)}</span>` +
+      `<span class="lt-badge ${badge}">${labels[f.type]}</span></div>`;
+  }).join('');
+}
+
+function renderSummary() {
+  const recs = state.records;
+  const wells = uniq(recs.map(r => r.well)).length;
+  const posDye = recs.filter(r => r.dye === state.plateDye && r.call === '+').length;
+  const items = [
+    ['Experiment', state.expName || '—'],
+    ['Wells', `${wells} <small>× ${state.dyes.length} dye${state.dyes.length !== 1 ? 's' : ''}</small>`],
+    ['Dyes', state.dyes.join(', ') || '—'],
+    ['Targets', state.targets.join(', ') || '—'],
+    ['Positive (' + state.plateDye + ')', `${posDye} <small>/ ${wells}</small>`],
+  ];
+  if (state.thermal && state.thermal.summary) items.push(['Thermal profile', state.thermal.summary]);
+  if (state.notes) items.push(['Notes', state.notes]);
+  $('summaryGrid').innerHTML = items.map(([k, v]) =>
+    `<div class="summary-item"><div class="summary-k">${esc(k)}</div><div class="summary-v">${v}</div></div>`).join('');
+}
+
+function renderPlateControls() {
+  const sel = $('plateDye');
+  sel.innerHTML = state.dyes.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
+  sel.value = state.plateDye;
+  const f = $('fltDye');
+  f.innerHTML = `<option value="">All</option>` + state.dyes.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
+  f.value = state.fltDye;
+}
+
+// Cq color range for the selected dye (only amplifying wells)
+function cqRange(dye) {
+  const cqs = state.records.filter(r => r.dye === dye && r.cq != null).map(r => r.cq);
+  if (!cqs.length) return null;
+  return { min: Math.min(...cqs), max: Math.max(...cqs) };
+}
+function hexLerp(a, b, t) {
+  const pa = [parseInt(a.slice(1,3),16), parseInt(a.slice(3,5),16), parseInt(a.slice(5,7),16)];
+  const pb = [parseInt(b.slice(1,3),16), parseInt(b.slice(3,5),16), parseInt(b.slice(5,7),16)];
+  const c = pa.map((v,i) => Math.round(v + (pb[i]-v)*t));
+  return '#' + c.map(v => v.toString(16).padStart(2,'0')).join('');
+}
+function targetColor(target) {
+  const i = state.targets.indexOf(target);
+  return PALETTE[(i < 0 ? 0 : i) % PALETTE.length];
+}
+function sortedSamples() {
+  return uniq(state.records.map(r => r.sampleName).filter(Boolean)).sort();
+}
+function sampleColor(name) {
+  if (!name) return '#eef0f2';
+  const i = sortedSamples().indexOf(name);
+  return PALETTE[(i < 0 ? 0 : i) % PALETTE.length];
+}
+function wellFill(r, range) {
+  if (state.plateMode === 'call') return r.call === '+' ? '#57a85a' : (r.call === '-' ? '#eceae6' : '#f5f4f2');
+  if (state.plateMode === 'target') return r.cq != null ? targetColor(r.target) : '#f0efed';
+  if (state.plateMode === 'sample') return sampleColor(r.sampleName);
+  // cq gradient: low Cq (abundant) = dark green, high Cq = pale
+  if (r.cq == null || !range) return '#f0efed';
+  const t = range.max === range.min ? 0 : (r.cq - range.min) / (range.max - range.min);
+  return hexLerp('#2d7a2d', '#dcefdc', t);
+}
+
+function renderPlate() {
+  const recs = state.records.filter(r => r.dye === state.plateDye);
+  const nRows = Math.max(8, ...state.records.map(r => r.row + 1));
+  const nCols = Math.max(12, ...state.records.map(r => r.colIdx + 1));
+  const ML = 26, MT = 22, pitch = 38, rad = 15;
+  const W = ML + nCols * pitch + 8;
+  const H = MT + nRows * pitch + 8;
+  state.plateGeom = { ML, MT, pitch, rad, nRows, nCols };
+  const range = cqRange(state.plateDye);
+  const byWell = new Map(recs.map(r => [r.well, r]));
+
+  let s = '';
+  // column labels (clickable: select whole column)
+  for (let c = 0; c < nCols; c++) {
+    const x = ML + c * pitch + pitch / 2;
+    s += `<text class="col-lbl" data-col="${c}" x="${x}" y="${MT - 7}" text-anchor="middle" font-size="11" fill="var(--text-muted)" font-family="var(--font)">${c + 1}</text>`;
+  }
+  for (let row = 0; row < nRows; row++) {
+    const rowLetter = String.fromCharCode(65 + row);
+    const y = MT + row * pitch + pitch / 2;
+    s += `<text class="row-lbl" data-row="${row}" x="${ML - 9}" y="${y + 4}" text-anchor="middle" font-size="11" fill="var(--text-muted)" font-family="var(--font)">${rowLetter}</text>`;
+    for (let c = 0; c < nCols; c++) {
+      const well = rowLetter + (c + 1);
+      const cx = ML + c * pitch + pitch / 2;
+      const cy = MT + row * pitch + pitch / 2;
+      const r = byWell.get(well);
+      const fill = r ? wellFill(r, range) : '#fafafa';
+      const isSel = state.selWells.has(well);
+      const stroke = isSel ? 'var(--blue-dark)' : '#d8d6d0';
+      const sw = isSel ? 3 : 1.2;
+      const label = r ? cqLabel(r) : '';
+      const tip = r ? `${well}${r.sampleName ? ' · ' + r.sampleName : ''} · ${state.plateDye} · ${r.target}\nCq: ${r.cq != null ? r.cq.toFixed(2) : 'No Cq'} · Call: ${r.call || '—'}` : well;
+      s += `<g class="well-g" style="pointer-events:none">`;
+      s += `<title>${esc(tip)}</title>`;
+      s += `<circle cx="${cx}" cy="${cy}" r="${rad}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+      if (label) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" font-size="8.5" fill="${labelColor(fill)}" font-family="var(--font-mono)">${label}</text>`;
+      s += `</g>`;
+    }
+  }
+  const svg = $('plateSvg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.innerHTML = s;
+  renderLegend(range);
+}
+function cqLabel(r) {
+  if (state.plateMode === 'cq' && r.cq != null) return r.cq.toFixed(1);
+  if (state.plateMode === 'call') return r.call || '';
+  return '';
+}
+function labelColor(fill) {
+  // dark text on pale fills, white on saturated
+  const hex = fill.startsWith('#') ? fill : '#888888';
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  const lum = (0.299*r + 0.587*g + 0.114*b);
+  return lum > 150 ? 'var(--text-secondary)' : '#ffffff';
+}
+function renderLegend(range) {
+  const wrap = $('plateLegend');
+  if (state.plateMode === 'call') {
+    wrap.innerHTML = `<span><span class="legend-swatch" style="background:#57a85a"></span>Positive (+)</span>` +
+      `<span><span class="legend-swatch" style="background:#eceae6"></span>Negative (−)</span>`;
+  } else if (state.plateMode === 'cq') {
+    if (!range) { wrap.innerHTML = '<span>No Cq values for this dye.</span>'; return; }
+    wrap.innerHTML = `<span>Cq ${range.min.toFixed(1)}` +
+      `<span class="legend-bar" style="margin:0 6px;background:linear-gradient(90deg,#2d7a2d,#dcefdc)"></span>${range.max.toFixed(1)}</span>` +
+      `<span><span class="legend-swatch" style="background:#f0efed"></span>No Cq</span>`;
+  } else if (state.plateMode === 'sample') {
+    const samples = sortedSamples();
+    if (!samples.length) { wrap.innerHTML = '<span>No samples named yet — select wells and Assign a name.</span>'; return; }
+    wrap.innerHTML = samples.map(n =>
+      `<span><span class="legend-swatch" style="background:${sampleColor(n)}"></span>${esc(n)}</span>`).join('') +
+      `<span><span class="legend-swatch" style="background:#eef0f2"></span>Unassigned</span>`;
+  } else {
+    wrap.innerHTML = state.targets.map(t =>
+      `<span><span class="legend-swatch" style="background:${targetColor(t)}"></span>${esc(t)}</span>`).join('');
+  }
+}
+
+// ── Well selection (drives grouping + chart) ────────────────────────────────
+function setWellSel(well, on) {
+  if (!state.wellsPresent.has(well)) return;
+  if (on) state.selWells.add(well); else state.selWells.delete(well);
+}
+function selectWells(wells, on) { for (const w of wells) setWellSel(w, on); }
+// Apply a rectangular block (between two {row,col} cells) to a baseline set.
+function applyRect(baseline, a, b, on) {
+  state.selWells = new Set(baseline);
+  const r0 = Math.min(a.row, b.row), r1 = Math.max(a.row, b.row);
+  const c0 = Math.min(a.col, b.col), c1 = Math.max(a.col, b.col);
+  for (let row = r0; row <= r1; row++)
+    for (let col = c0; col <= c1; col++)
+      setWellSel(String.fromCharCode(65 + row) + (col + 1), on);
+}
+function wellsInRow(row) {
+  const L = String.fromCharCode(65 + row);
+  return Array.from({ length: state.plateGeom.nCols }, (_, c) => L + (c + 1)).filter(w => state.wellsPresent.has(w));
+}
+function wellsInCol(col) {
+  return Array.from({ length: state.plateGeom.nRows }, (_, r) => String.fromCharCode(65 + r) + (col + 1)).filter(w => state.wellsPresent.has(w));
+}
+// Refresh everything affected by a selection change.
+function refreshSelection(full) {
+  renderPlate();
+  updateSelBar();
+  if (full !== false) { renderChart(); syncRowChecks(); }
+}
+function updateSelBar() {
+  const n = state.selWells.size;
+  $('selCount').innerHTML = `<b>${n}</b> well${n === 1 ? '' : 's'} selected`;
+  $('selBar').classList.toggle('has-sel', n > 0);
+  $('btnAssign').disabled = n === 0;
+  $('btnClearName').disabled = n === 0;
+  $('btnSelNone').disabled = n === 0;
+  updateDatalist();
+}
+function updateDatalist() {
+  const names = state.assignField === 'target' ? state.targets.slice().sort() : sortedSamples();
+  $('sampleNameList').innerHTML = names.map(n => `<option value="${esc(n)}"></option>`).join('');
+}
+function setAssignField(field) {
+  state.assignField = field;
+  $('grpInput').placeholder = field === 'target' ? 'Gene / target name…' : 'Sample name…';
+  updateDatalist();
+}
+
+// ── Threshold control (per current plate dye) ───────────────────────────────
+function updateThrInput() {
+  const dye = state.plateDye;
+  const inp = $('thrInput');
+  const hasSeries = dyeHasSeries(dye);
+  inp.disabled = !hasSeries;
+  const v = state.thresholds[dye];
+  inp.value = v != null ? +v.toFixed(4) : '';
+  $('thrLabel').innerHTML = state.customThr[dye]
+    ? `Threshold (ΔR) <span class="thr-custom">· custom</span>`
+    : 'Threshold (ΔR)';
+  $('btnThrReset').disabled = !state.customThr[dye];
+  inp.title = hasSeries
+    ? 'Threshold for the current dye — Cq is recomputed from the curves'
+    : 'Import the Amplification Plots export to recompute Cq at a custom threshold';
+}
+function applyThreshold(val) {
+  const dye = state.plateDye;
+  if (!dyeHasSeries(dye)) { showError('Import the Amplification Plots export to recompute Cq at a custom threshold.'); updateThrInput(); return; }
+  if (!Number.isFinite(val) || val <= 0) { updateThrInput(); return; }
+  showError('');
+  state.thresholds[dye] = val;
+  state.customThr[dye] = true;
+  refreshDyeCq(dye);
+  renderAfterCq();
+}
+function resetThreshold() {
+  const dye = state.plateDye;
+  state.customThr[dye] = false;
+  // restore the instrument threshold value for display
+  const r0 = state.records.find(r => r.dye === dye && r.threshold0 != null);
+  if (r0) state.thresholds[dye] = r0.threshold0;
+  refreshDyeCq(dye);
+  renderAfterCq();
+}
+// Re-render everything that depends on Cq / call values.
+function renderAfterCq() {
+  renderSummary();
+  renderPlate();
+  renderTable();
+  renderSummaryTable();
+  renderDDControls();
+  renderDD();
+  renderChart();
+  updateThrInput();
+}
+
+// Map a pointer event to a {row,col} cell on the plate, or null if outside the grid.
+function svgCell(svg, e) {
+  const g = state.plateGeom; if (!g) return null;
+  const ctm = svg.getScreenCTM(); if (!ctm) return null;
+  const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  const p = pt.matrixTransform(ctm.inverse());
+  const col = Math.floor((p.x - g.ML) / g.pitch);
+  const row = Math.floor((p.y - g.MT) / g.pitch);
+  if (row < 0 || col < 0 || row >= g.nRows || col >= g.nCols) return null;
+  return { row, col };
+}
+function onPlateDown(e) {
+  const t = e.target;
+  // Row / column header click → toggle that whole row / column.
+  if (t.classList && t.classList.contains('row-lbl')) { e.preventDefault(); toggleLine(wellsInRow(+t.dataset.row)); return; }
+  if (t.classList && t.classList.contains('col-lbl')) { e.preventDefault(); toggleLine(wellsInCol(+t.dataset.col)); return; }
+  const cell = svgCell($('plateSvg'), e);
+  if (!cell) return;
+  e.preventDefault();
+  const startWell = String.fromCharCode(65 + cell.row) + (cell.col + 1);
+  if (!state.wellsPresent.has(startWell)) return;
+  drag.active = true;
+  drag.mode = state.selWells.has(startWell) ? 'remove' : 'add'; // toggle-drag like a spreadsheet
+  drag.baseline = new Set(state.selWells);
+  drag.start = cell; drag.last = cell;
+  applyRect(drag.baseline, cell, cell, drag.mode === 'add');
+  refreshSelection(false);          // light: plate + bar only while dragging
+  try { $('plateSvg').setPointerCapture(e.pointerId); } catch (_) {}
+}
+function onPlateMove(e) {
+  if (!drag.active) return;
+  const cell = svgCell($('plateSvg'), e);
+  if (!cell || (cell.row === drag.last.row && cell.col === drag.last.col)) return;
+  drag.last = cell;
+  applyRect(drag.baseline, drag.start, cell, drag.mode === 'add');
+  refreshSelection(false);
+}
+function onPlateUp(e) {
+  if (!drag.active) return;
+  drag.active = false;
+  try { $('plateSvg').releasePointerCapture(e.pointerId); } catch (_) {}
+  renderChart(); renderTable();     // finalize chart + table checkboxes
+}
+function toggleLine(wells) {
+  const allSel = wells.length > 0 && wells.every(w => state.selWells.has(w));
+  selectWells(wells, !allSel);
+  refreshSelection(); renderTable();
+}
+
+// ── Results table ──────────────────────────────────────────────────────────
+const COLS = [
+  { key: 'well', label: 'Well', num: false },
+  { key: 'sampleName', label: 'Sample', num: false, edit: true },
+  { key: 'target', label: 'Target', num: false },
+  { key: 'dye', label: 'Dye', num: false },
+  { key: 'cq', label: 'Cq', num: true },
+  { key: 'call', label: 'Call', num: false },
+  { key: 'threshold', label: 'Threshold', num: true },
+  { key: 'eff', label: 'Eff %', num: true },
+];
+
+function renderTable() {
+  const rows = filteredRows();
+  const head = $('resHead');
+  const allSel = rows.length > 0 && rows.every(r => state.selWells.has(r.well));
+  head.innerHTML = `<th class="chk-col"><input type="checkbox" class="all-chk" title="Select all rows shown"${allSel ? ' checked' : ''}></th>` +
+    COLS.map(c => {
+      const ind = state.sort.col === c.key ? `<span class="sort-ind">${state.sort.dir > 0 ? '▲' : '▼'}</span>` : '';
+      return `<th data-col="${c.key}" class="${c.num ? 'num' : ''}">${c.label}${ind}</th>`;
+    }).join('');
+  head.querySelectorAll('th[data-col]').forEach(th =>
+    th.addEventListener('click', () => { sortBy(th.dataset.col); }));
+  head.querySelector('.all-chk').addEventListener('change', function () {
+    selectWells(rows.map(r => r.well), this.checked);
+    refreshSelection();
+    renderTable();
+  });
+
+  const body = $('resBody');
+  body.innerHTML = rows.map((r, i) => {
+    const checked = state.selWells.has(r.well) ? 'checked' : '';
+    const cells = COLS.map(c => {
+      let v = r[c.key];
+      if (c.edit) {
+        return `<td><input class="sample-input" data-well="${r.well}" placeholder="—" value="${esc(r.sampleName)}"/></td>`;
+      }
+      if (c.key === 'call') {
+        const cls = v === '+' ? 'call-pos' : 'call-neg';
+        return `<td class="${cls}">${v || '—'}</td>`;
+      }
+      if (c.num) {
+        const txt = v == null ? '—' : (c.key === 'eff' ? v.toFixed(1) : v.toFixed(2));
+        return `<td class="num">${txt}</td>`;
+      }
+      return `<td>${esc(v == null ? '' : String(v)) || '—'}</td>`;
+    }).join('');
+    return `<tr data-well="${r.well}"><td class="chk-col"><input type="checkbox" class="row-chk" data-well="${r.well}" data-idx="${i}" ${checked}></td>${cells}</tr>`;
+  }).join('');
+
+  body.querySelectorAll('.sample-input').forEach(inp => {
+    inp.addEventListener('change', () => { setSample(inp.dataset.well, inp.value); });
+  });
+  body.querySelectorAll('.row-chk').forEach(chk => {
+    chk.addEventListener('click', function (e) {
+      const idx = +this.dataset.idx;
+      const on = this.checked;
+      if (e.shiftKey && state.lastRowIdx != null) {
+        const lo = Math.min(idx, state.lastRowIdx), hi = Math.max(idx, state.lastRowIdx);
+        selectWells(rows.slice(lo, hi + 1).map(r => r.well), on);
+      } else {
+        setWellSel(this.dataset.well, on);
+      }
+      state.lastRowIdx = idx;
+      refreshSelection();
+      renderTable();
+    });
+  });
+}
+
+function filteredRows() {
+  let rows = state.records.slice();
+  if (state.fltDye) rows = rows.filter(r => r.dye === state.fltDye);
+  if (state.fltCall) rows = rows.filter(r => r.call === state.fltCall);
+  const { col, dir } = state.sort;
+  rows.sort((a, b) => {
+    let x = a[col], y = b[col];
+    if (col === 'well') { // natural well order: row then column number
+      if (a.row !== b.row) return (a.row - b.row) * dir;
+      return (a.colIdx - b.colIdx) * dir;
+    }
+    if (x == null && y == null) return 0;
+    if (x == null) return 1;   // nulls last
+    if (y == null) return -1;
+    if (typeof x === 'number') return (x - y) * dir;
+    return String(x).localeCompare(String(y)) * dir;
+  });
+  return rows;
+}
+function sortBy(col) {
+  if (state.sort.col === col) state.sort.dir *= -1;
+  else { state.sort.col = col; state.sort.dir = 1; }
+  renderTable();
+}
+function setSample(well, name) {
+  state.sampleByWell[well] = name.trim();
+  afterSampleChange();
+}
+// Assign / clear a Sample or Gene name for every selected well in one action.
+function assignToSelection(name) {
+  if (!state.selWells.size) return;
+  const n = name.trim();
+  if (state.assignField === 'target') {
+    for (const w of state.selWells) {
+      const key = w + '|' + state.plateDye;
+      if (state.byKey.has(key)) state.targetByKey[key] = n;
+    }
+    applyTargetNames(); recomputeTargets();
+  } else {
+    for (const w of state.selWells) state.sampleByWell[w] = n;
+  }
+  afterSampleChange();
+}
+function afterSampleChange() {
+  applySampleNames();
+  renderSummary();
+  renderPlate();
+  renderTable();
+  renderSummaryTable();
+  renderDDControls();
+  renderDD();
+  updateDatalist();
+}
+function syncRowChecks() {
+  document.querySelectorAll('.row-chk').forEach(chk => {
+    chk.checked = state.selWells.has(chk.dataset.well);
+  });
+  const all = document.querySelector('.all-chk');
+  if (all) {
+    const rows = Array.from(document.querySelectorAll('.row-chk'));
+    all.checked = rows.length > 0 && rows.every(c => c.checked);
+  }
+}
+
+// ── Grouped summary ─────────────────────────────────────────────────────────
+function groupKey(r) { return (r.sampleName || r.well) + '|' + r.target + '|' + r.dye; }
+function buildGroups() {
+  const groups = new Map();
+  for (const r of state.records) {
+    const k = groupKey(r);
+    if (!groups.has(k)) groups.set(k, { sample: r.sampleName || r.well, target: r.target, dye: r.dye, recs: [] });
+    groups.get(k).recs.push(r);
+  }
+  for (const g of groups.values()) {
+    const cqs = g.recs.filter(r => r.cq != null).map(r => r.cq);
+    g.n = g.recs.length;
+    g.nPos = g.recs.filter(r => r.call === '+').length;
+    g.meanCq = cqs.length ? mean(cqs) : null;
+    g.sdCq = cqs.length > 1 ? sd(cqs) : null;
+  }
+  return groups;
+}
+function mean(a) { return a.reduce((s, v) => s + v, 0) / a.length; }
+function sd(a) { const m = mean(a); return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / (a.length - 1)); }
+
+function renderSummaryTable() {
+  const groups = Array.from(buildGroups().values())
+    .sort((a, b) => a.sample.localeCompare(b.sample) || a.target.localeCompare(b.target));
+  $('sumBody').innerHTML = groups.map(g =>
+    `<tr><td>${esc(g.sample)}</td><td>${esc(g.target)}</td><td>${esc(g.dye)}</td>` +
+    `<td class="num">${g.n}</td><td class="num">${g.nPos}</td>` +
+    `<td class="num">${g.meanCq != null ? g.meanCq.toFixed(2) : '—'}</td>` +
+    `<td class="num">${g.sdCq != null ? g.sdCq.toFixed(2) : '—'}</td></tr>`).join('') ||
+    `<tr><td colspan="7" class="empty-state">No data.</td></tr>`;
+}
+
+// ── ΔΔCq ────────────────────────────────────────────────────────────────────
+function targetsWithCq() {
+  return state.targets.filter(t => state.records.some(r => r.target === t && r.cq != null));
+}
+function namedSamples() {
+  return uniq(state.records.filter(r => r.sampleName).map(r => r.sampleName));
+}
+function meanCqFor(sample, target) {
+  const cqs = state.records.filter(r => (r.sampleName || r.well) === sample && r.target === target && r.cq != null).map(r => r.cq);
+  return cqs.length ? mean(cqs) : null;
+}
+// Combined reference Cq for a sample = mean Cq across the selected reference genes
+// (the arithmetic mean of Cq equals the geometric mean of quantities — geNorm-style).
+function refCqFor(sample, refs) {
+  if (!refs.length) return null;
+  const vals = refs.map(t => meanCqFor(sample, t));
+  if (vals.some(v => v == null)) return null;       // require every reference for the sample
+  return mean(vals);
+}
+const HOUSEKEEPING = /^(gapdh|actb|b-?actin|β-?actin|b2m|18s|hprt1?|ppia|tbp|ywhaz|rpl\d|rps\d|gusb|tubb|sdha|pgk1|ubc)$/i;
+// Samples for ΔΔCq: the named groups if any exist, else fall back to well ids.
+function ddSamples() {
+  const named = namedSamples();
+  return named.length ? named : uniq(state.records.map(r => r.sampleName || r.well)).filter(Boolean);
+}
+
+function renderDDControls() {
+  const tgts = targetsWithCq();
+  // First time we have ≥2 genes, auto-pick any housekeeping-looking ones as references.
+  if (!state.ddRefsInit && tgts.length >= 2) {
+    tgts.filter(t => HOUSEKEEPING.test(t)).forEach(t => state.ddRefs.add(t));
+    state.ddRefsInit = true;
+  }
+  // Drop references that no longer exist.
+  for (const r of Array.from(state.ddRefs)) if (!tgts.includes(r)) state.ddRefs.delete(r);
+
+  // Reference-gene chips
+  $('ddRefChips').innerHTML = tgts.length
+    ? tgts.map(t => {
+        const on = state.ddRefs.has(t);
+        return `<label class="ref-chip ${on ? 'on' : ''}" data-gene="${esc(t)}">` +
+          `<span class="tick">${on ? '✓' : '+'}</span>${esc(t)}</label>`;
+      }).join('')
+    : `<span class="drop-zone-sub">No genes with Cq yet — assign Gene labels above.</span>`;
+  $('ddRefChips').querySelectorAll('.ref-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const g = chip.dataset.gene;
+      if (state.ddRefs.has(g)) state.ddRefs.delete(g); else state.ddRefs.add(g);
+      renderDDControls(); renderDD();
+    });
+  });
+
+  // Calibrator select
+  const samples = ddSamples();
+  const cal = $('ddCal');
+  if (!samples.includes(state.ddCal)) state.ddCal = samples[0] || '';
+  cal.innerHTML = samples.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  cal.value = state.ddCal;
+
+  // Gating + guidance
+  const refs = Array.from(state.ddRefs);
+  const goi = tgts.filter(t => !state.ddRefs.has(t));
+  let msg = '';
+  if (tgts.length < 2) msg = 'ΔΔCq needs at least two genes with Cq. Use the Gene assignment above to label wells (e.g. a target and a housekeeping gene).';
+  else if (!refs.length) msg = 'Select at least one reference (housekeeping) gene above.';
+  else if (!goi.length) msg = 'All genes are marked as reference — leave at least one gene of interest unselected.';
+  else if (!samples.length) msg = 'Name your samples so replicates can be grouped.';
+  const ready = !msg;
+  $('ddAlert').style.display = ready ? 'none' : 'block';
+  if (!ready) $('ddAlert').innerHTML = msg;
+  $('ddTableWrap').style.display = ready ? 'block' : 'none';
+  $('btnDdCsv').disabled = !ready;
+}
+function ddResults() {
+  const refs = Array.from(state.ddRefs);
+  const calibrator = state.ddCal;
+  const goi = targetsWithCq().filter(t => !state.ddRefs.has(t));
+  const samples = ddSamples();
+  const out = [];
+  for (const t of goi) {
+    const calRefCq = refCqFor(calibrator, refs);
+    const calTgtCq = meanCqFor(calibrator, t);
+    const calDelta = (calTgtCq != null && calRefCq != null) ? calTgtCq - calRefCq : null;
+    for (const sm of samples) {
+      const tgtCq = meanCqFor(sm, t);
+      const refCq = refCqFor(sm, refs);
+      if (tgtCq == null || refCq == null) continue;
+      const dCq = tgtCq - refCq;
+      const ddCq = calDelta != null ? dCq - calDelta : null;
+      const fold = ddCq != null ? Math.pow(2, -ddCq) : null;
+      out.push({ sample: sm, target: t, meanCq: tgtCq, refCq, dCq, ddCq, fold });
+    }
+  }
+  return out;
+}
+function renderDD() {
+  if ($('ddTableWrap').style.display === 'none') return;
+  const rows = ddResults();
+  $('ddBody').innerHTML = rows.map(r =>
+    `<tr><td>${esc(r.sample)}</td><td>${esc(r.target)}</td>` +
+    `<td class="num">${r.meanCq.toFixed(2)}</td><td class="num">${r.refCq.toFixed(2)}</td>` +
+    `<td class="num">${r.dCq.toFixed(2)}</td>` +
+    `<td class="num">${r.ddCq != null ? r.ddCq.toFixed(2) : '—'}</td>` +
+    `<td class="num">${r.fold != null ? r.fold.toFixed(3) : '—'}</td></tr>`).join('') ||
+    `<tr><td colspan="7" class="empty-state">No paired gene/reference Cq values for the named samples.</td></tr>`;
+}
+
+// ── Amplification chart (SVG string, mirrors bca-assay) ─────────────────────
+function chartGroupLabel(r) {
+  switch (state.chartGroupBy) {
+    case 'gene': return r.target || '—';
+    case 'sampleGene': return (r.sampleName || r.well) + ' · ' + (r.target || '—');
+    case 'call': return r.call === '+' ? 'Positive' : (r.call === '-' ? 'Negative' : 'No call');
+    case 'well': return r.well;
+    default: return r.sampleName || r.well;
+  }
+}
+function renderChart() {
+  const svg = $('ampSvg');
+  const empty = $('ampEmpty');
+  const recs = Array.from(state.selWells)
+    .map(w => state.byKey.get(w + '|' + state.plateDye))
+    .filter(r => r && r.series && r.series.length)
+    .sort((a, b) => a.row - b.row || a.colIdx - b.colIdx);
+  if (!recs.length) {
+    svg.innerHTML = ''; svg.style.display = 'none'; empty.style.display = 'block';
+    empty.textContent = state.selWells.size > 0
+      ? `Selected wells have no amplification trace for ${state.plateDye}. Import the Amplification Plots export, or switch the plate dye.`
+      : 'Select wells in the plate or table to plot their curves.';
+    return;
+  }
+  svg.style.display = 'block'; empty.style.display = 'none';
+
+  const log = state.ampScale === 'log';
+  const thrVal = state.thresholds[state.plateDye];
+  // Global scales so panels are comparable
+  let maxCycle = 0, maxY = -Infinity, minY = Infinity;
+  for (const r of recs) for (const p of r.series) {
+    maxCycle = Math.max(maxCycle, p.cycle);
+    maxY = Math.max(maxY, p.fluor); minY = Math.min(minY, p.fluor);
+  }
+  if (log) { minY = Math.max(0.1, minY); maxY = Math.max(maxY, 1); }
+  else { minY = Math.min(0, minY); }
+  const yLo = log ? Math.log10(Math.max(0.1, minY)) : minY;
+  const yHi = log ? Math.log10(maxY * 1.1) : maxY * 1.05;
+
+  // Groups + stable color map
+  const groups = uniq(recs.map(chartGroupLabel)).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+  const colorOf = {};
+  groups.forEach((g, i) => colorOf[g] = PALETTE[i % PALETTE.length]);
+
+  const separate = state.chartLayout === 'separate';
+  const panels = separate
+    ? groups.map(g => ({ title: g, recs: recs.filter(r => chartGroupLabel(r) === g) }))
+    : [{ title: null, recs }];
+
+  const W = 720, LO = 16, BO = 18;          // outer gutters for global axis titles
+  const cols = separate ? (panels.length <= 1 ? 1 : panels.length <= 4 ? 2 : 3) : 1;
+  const nrows = Math.ceil(panels.length / cols);
+  const panelW = (W - LO) / cols;
+  const panelH = separate ? 210 : 360;
+  const H = nrows * panelH + BO;
+  const fmtY = v => log ? Math.pow(10, v).toPrecision(2) : v.toFixed(Math.abs(v) >= 100 ? 0 : 1);
+
+  let s = '';
+  panels.forEach((panel, idx) => {
+    const gx = LO + (idx % cols) * panelW;
+    const gy = Math.floor(idx / cols) * panelH;
+    const ML = 46, MR = 12, MT = separate ? 22 : 14, MB = 26;
+    const px = gx + ML, py = gy + MT, pw = panelW - ML - MR, ph = panelH - MT - MB;
+    const xS = c => px + (c - 1) / (maxCycle - 1 || 1) * pw;
+    const yS = f => { const v = log ? Math.log10(Math.max(0.1, f)) : f; return py + ph - (v - yLo) / (yHi - yLo || 1) * ph; };
+
+    s += `<rect x="${px}" y="${py}" width="${pw}" height="${ph}" fill="var(--surface)" stroke="var(--border-subtle)" rx="4"/>`;
+    for (const t of niceTicks(yLo, yHi, 4)) {
+      const yy = py + ph - (t - yLo) / (yHi - yLo || 1) * ph;
+      if (yy < py - 0.5 || yy > py + ph + 0.5) continue;
+      s += `<line x1="${px}" y1="${yy}" x2="${px + pw}" y2="${yy}" stroke="var(--border-subtle)" stroke-width="1"/>`;
+      s += `<text x="${px - 5}" y="${yy + 3}" text-anchor="end" font-size="9" fill="var(--text-muted)" font-family="var(--font)">${fmtY(t)}</text>`;
+    }
+    for (const t of niceTicks(1, maxCycle, 5).filter(t => t >= 1 && t <= maxCycle)) {
+      s += `<text x="${xS(t)}" y="${py + ph + 13}" text-anchor="middle" font-size="9" fill="var(--text-muted)" font-family="var(--font)">${Math.round(t)}</text>`;
+    }
+    if (thrVal != null) {
+      const yy = yS(thrVal);
+      if (yy >= py && yy <= py + ph) s += `<line x1="${px}" y1="${yy}" x2="${px + pw}" y2="${yy}" stroke="var(--red)" stroke-width="1" stroke-dasharray="5 4" opacity="0.6"/>`;
+    }
+    panel.recs.forEach(r => {
+      const color = colorOf[chartGroupLabel(r)];
+      const pts = r.series.map(p => `${xS(p.cycle).toFixed(1)},${yS(p.fluor).toFixed(1)}`).join(' ');
+      s += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" opacity="0.9"/>`;
+    });
+    s += `<line x1="${px}" y1="${py}" x2="${px}" y2="${py + ph}" stroke="var(--border)" stroke-width="1.1"/>`;
+    s += `<line x1="${px}" y1="${py + ph}" x2="${px + pw}" y2="${py + ph}" stroke="var(--border)" stroke-width="1.1"/>`;
+    if (panel.title != null) {
+      s += `<text x="${px + pw / 2}" y="${gy + 14}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--text)" font-family="var(--font)">` +
+        `<tspan fill="${colorOf[panel.title]}">● </tspan>${esc(panel.title)}</text>`;
+    }
+  });
+
+  // Together: legend of groups (top-left of the single panel)
+  if (!separate) {
+    let lx = LO + 46 + 8, ly = 14 + 8;
+    groups.slice(0, 14).forEach(g => {
+      s += `<line x1="${lx}" y1="${ly}" x2="${lx + 14}" y2="${ly}" stroke="${colorOf[g]}" stroke-width="2.5"/>`;
+      s += `<text x="${lx + 19}" y="${ly + 3}" font-size="9.5" fill="var(--text-secondary)" font-family="var(--font)">${esc(g)}</text>`;
+      ly += 13;
+    });
+    if (groups.length > 14) s += `<text x="${lx}" y="${ly + 3}" font-size="9" fill="var(--text-muted)" font-family="var(--font)">+${groups.length - 14} more…</text>`;
+  }
+
+  // Global axis titles
+  s += `<text x="${LO + (W - LO) / 2}" y="${H - 4}" text-anchor="middle" font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600">Cycle</text>`;
+  s += `<text x="10" y="${(H - BO) / 2}" text-anchor="middle" font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600" transform="rotate(-90 10 ${(H - BO) / 2})">Fluorescence (ΔR)${log ? ' — log' : ''}</text>`;
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = s;
+}
+function niceTicks(lo, hi, n) {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || lo === hi) return [lo];
+  const span = hi - lo;
+  const raw = span / n;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  const step = (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag;
+  const ticks = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) ticks.push(+v.toFixed(10));
+  return ticks;
+}
+
+// ── Export ──────────────────────────────────────────────────────────────────
+function resultsTSV() {
+  const cols = ['Well', 'Sample', 'Target', 'Dye', 'Cq', 'Call', 'Threshold', 'Baseline Start', 'Baseline End', 'Efficiency (%)', 'Quantity'];
+  const lines = [cols.join('\t')];
+  for (const r of filteredRows()) {
+    lines.push([r.well, r.sampleName, r.target, r.dye,
+      r.cq != null ? r.cq.toFixed(3) : '', r.call || '',
+      r.threshold != null ? r.threshold.toFixed(3) : '',
+      r.blStart ?? '', r.blEnd ?? '',
+      r.eff != null ? r.eff.toFixed(2) : '',
+      r.quantity != null ? r.quantity : ''].join('\t'));
+  }
+  return lines.join('\n');
+}
+function tsvToCsv(tsv) {
+  return tsv.split('\n').map(line =>
+    line.split('\t').map(c => /[",\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c).join(',')).join('\n');
+}
+function ddCsv() {
+  const out = ddResults();
+  const head = ['Sample', 'Target', 'Mean Cq', 'Ref Cq', 'dCq', 'ddCq', 'Fold (2^-ddCq)'];
+  const lines = [head.join(',')];
+  for (const r of out) lines.push([r.sample, r.target, r.meanCq.toFixed(3), r.refCq.toFixed(3),
+    r.dCq.toFixed(3), r.ddCq != null ? r.ddCq.toFixed(3) : '', r.fold != null ? r.fold.toFixed(4) : ''].join(','));
+  return lines.join('\n');
+}
+function exportName(suffix) {
+  const base = (state.expName || 'qpcr').replace(/[^\w.-]+/g, '_');
+  return `${base}_${suffix}`;
+}
+function svgToPng(svgEl, filename, scale) {
+  scale = scale || 2;
+  const clone = svgEl.cloneNode(true);
+  const vb = (svgEl.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+  const w = vb[2] || svgEl.clientWidth || 720;
+  const h = vb[3] || svgEl.clientHeight || 380;
+  clone.setAttribute('width', w); clone.setAttribute('height', h);
+  // inline a white background so PNG isn't transparent
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bg.setAttribute('x', 0); bg.setAttribute('y', 0); bg.setAttribute('width', w); bg.setAttribute('height', h);
+  bg.setAttribute('fill', '#ffffff'); clone.insertBefore(bg, clone.firstChild);
+  let str = new XMLSerializer().serializeToString(clone);
+  // resolve CSS variables to concrete colors for export
+  str = resolveCssVars(str);
+  const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(str)));
+  const img = new Image();
+  img.onload = function () {
+    const canvas = document.createElement('canvas');
+    canvas.width = w * scale; canvas.height = h * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(b => { if (b) labtoolsDownloadBlob(filename, b); });
+  };
+  img.onerror = () => showError('Could not render PNG in this browser.');
+  img.src = url;
+}
+const CSS_VAR_MAP = {
+  '--surface': '#ffffff', '--surface-subtle': '#fafafa', '--border': '#e3e2df',
+  '--border-subtle': '#f0efed', '--text': '#37352f', '--text-secondary': '#6b6b6b',
+  '--text-muted': '#9b9a97', '--text-dim': '#b6b5b2', '--blue-dark': '#3366cc',
+  '--red': '#e03e3e', '--font': 'sans-serif', '--font-mono': 'monospace',
+};
+function resolveCssVars(str) {
+  return str.replace(/var\((--[\w-]+)\)/g, (m, v) => CSS_VAR_MAP[v] || '#000000');
+}
+
+function showError(msg) {
+  const a = $('errAlert');
+  if (!msg) { a.classList.add('hidden'); a.textContent = ''; return; }
+  a.classList.remove('hidden'); a.textContent = msg;
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+// ── Wiring ──────────────────────────────────────────────────────────────────
+function init() {
+  // Persistence is disabled — drop any stale state and stop value autofill.
+  try { localStorage.removeItem(LS_KEY); } catch (e) {}
+
+  const dz = $('dropZone'), fi = $('fileInput');
+  dz.addEventListener('click', () => fi.click());
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('drag');
+    const items = e.dataTransfer.files;
+    if (items && items.length) handleFiles(items);
+  });
+  fi.addEventListener('change', () => { if (fi.files.length) handleFiles(fi.files); });
+
+  $('plateDye').addEventListener('change', e => { state.plateDye = e.target.value; renderSummary(); renderPlate(); renderChart(); updateThrInput(); });
+  $('plateMode').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.plateMode = b.dataset.mode;
+    setActive($('plateMode'), b); renderPlate();
+  });
+  $('ampScale').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.ampScale = b.dataset.scale; setActive($('ampScale'), b); renderChart();
+  });
+  $('ampGroupBy').addEventListener('change', e => { state.chartGroupBy = e.target.value; renderChart(); });
+  $('ampLayout').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.chartLayout = b.dataset.layout; setActive($('ampLayout'), b); renderChart();
+  });
+
+  // Adjustable threshold (recomputes Cq for the current dye from the curves)
+  $('thrInput').addEventListener('change', e => applyThreshold(parseFloat(e.target.value)));
+  $('btnThrReset').addEventListener('click', resetThreshold);
+
+  // Assign field (Sample vs Gene)
+  $('assignField').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    setActive($('assignField'), b); setAssignField(b.dataset.field);
+  });
+  $('fltDye').addEventListener('change', e => { state.fltDye = e.target.value; renderTable(); });
+  $('fltCall').addEventListener('change', e => { state.fltCall = e.target.value; renderTable(); });
+
+  // Plate drag-to-select
+  const psvg = $('plateSvg');
+  psvg.addEventListener('pointerdown', onPlateDown);
+  psvg.addEventListener('pointermove', onPlateMove);
+  window.addEventListener('pointerup', onPlateUp);
+
+  // Selection bar
+  $('btnAssign').addEventListener('click', function () {
+    if (!state.selWells.size) return;
+    assignToSelection($('grpInput').value);
+    flash(this, 'Assigned ✓', 'Assign to selection');
+  });
+  $('grpInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnAssign').click(); });
+  $('btnClearName').addEventListener('click', () => assignToSelection(''));
+  $('btnSelPos').addEventListener('click', () => {
+    selectWells(state.records.filter(r => r.dye === state.plateDye && r.call === '+').map(r => r.well), true);
+    refreshSelection(); renderTable();
+  });
+  $('btnSelAll').addEventListener('click', () => { selectWells(Array.from(state.wellsPresent), true); refreshSelection(); renderTable(); });
+  $('btnSelNone').addEventListener('click', () => { state.selWells.clear(); state.lastRowIdx = null; refreshSelection(); renderTable(); });
+
+  $('btnPlotPos').addEventListener('click', () => {
+    selectWells(state.records.filter(r => r.dye === state.plateDye && r.call === '+' && r.series && r.series.length).map(r => r.well), true);
+    refreshSelection(); renderTable();
+  });
+  $('btnPlotClear').addEventListener('click', () => { state.selWells.clear(); state.lastRowIdx = null; refreshSelection(); renderTable(); });
+
+  $('btnCopy').addEventListener('click', function () {
+    labtoolsCopyText(tsvToCsv(resultsTSV())).then(() => flash(this, 'Copied!', 'Copy CSV')).catch(() => {});
+  });
+  $('btnCsv').addEventListener('click', () => labtoolsDownloadText(exportName('results.csv'), tsvToCsv(resultsTSV()), 'text/csv'));
+  $('btnDdCsv').addEventListener('click', () => labtoolsDownloadText(exportName('ddcq.csv'), ddCsv(), 'text/csv'));
+  $('btnPlatePng').addEventListener('click', () => svgToPng($('plateSvg'), exportName('plate.png')));
+  $('btnAmpPng').addEventListener('click', () => {
+    if (!state.selWells.size) { showError('Select wells to plot before exporting the chart.'); return; }
+    svgToPng($('ampSvg'), exportName('amplification.png'));
+  });
+
+  $('ddCal').addEventListener('change', e => { state.ddCal = e.target.value; renderDD(); });
+  $('btnDdRecalc').addEventListener('click', function () { renderDDControls(); renderDD(); flash(this, 'Recalculated ✓', 'Recalculate'); });
+
+  $('btnResetAll').addEventListener('click', () => {
+    Object.assign(state, { records: [], byKey: new Map(), sampleByWell: {}, selWells: new Set(),
+      wellsPresent: new Set(), files: [], lastRowIdx: null, targetByKey: {}, thresholds: {},
+      customThr: {}, ddRefs: new Set(), ddRefsInit: false, ddCal: '' });
+    $('results').style.display = 'none';
+    $('fileList').innerHTML = '';
+    $('fileInput').value = '';
+    showError('');
+  });
+}
+function setActive(group, btn) { group.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn)); }
+function flash(btn, on, off) { btn.textContent = on; setTimeout(() => { btn.textContent = off; }, 1400); }
+
+init();
+</script>
+</body>
+</html>
