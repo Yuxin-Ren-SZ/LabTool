@@ -18,6 +18,7 @@ dropped in any order:
 | **Plate Setup** | Optional. Pre-fills sample names. |
 | **Thermal Profile** | Optional. Shown as a one-line cycling summary. |
 | **Experiment Notes** | Optional. Shown in the run summary. |
+| **Well Plate Map Generator `.csv`** | Optional. A layout exported by the [Well Plate Map Generator](../experiment-layout/) tool (`plate_type,row,column,well,group,…`); the `group` of each well is imported as its sample name. |
 
 UTF-8 and UTF-16 (with BOM) encodings are both handled.
 
@@ -36,8 +37,10 @@ UTF-8 and UTF-16 (with BOM) encodings are both handled.
   flow through to every table and the ΔΔCq. Reset restores the instrument values.
   (Requires the Amplification Plots export.)
 - **Results table** — sortable and filterable (by dye / call). Sample names editable inline.
-- **Amplification curves** — overlay selected wells' ΔR traces with the threshold line,
-  linear or log scale. Export as PNG.
+- **Amplification curves** — plot the selected wells' ΔR traces with the threshold line,
+  linear or log scale. **Color by** sample, gene, sample × gene, call, or well — each group
+  gets a distinct color — and choose **Together** (one overlaid chart) or **Separate**
+  (one small-multiple panel per group). Export as PNG.
 - **Per-sample / target summary** — n, positives, mean Cq, SD Cq per (sample, gene, dye).
 - **ΔΔCq relative quantification** — choose **one or more reference genes** (their Cq are
   averaged, geNorm-style), a calibrator sample, then **Recalculate** to get ΔCq, ΔΔCq, and
@@ -46,13 +49,14 @@ UTF-8 and UTF-16 (with BOM) encodings are both handled.
 
 ## Outputs
 
-- Results table → **CSV download** or **copy as TSV** (paste into Excel / Prism).
+- Results table → **CSV download** or **copy as CSV** (paste into Excel / Prism).
 - ΔΔCq table → CSV download.
 - Plate heatmap and amplification chart → **PNG**.
 
 ## Notes
 
-- The tool does not re-call Cq or re-baseline; it reads the values the Agilent software
-  computed. It is an analysis/visualization layer on top of the export.
-- No data is persisted between sessions — reload starts fresh. Sample-name edits live in
-  memory for the current session only.
+- By default it shows the Cq, calls, and thresholds the Agilent software computed. When you
+  set a custom threshold it recomputes Cq by interpolating the ΔR curve crossing (it does
+  not re-baseline the raw fluorescence); Reset returns to the instrument values.
+- No data is persisted between sessions — reload starts fresh. Sample/gene labels, custom
+  thresholds, and ΔΔCq choices live in memory for the current session only.

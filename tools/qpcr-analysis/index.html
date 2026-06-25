@@ -214,12 +214,13 @@
 
       <!-- ── Import ── -->
       <div class="drop-zone" id="dropZone">
-        <input type="file" id="fileInput" accept=".txt" multiple style="display:none" />
+        <input type="file" id="fileInput" accept=".txt,.csv" multiple style="display:none" />
         <div class="drop-zone-icon">📄</div>
         <div class="drop-zone-main">Drop exported <code>.txt</code> files here</div>
         <div class="drop-zone-sub">
           or <span class="drop-zone-link">browse…</span><br/>
-          Tabular Results is required · Amplification Plots, Plate Setup, Thermal Profile &amp; Notes optional
+          Tabular Results is required · Amplification Plots, Plate Setup, Thermal Profile &amp; Notes optional<br/>
+          Also accepts a <b>Well Plate Map Generator</b> <code>.csv</code> to label samples by group
         </div>
       </div>
       <div class="file-list" id="fileList"></div>
@@ -292,7 +293,18 @@
               <input type="number" class="thr-input" id="thrInput" step="any" min="0" title="Threshold for the current dye — Cq is recomputed from the curves" />
               <button class="btn-sm" id="btnThrReset" title="Restore the instrument threshold">Reset</button>
               <span class="sel-spacer" style="flex:0 0 6px;"></span>
-              <span class="mini-label">Scale</span>
+              <span class="mini-label">Color by</span>
+              <select class="mini-select" id="ampGroupBy">
+                <option value="sample">Sample</option>
+                <option value="gene">Gene</option>
+                <option value="sampleGene">Sample × Gene</option>
+                <option value="call">Call</option>
+                <option value="well">Well</option>
+              </select>
+              <div class="seg" id="ampLayout">
+                <button data-layout="together" class="active">Together</button>
+                <button data-layout="separate">Separate</button>
+              </div>
               <div class="seg" id="ampScale">
                 <button data-scale="linear" class="active">Linear</button>
                 <button data-scale="log">Log</button>
@@ -321,7 +333,7 @@
                 <option value="+">Positive</option>
                 <option value="-">Negative</option>
               </select>
-              <button class="btn-sm" id="btnCopy">Copy TSV</button>
+              <button class="btn-sm" id="btnCopy">Copy CSV</button>
               <button class="btn-sm" id="btnCsv">Download CSV</button>
             </div>
           </div>
@@ -427,6 +439,8 @@ const state = {
   ddRefs: new Set(),     // reference gene names for ΔΔCq
   ddRefsInit: false,     // whether default references were auto-picked
   ddCal: '',             // calibrator sample
+  chartGroupBy: 'sample',// curve color grouping: sample | gene | sampleGene | call | well
+  chartLayout: 'together', // together | separate (small multiples)
 };
 const drag = { active: false, mode: 'add', baseline: null, start: null, last: null };
 
@@ -452,6 +466,11 @@ function detectType(text) {
   if (!lines.length) return 'unknown';
   const head = lines[0];
   const lower = head.toLowerCase();
+  // Well Plate Map Generator CSV (comma-delimited, has well + group columns, no tabs)
+  if (head.indexOf('\t') === -1) {
+    const cl = parseCsvLine(head).map(c => c.trim().toLowerCase());
+    if (cl.includes('well') && cl.includes('group')) return 'platelayout';
+  }
   const cells = head.split('\t').map(cleanCell);
   const headerHas = s => cells.some(c => c.toLowerCase().startsWith(s));
   if (headerHas('well') && cells.some(c => /^cq\b|^cq \(/.test(c.toLowerCase()))) return 'tabular';
@@ -460,6 +479,36 @@ function detectType(text) {
   if (lower.startsWith('segment')) return 'thermal';
   if (lower.startsWith('date')) return 'notes';
   return 'unknown';
+}
+// Minimal CSV line parser with quote handling.
+function parseCsvLine(line) {
+  const out = []; let cur = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (q) {
+      if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; }
+      else cur += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === ',') { out.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+// Well Plate Map Generator CSV → Map(well -> group name).
+function parsePlateLayout(text) {
+  const lines = splitLines(text).filter(l => l.trim().length);
+  const map = new Map();
+  if (lines.length < 2) return map;
+  const header = parseCsvLine(lines[0]).map(h => h.trim().toLowerCase());
+  const iWell = header.indexOf('well'), iGroup = header.indexOf('group');
+  if (iWell < 0 || iGroup < 0) return map;
+  for (let i = 1; i < lines.length; i++) {
+    const c = parseCsvLine(lines[i]);
+    const well = cleanCell(c[iWell]), grp = cleanCell(c[iGroup]);
+    if (well && grp) map.set(well, grp);
+  }
+  return map;
 }
 
 // Tabular Results: 1 row per well × dye.
@@ -631,10 +680,10 @@ function decodeBuffer(buf) {
 
 async function handleFiles(fileList) {
   showError('');
-  const files = Array.from(fileList).filter(f => /\.txt$/i.test(f.name) && !f.name.startsWith('._'));
-  if (!files.length) { showError('No .txt files found. Export the run as tab-separated text from the Agilent software.'); return; }
+  const files = Array.from(fileList).filter(f => /\.(txt|csv)$/i.test(f.name) && !f.name.startsWith('._'));
+  if (!files.length) { showError('No .txt/.csv files found. Export the run as tab-separated text from the Agilent software.'); return; }
 
-  const parsed = { tabular: null, amp: null, setup: null, thermal: null, notes: '' };
+  const parsed = { tabular: null, amp: null, setup: null, thermal: null, notes: '', layout: null };
   const seen = [];
   for (const f of files) {
     let text;
@@ -647,6 +696,7 @@ async function handleFiles(fileList) {
     else if (type === 'platesetup') parsed.setup = parsePlateSetup(text);
     else if (type === 'thermal') parsed.thermal = parseThermal(text);
     else if (type === 'notes') parsed.notes = parseNotes(text);
+    else if (type === 'platelayout') parsed.layout = parsePlateLayout(text);
   }
   state.files = seen;
   renderFileList();
@@ -685,6 +735,12 @@ async function handleFiles(fileList) {
       if (parsed.setup && parsed.setup.has(r.well)) s = parsed.setup.get(r.well).sampleName || '';
       if (!s && r.wellName) s = r.wellName;
       state.sampleByWell[r.well] = s;
+    }
+  }
+  // Well Plate Map Generator groups take priority as sample names
+  if (parsed.layout) {
+    for (const [well, grp] of parsed.layout) {
+      if (state.wellsPresent.has(well)) state.sampleByWell[well] = grp;
     }
   }
   applySampleNames();
@@ -770,7 +826,7 @@ function renderAll() {
 function renderFileList() {
   const wrap = $('fileList');
   const labels = { tabular: 'Tabular Results', amplification: 'Amplification Plots', platesetup: 'Plate Setup',
-    thermal: 'Thermal Profile', notes: 'Experiment Notes', unknown: 'Not recognized' };
+    thermal: 'Thermal Profile', notes: 'Experiment Notes', platelayout: 'Plate Map (groups)', unknown: 'Not recognized' };
   wrap.innerHTML = state.files.map(f => {
     const ok = f.type !== 'unknown';
     const badge = ok ? 'lt-badge-green' : 'lt-badge-default';
@@ -1336,29 +1392,36 @@ function renderDD() {
 }
 
 // ── Amplification chart (SVG string, mirrors bca-assay) ─────────────────────
+function chartGroupLabel(r) {
+  switch (state.chartGroupBy) {
+    case 'gene': return r.target || '—';
+    case 'sampleGene': return (r.sampleName || r.well) + ' · ' + (r.target || '—');
+    case 'call': return r.call === '+' ? 'Positive' : (r.call === '-' ? 'Negative' : 'No call');
+    case 'well': return r.well;
+    default: return r.sampleName || r.well;
+  }
+}
 function renderChart() {
   const svg = $('ampSvg');
   const empty = $('ampEmpty');
-  const series = Array.from(state.selWells)
-    .map(w => ({ rec: state.byKey.get(w + '|' + state.plateDye) }))
-    .filter(o => o.rec && o.rec.series && o.rec.series.length)
-    .sort((a, b) => a.rec.row - b.rec.row || a.rec.colIdx - b.rec.colIdx);
-  if (!series.length) {
+  const recs = Array.from(state.selWells)
+    .map(w => state.byKey.get(w + '|' + state.plateDye))
+    .filter(r => r && r.series && r.series.length)
+    .sort((a, b) => a.row - b.row || a.colIdx - b.colIdx);
+  if (!recs.length) {
     svg.innerHTML = ''; svg.style.display = 'none'; empty.style.display = 'block';
-    const anySel = state.selWells.size > 0;
-    empty.textContent = anySel
+    empty.textContent = state.selWells.size > 0
       ? `Selected wells have no amplification trace for ${state.plateDye}. Import the Amplification Plots export, or switch the plate dye.`
       : 'Select wells in the plate or table to plot their curves.';
     return;
   }
   svg.style.display = 'block'; empty.style.display = 'none';
 
-  const W = 720, H = 380, ML = 56, MR = 16, MT = 14, MB = 44;
-  const PW = W - ML - MR, PH = H - MT - MB;
   const log = state.ampScale === 'log';
-
+  const thrVal = state.thresholds[state.plateDye];
+  // Global scales so panels are comparable
   let maxCycle = 0, maxY = -Infinity, minY = Infinity;
-  for (const o of series) for (const p of o.rec.series) {
+  for (const r of recs) for (const p of r.series) {
     maxCycle = Math.max(maxCycle, p.cycle);
     maxY = Math.max(maxY, p.fluor); minY = Math.min(minY, p.fluor);
   }
@@ -1366,55 +1429,77 @@ function renderChart() {
   else { minY = Math.min(0, minY); }
   const yLo = log ? Math.log10(Math.max(0.1, minY)) : minY;
   const yHi = log ? Math.log10(maxY * 1.1) : maxY * 1.05;
-  const xS = c => ML + (c - 1) / (maxCycle - 1 || 1) * PW;
-  const yV = f => log ? Math.log10(Math.max(0.1, f)) : f;
-  const yS = f => MT + PH - (yV(f) - yLo) / (yHi - yLo || 1) * PH;
+
+  // Groups + stable color map
+  const groups = uniq(recs.map(chartGroupLabel)).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+  const colorOf = {};
+  groups.forEach((g, i) => colorOf[g] = PALETTE[i % PALETTE.length]);
+
+  const separate = state.chartLayout === 'separate';
+  const panels = separate
+    ? groups.map(g => ({ title: g, recs: recs.filter(r => chartGroupLabel(r) === g) }))
+    : [{ title: null, recs }];
+
+  const W = 720, LO = 16, BO = 18;          // outer gutters for global axis titles
+  const cols = separate ? (panels.length <= 1 ? 1 : panels.length <= 4 ? 2 : 3) : 1;
+  const nrows = Math.ceil(panels.length / cols);
+  const panelW = (W - LO) / cols;
+  const panelH = separate ? 210 : 360;
+  const H = nrows * panelH + BO;
+  const fmtY = v => log ? Math.pow(10, v).toPrecision(2) : v.toFixed(Math.abs(v) >= 100 ? 0 : 1);
 
   let s = '';
-  s += `<rect x="${ML}" y="${MT}" width="${PW}" height="${PH}" fill="var(--surface)" stroke="var(--border-subtle)" rx="4"/>`;
-  // y gridlines
-  const yTicks = niceTicks(yLo, yHi, 5);
-  for (const t of yTicks) {
-    const yy = MT + PH - (t - yLo) / (yHi - yLo || 1) * PH;
-    const lbl = log ? Math.pow(10, t).toPrecision(2) : t.toFixed(t >= 100 ? 0 : 1);
-    s += `<line x1="${ML}" y1="${yy}" x2="${ML + PW}" y2="${yy}" stroke="var(--border-subtle)" stroke-width="1"/>`;
-    s += `<text x="${ML - 7}" y="${yy + 3}" text-anchor="end" font-size="10" fill="var(--text-muted)" font-family="var(--font)">${lbl}</text>`;
-  }
-  // x ticks
-  const xTicks = niceTicks(1, maxCycle, 6).filter(t => t >= 1 && t <= maxCycle);
-  for (const t of xTicks) {
-    const xx = xS(t);
-    s += `<text x="${xx}" y="${MT + PH + 16}" text-anchor="middle" font-size="10" fill="var(--text-muted)" font-family="var(--font)">${Math.round(t)}</text>`;
-  }
-  // thresholds (per distinct dye among plotted)
-  const thr = new Map();
-  for (const o of series) if (o.rec.threshold != null) thr.set(o.rec.dye, o.rec.threshold);
-  for (const [dye, t] of thr) {
-    if (t < (log ? minY : yLo) || t > maxY) continue;
-    const yy = yS(t);
-    if (yy < MT || yy > MT + PH) continue;
-    s += `<line x1="${ML}" y1="${yy}" x2="${ML + PW}" y2="${yy}" stroke="var(--red)" stroke-width="1" stroke-dasharray="5 4" opacity="0.6"/>`;
-    s += `<text x="${ML + PW - 4}" y="${yy - 4}" text-anchor="end" font-size="9" fill="var(--red)" font-family="var(--font)">${esc(dye)} thr</text>`;
-  }
-  // curves
-  series.forEach((o, i) => {
-    const color = o.rec.call === '+' ? '#2d7a2d' : (o.rec.call === '-' ? '#b6b5b2' : PALETTE[i % PALETTE.length]);
-    const pts = o.rec.series.map(p => `${xS(p.cycle).toFixed(1)},${yS(p.fluor).toFixed(1)}`).join(' ');
-    s += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" opacity="0.9"/>`;
+  panels.forEach((panel, idx) => {
+    const gx = LO + (idx % cols) * panelW;
+    const gy = Math.floor(idx / cols) * panelH;
+    const ML = 46, MR = 12, MT = separate ? 22 : 14, MB = 26;
+    const px = gx + ML, py = gy + MT, pw = panelW - ML - MR, ph = panelH - MT - MB;
+    const xS = c => px + (c - 1) / (maxCycle - 1 || 1) * pw;
+    const yS = f => { const v = log ? Math.log10(Math.max(0.1, f)) : f; return py + ph - (v - yLo) / (yHi - yLo || 1) * ph; };
+
+    s += `<rect x="${px}" y="${py}" width="${pw}" height="${ph}" fill="var(--surface)" stroke="var(--border-subtle)" rx="4"/>`;
+    for (const t of niceTicks(yLo, yHi, 4)) {
+      const yy = py + ph - (t - yLo) / (yHi - yLo || 1) * ph;
+      if (yy < py - 0.5 || yy > py + ph + 0.5) continue;
+      s += `<line x1="${px}" y1="${yy}" x2="${px + pw}" y2="${yy}" stroke="var(--border-subtle)" stroke-width="1"/>`;
+      s += `<text x="${px - 5}" y="${yy + 3}" text-anchor="end" font-size="9" fill="var(--text-muted)" font-family="var(--font)">${fmtY(t)}</text>`;
+    }
+    for (const t of niceTicks(1, maxCycle, 5).filter(t => t >= 1 && t <= maxCycle)) {
+      s += `<text x="${xS(t)}" y="${py + ph + 13}" text-anchor="middle" font-size="9" fill="var(--text-muted)" font-family="var(--font)">${Math.round(t)}</text>`;
+    }
+    if (thrVal != null) {
+      const yy = yS(thrVal);
+      if (yy >= py && yy <= py + ph) s += `<line x1="${px}" y1="${yy}" x2="${px + pw}" y2="${yy}" stroke="var(--red)" stroke-width="1" stroke-dasharray="5 4" opacity="0.6"/>`;
+    }
+    panel.recs.forEach(r => {
+      const color = colorOf[chartGroupLabel(r)];
+      const pts = r.series.map(p => `${xS(p.cycle).toFixed(1)},${yS(p.fluor).toFixed(1)}`).join(' ');
+      s += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" opacity="0.9"/>`;
+    });
+    s += `<line x1="${px}" y1="${py}" x2="${px}" y2="${py + ph}" stroke="var(--border)" stroke-width="1.1"/>`;
+    s += `<line x1="${px}" y1="${py + ph}" x2="${px + pw}" y2="${py + ph}" stroke="var(--border)" stroke-width="1.1"/>`;
+    if (panel.title != null) {
+      s += `<text x="${px + pw / 2}" y="${gy + 14}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--text)" font-family="var(--font)">` +
+        `<tspan fill="${colorOf[panel.title]}">● </tspan>${esc(panel.title)}</text>`;
+    }
   });
-  // axes
-  s += `<line x1="${ML}" y1="${MT}" x2="${ML}" y2="${MT + PH}" stroke="var(--border)" stroke-width="1.2"/>`;
-  s += `<line x1="${ML}" y1="${MT + PH}" x2="${ML + PW}" y2="${MT + PH}" stroke="var(--border)" stroke-width="1.2"/>`;
-  s += `<text x="${ML + PW / 2}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600">Cycle</text>`;
-  s += `<text x="14" y="${MT + PH / 2}" text-anchor="middle" font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600" transform="rotate(-90 14 ${MT + PH / 2})">Fluorescence (ΔR)${log ? ' — log' : ''}</text>`;
-  // legend (max 12)
-  const lx = ML + 8; let ly = MT + 8;
-  series.slice(0, 12).forEach((o, i) => {
-    const color = o.rec.call === '+' ? '#2d7a2d' : (o.rec.call === '-' ? '#b6b5b2' : PALETTE[i % PALETTE.length]);
-    s += `<line x1="${lx}" y1="${ly}" x2="${lx + 14}" y2="${ly}" stroke="${color}" stroke-width="2"/>`;
-    s += `<text x="${lx + 19}" y="${ly + 3}" font-size="9" fill="var(--text-secondary)" font-family="var(--font-mono)">${esc(o.rec.well)}</text>`;
-    ly += 13;
-  });
+
+  // Together: legend of groups (top-left of the single panel)
+  if (!separate) {
+    let lx = LO + 46 + 8, ly = 14 + 8;
+    groups.slice(0, 14).forEach(g => {
+      s += `<line x1="${lx}" y1="${ly}" x2="${lx + 14}" y2="${ly}" stroke="${colorOf[g]}" stroke-width="2.5"/>`;
+      s += `<text x="${lx + 19}" y="${ly + 3}" font-size="9.5" fill="var(--text-secondary)" font-family="var(--font)">${esc(g)}</text>`;
+      ly += 13;
+    });
+    if (groups.length > 14) s += `<text x="${lx}" y="${ly + 3}" font-size="9" fill="var(--text-muted)" font-family="var(--font)">+${groups.length - 14} more…</text>`;
+  }
+
+  // Global axis titles
+  s += `<text x="${LO + (W - LO) / 2}" y="${H - 4}" text-anchor="middle" font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600">Cycle</text>`;
+  s += `<text x="10" y="${(H - BO) / 2}" text-anchor="middle" font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600" transform="rotate(-90 10 ${(H - BO) / 2})">Fluorescence (ΔR)${log ? ' — log' : ''}</text>`;
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.innerHTML = s;
 }
 function niceTicks(lo, hi, n) {
@@ -1531,6 +1616,11 @@ function init() {
     const b = e.target.closest('button'); if (!b) return;
     state.ampScale = b.dataset.scale; setActive($('ampScale'), b); renderChart();
   });
+  $('ampGroupBy').addEventListener('change', e => { state.chartGroupBy = e.target.value; renderChart(); });
+  $('ampLayout').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.chartLayout = b.dataset.layout; setActive($('ampLayout'), b); renderChart();
+  });
 
   // Adjustable threshold (recomputes Cq for the current dye from the curves)
   $('thrInput').addEventListener('change', e => applyThreshold(parseFloat(e.target.value)));
@@ -1572,7 +1662,7 @@ function init() {
   $('btnPlotClear').addEventListener('click', () => { state.selWells.clear(); state.lastRowIdx = null; refreshSelection(); renderTable(); });
 
   $('btnCopy').addEventListener('click', function () {
-    labtoolsCopyText(resultsTSV()).then(() => flash(this, 'Copied!', 'Copy TSV')).catch(() => {});
+    labtoolsCopyText(tsvToCsv(resultsTSV())).then(() => flash(this, 'Copied!', 'Copy CSV')).catch(() => {});
   });
   $('btnCsv').addEventListener('click', () => labtoolsDownloadText(exportName('results.csv'), tsvToCsv(resultsTSV()), 'text/csv'));
   $('btnDdCsv').addEventListener('click', () => labtoolsDownloadText(exportName('ddcq.csv'), ddCsv(), 'text/csv'));
