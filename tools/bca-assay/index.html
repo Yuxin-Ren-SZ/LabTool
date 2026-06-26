@@ -131,6 +131,14 @@
     .col-conc-result { width: 88px; }
     .col-del         { width: 28px; text-align: center; }
 
+    .result-name-input {
+      width: 100%; min-width: 90px; padding: 3px 6px;
+      border: 1.5px solid transparent; border-radius: var(--radius-sm, 4px);
+      font: inherit; color: var(--text); background: transparent; outline: none;
+    }
+    .result-name-input:hover { border-color: var(--border); }
+    .result-name-input:focus { border-color: var(--blue, #2563eb); background: var(--surface, #fff); }
+
     /* Hidden rep columns */
     .r2-col, .r3-col { transition: opacity 0.1s; }
     .hide-col { display: none; }
@@ -1027,6 +1035,26 @@ function onStdIn(i, col, val) {
 }
 function onSmpIn(i, col, val) { smpRows[i][col] = val; scheduleCalc(); }
 
+/* Rename a sample directly from the results table (propagates to source) */
+function onResultNameEdit(inp) {
+  const oldName = inp.dataset.orig;
+  const v = inp.value.trim();
+  if (!v || v === oldName || oldName === '—') { inp.value = oldName; return; }
+  if (currentMode === 'manual') {
+    smpRows.forEach(r => { if ((r.name || '') === oldName) r.name = v; });
+    renderSmpTable();
+    scheduleCalc();
+  } else {
+    for (const k in wellAssigns) {
+      const a = wellAssigns[k];
+      if (a.type === 'smp' && a.name === oldName) a.name = v;
+    }
+    refreshWells();
+    savePlateState();
+    schedulePlateCalc();
+  }
+}
+
 /* Enter = move down; works across both tables */
 function cellKey(e, tbl, rowIdx, col) {
   if (e.key !== 'Enter') return;
@@ -1263,7 +1291,8 @@ function showSampleResults(results, unit) {
     const flagHtml = r.flag==='extrap'    ? '<span class="flag-extrap">Extrap</span>'
                    : r.flag==='below-det' ? '<span class="flag-low">Low</span>' : '—';
     return `<tr>
-      <td>${esc(r.name)}</td>
+      <td><input class="result-name-input" type="text" value="${esc(r.name)}" data-orig="${esc(r.name)}"
+          onchange="onResultNameEdit(this)" placeholder="Sample name"></td>
       <td>${odStr}</td>
       <td>${r.df}×</td>
       <td class="conc-value">${concStr}</td>
