@@ -262,6 +262,7 @@
                 <button data-mode="sample">Sample</button>
                 <button data-mode="welltype">Well type</button>
               </div>
+              <button class="btn-sm" id="btnExportLabels" title="Download Well, Sample and Gene labels as CSV (re-importable as a plate layout)">Export labels</button>
               <button class="btn-sm" id="btnPlatePng">PNG</button>
             </div>
           </div>
@@ -480,6 +481,7 @@ const state = {
   chartGroupBy: 'sample',// curve color grouping: sample | gene | sampleGene | call | well
   chartLayout: 'together', // together | separate (small multiples)
   userNamed: new Set(),  // wells the user explicitly named (vs auto-seeded) — keeps controls as samples
+  labelsDirty: false,    // sample/gene labels changed since last Export Labels
   qcSdThr: 0.5,          // replicate QC: flag groups whose Cq SD exceeds this
 };
 const drag = { active: false, mode: 'add', baseline: null, start: null, last: null };
@@ -553,18 +555,21 @@ function parseCsvLine(line) {
 }
 // Well Plate Map Generator CSV → Map(well -> group name).
 function parsePlateLayout(text) {
+  const samples = new Map(), genes = new Map();
   const lines = splitLines(text).filter(l => l.trim().length);
-  const map = new Map();
-  if (lines.length < 2) return map;
+  if (lines.length < 2) return { samples, genes };
   const header = parseCsvLine(lines[0]).map(h => h.trim().toLowerCase());
   const iWell = header.indexOf('well'), iGroup = header.indexOf('group');
-  if (iWell < 0 || iGroup < 0) return map;
+  const iGene = header.indexOf('gene');
+  if (iWell < 0 || iGroup < 0) return { samples, genes };
   for (let i = 1; i < lines.length; i++) {
     const c = parseCsvLine(lines[i]);
     const well = cleanCell(c[iWell]), grp = cleanCell(c[iGroup]);
-    if (well && grp) map.set(well, grp);
+    const gene = iGene >= 0 ? cleanCell(c[iGene]) : '';
+    if (well && grp) samples.set(well, grp);
+    if (well && gene) genes.set(well, gene);
   }
-  return map;
+  return { samples, genes };
 }
 
 // Tabular Results: 1 row per well × dye.
@@ -777,6 +782,7 @@ async function handleFiles(fileList) {
   state.ddRefsInit = false;
   state.ddCal = '';
   state.userNamed = new Set();
+  state.labelsDirty = false;
 
   for (const r of state.records) {
     const key = r.well + '|' + r.dye;
@@ -796,8 +802,15 @@ async function handleFiles(fileList) {
   }
   // Well Plate Map Generator groups take priority as sample names
   if (parsed.layout) {
-    for (const [well, grp] of parsed.layout) {
+    for (const [well, grp] of parsed.layout.samples) {
       if (state.wellsPresent.has(well)) state.sampleByWell[well] = grp;
+    }
+    // optional Gene column: apply to every dye present in the well so export round-trips
+    for (const [well, gene] of parsed.layout.genes) {
+      if (!state.wellsPresent.has(well)) continue;
+      for (const r of state.records) {
+        if (r.well === well) state.targetByKey[r.well + '|' + r.dye] = gene;
+      }
     }
   }
   applySampleNames();
@@ -1311,6 +1324,7 @@ function assignToSelection(name) {
   afterSampleChange();
 }
 function afterSampleChange() {
+  state.labelsDirty = true;
   applySampleNames();
   renderSummary();
   renderPlate();
@@ -1788,6 +1802,29 @@ function ddCsv() {
     r.foldLow != null ? r.foldLow.toFixed(4) : '', r.foldHigh != null ? r.foldHigh.toFixed(4) : ''].join(','));
   return lines.join('\n');
 }
+// Well, Sample, Gene labels — re-importable as a plate layout (round-trips via parsePlateLayout).
+function labelsCsv() {
+  const wellCmp = (a, b) => (a.charCodeAt(0) - b.charCodeAt(0)) ||
+    ((parseInt(a.slice(1), 10) || 0) - (parseInt(b.slice(1), 10) || 0));
+  const wells = [...state.wellsPresent].sort(wellCmp);
+  const cell = c => /[",\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c;
+  const lines = ['Well,Sample,Gene'];
+  for (const w of wells) {
+    const sample = state.sampleByWell[w] || '';
+    let gene = '';
+    for (const r of state.records) {
+      if (r.well !== w) continue;
+      const g = state.targetByKey[w + '|' + r.dye];
+      if (g) { gene = g; break; }
+    }
+    lines.push([w, sample, gene].map(c => cell(String(c))).join(','));
+  }
+  return lines.join('\n');
+}
+function exportLabels() {
+  labtoolsDownloadText(exportName('labels.csv'), labelsCsv(), 'text/csv');
+  state.labelsDirty = false;
+}
 function exportName(suffix) {
   const base = (state.expName || 'qpcr').replace(/[^\w.-]+/g, '_');
   return `${base}_${suffix}`;
@@ -1920,6 +1957,7 @@ function init() {
   $('btnCopy').addEventListener('click', function () {
     labtoolsCopyText(tsvToCsv(resultsTSV())).then(() => flash(this, 'Copied!', 'Copy CSV')).catch(() => {});
   });
+  $('btnExportLabels').addEventListener('click', exportLabels);
   $('btnCsv').addEventListener('click', () => labtoolsDownloadText(exportName('results.csv'), tsvToCsv(resultsTSV()), 'text/csv'));
   $('btnDdCsv').addEventListener('click', () => labtoolsDownloadText(exportName('ddcq.csv'), ddCsv(), 'text/csv'));
   $('btnPlatePng').addEventListener('click', () => svgToPng($('plateSvg'), exportName('plate.png')));
@@ -1940,11 +1978,19 @@ function init() {
   $('btnResetAll').addEventListener('click', () => {
     Object.assign(state, { records: [], byKey: new Map(), sampleByWell: {}, selWells: new Set(),
       wellsPresent: new Set(), files: [], lastRowIdx: null, targetByKey: {}, thresholds: {},
-      customThr: {}, ddRefs: new Set(), ddRefsInit: false, ddCal: '', userNamed: new Set() });
+      customThr: {}, ddRefs: new Set(), ddRefsInit: false, ddCal: '', userNamed: new Set(),
+      labelsDirty: false });
     $('results').style.display = 'none';
     $('fileList').innerHTML = '';
     $('fileInput').value = '';
     showError('');
+  });
+
+  // Warn before leaving if labels were edited but not exported since.
+  window.addEventListener('beforeunload', e => {
+    if (!state.labelsDirty) return;
+    e.preventDefault();
+    e.returnValue = '';
   });
 }
 function setActive(group, btn) { group.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn)); }
