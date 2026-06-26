@@ -829,6 +829,16 @@
                   <tbody id="results-tbody"></tbody>
                 </table>
               </div>
+              <div class="section-row" style="margin-top:16px;align-items:center;gap:10px;flex-wrap:wrap;">
+                <span class="section-name" style="min-width:auto;">LOADING</span>
+                <span class="mini-label">Target</span>
+                <input type="number" id="loadTargetMass" style="width:52px;padding:2px 6px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:var(--fs-xs);" value="20" min="0" step="1" placeholder="µg">
+                <span style="font-size:var(--fs-xs);color:var(--text-dim);">µg in</span>
+                <input type="number" id="loadTargetVol" style="width:52px;padding:2px 6px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:var(--fs-xs);" value="15" min="1" step="1" placeholder="µL">
+                <span style="font-size:var(--fs-xs);color:var(--text-dim);">µL</span>
+                <button class="lt-btn lt-btn-ghost" style="padding:3px 10px;font-size:var(--fs-xs);" onclick="renderLoadingCalc()" title="Compute sample + diluent volumes per well">Calculate loading</button>
+              </div>
+              <div id="loading-results" style="display:none;margin-top:8px;"></div>
               <div class="export-row">
                 <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="exportFigure()">Export Figure</button>
                 <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="exportCSV()">Export CSV</button>
@@ -2097,6 +2107,54 @@ function exportFigure() {
     alert('Failed to export figure. Try again or check browser console.');
   };
   img.src = url;
+}
+
+/* ── Loading calculator ────────────────────────────────────────────── */
+function renderLoadingCalc() {
+  if (!lastResult) { alert('No results yet.'); return; }
+  const targetMass = parseFloat(document.getElementById('loadTargetMass').value) || 20;
+  const targetVol  = parseFloat(document.getElementById('loadTargetVol').value)  || 15;
+  if (targetMass <= 0 || targetVol <= 0) { alert('Enter valid target mass and volume.'); return; }
+
+  const { sampleResults } = lastResult;
+  const container = document.getElementById('loading-results');
+  const rows = sampleResults.map(r => {
+    const conc = r.conc; // µg/mL
+    if (isNaN(conc) || conc <= 0) return { ...r, sampleVol: null, diluentVol: null, ok: false };
+    const sampleVol = (targetMass / conc) * 1000; // µg / (µg/mL) * 1000 = µL
+    const diluentVol = targetVol - sampleVol;
+    const ok = sampleVol > 0 && sampleVol <= targetVol;
+    return { ...r, sampleVol, diluentVol, ok };
+  });
+
+  container.style.display = 'block';
+  container.innerHTML = `
+    <div class="res-table-shell" style="max-height:260px;overflow-y:auto;">
+      <table class="res-table">
+        <thead><tr>
+          <th>Sample</th><th>Conc (µg/mL)</th>
+          <th>Sample (µL)</th><th>Diluent (µL)</th><th>Total (µL)</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(r => {
+            const sv = r.sampleVol, dv = r.diluentVol;
+            const ok = r.ok;
+            return `<tr>
+              <td>${esc(r.name)}</td>
+              <td>${isNaN(r.conc) ? '—' : r.conc.toFixed(1)}</td>
+              <td${!ok && sv != null ? ' style="color:var(--red);font-weight:600;" title="Sample too dilute — exceeds total volume"' : ''}>
+                ${sv != null ? sv.toFixed(1) : '—'}</td>
+              <td>${dv != null && dv >= 0 ? dv.toFixed(1) : dv != null ? '<span style="color:var(--red);">⚠ exceeds vol</span>' : '—'}</td>
+              <td>${sv != null && dv != null ? (sv + dv).toFixed(1) : '—'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:6px;">
+      Target: ${targetMass} µg protein in ${targetVol} µL final volume.
+      ${rows.some(r => !r.ok) ? ' <span style="color:var(--red);">⚠ Some samples too dilute — reduce target mass or increase final volume.</span>' : ''}
+    </div>`;
 }
 
 /* ═══════════════════════════════════════════════════════
