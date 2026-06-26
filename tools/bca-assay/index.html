@@ -1253,10 +1253,13 @@ function delSmpRow(i) {
 function scheduleCalc() { clearTimeout(calcTimer); calcTimer = setTimeout(runCalc, 280); }
 function scheduleManualSave() { setTimeout(saveManualState, 300); }
 
-function runCalc() {
+function runCalc(optRows) {
+  // Use optional rows (plate mode) or global rows (manual mode)
+  const localStd = optRows ? optRows.stdRows : stdRows;
+  const localSmp = optRows ? optRows.smpRows : smpRows;
+
   if (currentMode === 'manual') manualDirty = true;
-  const allPts = stdRows
-    .map(r => ({ x: parseFloat(r.conc), y: avgOD(r) }))
+  const allPts = localStd.map(r => ({ x: parseFloat(r.conc), y: avgOD(r) }))
     .filter(p => !isNaN(p.x) && !isNaN(p.y))
     .map(p => ({ ...p, excl: exclConcs.has(String(p.x)) }));
   const pts = allPts.filter(p => !p.excl);
@@ -1268,7 +1271,7 @@ function runCalc() {
       : `${pts.length} included point${pts.length>1?'s':''} — need ≥ ${minNeed}${fitModel==='quadratic'?' for quadratic':''}`;
     setStatus(msg, pts.length ? 'warn' : '');
     showResultsEmpty();
-    updateSmpConcs();
+    if (!optRows) updateSmpConcs();
     return;
   }
 
@@ -1282,7 +1285,7 @@ function runCalc() {
   const resid = residualStats(pts, model);
   currentFit  = { model, unit, minOD, maxOD, minX, maxX, rms: resid.rms, maxR: resid.maxR };
 
-  const sampleResults = smpRows.map((r, i) => {
+  const sampleResults = localSmp.map((r, i) => {
     const od = avgOD(r), df = parseFloat(r.df) || 1;
     const cv = cvPct(r);
     if (isNaN(od)) return { name: r.name || '—', od, df, conc: NaN, flag: '', cv };
@@ -1294,8 +1297,7 @@ function runCalc() {
 
   lastResult = { model, regPoints: allPts, sampleResults, unit };
   showResults(model, pts.length, allPts, sampleResults, unit, resid);
-  updateSmpConcs();
-  scheduleManualSave();
+  if (!optRows) { updateSmpConcs(); scheduleManualSave(); }
 }
 
 /* ── Live plate-mode calculation ── */
@@ -1332,15 +1334,15 @@ function runPlateCalc() {
     return;
   }
 
-  // Build rows for runCalc
-  stdRows = [...stdM.entries()].sort((a, b) => a[0] - b[0]).map(([c, ods]) => ({
+  // Build local rows for runCalc — never mutate globals (P5 decouple)
+  const plateStdRows = [...stdM.entries()].sort((a, b) => a[0] - b[0]).map(([c, ods]) => ({
     conc: String(c),
     od1: ods.length<=3 ? String(ods[0] || '') : String(ods.reduce((s,v)=>s+v,0)/ods.length),
     od2: (ods.length===2||ods.length===3) ? String(ods[1]) : '',
     od3: ods.length===3 ? String(ods[2]) : '',
   }));
 
-  smpRows = [...smpM.values()].map(g => ({
+  const plateSmpRows = [...smpM.values()].map(g => ({
     name: g.name,
     od1: g.ods.length<=3 ? String(g.ods[0] || '') : String(g.ods.reduce((s,v)=>s+v,0)/g.ods.length),
     od2: (g.ods.length===2||g.ods.length===3) ? String(g.ods[1]) : '',
@@ -1356,7 +1358,7 @@ function runPlateCalc() {
     document.getElementById('res-conc-header').textContent = `Conc (${tpl.unit})`;
   }
 
-  runCalc();
+  runCalc({ stdRows: plateStdRows, smpRows: plateSmpRows });
 
   // Restore preset state (results/header already reflect the plate template)
   currentPreset = savedPreset;
