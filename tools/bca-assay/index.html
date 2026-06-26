@@ -473,6 +473,35 @@
       .bca-results-pane #results-empty { display: none !important; }
       #inline-results.visible { display: block; }
     }
+
+    /* ── Fit model toggle ── */
+    .fit-model-toggle {
+      display: inline-flex; background: var(--tag-bg); border-radius: var(--radius-sm);
+      padding: 2px; gap: 2px;
+    }
+    .fmt-btn {
+      padding: 2px 10px; border: none; background: transparent; border-radius: var(--radius-xs);
+      font-size: 0.66rem; font-weight: 700; color: var(--text-muted); cursor: pointer;
+      transition: all 0.12s; white-space: nowrap;
+    }
+    .fmt-btn.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+    .fmt-btn:hover:not(.active) { color: var(--text); }
+
+    /* ── Standard exclusion ── */
+    .col-excl { width: 36px; text-align: center; }
+    .excl-cb { accent-color: var(--blue); cursor: pointer; width: 14px; height: 14px; }
+    .excl-cb:disabled { cursor: default; opacity: 0.35; }
+    tr.std-excluded td { opacity: 0.4; }
+    tr.std-excluded .conc-ro, tr.std-excluded .ci { text-decoration: line-through; }
+
+    /* ── Residual display ── */
+    .resid-val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    .resid-out { color: var(--red); font-weight: 700; }
+    .std-excl-tag { color: var(--text-dim); font-style: italic; font-size: 0.72rem; }
+    .legend-diamond-hollow {
+      width: 8px; height: 8px; transform: rotate(45deg); flex-shrink: 0;
+      border: 1.5px solid #5c8dff; background: transparent; box-sizing: border-box;
+    }
   </style>
 </head>
 <body>
@@ -530,6 +559,7 @@
                     <th class="col-od   t-right r2-col">OD 2</th>
                     <th class="col-od   t-right r3-col">OD 3</th>
                     <th class="col-avg  t-center">Avg OD</th>
+                    <th class="col-excl t-center" title="Include in fit">Use</th>
                     <th class="col-del"></th>
                   </tr>
                 </thead>
@@ -734,18 +764,36 @@
             <div id="results-content" style="display:none">
               <div class="fit-strip">
                 <span class="fit-equation" id="res-equation">—</span>
+                <div class="fit-model-toggle" title="Fit model">
+                  <button class="fmt-btn active" data-model="linear"    onclick="setFitModel('linear')">Linear</button>
+                  <button class="fmt-btn"        data-model="quadratic" onclick="setFitModel('quadratic')">Quadratic</button>
+                </div>
                 <span class="lt-badge" id="res-r2-badge">—</span>
-                <span class="fit-stat" id="res-slope-inline" title="Slope"></span>
-                <span class="fit-stat" id="res-intercept-inline" title="Intercept"></span>
+                <span class="fit-stat" id="res-slope-inline" title="Coefficient"></span>
+                <span class="fit-stat" id="res-intercept-inline" title="Coefficient"></span>
                 <span class="fit-stat" id="res-npts-inline" title="Points"></span>
+                <span class="fit-stat" id="res-rms" title="RMS residual"></span>
+                <span class="fit-stat" id="res-maxr" title="Max absolute residual"></span>
               </div>
               <div class="chart-wrap" id="chart-wrap" onclick="expandChart()" title="Click to enlarge">
                 <svg id="bca-chart" viewBox="0 0 360 260" xmlns="http://www.w3.org/2000/svg"></svg>
                 <div class="chart-legend">
                   <div class="legend-item"><div class="legend-dot" style="background:#5c8dff;"></div>Standards</div>
+                  <div class="legend-item"><div class="legend-diamond-hollow"></div>Excluded</div>
                   <div class="legend-item"><div class="legend-diamond" style="background:#e07832;"></div>Samples</div>
                   <div class="legend-item"><div style="width:16px;height:2px;background:#5c8dff;opacity:0.5;flex-shrink:0;margin-top:1px;"></div>Fit</div>
                 </div>
+              </div>
+              <div class="lt-section-label" style="margin-bottom:6px;">Standard Points
+                <span style="font-weight:500;color:var(--text-dim);text-transform:none;letter-spacing:0;">— uncheck to exclude from fit</span>
+              </div>
+              <div class="res-table-shell">
+                <table class="res-table">
+                  <thead>
+                    <tr><th>Use</th><th id="std-pts-conc-hdr">Conc</th><th>Avg OD</th><th>Residual</th></tr>
+                  </thead>
+                  <tbody id="std-points-tbody"></tbody>
+                </table>
               </div>
               <div class="lt-section-label" style="margin-bottom:6px;">Sample Concentrations</div>
               <div class="res-table-shell">
@@ -823,7 +871,9 @@ let currentPreset = 'pierce';
 let numReps       = 1;
 let calcTimer     = null;
 let lastResult    = null;
-let currentFit    = null; // {slope, intercept, r2, unit, minOD, maxOD}
+let currentFit    = null; // {model, unit, minOD, maxOD, minX, maxX, rms, maxR}
+let fitModel      = 'linear';      // 'linear' | 'quadratic'
+let exclConcs     = new Set();     // String(conc) values excluded from the fit (both modes)
 
 let stdRows = []; // {conc, od1, od2, od3}
 let smpRows = []; // {name, od1, od2, od3, df}
@@ -969,6 +1019,21 @@ function setReps(n) {
   scheduleCalc();
 }
 
+function setFitModel(m) {
+  fitModel = m;
+  document.querySelectorAll('.fmt-btn').forEach(b => b.classList.toggle('active', b.dataset.model === m));
+  if (currentMode === 'manual') scheduleCalc();
+  else schedulePlateCalc();
+}
+
+/* Toggle a standard (by concentration key) in/out of the fit — used by both
+   the manual standards table and the results-pane Standard Points table. */
+function toggleStdExcl(key, included) {
+  if (included) exclConcs.delete(key); else exclConcs.add(key);
+  if (currentMode === 'manual') { renderStdTable(); scheduleCalc(); }
+  else schedulePlateCalc();
+}
+
 /* ═══════════════════════════════════════════════════════
    RENDER TABLES
 ═══════════════════════════════════════════════════════ */
@@ -982,7 +1047,11 @@ function renderStdTable() {
             onkeydown="cellKey(event,'std',${i},'conc')"></td>`
       : `<td class="col-conc"><span class="conc-ro">${r.conc}</span></td>`;
     const avg = avgOD(r);
-    return `<tr id="std-tr-${i}">${concCell}
+    const cx = parseFloat(r.conc);
+    const hasConc = !isNaN(cx);
+    const key = String(cx);
+    const excluded = hasConc && exclConcs.has(key);
+    return `<tr id="std-tr-${i}"${excluded ? ' class="std-excluded"' : ''}>${concCell}
       <td class="col-od"><input class="ci ci-r" type="number" min="0" step="0.001" value="${r.od1}" placeholder="0.000"
           data-tbl="std" data-row="${i}" data-col="od1"
           oninput="onStdIn(${i},'od1',this.value)" onkeydown="cellKey(event,'std',${i},'od1')" onpaste="cellPaste(event,'std',${i},'od1')"></td>
@@ -993,6 +1062,8 @@ function renderStdTable() {
           data-tbl="std" data-row="${i}" data-col="od3"
           oninput="onStdIn(${i},'od3',this.value)" onkeydown="cellKey(event,'std',${i},'od3')" onpaste="cellPaste(event,'std',${i},'od3')"></td>
       <td class="col-avg"><span class="avg-cell${isNaN(avg)?' dim':''}" id="std-avg-${i}">${fmtA(avg)}</span></td>
+      <td class="col-excl"><input type="checkbox" class="excl-cb" ${hasConc?'':'disabled'} ${excluded?'':'checked'}
+          onchange="toggleStdExcl('${key}', this.checked)" title="${excluded?'Excluded from fit':'Included in fit'}"></td>
       <td class="col-del"><button class="del-btn" onclick="delStdRow(${i})" title="Remove">×</button></td>
     </tr>`;
   }).join('');
@@ -1126,38 +1197,44 @@ function delSmpRow(i) {
 function scheduleCalc() { clearTimeout(calcTimer); calcTimer = setTimeout(runCalc, 280); }
 
 function runCalc() {
-  const pts = stdRows
+  const allPts = stdRows
     .map(r => ({ x: parseFloat(r.conc), y: avgOD(r) }))
-    .filter(p => !isNaN(p.x) && !isNaN(p.y));
+    .filter(p => !isNaN(p.x) && !isNaN(p.y))
+    .map(p => ({ ...p, excl: exclConcs.has(String(p.x)) }));
+  const pts = allPts.filter(p => !p.excl);
 
-  if (pts.length < 2) {
+  const minNeed = fitModel === 'quadratic' ? 3 : 2;
+  if (pts.length < minNeed) {
     currentFit = null;
-    setStatus(pts.length === 0 ? 'Waiting for data…' : `${pts.length} point — need ≥ 2`, pts.length ? 'warn' : '');
+    const msg = pts.length === 0 ? 'Waiting for data…'
+      : `${pts.length} included point${pts.length>1?'s':''} — need ≥ ${minNeed}${fitModel==='quadratic'?' for quadratic':''}`;
+    setStatus(msg, pts.length ? 'warn' : '');
     showResultsEmpty();
     updateSmpConcs();
     return;
   }
 
-  const fit = linearRegression(pts);
-  if (!fit) { setStatus('Cannot fit (identical concentrations?)', 'err'); showResultsEmpty(); return; }
+  const model = fitModel === 'quadratic' ? quadraticFit(pts) : linearRegression(pts);
+  if (!model) { setStatus('Cannot fit (check standards)', 'err'); showResultsEmpty(); return; }
 
-  const { slope, intercept, r2 } = fit;
-  const minOD = Math.min(...pts.map(p=>p.y));
-  const maxOD = Math.max(...pts.map(p=>p.y));
+  const minOD = Math.min(...pts.map(p=>p.y)), maxOD = Math.max(...pts.map(p=>p.y));
+  const minX  = Math.min(...pts.map(p=>p.x)), maxX  = Math.max(...pts.map(p=>p.x));
+  model.maxX = maxX; model.minX = minX;
   const unit  = PRESETS[currentPreset]?.unit || 'µg/mL';
-  currentFit  = { slope, intercept, r2, unit, minOD, maxOD };
+  const resid = residualStats(pts, model);
+  currentFit  = { model, unit, minOD, maxOD, minX, maxX, rms: resid.rms, maxR: resid.maxR };
 
   const sampleResults = smpRows.map(r => {
     const od = avgOD(r), df = parseFloat(r.df) || 1;
     if (isNaN(od)) return { name: r.name || '—', od, df, conc: NaN, flag: '' };
-    const rawConc = (od - intercept) / slope;
+    const rawConc = interpolate(od, model);
     const actConc = rawConc * df;
-    const flag = (actConc<0||rawConc<0) ? 'below-det' : (od<minOD||od>maxOD) ? 'extrap' : '';
+    const flag = (isNaN(rawConc)||actConc<0||rawConc<0) ? 'below-det' : (od<minOD||od>maxOD) ? 'extrap' : '';
     return { name: r.name || '—', od, df, conc: actConc, flag };
   }).filter(r => r.name !== '—' || !isNaN(r.od));
 
-  lastResult = { fit, regPoints: pts, sampleResults, unit };
-  showResults(slope, intercept, r2, pts.length, pts, sampleResults, unit);
+  lastResult = { model, regPoints: allPts, sampleResults, unit };
+  showResults(model, pts.length, allPts, sampleResults, unit, resid);
   updateSmpConcs();
 }
 
@@ -1230,13 +1307,13 @@ function updateSmpConcs() {
     const el = document.getElementById(`smp-conc-${i}`);
     if (!el) return;
     if (!currentFit) { el.textContent = '—'; el.style.color = ''; return; }
-    const { slope, intercept, minOD, maxOD } = currentFit;
+    const { model, minOD, maxOD } = currentFit;
     const od = avgOD(r);
     if (isNaN(od)) { el.textContent = '—'; el.style.color = ''; return; }
     const df = parseFloat(r.df) || 1;
-    const raw = (od - intercept) / slope;
+    const raw = interpolate(od, model);
     const act = raw * df;
-    if (act < 0 || raw < 0) { el.textContent = '< 0'; el.style.color = 'var(--red)'; }
+    if (isNaN(raw) || act < 0 || raw < 0) { el.textContent = '< 0'; el.style.color = 'var(--red)'; }
     else if (od < minOD || od > maxOD) { el.textContent = act.toFixed(2); el.style.color = 'var(--yellow-dark)'; }
     else { el.textContent = act.toFixed(2); el.style.color = 'var(--green-dark)'; }
   });
@@ -1256,16 +1333,25 @@ function setStatus(msg, type='') {
 /* ═══════════════════════════════════════════════════════
    DISPLAY RESULTS
 ═══════════════════════════════════════════════════════ */
-function showResults(slope, intercept, r2, n, stdPts, samples, unit) {
+function showResults(model, n, allPts, samples, unit, resid) {
   document.getElementById('results-empty').style.display   = 'none';
   document.getElementById('results-content').style.display = '';
 
-  const sign = intercept >= 0 ? '+' : '−';
-  const absI = Math.abs(intercept);
-  document.getElementById('res-equation').textContent     = `OD = ${slope.toExponential(3)}·C ${sign} ${absI.toFixed(4)}`;
-  document.getElementById('res-slope-inline').textContent  = `m=${slope.toExponential(2)}`;
-  document.getElementById('res-intercept-inline').textContent = `b=${intercept.toFixed(3)}`;
-  document.getElementById('res-npts-inline').textContent   = `n=${n}`;
+  const r2 = model.r2;
+  if (model.type === 'quadratic') {
+    const sb = model.b >= 0 ? '+' : '−', sc = model.c >= 0 ? '+' : '−';
+    document.getElementById('res-equation').textContent = `OD = ${model.a.toExponential(3)}·C² ${sb} ${Math.abs(model.b).toExponential(3)}·C ${sc} ${Math.abs(model.c).toFixed(4)}`;
+    document.getElementById('res-slope-inline').textContent     = `a=${model.a.toExponential(2)}`;
+    document.getElementById('res-intercept-inline').textContent = `b=${model.b.toExponential(2)}`;
+  } else {
+    const sign = model.intercept >= 0 ? '+' : '−';
+    document.getElementById('res-equation').textContent = `OD = ${model.slope.toExponential(3)}·C ${sign} ${Math.abs(model.intercept).toFixed(4)}`;
+    document.getElementById('res-slope-inline').textContent     = `m=${model.slope.toExponential(2)}`;
+    document.getElementById('res-intercept-inline').textContent = `b=${model.intercept.toFixed(3)}`;
+  }
+  document.getElementById('res-npts-inline').textContent = `n=${n}`;
+  document.getElementById('res-rms').textContent  = `RMS ${resid.rms.toFixed(4)}`;
+  document.getElementById('res-maxr').textContent = `max |r| ${resid.maxR.toFixed(4)}`;
 
   const badge = document.getElementById('res-r2-badge');
   const isBasic = currentPreset === 'basic';
@@ -1275,8 +1361,32 @@ function showResults(slope, intercept, r2, n, stdPts, samples, unit) {
   else { badge.className='lt-badge lt-badge-red'; badge.textContent=`R² ${r2.toFixed(4)}`; setStatus(isBasic ? 'Poor fit — check standards' : 'Poor fit — results may be unreliable', 'err'); }
 
   document.getElementById('res-conc-header').textContent = `Conc (${unit})`;
-  drawChart(stdPts, slope, intercept, samples);
+  document.getElementById('std-pts-conc-hdr').textContent = `Conc (${unit})`;
+  drawChart(allPts, model, samples);
+  renderStdPointsTable(allPts, model, resid);
   showSampleResults(samples, unit);
+}
+
+/* Standard Points table — exclusion checkboxes + per-point residual (both modes) */
+function renderStdPointsTable(allPts, model, resid) {
+  const tbody = document.getElementById('std-points-tbody');
+  if (!tbody) return;
+  const thr = 2 * resid.rms;
+  tbody.innerHTML = allPts.slice().sort((a,b)=>a.x-b.x).map(p => {
+    const key = String(p.x);
+    if (p.excl) {
+      return `<tr class="std-excluded">
+        <td><input type="checkbox" class="excl-cb" checked onchange="toggleStdExcl('${key}', this.checked)"></td>
+        <td>${fmtTk(p.x)}</td><td>${p.y.toFixed(4)}</td>
+        <td class="std-excl-tag">excluded</td></tr>`;
+    }
+    const r = p.y - predictOD(p.x, model);
+    const out = Math.abs(r) > thr && thr > 0;
+    return `<tr>
+      <td><input type="checkbox" class="excl-cb" checked onchange="toggleStdExcl('${key}', this.checked)"></td>
+      <td>${fmtTk(p.x)}</td><td>${p.y.toFixed(4)}</td>
+      <td class="resid-val${out?' resid-out':''}">${r>=0?'+':'−'}${Math.abs(r).toFixed(4)}</td></tr>`;
+  }).join('');
 }
 
 function showSampleResults(results, unit) {
@@ -1311,8 +1421,12 @@ function showInlineResults() {
   const sl = document.getElementById('res-slope-inline').textContent;
   const ic = document.getElementById('res-intercept-inline').textContent;
   const np = document.getElementById('res-npts-inline').textContent;
+  const rms = document.getElementById('res-rms').textContent;
+  const maxr = document.getElementById('res-maxr').textContent;
   const chart = document.getElementById('bca-chart').innerHTML;
   const rtable = document.getElementById('results-tbody').innerHTML;
+  const stdpts = document.getElementById('std-points-tbody').innerHTML;
+  const stdHdr = document.getElementById('std-pts-conc-hdr').textContent;
   const hdr = document.getElementById('res-conc-header').textContent;
   const status = document.getElementById('calc-status');
   const statusText = status ? status.textContent : '';
@@ -1326,18 +1440,34 @@ function showInlineResults() {
       </div>
       <div class="fit-strip">
         <span class="fit-equation">${eq}</span>
+        <div class="fit-model-toggle" title="Fit model">
+          <button class="fmt-btn${fitModel==='linear'?' active':''}"    data-model="linear"    onclick="setFitModel('linear')">Linear</button>
+          <button class="fmt-btn${fitModel==='quadratic'?' active':''}" data-model="quadratic" onclick="setFitModel('quadratic')">Quadratic</button>
+        </div>
         ${r2b}
         <span class="fit-stat">${sl}</span>
         <span class="fit-stat">${ic}</span>
         <span class="fit-stat">${np}</span>
+        <span class="fit-stat">${rms}</span>
+        <span class="fit-stat">${maxr}</span>
       </div>
       <div class="chart-wrap">
         <svg viewBox="0 0 360 260" xmlns="http://www.w3.org/2000/svg">${chart}</svg>
         <div class="chart-legend">
           <div class="legend-item"><div class="legend-dot" style="background:#5c8dff;"></div>Standards</div>
+          <div class="legend-item"><div class="legend-diamond-hollow"></div>Excluded</div>
           <div class="legend-item"><div class="legend-diamond" style="background:#e07832;"></div>Samples</div>
           <div class="legend-item"><div style="width:16px;height:2px;background:#5c8dff;opacity:0.5;flex-shrink:0;margin-top:1px;"></div>Fit</div>
         </div>
+      </div>
+      <div class="lt-section-label" style="margin-bottom:6px;">Standard Points
+        <span style="font-weight:500;color:var(--text-dim);text-transform:none;letter-spacing:0;">— uncheck to exclude</span>
+      </div>
+      <div class="res-table-shell">
+        <table class="res-table">
+          <thead><tr><th>Use</th><th>${stdHdr}</th><th>Avg OD</th><th>Residual</th></tr></thead>
+          <tbody>${stdpts}</tbody>
+        </table>
       </div>
       <div class="lt-section-label" style="margin-bottom:6px;">Sample Concentrations</div>
       <div class="res-table-shell">
@@ -1357,7 +1487,7 @@ function showInlineResults() {
 /* ═══════════════════════════════════════════════════════
    SVG CHART (shared renderer)
 ═══════════════════════════════════════════════════════ */
-function renderChart(targetId, W, H, stdPts, slope, intercept, samples, unit) {
+function renderChart(targetId, W, H, model, stdPts, samples, unit) {
   const sc  = W / 360;                           // proportional scale (baseline: 360px)
   const ML  = Math.round(54 * sc);
   const MR  = Math.round(14 * sc);
@@ -1388,12 +1518,28 @@ function renderChart(targetId, W, H, stdPts, slope, intercept, samples, unit) {
   s+=`<rect x="${ML}" y="${MT}" width="${PW}" height="${PH}" fill="var(--surface-subtle)" rx="${rx}"/>`;
   yT.forEach(t => s+=`<line x1="${ML}" y1="${yS(t)}" x2="${ML+PW}" y2="${yS(t)}" stroke="var(--border-subtle)" stroke-width="${swGrid}"/>`);
   xT.forEach(t => s+=`<line x1="${xS(t)}" y1="${MT}" x2="${xS(t)}" y2="${MT+PH}" stroke="var(--border-subtle)" stroke-width="${swGrid}"/>`);
-  s+=`<line x1="${xS(0)}" y1="${yS(slope*0+intercept)}" x2="${xS(maxX)}" y2="${yS(slope*maxX+intercept)}" stroke="#5c8dff" stroke-width="${swFit}" stroke-opacity="0.5" stroke-dasharray="${dash}"/>`;
-  stdPts.forEach(p => s+=`<circle cx="${xS(p.x)}" cy="${yS(p.y)}" r="${rad}" fill="#5c8dff" stroke="#fff" stroke-width="${swDot}" opacity="0.9"/>`);
+  // Fit curve — straight line for linear, sampled polyline for quadratic
+  const steps = model.type === 'quadratic' ? 48 : 1;
+  const fitPath = [];
+  for (let i = 0; i <= steps; i++) {
+    const xv = maxX * i / steps;
+    const yv = Math.max(0, Math.min(predictOD(xv, model), maxY));
+    fitPath.push(`${xS(xv)},${yS(yv)}`);
+  }
+  s+=`<polyline points="${fitPath.join(' ')}" fill="none" stroke="#5c8dff" stroke-width="${swFit}" stroke-opacity="0.5" stroke-dasharray="${dash}"/>`;
+  // Standard points — filled circles (included) / hollow diamonds (excluded)
+  stdPts.forEach(p => {
+    if (p.excl) {
+      const cx=xS(p.x), cy=yS(p.y), sz=rad;
+      s+=`<polygon points="${cx},${cy-sz} ${cx+sz},${cy} ${cx},${cy+sz} ${cx-sz},${cy}" fill="none" stroke="#5c8dff" stroke-width="${Math.max(1,swDot*1.3)}"/>`;
+    } else {
+      s+=`<circle cx="${xS(p.x)}" cy="${yS(p.y)}" r="${rad}" fill="#5c8dff" stroke="#fff" stroke-width="${swDot}" opacity="0.9"/>`;
+    }
+  });
   samples.forEach(r => {
     if (isNaN(r.od)) return;
-    const rc=(r.od-intercept)/slope;
-    const cx=xS(Math.max(0,Math.min(rc,maxX))), cy=yS(Math.max(0,Math.min(r.od,maxY))), sz=rad;
+    const rc=interpolate(r.od, model);
+    const cx=xS(Math.max(0,Math.min(isNaN(rc)?0:rc,maxX))), cy=yS(Math.max(0,Math.min(r.od,maxY))), sz=rad;
     s+=`<polygon points="${cx},${cy-sz} ${cx+sz},${cy} ${cx},${cy+sz} ${cx-sz},${cy}" fill="#e07832" stroke="#fff" stroke-width="${swDot}" opacity="0.9"/>`;
   });
   s+=`<line x1="${ML}" y1="${MT}" x2="${ML}" y2="${MT+PH}" stroke="var(--border)" stroke-width="${swAxis}"/>`;
@@ -1405,15 +1551,15 @@ function renderChart(targetId, W, H, stdPts, slope, intercept, samples, unit) {
   document.getElementById(targetId).innerHTML = s;
 }
 
-function drawChart(stdPts, slope, intercept, samples) {
+function drawChart(allPts, model, samples) {
   const unit = PRESETS[currentPreset]?.unit || 'µg/mL';
-  renderChart('bca-chart', 360, 260, stdPts, slope, intercept, samples, unit);
+  renderChart('bca-chart', 360, 260, model, allPts, samples, unit);
 }
 
 function expandChart() {
   if (!lastResult) return;
-  const { fit, regPoints, sampleResults, unit } = lastResult;
-  renderChart('bca-chart-large', 600, 400, regPoints, fit.slope, fit.intercept, sampleResults, unit);
+  const { model, regPoints, sampleResults, unit } = lastResult;
+  renderChart('bca-chart-large', 600, 400, model, regPoints, sampleResults, unit);
   document.getElementById('chart-overlay').classList.add('show');
 }
 
@@ -1802,9 +1948,13 @@ function buildFromPlate(){
 ═══════════════════════════════════════════════════════ */
 function exportCSV(){
   if(!lastResult){alert('No results yet.');return;}
-  const {fit,sampleResults,unit}=lastResult;
-  const lines=['# BCA Assay Results',`# Slope,${fit.slope.toExponential(6)}`,
-    `# Intercept,${fit.intercept.toFixed(6)}`,`# R2,${fit.r2.toFixed(6)}`,'',
+  const {model,sampleResults,unit}=lastResult;
+  const fitLines = model.type==='quadratic'
+    ? [`# Model,Quadratic`,`# a,${model.a.toExponential(6)}`,`# b,${model.b.toExponential(6)}`,
+       `# c,${model.c.toFixed(6)}`,`# R2,${model.r2.toFixed(6)}`]
+    : [`# Model,Linear`,`# Slope,${model.slope.toExponential(6)}`,
+       `# Intercept,${model.intercept.toFixed(6)}`,`# R2,${model.r2.toFixed(6)}`];
+  const lines=['# BCA Assay Results', ...fitLines, '',
     `Sample Name,Avg OD,Dilution Factor,Protein Conc (${unit}),Flag`,
     ...sampleResults.map(r=>[`"${(r.name||'').replace(/"/g,'""')}"`,
       isNaN(r.od)?'':r.od.toFixed(4),r.df,isNaN(r.conc)?'':r.conc.toFixed(2),
@@ -1823,14 +1973,14 @@ function copyResults(){
 
 function exportFigure() {
   if (!lastResult) { alert('No chart to export.'); return; }
-  const { fit, regPoints, sampleResults, unit } = lastResult;
+  const { model, regPoints, sampleResults, unit } = lastResult;
 
   // Create hidden high-res SVG for 600 DPI export (6" × 4" at 600 DPI → 3600×2400)
   const tmp = document.createElement('div');
   tmp.style.cssText = 'position:absolute;visibility:hidden;width:0;height:0;overflow:hidden;';
   tmp.innerHTML = '<svg id="__bca-export-svg" viewBox="0 0 3600 2400" xmlns="http://www.w3.org/2000/svg"></svg>';
   document.body.appendChild(tmp);
-  renderChart('__bca-export-svg', 3600, 2400, regPoints, fit.slope, fit.intercept, sampleResults, unit);
+  renderChart('__bca-export-svg', 3600, 2400, model, regPoints, sampleResults, unit);
 
   // Resolve CSS variables so the serialized SVG is self-contained
   const svgEl = document.getElementById('__bca-export-svg');
@@ -1893,7 +2043,62 @@ function linearRegression(pts){
   const den=n*sx2-sx*sx; if(den===0)return null;
   const slope=(n*sxy-sx*sy)/den,intercept=(sy-slope*sx)/n;
   const ym=sy/n,sst=pts.reduce((s,p)=>s+(p.y-ym)**2,0),ssr=pts.reduce((s,p)=>s+(p.y-(slope*p.x+intercept))**2,0);
-  return {slope,intercept,r2:sst===0?1:1-ssr/sst};
+  return {type:'linear',slope,intercept,r2:sst===0?1:1-ssr/sst};
+}
+
+/* Quadratic least-squares (y = a·x² + b·x + c) via 3×3 normal equations */
+function quadraticFit(pts){
+  const n=pts.length; if(n<3)return null;
+  let Sx=0,Sx2=0,Sx3=0,Sx4=0,Sy=0,Sxy=0,Sx2y=0;
+  for(const p of pts){const x=p.x,y=p.y,x2=x*x;Sx+=x;Sx2+=x2;Sx3+=x2*x;Sx4+=x2*x2;Sy+=y;Sxy+=x*y;Sx2y+=x2*y;}
+  const sol=solve3([[Sx4,Sx3,Sx2],[Sx3,Sx2,Sx],[Sx2,Sx,n]],[Sx2y,Sxy,Sy]);
+  if(!sol)return null;
+  const [a,b,c]=sol;
+  const ym=Sy/n; let sst=0,ssr=0;
+  for(const p of pts){const pred=a*p.x*p.x+b*p.x+c;ssr+=(p.y-pred)**2;sst+=(p.y-ym)**2;}
+  return {type:'quadratic',a,b,c,r2:sst===0?1:1-ssr/sst};
+}
+function det3(m){
+  return m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])
+        -m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])
+        +m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+}
+function solve3(M,V){
+  const det=det3(M); if(Math.abs(det)<1e-15)return null;
+  const col=j=>M.map((r,i)=>r.map((v,k)=>k===j?V[i]:v));
+  return [det3(col(0))/det,det3(col(1))/det,det3(col(2))/det];
+}
+
+/* OD predicted by the fit at concentration x */
+function predictOD(x,model){
+  return model.type==='quadratic' ? model.a*x*x+model.b*x+model.c : model.slope*x+model.intercept;
+}
+
+/* Invert the fit: concentration for a given OD */
+function interpolate(od,model){
+  if(model.type==='quadratic'){
+    const {a,b,c}=model;
+    if(Math.abs(a)<1e-12) return (od-c)/b;
+    const disc=b*b-4*a*(c-od);
+    if(disc<0) return NaN;
+    const sq=Math.sqrt(disc);
+    const roots=[(-b+sq)/(2*a),(-b-sq)/(2*a)].filter(v=>isFinite(v));
+    const max=(model.maxX!=null?model.maxX:Infinity)*1.05;
+    const within=roots.filter(v=>v>=-1e-6&&v<=max).sort((p,q)=>p-q);
+    if(within.length) return within[0];
+    const nonNeg=roots.filter(v=>v>=0);
+    if(nonNeg.length) return Math.min(...nonNeg);
+    return roots.length?roots[0]:NaN;
+  }
+  return (od-model.intercept)/model.slope;
+}
+
+/* Residual stats across the included standards */
+function residualStats(pts,model){
+  const res=pts.map(p=>p.y-predictOD(p.x,model));
+  const rms=res.length?Math.sqrt(res.reduce((s,e)=>s+e*e,0)/res.length):0;
+  const maxR=res.length?Math.max(...res.map(Math.abs)):0;
+  return {rms,maxR,res};
 }
 function niceTicks(mn,mx,n){
   const step=niceNum((mx-mn)/(n-1),true),lo=Math.floor(mn/step)*step,hi=Math.ceil(mx/step)*step;
