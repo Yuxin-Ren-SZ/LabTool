@@ -126,6 +126,12 @@
     .col-conc        { width: 94px; }
     .col-od          { width: 73px; }
     .col-avg         { width: 64px; }
+    .col-cv          { width: 52px; text-align: right; }
+    /* Replicate QC */
+    .cv-warn { color: var(--yellow-dark, #b45309); font-weight: 700; }
+    .cv-bad  { color: var(--red, #dc2626); font-weight: 700; }
+    .od-outlier { color: var(--red, #dc2626); }
+    .od-outlier input { color: var(--red, #dc2626); font-weight: 600; }
     .col-df          { width: 56px; }
     .col-name        { min-width: 110px; }
     .col-conc-result { width: 88px; }
@@ -555,6 +561,9 @@
                 <button class="rep-btn active" id="rep-btn-1" onclick="setReps(1)" title="1 replicate">1</button>
                 <button class="rep-btn"        id="rep-btn-2" onclick="setReps(2)" title="2 replicates">2</button>
                 <button class="rep-btn"        id="rep-btn-3" onclick="setReps(3)" title="3 replicates">3</button>
+                <span class="rep-bar-label" style="margin-left:10px;">Flag CV &gt;</span>
+                <input type="number" id="qcCvInput" style="width:42px;padding:2px 4px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:var(--fs-xs);text-align:center;" value="15" min="0" step="1" title="Highlight rows where replicate CV% exceeds this value">
+                <span class="rep-bar-label">%</span>
               </div>
             </div>
 
@@ -567,6 +576,7 @@
                     <th class="col-od   t-right r2-col">OD 2</th>
                     <th class="col-od   t-right r3-col">OD 3</th>
                     <th class="col-avg  t-center">Avg OD</th>
+                    <th class="col-cv   t-center">CV %</th>
                     <th class="col-excl t-center" title="Include in fit">Use</th>
                     <th class="col-del"></th>
                   </tr>
@@ -812,6 +822,7 @@
                       <th>Avg OD</th>
                       <th>DF</th>
                       <th id="res-conc-header">Conc (µg/mL)</th>
+                      <th>CV %</th>
                       <th>Flag</th>
                     </tr>
                   </thead>
@@ -883,6 +894,7 @@ let currentFit    = null; // {model, unit, minOD, maxOD, minX, maxX, rms, maxR}
 let fitModel      = 'linear';      // 'linear' | 'quadratic'
 let exclConcs     = new Set();     // String(conc) values excluded from the fit (both modes)
 let manualDirty   = false;         // manual-mode data changed, not yet saved to localStorage
+let qcCvThr       = 15;            // replicate QC: flag groups whose %CV exceeds this
 
 let stdRows = []; // {conc, od1, od2, od3}
 let smpRows = []; // {name, od1, od2, od3, df}
@@ -925,7 +937,7 @@ function saveManualState() {
   if (currentMode !== 'manual') return;
   try {
     const data = {
-      stdRows, smpRows, currentPreset, numReps, fitModel,
+      stdRows, smpRows, currentPreset, numReps, fitModel, qcCvThr,
       exclConcs: [...exclConcs], savedAt: Date.now()
     };
     localStorage.setItem(MANUAL_LS_KEY, JSON.stringify(data));
@@ -1084,17 +1096,28 @@ function renderStdTable() {
     const hasConc = !isNaN(cx);
     const key = String(cx);
     const excluded = hasConc && exclConcs.has(key);
+    const cv = cvPct(r);
+    const cvHtml = cv != null
+      ? `<span class="${cv > qcCvThr * 2 ? 'cv-bad' : cv > qcCvThr ? 'cv-warn' : ''}">${cv.toFixed(1)}%</span>`
+      : '—';
+    const outlier = numReps >= 3 ? outlierODIdx(r) : null;
+    function odCell(col, idx) {
+      const isOut = outlier === idx;
+      const val = r['od' + (idx+1)];
+      return `<td class="col-od r${idx+2}-col${numReps <= idx ? ' hide-col' : ''}${isOut ? ' od-outlier' : ''}">` +
+        `<input class="ci ci-r" type="number" min="0" step="0.001" value="${val}" placeholder="${idx > 0 ? '—' : '0.000'}"
+          data-tbl="std" data-row="${i}" data-col="od${idx+1}"
+          oninput="onStdIn(${i},'od${idx+1}',this.value)"
+          onkeydown="cellKey(event,'std',${i},'od${idx+1}')"
+          onpaste="cellPaste(event,'std',${i},'od${idx+1}')"
+          ${isOut ? ' title="Replicate outlier — deviates most from the group mean"' : ''}></td>`;
+    }
     return `<tr id="std-tr-${i}"${excluded ? ' class="std-excluded"' : ''}>${concCell}
-      <td class="col-od"><input class="ci ci-r" type="number" min="0" step="0.001" value="${r.od1}" placeholder="0.000"
-          data-tbl="std" data-row="${i}" data-col="od1"
-          oninput="onStdIn(${i},'od1',this.value)" onkeydown="cellKey(event,'std',${i},'od1')" onpaste="cellPaste(event,'std',${i},'od1')"></td>
-      <td class="col-od r2-col${numReps<2?' hide-col':''}"><input class="ci ci-r" type="number" min="0" step="0.001" value="${r.od2}" placeholder="—"
-          data-tbl="std" data-row="${i}" data-col="od2"
-          oninput="onStdIn(${i},'od2',this.value)" onkeydown="cellKey(event,'std',${i},'od2')" onpaste="cellPaste(event,'std',${i},'od2')"></td>
-      <td class="col-od r3-col${numReps<3?' hide-col':''}"><input class="ci ci-r" type="number" min="0" step="0.001" value="${r.od3}" placeholder="—"
-          data-tbl="std" data-row="${i}" data-col="od3"
-          oninput="onStdIn(${i},'od3',this.value)" onkeydown="cellKey(event,'std',${i},'od3')" onpaste="cellPaste(event,'std',${i},'od3')"></td>
+      ${odCell(r, 0)}
+      ${odCell(r, 1)}
+      ${odCell(r, 2)}
       <td class="col-avg"><span class="avg-cell${isNaN(avg)?' dim':''}" id="std-avg-${i}">${fmtA(avg)}</span></td>
+      <td class="col-cv">${cvHtml}</td>
       <td class="col-excl"><input type="checkbox" class="excl-cb" ${hasConc?'':'disabled'} ${excluded?'':'checked'}
           onchange="toggleStdExcl('${key}', this.checked)" title="${excluded?'Excluded from fit':'Included in fit'}"></td>
       <td class="col-del"><button class="del-btn" onclick="delStdRow(${i})" title="Remove">×</button></td>
@@ -1259,13 +1282,14 @@ function runCalc() {
   const resid = residualStats(pts, model);
   currentFit  = { model, unit, minOD, maxOD, minX, maxX, rms: resid.rms, maxR: resid.maxR };
 
-  const sampleResults = smpRows.map(r => {
+  const sampleResults = smpRows.map((r, i) => {
     const od = avgOD(r), df = parseFloat(r.df) || 1;
-    if (isNaN(od)) return { name: r.name || '—', od, df, conc: NaN, flag: '' };
+    const cv = cvPct(r);
+    if (isNaN(od)) return { name: r.name || '—', od, df, conc: NaN, flag: '', cv };
     const rawConc = interpolate(od, model);
     const actConc = rawConc * df;
     const flag = (isNaN(rawConc)||actConc<0||rawConc<0) ? 'below-det' : (od<minOD||od>maxOD) ? 'extrap' : '';
-    return { name: r.name || '—', od, df, conc: actConc, flag };
+    return { name: r.name || '—', od, df, conc: actConc, flag, cv };
   }).filter(r => r.name !== '—' || !isNaN(r.od));
 
   lastResult = { model, regPoints: allPts, sampleResults, unit };
@@ -1428,7 +1452,7 @@ function renderStdPointsTable(allPts, model, resid) {
 function showSampleResults(results, unit) {
   const tbody = document.getElementById('results-tbody');
   if (!results.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:14px;">No samples entered</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:14px;">No samples entered</td></tr>';
     return;
   }
   tbody.innerHTML = results.map(r => {
@@ -1436,12 +1460,16 @@ function showSampleResults(results, unit) {
     const concStr = isNaN(r.conc) ? '—' : r.conc.toFixed(2);
     const flagHtml = r.flag==='extrap'    ? '<span class="flag-extrap">Extrap</span>'
                    : r.flag==='below-det' ? '<span class="flag-low">Low</span>' : '—';
+    const cvHtml = r.cv != null
+      ? `<span class="${r.cv > qcCvThr * 2 ? 'cv-bad' : r.cv > qcCvThr ? 'cv-warn' : ''}">${r.cv.toFixed(1)}%</span>`
+      : '—';
     return `<tr>
       <td><input class="result-name-input" type="text" value="${esc(r.name)}" data-orig="${esc(r.name)}"
           onchange="onResultNameEdit(this)" placeholder="Sample name"></td>
       <td>${odStr}</td>
       <td>${r.df}×</td>
       <td class="conc-value">${concStr}</td>
+      <td>${cvHtml}</td>
       <td>${flagHtml}</td>
     </tr>`;
   }).join('');
@@ -1991,9 +2019,10 @@ function exportCSV(){
     : [`# Model,Linear`,`# Slope,${model.slope.toExponential(6)}`,
        `# Intercept,${model.intercept.toFixed(6)}`,`# R2,${model.r2.toFixed(6)}`];
   const lines=['# BCA Assay Results', ...fitLines, '',
-    `Sample Name,Avg OD,Dilution Factor,Protein Conc (${unit}),Flag`,
+    `Sample Name,Avg OD,Dilution Factor,Protein Conc (${unit}),CV %,Flag`,
     ...sampleResults.map(r=>[`"${(r.name||'').replace(/"/g,'""')}"`,
       isNaN(r.od)?'':r.od.toFixed(4),r.df,isNaN(r.conc)?'':r.conc.toFixed(2),
+      r.cv!=null?r.cv.toFixed(1):'',
       r.flag==='extrap'?'Extrapolated':r.flag==='below-det'?'Below detection':''].join(','))];
   labtoolsDownloadText('bca-results.csv',lines.join('\r\n'),'text/csv');
   manualDirty = false;
@@ -2001,9 +2030,10 @@ function exportCSV(){
 function copyResults(){
   if(!lastResult){alert('No results yet.');return;}
   const {sampleResults,unit}=lastResult;
-  const lines=[`Sample Name\tAvg OD\tDilution Factor\tProtein Conc (${unit})\tFlag`,
+  const lines=[`Sample Name\tAvg OD\tDilution Factor\tProtein Conc (${unit})\tCV %\tFlag`,
     ...sampleResults.map(r=>[r.name||'',isNaN(r.od)?'':r.od.toFixed(4),r.df,
       isNaN(r.conc)?'':r.conc.toFixed(2),
+      r.cv!=null?r.cv.toFixed(1):'',
       r.flag==='extrap'?'Extrapolated':r.flag==='below-det'?'Below detection':''].join('\t'))];
   labtoolsCopyText(lines.join('\n'));
 }
@@ -2073,6 +2103,28 @@ function exportFigure() {
 function avgOD(row){
   const vs=[row.od1,row.od2,row.od3].map(v=>parseFloat(v)).filter(v=>!isNaN(v)&&v>=0);
   return vs.length?vs.reduce((a,b)=>a+b,0)/vs.length:NaN;
+}
+// Standard deviation of the OD replicates in a row
+function sdOD(row){
+  const vs=[row.od1,row.od2,row.od3].map(v=>parseFloat(v)).filter(v=>!isNaN(v));
+  if(vs.length<2)return null;
+  const m=vs.reduce((a,b)=>a+b,0)/vs.length;
+  return Math.sqrt(vs.reduce((s,v)=>s+(v-m)**2,0)/(vs.length-1));
+}
+// CV% = (SD / mean) * 100 for ODs that are > 0 (avoids CV explosion near zero)
+function cvPct(row){
+  const m=avgOD(row); if(isNaN(m)||m===0)return null;
+  const s=sdOD(row); return s!=null?(s/Math.abs(m)*100):null;
+}
+// For triplicates: index (0/1/2) of the OD rep farthest from the mean; null if <3 reps
+function outlierODIdx(row){
+  const vs=[row.od1,row.od2,row.od3].map(v=>parseFloat(v));
+  const valid=vs.map(v=>!isNaN(v));
+  const n=valid.filter(Boolean).length; if(n<3)return null;
+  const m=vs.reduce((a,b)=>a+b,0)/n;
+  let worst=0,dev=0;
+  for(let i=0;i<3;i++){const d=Math.abs(vs[i]-m);if(d>dev){dev=d;worst=i;}}
+  return worst;
 }
 function linearRegression(pts){
   const n=pts.length,sx=pts.reduce((s,p)=>s+p.x,0),sy=pts.reduce((s,p)=>s+p.y,0);
@@ -2158,6 +2210,7 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
     currentPreset = manualData.currentPreset || 'pierce';
     numReps = manualData.numReps || 1;
     fitModel = manualData.fitModel || 'linear';
+    qcCvThr = manualData.qcCvThr || 15;
     exclConcs = new Set(manualData.exclConcs || []);
     setPreset(currentPreset); // re-renders std table with restored rows
     renderSmpTable();
@@ -2201,6 +2254,15 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
     if (!manualDirty) return;
     e.preventDefault();
     e.returnValue = '';
+  });
+
+  // QC CV threshold input
+  const cvInput = document.getElementById('qcCvInput');
+  if (cvInput) cvInput.addEventListener('change', () => {
+    const v = parseInt(cvInput.value);
+    qcCvThr = Number.isFinite(v) && v >= 0 ? v : 15;
+    cvInput.value = qcCvThr;
+    renderStdTable(); renderSmpTable(); scheduleCalc();
   });
 })();
 </script>
