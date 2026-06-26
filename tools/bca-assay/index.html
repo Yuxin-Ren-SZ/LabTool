@@ -2219,7 +2219,7 @@ function normStdConc(conc, presetUnit) {
   return presetUnit === 'µg/well' ? conc / wellVolume : conc;
 }
 function avgOD(row){
-  const vs=[row.od1,row.od2,row.od3].map(v=>parseFloat(v)).filter(v=>!isNaN(v)&&v>=0);
+  const vs=[row.od1,row.od2,row.od3].map(v=>parseFloat(v)).filter(v=>isFinite(v));
   return vs.length?vs.reduce((a,b)=>a+b,0)/vs.length:NaN;
 }
 // Standard deviation of the OD replicates in a row
