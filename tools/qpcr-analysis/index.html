@@ -134,6 +134,14 @@
     .call-pos { color: var(--green-dark); font-weight: 700; }
     .call-neg { color: var(--text-dim); }
 
+    /* ── QC flags (control wells + replicate spread) ── */
+    .qc-warn { color: var(--red); font-weight: 700; }
+    .qc-outlier { color: var(--red); font-weight: 700; }
+    .qc-badge { font-size: 0.78em; }
+    table.data tbody tr.qc-flag { background: var(--yellow-bg); }
+    table.data tbody tr.qc-flag:hover { background: var(--yellow-bg); }
+    .qc-sd { color: var(--yellow-dark); font-weight: 700; }
+
     .empty-state { text-align: center; padding: 18px; color: var(--text-muted); font-size: var(--fs-sm); }
 
     /* ── Selection / bulk-assign bar ── */
@@ -252,6 +260,7 @@
                 <button data-mode="cq">Cq gradient</button>
                 <button data-mode="target">Target</button>
                 <button data-mode="sample">Sample</button>
+                <button data-mode="welltype">Well type</button>
               </div>
               <button class="btn-sm" id="btnPlatePng">PNG</button>
             </div>
@@ -351,13 +360,20 @@
 
         <!-- Per-target summary -->
         <div class="section">
-          <div class="section-head"><span class="section-title">Per-sample / target summary</span></div>
+          <div class="section-head">
+            <span class="section-title">Per-sample / target summary</span>
+            <div class="section-tools">
+              <span class="mini-label">Flag SD Cq &gt;</span>
+              <input type="number" class="thr-input" id="qcThrInput" step="0.1" min="0" value="0.5"
+                title="Highlight replicate groups whose Cq SD exceeds this value" />
+            </div>
+          </div>
           <div class="tbl-scroll">
             <table class="data" id="sumTable">
               <thead><tr>
                 <th>Sample</th><th>Target</th><th>Dye</th>
                 <th class="num">n</th><th class="num">Positive</th>
-                <th class="num">Mean Cq</th><th class="num">SD Cq</th>
+                <th class="num">Mean Cq</th><th class="num">SD Cq</th><th class="num">CV %</th>
               </tr></thead>
               <tbody id="sumBody"></tbody>
             </table>
@@ -371,6 +387,9 @@
             <div class="section-tools" id="ddTools">
               <span class="mini-label">Calibrator sample</span>
               <select class="mini-select" id="ddCal"></select>
+              <label class="mini-label" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;">
+                <input type="checkbox" id="ddEffCorr"> Use efficiency correction
+              </label>
               <button class="btn-sm primary" id="btnDdRecalc">Recalculate</button>
               <button class="btn-sm" id="btnDdCsv">CSV</button>
             </div>
@@ -388,10 +407,27 @@
               <thead><tr>
                 <th>Sample</th><th>Gene</th>
                 <th class="num">Mean Cq</th><th class="num">Ref Cq</th>
-                <th class="num">ΔCq</th><th class="num">ΔΔCq</th><th class="num">Fold (2^−ΔΔCq)</th>
+                <th class="num">ΔCq</th><th class="num">ΔΔCq</th><th class="num">ΔΔCq SD</th>
+                <th class="num">Fold</th><th class="num">Fold range</th>
               </tr></thead>
               <tbody id="ddBody"></tbody>
             </table>
+          </div>
+          <div id="ddChartWrap" style="display:none;">
+            <div class="section-head" style="margin-top:14px;">
+              <span class="section-title" style="font-size:13px;">Fold-change</span>
+              <div class="section-tools">
+                <div class="seg" id="foldScale">
+                  <button data-scale="linear" class="active">Linear</button>
+                  <button data-scale="log2">Log₂</button>
+                </div>
+                <button class="btn-sm" id="btnFoldPng">PNG</button>
+              </div>
+            </div>
+            <div class="chart-wrap">
+              <svg id="foldChart" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg"></svg>
+              <div class="chart-empty" id="foldEmpty">No fold-change values to plot.</div>
+            </div>
           </div>
         </div>
 
@@ -426,6 +462,7 @@ const state = {
   fltDye: '',
   fltCall: '',
   ampScale: 'linear',
+  foldScale: 'linear',   // fold-change chart: 'linear' | 'log2'
   selWells: new Set(),   // WELL ids selected (drives grouping + chart)
   sort: { col: 'well', dir: 1 },
   files: [],             // {name, type}
@@ -439,14 +476,33 @@ const state = {
   ddRefs: new Set(),     // reference gene names for ΔΔCq
   ddRefsInit: false,     // whether default references were auto-picked
   ddCal: '',             // calibrator sample
+  ddEffCorr: false,      // efficiency-corrected (Pfaffl) fold vs 2^(-ΔΔCq)
   chartGroupBy: 'sample',// curve color grouping: sample | gene | sampleGene | call | well
   chartLayout: 'together', // together | separate (small multiples)
+  userNamed: new Set(),  // wells the user explicitly named (vs auto-seeded) — keeps controls as samples
+  qcSdThr: 0.5,          // replicate QC: flag groups whose Cq SD exceeds this
 };
 const drag = { active: false, mode: 'add', baseline: null, start: null, last: null };
 
 const $ = id => document.getElementById(id);
 const NULLISH = /^(no cq|n\/a|no reference|no tm|---|\s*)$/i;
 const PALETTE = ['#5c8dff','#e07832','#57a85a','#b15cd1','#d9a700','#3bb5b0','#e0567a','#7b8794'];
+
+// ── Control-well classification (on the Well Type field) ───────────────────
+const CONTROL_RE = /ntc|no template|nrt|no rt|standard|ptc/i;       // exclude these from ΔΔCq samples
+const CONTAM_RE  = /ntc|no template|nrt|no rt/i;                    // NTC/NRT → contamination check
+const WELLTYPE_COLORS = { NTC: '#e0567a', NRT: '#e07832', Standard: '#b15cd1', PTC: '#3bb5b0', Unknown: '#cfd8e3' };
+function wellTypeCat(r) {
+  const t = (r.wellType || '').toLowerCase();
+  if (/no template|ntc/.test(t)) return 'NTC';
+  if (/no rt|nrt/.test(t)) return 'NRT';
+  if (/standard/.test(t)) return 'Standard';
+  if (/ptc|positive control/.test(t)) return 'PTC';
+  if (/unknown/.test(t) || !t) return 'Unknown';
+  return r.wellType;
+}
+// A control record is excluded from sample analysis unless the user explicitly named its well.
+function isControlRec(r) { return CONTROL_RE.test(r.wellType || '') && !state.userNamed.has(r.well); }
 
 // ── Generic parsing helpers ───────────────────────────────────────────────
 function splitLines(text) {
@@ -720,6 +776,7 @@ async function handleFiles(fileList) {
   state.ddRefs = new Set();
   state.ddRefsInit = false;
   state.ddCal = '';
+  state.userNamed = new Set();
 
   for (const r of state.records) {
     const key = r.well + '|' + r.dye;
@@ -848,6 +905,11 @@ function renderSummary() {
   ];
   if (state.thermal && state.thermal.summary) items.push(['Thermal profile', state.thermal.summary]);
   if (state.notes) items.push(['Notes', state.notes]);
+  // Control QC: NTC/NRT wells that amplified suggest contamination.
+  const contam = uniq(recs.filter(r => CONTAM_RE.test(r.wellType || '') && (r.call === '+' || r.cq != null))
+    .map(r => r.well)).length;
+  if (contam) items.push(['Control QC',
+    `<span class="qc-warn">⚠ ${contam} NTC/NRT amplified — possible contamination</span>`]);
   $('summaryGrid').innerHTML = items.map(([k, v]) =>
     `<div class="summary-item"><div class="summary-k">${esc(k)}</div><div class="summary-v">${v}</div></div>`).join('');
 }
@@ -889,6 +951,7 @@ function wellFill(r, range) {
   if (state.plateMode === 'call') return r.call === '+' ? '#57a85a' : (r.call === '-' ? '#eceae6' : '#f5f4f2');
   if (state.plateMode === 'target') return r.cq != null ? targetColor(r.target) : '#f0efed';
   if (state.plateMode === 'sample') return sampleColor(r.sampleName);
+  if (state.plateMode === 'welltype') return WELLTYPE_COLORS[wellTypeCat(r)] || '#cfd8e3';
   // cq gradient: low Cq (abundant) = dark green, high Cq = pale
   if (r.cq == null || !range) return '#f0efed';
   const t = range.max === range.min ? 0 : (r.cq - range.min) / (range.max - range.min);
@@ -926,7 +989,7 @@ function renderPlate() {
       const stroke = isSel ? 'var(--blue-dark)' : '#d8d6d0';
       const sw = isSel ? 3 : 1.2;
       const label = r ? cqLabel(r) : '';
-      const tip = r ? `${well}${r.sampleName ? ' · ' + r.sampleName : ''} · ${state.plateDye} · ${r.target}\nCq: ${r.cq != null ? r.cq.toFixed(2) : 'No Cq'} · Call: ${r.call || '—'}` : well;
+      const tip = r ? `${well}${r.sampleName ? ' · ' + r.sampleName : ''} · ${state.plateDye} · ${r.target}${r.wellType ? ' · ' + r.wellType : ''}\nCq: ${r.cq != null ? r.cq.toFixed(2) : 'No Cq'} · Call: ${r.call || '—'}` : well;
       s += `<g class="well-g" style="pointer-events:none">`;
       s += `<title>${esc(tip)}</title>`;
       s += `<circle cx="${cx}" cy="${cy}" r="${rad}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
@@ -969,6 +1032,10 @@ function renderLegend(range) {
     wrap.innerHTML = samples.map(n =>
       `<span><span class="legend-swatch" style="background:${sampleColor(n)}"></span>${esc(n)}</span>`).join('') +
       `<span><span class="legend-swatch" style="background:#eef0f2"></span>Unassigned</span>`;
+  } else if (state.plateMode === 'welltype') {
+    const cats = uniq(state.records.filter(r => r.dye === state.plateDye).map(wellTypeCat));
+    wrap.innerHTML = cats.map(c =>
+      `<span><span class="legend-swatch" style="background:${WELLTYPE_COLORS[c] || '#cfd8e3'}"></span>${esc(c)}</span>`).join('');
   } else {
     wrap.innerHTML = state.targets.map(t =>
       `<span><span class="legend-swatch" style="background:${targetColor(t)}"></span>${esc(t)}</span>`).join('');
@@ -1123,6 +1190,7 @@ const COLS = [
   { key: 'well', label: 'Well', num: false },
   { key: 'sampleName', label: 'Sample', num: false, edit: true },
   { key: 'target', label: 'Target', num: false },
+  { key: 'wellType', label: 'Type', num: false },
   { key: 'dye', label: 'Dye', num: false },
   { key: 'cq', label: 'Cq', num: true },
   { key: 'call', label: 'Call', num: false },
@@ -1147,6 +1215,7 @@ function renderTable() {
     renderTable();
   });
 
+  const outliers = outlierKeys();
   const body = $('resBody');
   body.innerHTML = rows.map((r, i) => {
     const checked = state.selWells.has(r.well) ? 'checked' : '';
@@ -1154,6 +1223,11 @@ function renderTable() {
       let v = r[c.key];
       if (c.edit) {
         return `<td><input class="sample-input" data-well="${r.well}" placeholder="—" value="${esc(r.sampleName)}"/></td>`;
+      }
+      if (c.key === 'cq') {
+        const isOut = r.cq != null && outliers.has(r.well + '|' + r.dye);
+        const txt = r.cq == null ? '—' : r.cq.toFixed(2);
+        return `<td class="num${isOut ? ' qc-outlier' : ''}"${isOut ? ' title="Replicate outlier — deviates most from the group median Cq"' : ''}>${txt}${isOut ? ' <span class="qc-badge">⚠</span>' : ''}</td>`;
       }
       if (c.key === 'call') {
         const cls = v === '+' ? 'call-pos' : 'call-neg';
@@ -1213,7 +1287,9 @@ function sortBy(col) {
   renderTable();
 }
 function setSample(well, name) {
-  state.sampleByWell[well] = name.trim();
+  const n = name.trim();
+  state.sampleByWell[well] = n;
+  if (n) state.userNamed.add(well); else state.userNamed.delete(well);
   afterSampleChange();
 }
 // Assign / clear a Sample or Gene name for every selected well in one action.
@@ -1227,7 +1303,10 @@ function assignToSelection(name) {
     }
     applyTargetNames(); recomputeTargets();
   } else {
-    for (const w of state.selWells) state.sampleByWell[w] = n;
+    for (const w of state.selWells) {
+      state.sampleByWell[w] = n;
+      if (n) state.userNamed.add(w); else state.userNamed.delete(w);
+    }
   }
   afterSampleChange();
 }
@@ -1272,16 +1351,37 @@ function buildGroups() {
 }
 function mean(a) { return a.reduce((s, v) => s + v, 0) / a.length; }
 function sd(a) { const m = mean(a); return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / (a.length - 1)); }
+function median(a) { const s = a.slice().sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+// Replicate QC: in groups whose Cq SD exceeds the threshold, the well deviating most from the
+// group median is flagged. Needs ≥3 replicates so a single outlier is distinguishable. Keyed "WELL|DYE".
+function outlierKeys() {
+  const set = new Set();
+  for (const g of buildGroups().values()) {
+    if (g.sdCq == null || g.sdCq <= state.qcSdThr) continue;
+    const cqRecs = g.recs.filter(r => r.cq != null);
+    if (cqRecs.length < 3) continue;
+    const med = median(cqRecs.map(r => r.cq));
+    let worst = null, dev = -1;
+    for (const r of cqRecs) { const d = Math.abs(r.cq - med); if (d > dev) { dev = d; worst = r; } }
+    if (worst) set.add(worst.well + '|' + worst.dye);
+  }
+  return set;
+}
 
 function renderSummaryTable() {
   const groups = Array.from(buildGroups().values())
     .sort((a, b) => a.sample.localeCompare(b.sample) || a.target.localeCompare(b.target));
-  $('sumBody').innerHTML = groups.map(g =>
-    `<tr><td>${esc(g.sample)}</td><td>${esc(g.target)}</td><td>${esc(g.dye)}</td>` +
-    `<td class="num">${g.n}</td><td class="num">${g.nPos}</td>` +
-    `<td class="num">${g.meanCq != null ? g.meanCq.toFixed(2) : '—'}</td>` +
-    `<td class="num">${g.sdCq != null ? g.sdCq.toFixed(2) : '—'}</td></tr>`).join('') ||
-    `<tr><td colspan="7" class="empty-state">No data.</td></tr>`;
+  $('sumBody').innerHTML = groups.map(g => {
+    const flag = g.sdCq != null && g.sdCq > state.qcSdThr;
+    const cv = (g.sdCq != null && g.meanCq) ? g.sdCq / g.meanCq * 100 : null;
+    return `<tr${flag ? ' class="qc-flag"' : ''}><td>${esc(g.sample)}</td><td>${esc(g.target)}</td><td>${esc(g.dye)}</td>` +
+      `<td class="num">${g.n}</td><td class="num">${g.nPos}</td>` +
+      `<td class="num">${g.meanCq != null ? g.meanCq.toFixed(2) : '—'}</td>` +
+      `<td class="num${flag ? ' qc-sd' : ''}"${flag ? ` title="SD Cq exceeds ${state.qcSdThr} — check replicates"` : ''}>` +
+      `${g.sdCq != null ? g.sdCq.toFixed(2) : '—'}${flag ? ' ⚠' : ''}</td>` +
+      `<td class="num">${cv != null ? cv.toFixed(1) : '—'}</td></tr>`;
+  }).join('') ||
+    `<tr><td colspan="8" class="empty-state">No data.</td></tr>`;
 }
 
 // ── ΔΔCq ────────────────────────────────────────────────────────────────────
@@ -1289,11 +1389,20 @@ function targetsWithCq() {
   return state.targets.filter(t => state.records.some(r => r.target === t && r.cq != null));
 }
 function namedSamples() {
-  return uniq(state.records.filter(r => r.sampleName).map(r => r.sampleName));
+  return uniq(state.records.filter(r => r.sampleName && !isControlRec(r)).map(r => r.sampleName));
+}
+function cqsFor(sample, target) {
+  return state.records.filter(r => (r.sampleName || r.well) === sample && r.target === target && r.cq != null).map(r => r.cq);
 }
 function meanCqFor(sample, target) {
-  const cqs = state.records.filter(r => (r.sampleName || r.well) === sample && r.target === target && r.cq != null).map(r => r.cq);
+  const cqs = cqsFor(sample, target);
   return cqs.length ? mean(cqs) : null;
+}
+// Mean amplification efficiency E (=1+eff%/100) across records for one or more genes.
+// Falls back to 2.0 (100% efficiency) when no efficiency values are present.
+function effForGenes(genes) {
+  const effs = state.records.filter(r => genes.includes(r.target) && r.eff != null).map(r => r.eff);
+  return effs.length ? 1 + mean(effs) / 100 : 2.0;
 }
 // Combined reference Cq for a sample = mean Cq across the selected reference genes
 // (the arithmetic mean of Cq equals the geometric mean of quantities — geNorm-style).
@@ -1307,7 +1416,8 @@ const HOUSEKEEPING = /^(gapdh|actb|b-?actin|β-?actin|b2m|18s|hprt1?|ppia|tbp|yw
 // Samples for ΔΔCq: the named groups if any exist, else fall back to well ids.
 function ddSamples() {
   const named = namedSamples();
-  return named.length ? named : uniq(state.records.map(r => r.sampleName || r.well)).filter(Boolean);
+  if (named.length) return named;
+  return uniq(state.records.filter(r => !isControlRec(r)).map(r => r.sampleName || r.well)).filter(Boolean);
 }
 
 function renderDDControls() {
@@ -1355,6 +1465,7 @@ function renderDDControls() {
   $('ddAlert').style.display = ready ? 'none' : 'block';
   if (!ready) $('ddAlert').innerHTML = msg;
   $('ddTableWrap').style.display = ready ? 'block' : 'none';
+  $('ddChartWrap').style.display = ready ? 'block' : 'none';
   $('btnDdCsv').disabled = !ready;
 }
 function ddResults() {
@@ -1362,8 +1473,11 @@ function ddResults() {
   const calibrator = state.ddCal;
   const goi = targetsWithCq().filter(t => !state.ddRefs.has(t));
   const samples = ddSamples();
+  const effCorr = state.ddEffCorr;
+  const eRef = effForGenes(refs);
   const out = [];
   for (const t of goi) {
+    const eTgt = effForGenes([t]);
     const calRefCq = refCqFor(calibrator, refs);
     const calTgtCq = meanCqFor(calibrator, t);
     const calDelta = (calTgtCq != null && calRefCq != null) ? calTgtCq - calRefCq : null;
@@ -1373,8 +1487,24 @@ function ddResults() {
       if (tgtCq == null || refCq == null) continue;
       const dCq = tgtCq - refCq;
       const ddCq = calDelta != null ? dCq - calDelta : null;
-      const fold = ddCq != null ? Math.pow(2, -ddCq) : null;
-      out.push({ sample: sm, target: t, meanCq: tgtCq, refCq, dCq, ddCq, fold });
+      // Replicate-level ΔCq distribution (each target rep vs the sample's mean reference Cq)
+      // → ΔΔCq SD/SEM. Subtracting the constant calibrator ΔCq leaves the spread unchanged.
+      const reps = cqsFor(sm, t);
+      const ddSD = reps.length > 1 ? sd(reps.map(c => c - refCq)) : null;
+      const ddSEM = ddSD != null ? ddSD / Math.sqrt(reps.length) : null;
+      // Fold: Pfaffl (efficiency-corrected) or the classic 2^(-ΔΔCq) base.
+      let fold = null, base = effCorr ? eTgt : 2;
+      if (ddCq != null) {
+        if (effCorr) {
+          fold = Math.pow(eTgt, -(tgtCq - calTgtCq)) / Math.pow(eRef, -(refCq - calRefCq));
+        } else {
+          fold = Math.pow(2, -ddCq);
+        }
+      }
+      // Range maps the ΔΔCq ±1 SD onto fold space using the target's efficiency base.
+      const foldLow  = (fold != null && ddSD != null) ? fold * Math.pow(base, -ddSD) : null;
+      const foldHigh = (fold != null && ddSD != null) ? fold * Math.pow(base,  ddSD) : null;
+      out.push({ sample: sm, target: t, meanCq: tgtCq, refCq, dCq, ddCq, ddSD, ddSEM, fold, foldLow, foldHigh });
     }
   }
   return out;
@@ -1387,8 +1517,122 @@ function renderDD() {
     `<td class="num">${r.meanCq.toFixed(2)}</td><td class="num">${r.refCq.toFixed(2)}</td>` +
     `<td class="num">${r.dCq.toFixed(2)}</td>` +
     `<td class="num">${r.ddCq != null ? r.ddCq.toFixed(2) : '—'}</td>` +
-    `<td class="num">${r.fold != null ? r.fold.toFixed(3) : '—'}</td></tr>`).join('') ||
-    `<tr><td colspan="7" class="empty-state">No paired gene/reference Cq values for the named samples.</td></tr>`;
+    `<td class="num">${r.ddSD != null ? r.ddSD.toFixed(2) : '—'}</td>` +
+    `<td class="num">${r.fold != null ? r.fold.toFixed(3) : '—'}</td>` +
+    `<td class="num">${(r.foldLow != null && r.foldHigh != null) ? r.foldLow.toFixed(3) + '–' + r.foldHigh.toFixed(3) : '—'}</td></tr>`).join('') ||
+    `<tr><td colspan="9" class="empty-state">No paired gene/reference Cq values for the named samples.</td></tr>`;
+  renderFoldChart();
+}
+
+// ── Fold-change bar chart (grouped by sample, bars per gene) ──────────────────
+function renderFoldChart() {
+  const svg = $('foldChart'), empty = $('foldEmpty');
+  if (!svg) return;
+  const rows = ddResults().filter(r => r.fold != null && isFinite(r.fold) && r.fold > 0);
+  if (!rows.length) {
+    svg.innerHTML = ''; svg.style.display = 'none'; empty.style.display = 'block';
+    return;
+  }
+  svg.style.display = 'block'; empty.style.display = 'none';
+
+  const log2 = state.foldScale === 'log2';
+  const samples = uniq(rows.map(r => r.sample));
+  const genes = uniq(rows.map(r => r.target));
+  const byKey = {};
+  rows.forEach(r => byKey[r.sample + '|' + r.target] = r);
+
+  // transform: identity (linear) or log2
+  const tf = log2 ? (v => Math.log2(v)) : (v => v);
+  const baseVal = 1;                          // calibrator reference (fold = 1)
+  // y range covers fold + error bounds and always the fold=1 line
+  let lo = Infinity, hi = -Infinity;
+  for (const r of rows) {
+    for (const v of [r.fold, r.foldLow, r.foldHigh]) {
+      if (v == null || !isFinite(v) || v <= 0) continue;
+      lo = Math.min(lo, tf(v)); hi = Math.max(hi, tf(v));
+    }
+  }
+  const baseT = tf(baseVal);
+  lo = Math.min(lo, baseT); hi = Math.max(hi, baseT);
+  if (!log2) lo = Math.min(lo, 0);            // linear bars grow from 0
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+
+  const W = 800, H = 400, ML = 54, MR = 16, MT = 30, MB = 64;
+  const px = ML, py = MT, pw = W - ML - MR, ph = H - MT - MB;
+  const yS = v => py + ph - (tf(v) - lo) / (hi - lo) * ph;       // value (fold) → y
+  const yT = t => py + ph - (t - lo) / (hi - lo) * ph;           // transformed → y
+  const fmtFold = v => v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
+
+  let s = '';
+  s += `<rect x="${px}" y="${py}" width="${pw}" height="${ph}" fill="var(--surface)" stroke="var(--border-subtle)" rx="4"/>`;
+  // y gridlines + labels
+  for (const t of niceTicks(lo, hi, 5)) {
+    const yy = yT(t);
+    if (yy < py - 0.5 || yy > py + ph + 0.5) continue;
+    s += `<line x1="${px}" y1="${yy}" x2="${px + pw}" y2="${yy}" stroke="var(--border-subtle)" stroke-width="1"/>`;
+    const label = log2 ? fmtFold(Math.pow(2, t)) : fmtFold(t);
+    s += `<text x="${px - 6}" y="${yy + 3}" text-anchor="end" font-size="9" fill="var(--text-muted)" font-family="var(--font)">${label}</text>`;
+  }
+  // calibrator reference line (fold = 1)
+  const y1 = yS(baseVal);
+  if (y1 >= py && y1 <= py + ph) {
+    s += `<line x1="${px}" y1="${y1}" x2="${px + pw}" y2="${y1}" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="5 4" opacity="0.7"/>`;
+    s += `<text x="${px + pw - 2}" y="${y1 - 3}" text-anchor="end" font-size="8.5" fill="var(--text-muted)" font-family="var(--font)">fold = 1</text>`;
+  }
+
+  const baseY = log2 ? y1 : yS(0);             // bars grow from this y
+  const groupW = pw / samples.length;
+  const barGap = 0.18;                         // fraction of slot left as gap
+  const slotW = groupW / genes.length;
+  const barW = slotW * (1 - barGap);
+
+  samples.forEach((sm, si) => {
+    const gx = px + si * groupW;
+    genes.forEach((g, gi) => {
+      const r = byKey[sm + '|' + g];
+      if (!r) return;
+      const color = targetColor(g);
+      const bx = gx + gi * slotW + (slotW - barW) / 2;
+      const yv = yS(r.fold);
+      const top = Math.min(yv, baseY), bh = Math.abs(yv - baseY);
+      s += `<rect x="${bx.toFixed(1)}" y="${top.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0, bh).toFixed(1)}" fill="${color}" opacity="0.88" rx="1.5"/>`;
+      // error whisker
+      if (r.foldLow != null && r.foldHigh != null && r.foldLow > 0) {
+        const cx = bx + barW / 2, yLo2 = yS(r.foldHigh), yHi2 = yS(r.foldLow);
+        const cap = Math.min(barW * 0.35, 5);
+        s += `<line x1="${cx.toFixed(1)}" y1="${yLo2.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${yHi2.toFixed(1)}" stroke="var(--text)" stroke-width="1"/>`;
+        s += `<line x1="${(cx - cap).toFixed(1)}" y1="${yLo2.toFixed(1)}" x2="${(cx + cap).toFixed(1)}" y2="${yLo2.toFixed(1)}" stroke="var(--text)" stroke-width="1"/>`;
+        s += `<line x1="${(cx - cap).toFixed(1)}" y1="${yHi2.toFixed(1)}" x2="${(cx + cap).toFixed(1)}" y2="${yHi2.toFixed(1)}" stroke="var(--text)" stroke-width="1"/>`;
+      }
+    });
+    // sample label
+    const cx = gx + groupW / 2;
+    const long = samples.length > 6 || sm.length > 10;
+    if (long) {
+      s += `<text x="${cx.toFixed(1)}" y="${py + ph + 12}" text-anchor="end" font-size="9" fill="var(--text-secondary)" font-family="var(--font)" transform="rotate(-35 ${cx.toFixed(1)} ${py + ph + 12})">${esc(sm)}</text>`;
+    } else {
+      s += `<text x="${cx.toFixed(1)}" y="${py + ph + 14}" text-anchor="middle" font-size="9.5" fill="var(--text-secondary)" font-family="var(--font)">${esc(sm)}</text>`;
+    }
+  });
+
+  // axes
+  s += `<line x1="${px}" y1="${py}" x2="${px}" y2="${py + ph}" stroke="var(--border)" stroke-width="1.1"/>`;
+  s += `<line x1="${px}" y1="${py + ph}" x2="${px + pw}" y2="${py + ph}" stroke="var(--border)" stroke-width="1.1"/>`;
+
+  // gene legend (top)
+  let lx = px + 4, ly = py - 14;
+  genes.slice(0, 8).forEach(g => {
+    s += `<rect x="${lx}" y="${ly - 7}" width="10" height="10" rx="2" fill="${targetColor(g)}"/>`;
+    s += `<text x="${lx + 14}" y="${ly + 2}" font-size="10" fill="var(--text-secondary)" font-family="var(--font)">${esc(g)}</text>`;
+    lx += 22 + g.length * 6.2;
+  });
+
+  // y-axis title
+  const yTitle = log2 ? 'Fold change (log₂)' : 'Fold change';
+  s += `<text x="13" y="${py + ph / 2}" text-anchor="middle" font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600" transform="rotate(-90 13 ${py + ph / 2})">${yTitle}</text>`;
+
+  svg.innerHTML = s;
 }
 
 // ── Amplification chart (SVG string, mirrors bca-assay) ─────────────────────
@@ -1534,10 +1778,14 @@ function tsvToCsv(tsv) {
 }
 function ddCsv() {
   const out = ddResults();
-  const head = ['Sample', 'Target', 'Mean Cq', 'Ref Cq', 'dCq', 'ddCq', 'Fold (2^-ddCq)'];
+  const foldLabel = state.ddEffCorr ? 'Fold (Pfaffl)' : 'Fold (2^-ddCq)';
+  const head = ['Sample', 'Target', 'Mean Cq', 'Ref Cq', 'dCq', 'ddCq', 'ddCq SD', 'ddCq SEM', foldLabel, 'Fold low', 'Fold high'];
   const lines = [head.join(',')];
   for (const r of out) lines.push([r.sample, r.target, r.meanCq.toFixed(3), r.refCq.toFixed(3),
-    r.dCq.toFixed(3), r.ddCq != null ? r.ddCq.toFixed(3) : '', r.fold != null ? r.fold.toFixed(4) : ''].join(','));
+    r.dCq.toFixed(3), r.ddCq != null ? r.ddCq.toFixed(3) : '',
+    r.ddSD != null ? r.ddSD.toFixed(3) : '', r.ddSEM != null ? r.ddSEM.toFixed(3) : '',
+    r.fold != null ? r.fold.toFixed(4) : '',
+    r.foldLow != null ? r.foldLow.toFixed(4) : '', r.foldHigh != null ? r.foldHigh.toFixed(4) : ''].join(','));
   return lines.join('\n');
 }
 function exportName(suffix) {
@@ -1634,6 +1882,14 @@ function init() {
   $('fltDye').addEventListener('change', e => { state.fltDye = e.target.value; renderTable(); });
   $('fltCall').addEventListener('change', e => { state.fltCall = e.target.value; renderTable(); });
 
+  // Replicate QC threshold (Cq SD flag)
+  $('qcThrInput').addEventListener('change', e => {
+    const v = parseFloat(e.target.value);
+    state.qcSdThr = Number.isFinite(v) && v >= 0 ? v : 0.5;
+    e.target.value = state.qcSdThr;
+    renderTable(); renderSummaryTable();
+  });
+
   // Plate drag-to-select
   const psvg = $('plateSvg');
   psvg.addEventListener('pointerdown', onPlateDown);
@@ -1673,12 +1929,18 @@ function init() {
   });
 
   $('ddCal').addEventListener('change', e => { state.ddCal = e.target.value; renderDD(); });
+  $('ddEffCorr').addEventListener('change', e => { state.ddEffCorr = e.target.checked; renderDD(); });
   $('btnDdRecalc').addEventListener('click', function () { renderDDControls(); renderDD(); flash(this, 'Recalculated ✓', 'Recalculate'); });
+  $('foldScale').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.foldScale = b.dataset.scale; setActive($('foldScale'), b); renderFoldChart();
+  });
+  $('btnFoldPng').addEventListener('click', () => svgToPng($('foldChart'), exportName('foldchange.png')));
 
   $('btnResetAll').addEventListener('click', () => {
     Object.assign(state, { records: [], byKey: new Map(), sampleByWell: {}, selWells: new Set(),
       wellsPresent: new Set(), files: [], lastRowIdx: null, targetByKey: {}, thresholds: {},
-      customThr: {}, ddRefs: new Set(), ddRefsInit: false, ddCal: '' });
+      customThr: {}, ddRefs: new Set(), ddRefsInit: false, ddCal: '', userNamed: new Set() });
     $('results').style.display = 'none';
     $('fileList').innerHTML = '';
     $('fileInput').value = '';
