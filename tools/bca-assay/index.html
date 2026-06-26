@@ -564,6 +564,9 @@
                 <span class="rep-bar-label" style="margin-left:10px;">Flag CV &gt;</span>
                 <input type="number" id="qcCvInput" style="width:42px;padding:2px 4px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:var(--fs-xs);text-align:center;" value="15" min="0" step="1" title="Highlight rows where replicate CV% exceeds this value">
                 <span class="rep-bar-label">%</span>
+                <span class="rep-bar-label" id="wellVolLabel" style="display:none;margin-left:8px;">Well vol</span>
+                <input type="number" id="wellVolInput" style="display:none;width:48px;padding:2px 4px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:var(--fs-xs);text-align:center;" value="200" min="1" step="10" title="Assay well volume (µL) for converting µg/well to µg/mL">
+                <span id="wellVolUnit" style="display:none;font-size:var(--fs-xs);color:var(--text-dim);">µL</span>
               </div>
             </div>
 
@@ -840,6 +843,11 @@
               </div>
               <div id="loading-results" style="display:none;margin-top:8px;"></div>
               <div class="export-row">
+                <div class="seg" id="concUnitSeg" style="margin-right:auto;">
+                  <button class="seg-btn active" data-unit="µg/mL" onclick="setConcUnit('µg/mL')">µg/mL</button>
+                  <button class="seg-btn" data-unit="mg/mL" onclick="setConcUnit('mg/mL')">mg/mL</button>
+                  <button class="seg-btn" data-unit="µg/µL" onclick="setConcUnit('µg/µL')">µg/µL</button>
+                </div>
                 <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="exportFigure()">Export Figure</button>
                 <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="exportCSV()">Export CSV</button>
                 <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="copyResults()">Copy Table</button>
@@ -905,6 +913,8 @@ let fitModel      = 'linear';      // 'linear' | 'quadratic'
 let exclConcs     = new Set();     // String(conc) values excluded from the fit (both modes)
 let manualDirty   = false;         // manual-mode data changed, not yet saved to localStorage
 let qcCvThr       = 15;            // replicate QC: flag groups whose %CV exceeds this
+let wellVolume    = 0.2;           // assay well volume in mL (for µg/well → µg/mL conversion)
+let concUnit      = 'µg/mL';       // display unit for concentrations (µg/mL | mg/mL | µg/µL)
 
 let stdRows = []; // {conc, od1, od2, od3}
 let smpRows = []; // {name, od1, od2, od3, df}
@@ -1062,6 +1072,7 @@ function setPreset(pid) {
   document.getElementById('std-conc-hdr').textContent = `Conc (${unit})`;
   document.getElementById('smp-conc-hdr').textContent = `Conc (${unit})`;
   document.getElementById('res-conc-header').textContent = `Conc (${unit})`;
+  updateWellVolVisibility();
   renderStdTable();
   scheduleCalc();
 }
@@ -1079,6 +1090,29 @@ function setFitModel(m) {
   document.querySelectorAll('.fmt-btn').forEach(b => b.classList.toggle('active', b.dataset.model === m));
   if (currentMode === 'manual') scheduleCalc();
   else schedulePlateCalc();
+}
+
+function setConcUnit(u) {
+  concUnit = u;
+  document.querySelectorAll('#concUnitSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.unit === u));
+  if (!lastResult) return;
+  const { model, regPoints, sampleResults, unit } = lastResult;
+  // Re-render results with new display unit
+  document.getElementById('res-conc-header').textContent = `Conc (${displayUnitLabel()})`;
+  document.getElementById('std-pts-conc-hdr').textContent = `Conc (${displayUnitLabel()})`;
+  showSampleResults(sampleResults, unit);
+  // Also update inline results header if plate mode
+  const inlineHdr = document.getElementById('res-conc-header');
+  renderLoadingCalc();
+}
+
+// Show/hide well-volume input based on preset unit
+function updateWellVolVisibility() {
+  const presetUnit = PRESETS[currentPreset]?.unit || 'µg/mL';
+  const vis = presetUnit === 'µg/well' ? '' : 'none';
+  document.getElementById('wellVolLabel').style.display = vis;
+  document.getElementById('wellVolInput').style.display = vis;
+  document.getElementById('wellVolUnit').style.display = vis;
 }
 
 /* Toggle a standard (by concentration key) in/out of the fit — used by both
@@ -1269,7 +1303,8 @@ function runCalc(optRows) {
   const localSmp = optRows ? optRows.smpRows : smpRows;
 
   if (currentMode === 'manual') manualDirty = true;
-  const allPts = localStd.map(r => ({ x: parseFloat(r.conc), y: avgOD(r) }))
+  const presetUnit = PRESETS[currentPreset]?.unit || 'µg/mL';
+  const allPts = localStd.map(r => ({ x: normStdConc(parseFloat(r.conc), presetUnit), y: avgOD(r) }))
     .filter(p => !isNaN(p.x) && !isNaN(p.y))
     .map(p => ({ ...p, excl: exclConcs.has(String(p.x)) }));
   const pts = allPts.filter(p => !p.excl);
@@ -1432,8 +1467,8 @@ function showResults(model, n, allPts, samples, unit, resid) {
   else if (isBasic && r2 >= 0.88) { badge.className='lt-badge lt-badge-yellow'; badge.textContent=`R² ${r2.toFixed(4)}`; setStatus('Marginal — low-end non-linearity expected', 'warn'); }
   else { badge.className='lt-badge lt-badge-red'; badge.textContent=`R² ${r2.toFixed(4)}`; setStatus(isBasic ? 'Poor fit — check standards' : 'Poor fit — results may be unreliable', 'err'); }
 
-  document.getElementById('res-conc-header').textContent = `Conc (${unit})`;
-  document.getElementById('std-pts-conc-hdr').textContent = `Conc (${unit})`;
+  document.getElementById('res-conc-header').textContent = `Conc (${displayUnitLabel()})`;
+  document.getElementById('std-pts-conc-hdr').textContent = `Conc (${displayUnitLabel()})`;
   drawChart(allPts, model, samples);
   renderStdPointsTable(allPts, model, resid);
   showSampleResults(samples, unit);
@@ -1469,7 +1504,8 @@ function showSampleResults(results, unit) {
   }
   tbody.innerHTML = results.map(r => {
     const odStr   = isNaN(r.od)   ? '—' : r.od.toFixed(4);
-    const concStr = isNaN(r.conc) ? '—' : r.conc.toFixed(2);
+    const concDisp = toDisplayConc(r.conc);
+    const concStr = isNaN(concDisp) ? '—' : concDisp.toFixed(2);
     const flagHtml = r.flag==='extrap'    ? '<span class="flag-extrap">Extrap</span>'
                    : r.flag==='below-det' ? '<span class="flag-low">Low</span>' : '—';
     const cvHtml = r.cv != null
@@ -2031,9 +2067,9 @@ function exportCSV(){
     : [`# Model,Linear`,`# Slope,${model.slope.toExponential(6)}`,
        `# Intercept,${model.intercept.toFixed(6)}`,`# R2,${model.r2.toFixed(6)}`];
   const lines=['# BCA Assay Results', ...fitLines, '',
-    `Sample Name,Avg OD,Dilution Factor,Protein Conc (${unit}),CV %,Flag`,
+    `Sample Name,Avg OD,Dilution Factor,Protein Conc (${displayUnitLabel()}),CV %,Flag`,
     ...sampleResults.map(r=>[`"${(r.name||'').replace(/"/g,'""')}"`,
-      isNaN(r.od)?'':r.od.toFixed(4),r.df,isNaN(r.conc)?'':r.conc.toFixed(2),
+      isNaN(r.od)?'':r.od.toFixed(4),r.df,isNaN(r.conc)?'':toDisplayConc(r.conc).toFixed(2),
       r.cv!=null?r.cv.toFixed(1):'',
       r.flag==='extrap'?'Extrapolated':r.flag==='below-det'?'Below detection':''].join(','))];
   labtoolsDownloadText('bca-results.csv',lines.join('\r\n'),'text/csv');
@@ -2042,9 +2078,9 @@ function exportCSV(){
 function copyResults(){
   if(!lastResult){alert('No results yet.');return;}
   const {sampleResults,unit}=lastResult;
-  const lines=[`Sample Name\tAvg OD\tDilution Factor\tProtein Conc (${unit})\tCV %\tFlag`,
+  const lines=[`Sample Name\tAvg OD\tDilution Factor\tProtein Conc (${displayUnitLabel()})\tCV %\tFlag`,
     ...sampleResults.map(r=>[r.name||'',isNaN(r.od)?'':r.od.toFixed(4),r.df,
-      isNaN(r.conc)?'':r.conc.toFixed(2),
+      isNaN(r.conc)?'':toDisplayConc(r.conc).toFixed(2),
       r.cv!=null?r.cv.toFixed(1):'',
       r.flag==='extrap'?'Extrapolated':r.flag==='below-det'?'Below detection':''].join('\t'))];
   labtoolsCopyText(lines.join('\n'));
@@ -2160,6 +2196,28 @@ function renderLoadingCalc() {
 /* ═══════════════════════════════════════════════════════
    MATH UTILITIES
 ═══════════════════════════════════════════════════════ */
+// Convert a concentration value from the source unit to the display unit (concUnit).
+// Source is always µg/mL after internal normalization (µg/well ÷ wellVolume).
+function toDisplayConc(val) {
+  if (isNaN(val)) return NaN;
+  switch (concUnit) {
+    case 'mg/mL': return val / 1000;          // µg/mL → mg/mL
+    case 'µg/µL': return val / 1000;          // µg/mL → µg/µL
+    default: return val;                       // µg/mL stays µg/mL
+  }
+}
+function displayUnitLabel() {
+  switch (concUnit) {
+    case 'mg/mL': return 'mg/mL';
+    case 'µg/µL': return 'µg/µL';
+    default: return 'µg/mL';
+  }
+}
+// Normalize standard concentration from the preset's native unit to µg/mL.
+// µg/well presets divide by wellVolume; µg/mL pass through.
+function normStdConc(conc, presetUnit) {
+  return presetUnit === 'µg/well' ? conc / wellVolume : conc;
+}
 function avgOD(row){
   const vs=[row.od1,row.od2,row.od3].map(v=>parseFloat(v)).filter(v=>!isNaN(v)&&v>=0);
   return vs.length?vs.reduce((a,b)=>a+b,0)/vs.length:NaN;
@@ -2324,6 +2382,18 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
     cvInput.value = qcCvThr;
     renderStdTable(); renderSmpTable(); scheduleCalc();
   });
+
+  // Well volume input (µg/well → µg/mL)
+  const wvInput = document.getElementById('wellVolInput');
+  if (wvInput) wvInput.addEventListener('change', () => {
+    const v = parseFloat(wvInput.value);
+    wellVolume = (Number.isFinite(v) && v > 0 ? v : 200) / 1000; // µL → mL
+    wvInput.value = Math.round(wellVolume * 1000);
+    scheduleCalc();
+  });
+
+  // Update well-volume visibility on init
+  updateWellVolVisibility();
 })();
 </script>
 </body>
