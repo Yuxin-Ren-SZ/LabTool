@@ -534,6 +534,14 @@
           <!-- ══ MANUAL MODE ══ -->
           <div id="mode-manual">
 
+            <!-- Manual-mode restore banner -->
+            <div id="manual-restore-banner" style="display:none;padding:10px 14px;margin-bottom:12px;background:var(--blue-bg);border:1.5px solid var(--blue-border);border-radius:var(--radius-md);">
+              <span style="font-size:var(--fs-sm);color:var(--blue-dark);font-weight:600;">💾 Restored your last session</span>
+              <span id="manual-saved-at" style="font-size:var(--fs-xs);color:var(--text-muted);margin-left:8px;"></span>
+              <button class="lt-btn lt-btn-ghost" style="margin-left:12px;padding:4px 12px;font-size:var(--fs-xs);" onclick="clearManualState();document.getElementById('manual-restore-banner').style.display='none'">Discard</button>
+              <button class="lt-btn lt-btn-ghost" style="padding:4px 12px;font-size:var(--fs-xs);" onclick="document.getElementById('manual-restore-banner').style.display='none'">Dismiss</button>
+            </div>
+
             <!-- Standards -->
             <div class="section-row">
               <span class="section-name">Standard Curve</span>
@@ -874,6 +882,7 @@ let lastResult    = null;
 let currentFit    = null; // {model, unit, minOD, maxOD, minX, maxX, rms, maxR}
 let fitModel      = 'linear';      // 'linear' | 'quadratic'
 let exclConcs     = new Set();     // String(conc) values excluded from the fit (both modes)
+let manualDirty   = false;         // manual-mode data changed, not yet saved to localStorage
 
 let stdRows = []; // {conc, od1, od2, od3}
 let smpRows = []; // {name, od1, od2, od3, df}
@@ -909,6 +918,30 @@ function loadPlateState() {
   } catch(e) { return null; }
 }
 function clearPlateState() { localStorage.removeItem(LS_KEY); }
+
+/* ── Manual-mode localStorage persistence ── */
+const MANUAL_LS_KEY = 'bca-manual-state';
+function saveManualState() {
+  if (currentMode !== 'manual') return;
+  try {
+    const data = {
+      stdRows, smpRows, currentPreset, numReps, fitModel,
+      exclConcs: [...exclConcs], savedAt: Date.now()
+    };
+    localStorage.setItem(MANUAL_LS_KEY, JSON.stringify(data));
+    manualDirty = false;
+  } catch(e) { /* quota exceeded */ }
+}
+function loadManualState() {
+  try {
+    const raw = localStorage.getItem(MANUAL_LS_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (Date.now() - data.savedAt > 7 * 24 * 3600 * 1000) { clearManualState(); return null; }
+    return data;
+  } catch(e) { return null; }
+}
+function clearManualState() { localStorage.removeItem(MANUAL_LS_KEY); manualDirty = false; }
 
 function restorePlateState() {
   const data = loadPlateState();
@@ -1195,8 +1228,10 @@ function delSmpRow(i) {
    LIVE CALCULATION
 ═══════════════════════════════════════════════════════ */
 function scheduleCalc() { clearTimeout(calcTimer); calcTimer = setTimeout(runCalc, 280); }
+function scheduleManualSave() { setTimeout(saveManualState, 300); }
 
 function runCalc() {
+  if (currentMode === 'manual') manualDirty = true;
   const allPts = stdRows
     .map(r => ({ x: parseFloat(r.conc), y: avgOD(r) }))
     .filter(p => !isNaN(p.x) && !isNaN(p.y))
@@ -1236,6 +1271,7 @@ function runCalc() {
   lastResult = { model, regPoints: allPts, sampleResults, unit };
   showResults(model, pts.length, allPts, sampleResults, unit, resid);
   updateSmpConcs();
+  scheduleManualSave();
 }
 
 /* ── Live plate-mode calculation ── */
@@ -1960,6 +1996,7 @@ function exportCSV(){
       isNaN(r.od)?'':r.od.toFixed(4),r.df,isNaN(r.conc)?'':r.conc.toFixed(2),
       r.flag==='extrap'?'Extrapolated':r.flag==='below-det'?'Below detection':''].join(','))];
   labtoolsDownloadText('bca-results.csv',lines.join('\r\n'),'text/csv');
+  manualDirty = false;
 }
 function copyResults(){
   if(!lastResult){alert('No results yet.');return;}
@@ -2113,14 +2150,37 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
    INIT
 ═══════════════════════════════════════════════════════ */
 (function init(){
-  smpRows = [
-    newSmpRow(0),
-    newSmpRow(1),
-    newSmpRow(2),
-  ];
-  setPreset('pierce'); // loads stdRows + renders
-  renderSmpTable();
-  setReps(1);
+  // Try to restore saved manual-mode state
+  const manualData = loadManualState();
+  if (manualData) {
+    stdRows = manualData.stdRows || [];
+    smpRows = manualData.smpRows || [];
+    currentPreset = manualData.currentPreset || 'pierce';
+    numReps = manualData.numReps || 1;
+    fitModel = manualData.fitModel || 'linear';
+    exclConcs = new Set(manualData.exclConcs || []);
+    setPreset(currentPreset); // re-renders std table with restored rows
+    renderSmpTable();
+    setReps(numReps);
+    setFitModel(fitModel);
+    // Show restore banner with timestamp
+    const banner = document.getElementById('manual-restore-banner');
+    if (banner) {
+      banner.style.display = 'block';
+      const at = document.getElementById('manual-saved-at');
+      if (at) at.textContent = new Date(manualData.savedAt).toLocaleString();
+    }
+    scheduleCalc();
+  } else {
+    smpRows = [
+      newSmpRow(0),
+      newSmpRow(1),
+      newSmpRow(2),
+    ];
+    setPreset('pierce'); // loads stdRows + renders
+    renderSmpTable();
+    setReps(1);
+  }
 
   // Start in Raw File mode (most common import workflow)
   switchMode('raw');
@@ -2135,6 +2195,13 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
   setTimeout(() => {
     document.getElementById('plate-textarea').focus();
   }, 80);
+
+  // Warn before leaving if manual-mode data is unsaved
+  window.addEventListener('beforeunload', e => {
+    if (!manualDirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
 })();
 </script>
 </body>
