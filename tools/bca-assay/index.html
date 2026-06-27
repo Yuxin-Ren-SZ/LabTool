@@ -2297,6 +2297,7 @@ function interpolate(od,model){
     if(nonNeg.length) return Math.min(...nonNeg);
     return roots.length?roots[0]:NaN;
   }
+  if(!isFinite(model.slope)||Math.abs(model.slope)<1e-12) return NaN;
   return (od-model.intercept)/model.slope;
 }
 
