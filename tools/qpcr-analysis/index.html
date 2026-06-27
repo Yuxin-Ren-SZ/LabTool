@@ -9,9 +9,7 @@
   <style>
     .card { max-width: 1180px; }
 
-    /* ── Page header ── */
-    .page-title { font-size: var(--fs-xl); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 3px; }
-    .page-sub   { font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: 18px; line-height: 1.55; }
+    /* page title/subtitle use shared .lt-tool-title / .lt-tool-subtitle */
 
     /* ── Drop zone ── */
     .drop-zone {
@@ -61,26 +59,12 @@
       font-variant-numeric: tabular-nums; }
     .summary-v small { font-weight: 500; color: var(--text-muted); font-size: var(--fs-xs); }
 
-    /* ── Generic small button (matches lt-btn but compact) ── */
-    .btn-sm {
-      display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px;
-      border: 1.5px solid var(--border); background: var(--surface); color: var(--text);
-      border-radius: var(--radius-sm); font-size: var(--fs-sm); font-weight: 600;
-      font-family: var(--font); cursor: pointer; transition: all 0.13s; white-space: nowrap;
-    }
-    .btn-sm:hover { background: var(--surface-hover); border-color: var(--text-dim); }
-    .btn-sm.primary { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; }
-    .btn-sm.primary:hover { opacity: 0.9; }
-    .btn-sm:disabled { opacity: 0.45; cursor: not-allowed; }
+    /* toolbar buttons use shared .lt-btn / .lt-btn-ghost / .lt-btn-primary,
+       sized down to fit the compact section toolbars */
+    .lt-btn { padding: 6px 12px; font-size: var(--fs-sm); white-space: nowrap; }
+    .lt-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    /* ── Segmented control ── */
-    .seg { display: inline-flex; background: var(--tag-bg); border-radius: var(--radius-md); padding: 3px; gap: 2px; }
-    .seg button {
-      padding: 5px 12px; border: none; background: transparent; border-radius: var(--radius-sm);
-      font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted); cursor: pointer; transition: all 0.13s;
-    }
-    .seg button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
-    .seg button:hover:not(.active) { color: var(--text); }
+    /* segmented controls use shared .lt-segmented / .lt-segmented-btn */
 
     .mini-select {
       padding: 5px 8px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
@@ -170,7 +154,7 @@
     .row-chk, .all-chk { cursor: pointer; }
 
     /* assign-field toggle inside the selection bar */
-    .seg.sel-field button { padding: 5px 10px; }
+    .lt-segmented.sel-field .lt-segmented-btn { padding: 5px 10px; }
 
     /* threshold input */
     .thr-input {
@@ -213,8 +197,8 @@
   <div class="lt-page-body">
     <div class="card">
 
-      <h1 class="page-title">qPCR Analysis</h1>
-      <p class="page-sub">
+      <h1 class="lt-tool-title">qPCR Analysis</h1>
+      <p class="lt-tool-subtitle">
         Drop the text exports from your Agilent qPCR run (AriaMx / Stratagene Mx) to view a plate
         overview, browse Cq results, overlay amplification curves, summarize replicates, and compute
         ΔΔCq relative quantification. Everything runs in your browser — nothing is uploaded.
@@ -242,7 +226,7 @@
           <div class="section-head">
             <span class="section-title">Run summary</span>
             <div class="section-tools">
-              <button class="btn-sm" id="btnResetAll">Clear &amp; start over</button>
+              <button class="lt-btn lt-btn-ghost" id="btnResetAll">Clear &amp; start over</button>
             </div>
           </div>
           <div class="summary-grid" id="summaryGrid"></div>
@@ -255,15 +239,15 @@
             <div class="section-tools">
               <span class="mini-label">Dye</span>
               <select class="mini-select" id="plateDye"></select>
-              <div class="seg" id="plateMode">
-                <button data-mode="call" class="active">Final call</button>
-                <button data-mode="cq">Cq gradient</button>
-                <button data-mode="target">Target</button>
-                <button data-mode="sample">Sample</button>
-                <button data-mode="welltype">Well type</button>
+              <div class="lt-segmented" id="plateMode">
+                <button data-mode="call" class="lt-segmented-btn active">Final call</button>
+                <button data-mode="cq" class="lt-segmented-btn">Cq gradient</button>
+                <button data-mode="target" class="lt-segmented-btn">Target</button>
+                <button data-mode="sample" class="lt-segmented-btn">Sample</button>
+                <button data-mode="welltype" class="lt-segmented-btn">Well type</button>
               </div>
-              <button class="btn-sm" id="btnExportLabels" title="Download Well, Sample and Gene labels as CSV (re-importable as a plate layout)">Export labels</button>
-              <button class="btn-sm" id="btnPlatePng">PNG</button>
+              <button class="lt-btn lt-btn-ghost" id="btnExportLabels" title="Download Well, Sample and Gene labels as CSV (re-importable as a plate layout)">Export labels</button>
+              <button class="lt-btn lt-btn-ghost" id="btnPlatePng">PNG</button>
             </div>
           </div>
           <div class="plate-wrap">
@@ -273,18 +257,18 @@
           <!-- Selection + bulk group assignment -->
           <div class="sel-bar" id="selBar">
             <span class="sel-count" id="selCount"><b>0</b> wells selected</span>
-            <div class="seg sel-field" id="assignField">
-              <button data-field="sample" class="active">Sample</button>
-              <button data-field="target">Gene</button>
+            <div class="lt-segmented sel-field" id="assignField">
+              <button data-field="sample" class="lt-segmented-btn active">Sample</button>
+              <button data-field="target" class="lt-segmented-btn">Gene</button>
             </div>
             <input class="grp-input" id="grpInput" list="sampleNameList" placeholder="Sample name…" autocomplete="off" />
             <datalist id="sampleNameList"></datalist>
-            <button class="btn-sm primary" id="btnAssign">Assign to selection</button>
-            <button class="btn-sm" id="btnClearName">Clear</button>
+            <button class="lt-btn lt-btn-primary" id="btnAssign">Assign to selection</button>
+            <button class="lt-btn lt-btn-ghost" id="btnClearName">Clear</button>
             <span class="sel-spacer"></span>
-            <button class="btn-sm" id="btnSelPos">Select positives</button>
-            <button class="btn-sm" id="btnSelAll">Select all</button>
-            <button class="btn-sm" id="btnSelNone">Clear selection</button>
+            <button class="lt-btn lt-btn-ghost" id="btnSelPos">Select positives</button>
+            <button class="lt-btn lt-btn-ghost" id="btnSelAll">Select all</button>
+            <button class="lt-btn lt-btn-ghost" id="btnSelNone">Clear selection</button>
           </div>
           <div class="plate-legend" id="plateLegend"></div>
           <p class="drop-zone-sub" style="margin-top:8px;">
@@ -301,7 +285,7 @@
             <div class="section-tools">
               <span class="mini-label" id="thrLabel">Threshold (ΔR)</span>
               <input type="number" class="thr-input" id="thrInput" step="any" min="0" title="Threshold for the current dye — Cq is recomputed from the curves" />
-              <button class="btn-sm" id="btnThrReset" title="Restore the instrument threshold">Reset</button>
+              <button class="lt-btn lt-btn-ghost" id="btnThrReset" title="Restore the instrument threshold">Reset</button>
               <span class="sel-spacer" style="flex:0 0 6px;"></span>
               <span class="mini-label">Color by</span>
               <select class="mini-select" id="ampGroupBy">
@@ -311,17 +295,17 @@
                 <option value="call">Call</option>
                 <option value="well">Well</option>
               </select>
-              <div class="seg" id="ampLayout">
-                <button data-layout="together" class="active">Together</button>
-                <button data-layout="separate">Separate</button>
+              <div class="lt-segmented" id="ampLayout">
+                <button data-layout="together" class="lt-segmented-btn active">Together</button>
+                <button data-layout="separate" class="lt-segmented-btn">Separate</button>
               </div>
-              <div class="seg" id="ampScale">
-                <button data-scale="linear" class="active">Linear</button>
-                <button data-scale="log">Log</button>
+              <div class="lt-segmented" id="ampScale">
+                <button data-scale="linear" class="lt-segmented-btn active">Linear</button>
+                <button data-scale="log" class="lt-segmented-btn">Log</button>
               </div>
-              <button class="btn-sm" id="btnPlotPos">Plot all positives</button>
-              <button class="btn-sm" id="btnPlotClear">Clear</button>
-              <button class="btn-sm" id="btnAmpPng">PNG</button>
+              <button class="lt-btn lt-btn-ghost" id="btnPlotPos">Plot all positives</button>
+              <button class="lt-btn lt-btn-ghost" id="btnPlotClear">Clear</button>
+              <button class="lt-btn lt-btn-ghost" id="btnAmpPng">PNG</button>
             </div>
           </div>
           <div class="chart-wrap">
@@ -343,8 +327,8 @@
                 <option value="+">Positive</option>
                 <option value="-">Negative</option>
               </select>
-              <button class="btn-sm" id="btnCopy">Copy CSV</button>
-              <button class="btn-sm" id="btnCsv">Download CSV</button>
+              <button class="lt-btn lt-btn-ghost" id="btnCopy">Copy CSV</button>
+              <button class="lt-btn lt-btn-ghost" id="btnCsv">Download CSV</button>
             </div>
           </div>
           <div class="tbl-scroll results-scroll">
@@ -391,8 +375,8 @@
               <label class="mini-label" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;">
                 <input type="checkbox" id="ddEffCorr"> Use efficiency correction
               </label>
-              <button class="btn-sm primary" id="btnDdRecalc">Recalculate</button>
-              <button class="btn-sm" id="btnDdCsv">CSV</button>
+              <button class="lt-btn lt-btn-primary" id="btnDdRecalc">Recalculate</button>
+              <button class="lt-btn lt-btn-ghost" id="btnDdCsv">CSV</button>
             </div>
           </div>
           <div class="dd-ref-row" id="ddRefRow">
@@ -418,11 +402,11 @@
             <div class="section-head" style="margin-top:14px;">
               <span class="section-title" style="font-size:13px;">Fold-change</span>
               <div class="section-tools">
-                <div class="seg" id="foldScale">
-                  <button data-scale="linear" class="active">Linear</button>
-                  <button data-scale="log2">Log₂</button>
+                <div class="lt-segmented" id="foldScale">
+                  <button data-scale="linear" class="lt-segmented-btn active">Linear</button>
+                  <button data-scale="log2" class="lt-segmented-btn">Log₂</button>
                 </div>
-                <button class="btn-sm" id="btnFoldPng">PNG</button>
+                <button class="lt-btn lt-btn-ghost" id="btnFoldPng">PNG</button>
               </div>
             </div>
             <div class="chart-wrap">
