@@ -1203,7 +1203,7 @@ function getCellCountRows() {
     return [
       ['=== Cell Count ===', ''],
       ['Mode',                            'Bypass — concentration entered directly'],
-      ['Known concentration (cells/mL)',  document.getElementById('bypass-conc').value || ''],
+      ['Known concentration (cells/mL)',  document.getElementById('res-density').textContent],
       ['Final concentration (cells/mL)', document.getElementById('res-density').textContent],
     ];
   }
