@@ -25,20 +25,7 @@
     body { overflow: hidden; }
     @media (max-width: 820px) { body { overflow: auto; } }
 
-    /* ─── Top nav ─────────────────────────────────────────────── */
-    .lg-nav {
-      position: sticky; top: 0; z-index: 50;
-      height: 52px;
-      display: flex; align-items: center; gap: 14px;
-      padding: 0 20px;
-      background: rgba(247,247,245,0.86);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border-bottom: 1px solid var(--border-subtle);
-    }
-    .lg-nav-brand { font-weight: 700; font-size: 0.92rem; color: var(--text); text-decoration: none; }
-    .lg-nav-sep   { color: var(--text-dim); font-size: 1rem; }
-    .lg-nav-page  { font-size: 0.86rem; color: var(--text-muted); font-weight: 500; }
+    /* ─── Top nav (extends shared .lt-nav) ────────────────────── */
     .lg-nav-spacer { flex: 1; }
     .lg-nav-pill {
       display: inline-flex; align-items: center; gap: 6px;
@@ -180,25 +167,8 @@
       margin-top: 8px; align-items: center;
     }
 
-    /* ─── Mode segmented control ──────────────────────────────── */
-    .lg-segmented {
-      display: flex; background: var(--surface-subtle);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-md);
-      padding: 3px; gap: 2px;
-    }
-    .lg-segmented button {
-      flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px;
-      padding: 5px 8px; font-size: 0.78rem; font-weight: 500;
-      background: transparent; border: none; border-radius: 6px;
-      cursor: pointer; color: var(--text-muted);
-      font-family: inherit; transition: all 0.12s;
-    }
-    .lg-segmented button svg { width: 13px; height: 13px; }
-    .lg-segmented button.is-on {
-      background: var(--surface); color: var(--text);
-      box-shadow: 0 1px 3px rgba(15,23,42,0.08);
-    }
+    /* ─── Segmented controls use shared .lt-segmented / .lt-segmented-btn ── */
+    .lt-segmented-btn svg { width: 13px; height: 13px; }
     .lg-select {
       width: 100%; padding: 6px 8px;
       border: 1px solid var(--border); border-radius: var(--radius-md);
@@ -667,19 +637,9 @@
     .lg-bottom-stat-lbl { font-size: 0.70rem; color: var(--text-muted); font-weight: 500; margin-top: 1px; }
     .lg-bottom-divider { width: 1px; height: 32px; background: var(--border-subtle); }
     .lg-bottom-actions { display: flex; gap: 8px; }
-    .lg-btn {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 8px 14px; border-radius: var(--radius-md);
-      font-size: 0.82rem; font-weight: 600;
-      cursor: pointer; font-family: inherit; transition: opacity 0.12s;
-      border: 1px solid transparent;
-    }
-    .lg-btn svg { width: 13px; height: 13px; }
-    .lg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .lg-btn-ghost { background: var(--surface); border-color: var(--border); color: var(--text-secondary); }
-    .lg-btn-ghost:hover:not(:disabled) { border-color: var(--border); background: var(--surface-hover); }
-    .lg-btn-primary { background: var(--text); color: #fff; border-color: var(--text); }
-    .lg-btn-primary:hover:not(:disabled) { opacity: 0.88; }
+    /* Bottom-bar buttons use shared .lt-btn / .lt-btn-ghost / .lt-btn-primary */
+    .lg-bottom-actions .lt-btn svg { width: 13px; height: 13px; }
+    .lg-bottom-actions .lt-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* ─── Export status / toast ───────────────────────────────── */
     .lg-export-status {
@@ -748,10 +708,10 @@
 <body>
 
 <!-- ── Top nav ──────────────────────────────────────────────── -->
-<nav class="lg-nav" id="lg-nav">
-  <a class="lg-nav-brand" href="../../index.html">🔬 LabTools</a>
-  <span class="lg-nav-sep">/</span>
-  <span class="lg-nav-page">Label Generator</span>
+<nav class="lt-nav" id="lg-nav">
+  <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
+  <span class="lt-nav-sep">/</span>
+  <span class="lt-nav-page">Label Generator</span>
   <span class="lg-nav-spacer"></span>
   <span class="lg-nav-pill" id="nav-pill-rows" style="display:none;">
     <!-- database icon + N rows — rendered by JS -->
@@ -808,9 +768,9 @@
       <div class="lg-section-head">
         <div class="lg-section-title">Output format</div>
       </div>
-      <div class="lg-segmented" style="margin-bottom:12px;">
-        <button type="button" id="laser-mode-btn"><!-- JS --></button>
-        <button type="button" id="thermal-mode-btn"><!-- JS --></button>
+      <div class="lt-segmented" style="margin-bottom:12px;display:flex;">
+        <button type="button" class="lt-segmented-btn" id="laser-mode-btn" style="flex:1;"><!-- JS --></button>
+        <button type="button" class="lt-segmented-btn" id="thermal-mode-btn" style="flex:1;"><!-- JS --></button>
       </div>
       <label class="lg-field-label" for="unified-preset-select">Preset</label>
       <select class="lg-select" id="unified-preset-select"></select>
@@ -975,8 +935,8 @@
   <div style="display:flex;align-items:center;gap:12px;">
     <span class="lg-export-status" id="export-status"></span>
     <div class="lg-bottom-actions">
-      <button class="lg-btn lg-btn-ghost" id="download-btn" type="button" disabled><!-- JS --></button>
-      <button class="lg-btn lg-btn-primary" id="generate-btn" type="button" disabled><!-- JS --></button>
+      <button class="lt-btn lt-btn-ghost" id="download-btn" type="button" disabled><!-- JS --></button>
+      <button class="lt-btn lt-btn-primary" id="generate-btn" type="button" disabled><!-- JS --></button>
     </div>
   </div>
 </div>
@@ -993,6 +953,8 @@
     <iframe id="pdf-preview" title="PDF Preview"></iframe>
   </div>
 </div>
+
+<footer class="lt-footer">LabTools · Label Generator</footer>
 
 <script src="./tool.js"></script>
 </body>
