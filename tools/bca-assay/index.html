@@ -11,8 +11,7 @@
     .card { max-width: 1240px; }
     .lt-page-body { flex: 1; display: flex; justify-content: center; padding: 24px 16px 48px; }
 
-    .page-title { font-size: var(--fs-xl); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 3px; }
-    .page-sub   { font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: 16px; line-height: 1.55; }
+    /* page title/subtitle use shared .lt-tool-title / .lt-tool-subtitle */
 
     .bca-workspace {
       display: grid;
@@ -521,8 +520,8 @@
   <div class="lt-page-body">
     <div class="card">
 
-      <h1 class="page-title">BCA Protein Assay</h1>
-      <p class="page-sub">Standard curve fit + sample interpolation · results update live as you type</p>
+      <h1 class="lt-tool-title">BCA Protein Assay</h1>
+      <p class="lt-tool-subtitle">Standard curve fit + sample interpolation · results update live as you type</p>
 
       <!-- Mode tabs -->
       <div class="mode-tabs">
@@ -635,7 +634,7 @@
             <!-- Expanded import form -->
             <div id="paste-expanded">
               <div class="lt-section-label" id="plate-paste-label">Import Raw File</div>
-              <p class="page-sub" id="plate-paste-hint" style="margin-bottom:8px;"></p>
+              <p class="lt-tool-subtitle" id="plate-paste-hint" style="margin-bottom:8px;"></p>
               <div class="file-bar" id="file-bar" style="display:none">
                 <input type="file" id="file-picker" accept=".txt" style="display:none" onchange="loadFile(this)">
                 <button class="lt-btn lt-btn-primary" onclick="document.getElementById('file-picker').click()">📂 Open File</button>
