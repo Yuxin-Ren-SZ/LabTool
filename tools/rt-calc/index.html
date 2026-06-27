@@ -10,21 +10,9 @@
     .card { max-width: 1100px; }
 
     /* ── Page header ── */
-    .page-title { font-size: var(--fs-xl); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 3px; }
-    .page-sub   { font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: 16px; line-height: 1.55; }
-
-    /* ── Mode tabs (BCA-style pill) ── */
-    .mode-tabs {
-      display: flex; background: var(--tag-bg); border-radius: var(--radius-md);
-      padding: 3px; margin-bottom: 18px; gap: 2px; width: fit-content;
-    }
-    .mode-tab {
-      padding: 5px 14px; border: none; background: transparent;
-      border-radius: var(--radius-sm); font-size: var(--fs-xs); font-weight: 600;
-      color: var(--text-muted); cursor: pointer; transition: all 0.15s; white-space: nowrap;
-    }
-    .mode-tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
-    .mode-tab:hover:not(.active) { color: var(--text); }
+    /* page title/subtitle use shared .lt-tool-title / .lt-tool-subtitle */
+    /* mode tabs use shared .lt-segmented / .lt-segmented-btn */
+    #modeTabs { margin-bottom: 18px; }
 
     /* ── Section rows ── */
     .section-row {
@@ -73,19 +61,12 @@
     .import-actions {
       display: flex; gap: 8px; margin-bottom: 10px; align-items: center;
     }
-    .btn-sm {
-      padding: 5px 12px; border: 1.5px solid var(--border);
-      border-radius: var(--radius-sm); background: var(--surface);
-      font-size: var(--fs-xs); font-weight: 600; font-family: var(--font);
-      color: var(--text-secondary); cursor: pointer; transition: all 0.12s;
-    }
-    .btn-sm:hover { border-color: var(--blue); color: var(--blue-dark); background: var(--blue-bg); }
-    .btn-sm.primary {
-      background: var(--blue-dark); border-color: var(--blue-dark); color: #fff;
-    }
-    .btn-sm.primary:hover { opacity: 0.88; background: var(--blue-dark); }
-    .btn-sm.primary:disabled {
-      background: var(--tag-bg); border-color: var(--border); color: var(--text-muted); cursor: not-allowed;
+    /* toolbar buttons use shared .lt-btn / .lt-btn-ghost / .lt-btn-primary,
+       sized down to fit the compact import/data toolbars */
+    .lt-btn { padding: 6px 12px; font-size: var(--fs-xs); }
+    .lt-btn:disabled {
+      background: var(--tag-bg); border-color: var(--border);
+      color: var(--text-muted); cursor: not-allowed; opacity: 1;
     }
     .file-info {
       font-size: var(--fs-xs); color: var(--text-muted);
@@ -112,10 +93,10 @@
       font-size: var(--fs-xs); font-weight: 600; color: var(--green-dark);
     }
     .import-summary.visible { display: flex; }
-    .import-summary .btn-sm {
+    .import-summary .lt-btn {
       margin-left: auto; border-color: var(--green-dark); color: var(--green-dark);
     }
-    .import-summary .btn-sm:hover { background: var(--green-dark); color: #fff; border-color: var(--green-dark); }
+    .import-summary .lt-btn:hover { background: var(--green-dark); color: #fff; border-color: var(--green-dark); }
 
     /* ── Data tables ── */
     .data-table-shell {
@@ -239,8 +220,8 @@
   <div class="lt-page-body">
     <div class="card">
 
-      <h1 class="page-title">Reverse Transcription Calculator</h1>
-      <p class="page-sub">NEB LunaScript RT — import Nanodrop CSV, auto-scale reaction volume, calculate reagent batch totals. <span style="color:var(--text-dim);font-size:0.65rem;">v2</span></p>
+      <h1 class="lt-tool-title">Reverse Transcription Calculator</h1>
+      <p class="lt-tool-subtitle">NEB LunaScript RT — import Nanodrop CSV, auto-scale reaction volume, calculate reagent batch totals. <span style="color:var(--text-dim);font-size:0.65rem;">v2</span></p>
 
       <!-- Kit preset -->
       <div class="section-row" id="presetRow">
@@ -253,9 +234,9 @@
       </div>
 
       <!-- Mode tabs -->
-      <div class="mode-tabs" id="modeTabs">
-        <button class="mode-tab active" data-mode="super"  id="tab-super">Super Mix</button>
-        <button class="mode-tab"        data-mode="master" id="tab-master">Master Mix</button>
+      <div class="lt-segmented" id="modeTabs">
+        <button class="lt-segmented-btn active" data-mode="super"  id="tab-super">Super Mix</button>
+        <button class="lt-segmented-btn"        data-mode="master" id="tab-master">Master Mix</button>
       </div>
 
       <!-- Reagent config -->
@@ -301,9 +282,9 @@
         <div class="import-body">
           <div class="import-actions">
             <input type="file" id="fileInput" accept=".csv,.txt" style="display:none" />
-            <button class="btn-sm" id="btnFile">Open File…</button>
+            <button class="lt-btn lt-btn-ghost" id="btnFile">Open File…</button>
             <span class="file-info" id="fileInfo"></span>
-            <button class="btn-sm primary" id="btnParse" disabled>Parse &amp; Load</button>
+            <button class="lt-btn lt-btn-primary" id="btnParse" disabled>Parse &amp; Load</button>
           </div>
           <textarea class="import-textarea" id="csvTextarea"
             placeholder="Or paste Nanodrop CSV here (tab-separated, UTF-8/UTF-16)…"></textarea>
@@ -313,7 +294,7 @@
         </div>
         <div class="import-summary" id="importSummary">
           <span id="importSummaryText"></span>
-          <button class="btn-sm" id="btnChangeImport">Change</button>
+          <button class="lt-btn lt-btn-ghost" id="btnChangeImport">Change</button>
         </div>
       </div>
 
@@ -348,9 +329,9 @@
       <!-- Export -->
       <div class="section-row" id="exportRow" style="margin-top:4px;display:none;">
         <span class="section-name">Export</span>
-        <button class="btn-sm" id="btnCopyCSV">Copy CSV</button>
-        <button class="btn-sm" id="btnDownloadCSV">Download CSV</button>
-        <button class="btn-sm" id="btnReset" style="margin-left:auto;">Reset</button>
+        <button class="lt-btn lt-btn-ghost" id="btnCopyCSV">Copy CSV</button>
+        <button class="lt-btn lt-btn-ghost" id="btnDownloadCSV">Download CSV</button>
+        <button class="lt-btn lt-btn-ghost" id="btnReset" style="margin-left:auto;">Reset</button>
       </div>
 
       <!-- Manual entry -->
@@ -363,7 +344,7 @@
           <label>Conc (ng/µL)</label>
           <input type="number" id="manConc" placeholder="0" step="0.1" min="0" />
         </div>
-        <button class="btn-sm primary" id="btnAddManual" style="padding-top:7px;padding-bottom:7px;">Add</button>
+        <button class="lt-btn lt-btn-primary" id="btnAddManual" style="padding-top:7px;padding-bottom:7px;">Add</button>
       </div>
 
       <!-- Batch summary -->
@@ -497,7 +478,7 @@ function applyPreset(key) {
     primerName = p.primerName;
     document.getElementById('lblPrimer').textContent = p.primerName;
   }
-  document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+  document.querySelectorAll('.lt-segmented-btn').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
   if (mode === 'super') {
     $fldSuperMix.style.display = ''; $fldMasterMix.style.display = 'none'; $fldRandomPrimer.style.display = 'none';
   } else {
@@ -805,10 +786,10 @@ function parseCSV(text) {
 
 // ── Event handlers ─────────────────────────────────────────────────────
 $modeTabs.addEventListener('click', function(e) {
-  const tab = e.target.closest('.mode-tab');
+  const tab = e.target.closest('.lt-segmented-btn');
   if (!tab) return;
   mode = tab.dataset.mode;
-  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.lt-segmented-btn').forEach(t => t.classList.remove('active'));
   tab.classList.add('active');
   if (mode === 'super') {
     $fldSuperMix.style.display = ''; $fldMasterMix.style.display = 'none'; $fldRandomPrimer.style.display = 'none';
