@@ -843,10 +843,10 @@
               </div>
               <div id="loading-results" style="display:none;margin-top:8px;"></div>
               <div class="export-row">
-                <div class="seg" id="concUnitSeg" style="margin-right:auto;">
-                  <button class="seg-btn active" data-unit="µg/mL" onclick="setConcUnit('µg/mL')">µg/mL</button>
-                  <button class="seg-btn" data-unit="mg/mL" onclick="setConcUnit('mg/mL')">mg/mL</button>
-                  <button class="seg-btn" data-unit="µg/µL" onclick="setConcUnit('µg/µL')">µg/µL</button>
+                <div class="lt-segmented" id="concUnitSeg" style="margin-right:auto;">
+                  <button class="lt-segmented-btn active" data-unit="µg/mL" onclick="setConcUnit('µg/mL')">µg/mL</button>
+                  <button class="lt-segmented-btn" data-unit="mg/mL" onclick="setConcUnit('mg/mL')">mg/mL</button>
+                  <button class="lt-segmented-btn" data-unit="µg/µL" onclick="setConcUnit('µg/µL')">µg/µL</button>
                 </div>
                 <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="exportFigure()">Export Figure</button>
                 <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="exportCSV()">Export CSV</button>
@@ -1094,7 +1094,7 @@ function setFitModel(m) {
 
 function setConcUnit(u) {
   concUnit = u;
-  document.querySelectorAll('#concUnitSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.unit === u));
+  document.querySelectorAll('#concUnitSeg .lt-segmented-btn').forEach(b => b.classList.toggle('active', b.dataset.unit === u));
   if (!lastResult) return;
   const { model, regPoints, sampleResults, unit } = lastResult;
   // Re-render results with new display unit
