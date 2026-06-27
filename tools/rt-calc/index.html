@@ -138,6 +138,14 @@
     .data-table tbody tr:hover { background: rgba(0,0,0,0.015); }
 
     .name-cell { font-weight: 600; }
+    .name-input {
+      width: 100%; min-width: 80px; padding: 3px 6px;
+      border: 1.5px solid transparent; border-radius: var(--radius-sm);
+      font-family: var(--font); font-size: inherit; font-weight: 600;
+      color: var(--text); background: transparent; outline: none;
+    }
+    .name-input:hover { border-color: var(--border); }
+    .name-input:focus { border-color: var(--blue); background: var(--surface); }
     .num-cell { text-align: right; font-variant-numeric: tabular-nums; }
     .ratio-cell { text-align: right; font-size: 0.78rem; color: var(--text-secondary); }
     .ratio-cell.ratio-warn { color: var(--yellow-dark); font-weight: 700; cursor: help; }
@@ -536,12 +544,21 @@ function calcSample(conc, userScale, baseTarget, maxRNAVol) {
     return { scale: s, rnaVol, water, rnaUsed, status: 'capped', excess: +(target - rnaUsed).toFixed(0), cappedBy, target };
   }
 
-  // Auto: determine max scale from total RNA, then try to fit
-  let scale = 1;
-  if (totalRNA >= baseTarget * 2) scale = 2;
-  else if (totalRNA >= baseTarget * 1.5) scale = 1.5;
+  // Auto: pick the highest scale whose target actually fits the reaction
+  // volume AND the available RNA. A higher scale is only worth committing if
+  // its full target fits — otherwise it caps below a lower scale's yield.
+  for (const s of [2, 1.5]) {
+    const rxnAvail = +(totalVol(s) - totalReagentVol(s)).toFixed(1);
+    const target = +(baseTarget * s).toFixed(0);
+    const needed = +(target / conc).toFixed(1);
+    if (needed <= rxnAvail && needed <= maxRNAVol) {
+      const water = +(rxnAvail - needed).toFixed(1);
+      return { scale: s, rnaVol: needed, water, rnaUsed: target, status: 'ok', target };
+    }
+  }
 
-  const s = scale;
+  // Fall back to 1× — fit it if possible, otherwise cap at max for the scale.
+  const s = 1;
   const rxnAvail = +(totalVol(s) - totalReagentVol(s)).toFixed(1);
   const target = +(baseTarget * s).toFixed(0);
   const needed = +(target / conc).toFixed(1);
@@ -549,12 +566,10 @@ function calcSample(conc, userScale, baseTarget, maxRNAVol) {
     const water = +(rxnAvail - needed).toFixed(1);
     return { scale: s, rnaVol: needed, water, rnaUsed: target, status: 'ok', target };
   }
-  // Target doesn't fit at this scale — cap at max possible for this scale
   const rnaVol = Math.min(maxRNAVol, rxnAvail);
   const water = +(rxnAvail - rnaVol).toFixed(1);
   const rnaUsed = +(rnaVol * conc).toFixed(0);
-  const autoNeeded = +(target / conc).toFixed(1);
-  const cappedBy = (autoNeeded > maxRNAVol || totalRNA < target) && maxRNAVol < rxnAvail ? 'limit' : 'volume';
+  const cappedBy = (needed > maxRNAVol || totalRNA < target) && maxRNAVol < rxnAvail ? 'limit' : 'volume';
   return { scale: s, rnaVol, water, rnaUsed, status: 'capped', excess: +(target - rnaUsed).toFixed(0), cappedBy, target };
 }
 
@@ -608,7 +623,7 @@ function renderTable() {
     }
 
     html += `<tr data-idx="${i}">
-      <td class="name-cell">${escHtml(s.name)}</td>
+      <td class="name-cell"><input type="text" class="name-input" data-idx="${i}" value="${escAttr(s.name)}" /></td>
       <td class="num-cell">${s.conc.toFixed(1)}</td>
       <td class="ratio-cell${w280 ? ' ratio-warn' : ''}"${w280 ? ` title="${w280}"` : ''}>${s.a260_280 != null ? s.a260_280.toFixed(2) + (w280 ? ' ⚠' : '') : '—'}</td>
       <td class="ratio-cell${w230 ? ' ratio-warn' : ''}"${w230 ? ` title="${w230}"` : ''}>${s.a260_230 != null ? s.a260_230.toFixed(2) + (w230 ? ' ⚠' : '') : '—'}</td>
@@ -651,6 +666,16 @@ function renderTable() {
     });
   });
 
+  // Attach name edit listeners
+  document.querySelectorAll('.name-input').forEach(inp => {
+    inp.addEventListener('change', function() {
+      const idx = parseInt(this.dataset.idx);
+      samples[idx].name = this.value.trim() || samples[idx].name;
+      this.value = samples[idx].name;
+      saveState();
+    });
+  });
+
   // Auto-collapse import
   if (!collapsed) {
     collapseImport();
@@ -661,6 +686,9 @@ function escHtml(s) {
   const div = document.createElement('div');
   div.textContent = s;
   return div.innerHTML;
+}
+function escAttr(s) {
+  return escHtml(s).replace(/"/g, '&quot;');
 }
 
 // Flag RNA purity ratios outside the typical Nanodrop range.
