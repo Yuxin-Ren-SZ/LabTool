@@ -1011,7 +1011,7 @@ function showPanel(name, back) {
  * Delegates to startStep(), pauseTimer(), or resumeTimer().
  */
 function toggleStartPause() {
-  if (timerState === 'idle' || timerState === 'step_complete') {
+  if (timerState === 'idle') {
     startStep();
   } else if (timerState === 'running') {
     pauseTimer();
