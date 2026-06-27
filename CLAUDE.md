@@ -26,7 +26,8 @@ LabTools/
 │   ├── experiment-layout/index.html   # Multi-well plate mapper
 │   ├── stain-timer/index.html         # Staining protocol timer
 │   ├── thermal-to-laser/index.html    # Thermal PDF to laser sheet converter
-│   └── drug-dosage/index.html         # Per-animal dose calculator and log
+│   ├── drug-dosage/index.html         # Per-animal dose calculator and log
+│   └── qpcr-analysis/index.html       # Agilent qPCR export analyzer (plate, curves, ΔΔCq)
 └── docs/
     ├── counting-modes.html            # Hemocytometer mode reference
     └── plate-dimensions.template.json # Plate geometry reference template

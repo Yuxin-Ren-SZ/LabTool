@@ -15,7 +15,7 @@
     .lt-tool-subtitle { margin-bottom: 24px; }
 
     /* Full-width action buttons in this tool */
-    .action-row .btn-reset { width: 100%; }
+    .action-row .lt-btn { width: 100%; }
   </style>
 </head>
 <body>
@@ -120,9 +120,9 @@
   <div class="unit-legend">K = 1,000 &nbsp;·&nbsp; M = 1,000,000 &nbsp;·&nbsp; B = 1,000,000,000</div>
 
   <div class="action-row">
-    <button class="btn-reset" onclick="copyResults()">📋 Copy Results</button>
-    <button class="btn-reset" onclick="downloadCsv()">⬇️ Export CSV</button>
-    <button class="btn-reset" onclick="resetAll()">↺ Reset</button>
+    <button class="lt-btn lt-btn-ghost" onclick="copyResults()">📋 Copy Results</button>
+    <button class="lt-btn lt-btn-ghost" onclick="downloadCsv()">⬇️ Export CSV</button>
+    <button class="lt-btn lt-btn-ghost" onclick="resetAll()">↺ Reset</button>
   </div>
   <div class="export-note" id="export-note">Save or copy results after calculation.</div>
 </div>

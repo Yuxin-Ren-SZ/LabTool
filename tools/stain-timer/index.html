@@ -140,20 +140,6 @@
       align-items: center;
     }
     .bottom-row .spacer { flex: 1; }
-    .btn-run {
-      padding: 9px 20px;
-      background: var(--blue-dark);
-      color: #fff;
-      border: none;
-      border-radius: var(--radius-md);
-      font-size: 0.85rem;
-      font-weight: 700;
-      font-family: var(--font);
-      cursor: pointer;
-      transition: opacity 0.15s;
-    }
-    .btn-run:hover   { opacity: 0.88; }
-    .btn-run:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* ── Panel 2: timer display ── */
     .timer-header {
@@ -162,19 +148,6 @@
       justify-content: space-between;
       margin-bottom: 20px;
     }
-    .btn-back {
-      background: transparent;
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius-md);
-      padding: 6px 12px;
-      font-size: 0.80rem;
-      font-family: var(--font);
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .btn-back:hover { background: var(--surface-hover); color: var(--text); }
-
     .current-step-block {
       background: var(--blue-bg);
       border: 1.5px solid var(--blue-border);
@@ -304,37 +277,12 @@
       margin-bottom: 14px;
       flex-wrap: wrap;
     }
-    .btn-start {
-      flex: 1;
-      padding: 10px 16px;
-      background: var(--blue-dark);
-      color: #fff;
-      border: none;
-      border-radius: var(--radius-md);
-      font-size: 0.88rem;
-      font-weight: 700;
-      font-family: var(--font);
-      cursor: pointer;
-      transition: opacity 0.15s;
-      min-width: 100px;
-    }
-    .btn-start:hover { opacity: 0.88; }
-    .btn-start:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-start.paused { background: var(--green-dark); }
+    /* Start button — scoped overrides on top of .lt-btn-primary */
+    .lt-btn-primary { flex: 1; min-width: 100px; padding: 10px 16px; font-size: 0.88rem; }
+    .lt-btn-primary.paused { background: var(--green-dark); }
 
-    .btn-skip, .btn-reset-timer {
-      padding: 10px 14px;
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius-md);
-      background: transparent;
-      font-size: 0.84rem;
-      font-family: var(--font);
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .btn-skip:hover, .btn-reset-timer:hover { background: var(--surface-hover); color: var(--text); }
-    .btn-skip:disabled, .btn-reset-timer:disabled { opacity: 0.35; cursor: not-allowed; }
+    /* Skip/Reset buttons — scoped overrides on top of .lt-btn-ghost */
+    .lt-btn-ghost { padding: 10px 14px; font-size: 0.84rem; }
 
     .next-step-strip {
       background: var(--surface-subtle);
@@ -403,7 +351,7 @@
     }
 
     /* Import label acts as a button — needs pointer cursor */
-    .bottom-row label.btn-reset { cursor: pointer; }
+    .bottom-row label.lt-btn { cursor: pointer; }
 
     @media (max-width: 520px) {
       .countdown { font-size: 2.2rem; }
@@ -470,13 +418,13 @@
 
     <div class="validation-msg" id="validation-msg"></div>
     <div class="bottom-row">
-      <button class="btn-reset" onclick="exportProtocol()">⬇ Export Protocol</button>
-      <label class="btn-reset">
+      <button class="lt-btn lt-btn-ghost" onclick="exportProtocol()">⬇ Export Protocol</button>
+      <label class="lt-btn lt-btn-ghost">
         ⬆ Import Protocol
         <input type="file" accept=".csv" id="import-input" style="display:none" onchange="importProtocol(event)"/>
       </label>
       <div class="spacer"></div>
-      <button class="btn-run" id="btn-run" onclick="goToRun()">Run Protocol →</button>
+      <button class="lt-btn lt-btn-primary" id="btn-run" onclick="goToRun()">Run Protocol →</button>
     </div>
 
   </div><!-- /panel-setup -->
@@ -487,7 +435,7 @@
   <div class="step-panel" id="panel-run">
 
     <div class="timer-header">
-      <button class="btn-back" onclick="goToSetup()">← Back to Protocol</button>
+      <button class="lt-btn lt-btn-ghost" onclick="goToSetup()">← Back to Protocol</button>
     </div>
 
     <!-- Current step display -->
@@ -507,9 +455,9 @@
 
     <!-- Controls -->
     <div class="timer-controls">
-      <button class="btn-start" id="btn-start" onclick="toggleStartPause()">▶ Start</button>
-      <button class="btn-skip"  id="btn-skip"  onclick="skipStep()" disabled>⏭ Skip</button>
-      <button class="btn-reset-timer" id="btn-reset-timer" onclick="resetTimer()">↺ Reset</button>
+      <button class="lt-btn lt-btn-primary" id="btn-start" onclick="toggleStartPause()">▶ Start</button>
+      <button class="lt-btn lt-btn-ghost"  id="btn-skip"  onclick="skipStep()" disabled>⏭ Skip</button>
+      <button class="lt-btn lt-btn-ghost" id="btn-reset-timer" onclick="resetTimer()">↺ Reset</button>
     </div>
 
     <!-- Next step -->
@@ -526,7 +474,7 @@
     </div>
 
     <div class="bottom-row">
-      <button class="btn-reset" id="btn-export-results" onclick="exportResults()" disabled>⬇ Export Results</button>
+      <button class="lt-btn lt-btn-ghost" id="btn-export-results" onclick="exportResults()" disabled>⬇ Export Results</button>
     </div>
 
   </div><!-- /panel-run -->
@@ -1011,7 +959,7 @@ function showPanel(name, back) {
  * Delegates to startStep(), pauseTimer(), or resumeTimer().
  */
 function toggleStartPause() {
-  if (timerState === 'idle' || timerState === 'step_complete') {
+  if (timerState === 'idle') {
     startStep();
   } else if (timerState === 'running') {
     pauseTimer();
@@ -1297,7 +1245,7 @@ function updateControls() {
   if (timerState === 'done') {
     btnStart.textContent = '▶ Start';
     btnStart.disabled    = true;
-    btnStart.className   = 'btn-start';
+    btnStart.className   = 'lt-btn lt-btn-primary';
     btnSkip.disabled     = true;
     btnReset.disabled    = false;
     return;
@@ -1305,17 +1253,17 @@ function updateControls() {
   if (timerState === 'running') {
     btnStart.textContent = '⏸ Pause';
     btnStart.disabled    = false;
-    btnStart.className   = 'btn-start';
+    btnStart.className   = 'lt-btn lt-btn-primary';
     btnSkip.disabled     = false;
   } else if (timerState === 'paused') {
     btnStart.textContent = '▶ Resume';
     btnStart.disabled    = false;
-    btnStart.className   = 'btn-start paused';
+    btnStart.className   = 'lt-btn lt-btn-primary paused';
     btnSkip.disabled     = false;
   } else {
     btnStart.textContent = '▶ Start';
     btnStart.disabled    = false;
-    btnStart.className   = 'btn-start';
+    btnStart.className   = 'lt-btn lt-btn-primary';
     btnSkip.disabled     = true;
   }
   btnReset.disabled = false;

@@ -860,8 +860,8 @@ function renderFormatSection() {
   var thermalBtn = document.getElementById('thermal-mode-btn');
   laserBtn.innerHTML  = Icons.Sheet + ' Laser sheet';
   thermalBtn.innerHTML = Icons.Thermal + ' Thermal';
-  laserBtn.classList.toggle('is-on',   state.outputMode === 'laser-sheet');
-  thermalBtn.classList.toggle('is-on', state.outputMode === 'thermal');
+  laserBtn.classList.toggle('active',   state.outputMode === 'laser-sheet');
+  thermalBtn.classList.toggle('active', state.outputMode === 'thermal');
 
   // Preset dropdown — filtered to current mode
   var select = document.getElementById('unified-preset-select');
@@ -1141,10 +1141,10 @@ function renderSheetPlacement() {
   document.getElementById('placement-grid-badge').textContent = preset.columns + '×' + preset.rows;
 
   var modeHtml =
-    '<div class="lg-segmented" style="margin-bottom:10px;">' +
-      '<button type="button" data-placement-mode="start" class="' + (pm === 'start' ? 'is-on' : '') + '">Start here</button>' +
-      '<button type="button" data-placement-mode="use"   class="' + (pm === 'use'   ? 'is-on' : '') + '">Use cell</button>' +
-      '<button type="button" data-placement-mode="skip"  class="' + (pm === 'skip'  ? 'is-on' : '') + '">Skip cell</button>' +
+    '<div class="lt-segmented" style="margin-bottom:10px;display:flex;">' +
+      '<button type="button" data-placement-mode="start" class="lt-segmented-btn' + (pm === 'start' ? ' active' : '') + '" style="flex:1;">Start here</button>' +
+      '<button type="button" data-placement-mode="use"   class="lt-segmented-btn' + (pm === 'use'   ? ' active' : '') + '" style="flex:1;">Use cell</button>' +
+      '<button type="button" data-placement-mode="skip"  class="lt-segmented-btn' + (pm === 'skip'  ? ' active' : '') + '" style="flex:1;">Skip cell</button>' +
     '</div>';
 
   var sheetClass = 'lg-sheet' + (pm === 'start' ? ' lg-sheet--mode-start' : '');

@@ -11,8 +11,7 @@
     .card { max-width: 1240px; }
     .lt-page-body { flex: 1; display: flex; justify-content: center; padding: 24px 16px 48px; }
 
-    .page-title { font-size: var(--fs-xl); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 3px; }
-    .page-sub   { font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: 16px; line-height: 1.55; }
+    /* page title/subtitle use shared .lt-tool-title / .lt-tool-subtitle */
 
     .bca-workspace {
       display: grid;
@@ -126,10 +125,24 @@
     .col-conc        { width: 94px; }
     .col-od          { width: 73px; }
     .col-avg         { width: 64px; }
+    .col-cv          { width: 52px; text-align: right; }
+    /* Replicate QC */
+    .cv-warn { color: var(--yellow-dark, #b45309); font-weight: 700; }
+    .cv-bad  { color: var(--red, #dc2626); font-weight: 700; }
+    .od-outlier { color: var(--red, #dc2626); }
+    .od-outlier input { color: var(--red, #dc2626); font-weight: 600; }
     .col-df          { width: 56px; }
     .col-name        { min-width: 110px; }
     .col-conc-result { width: 88px; }
     .col-del         { width: 28px; text-align: center; }
+
+    .result-name-input {
+      width: 100%; min-width: 90px; padding: 3px 6px;
+      border: 1.5px solid transparent; border-radius: var(--radius-sm, 4px);
+      font: inherit; color: var(--text); background: transparent; outline: none;
+    }
+    .result-name-input:hover { border-color: var(--border); }
+    .result-name-input:focus { border-color: var(--blue, #2563eb); background: var(--surface, #fff); }
 
     /* Hidden rep columns */
     .r2-col, .r3-col { transition: opacity 0.1s; }
@@ -465,6 +478,35 @@
       .bca-results-pane #results-empty { display: none !important; }
       #inline-results.visible { display: block; }
     }
+
+    /* ── Fit model toggle ── */
+    .fit-model-toggle {
+      display: inline-flex; background: var(--tag-bg); border-radius: var(--radius-sm);
+      padding: 2px; gap: 2px;
+    }
+    .fmt-btn {
+      padding: 2px 10px; border: none; background: transparent; border-radius: var(--radius-xs);
+      font-size: 0.66rem; font-weight: 700; color: var(--text-muted); cursor: pointer;
+      transition: all 0.12s; white-space: nowrap;
+    }
+    .fmt-btn.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+    .fmt-btn:hover:not(.active) { color: var(--text); }
+
+    /* ── Standard exclusion ── */
+    .col-excl { width: 36px; text-align: center; }
+    .excl-cb { accent-color: var(--blue); cursor: pointer; width: 14px; height: 14px; }
+    .excl-cb:disabled { cursor: default; opacity: 0.35; }
+    tr.std-excluded td { opacity: 0.4; }
+    tr.std-excluded .conc-ro, tr.std-excluded .ci { text-decoration: line-through; }
+
+    /* ── Residual display ── */
+    .resid-val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    .resid-out { color: var(--red); font-weight: 700; }
+    .std-excl-tag { color: var(--text-dim); font-style: italic; font-size: 0.72rem; }
+    .legend-diamond-hollow {
+      width: 8px; height: 8px; transform: rotate(45deg); flex-shrink: 0;
+      border: 1.5px solid #5c8dff; background: transparent; box-sizing: border-box;
+    }
   </style>
 </head>
 <body>
@@ -478,8 +520,8 @@
   <div class="lt-page-body">
     <div class="card">
 
-      <h1 class="page-title">BCA Protein Assay</h1>
-      <p class="page-sub">Standard curve fit + sample interpolation · results update live as you type</p>
+      <h1 class="lt-tool-title">BCA Protein Assay</h1>
+      <p class="lt-tool-subtitle">Standard curve fit + sample interpolation · results update live as you type</p>
 
       <!-- Mode tabs -->
       <div class="mode-tabs">
@@ -497,6 +539,14 @@
           <!-- ══ MANUAL MODE ══ -->
           <div id="mode-manual">
 
+            <!-- Manual-mode restore banner -->
+            <div id="manual-restore-banner" style="display:none;padding:10px 14px;margin-bottom:12px;background:var(--blue-bg);border:1.5px solid var(--blue-border);border-radius:var(--radius-md);">
+              <span style="font-size:var(--fs-sm);color:var(--blue-dark);font-weight:600;">💾 Restored your last session</span>
+              <span id="manual-saved-at" style="font-size:var(--fs-xs);color:var(--text-muted);margin-left:8px;"></span>
+              <button class="lt-btn lt-btn-ghost" style="margin-left:12px;padding:4px 12px;font-size:var(--fs-xs);" onclick="clearManualState();document.getElementById('manual-restore-banner').style.display='none'">Discard</button>
+              <button class="lt-btn lt-btn-ghost" style="padding:4px 12px;font-size:var(--fs-xs);" onclick="document.getElementById('manual-restore-banner').style.display='none'">Dismiss</button>
+            </div>
+
             <!-- Standards -->
             <div class="section-row">
               <span class="section-name">Standard Curve</span>
@@ -510,6 +560,12 @@
                 <button class="rep-btn active" id="rep-btn-1" onclick="setReps(1)" title="1 replicate">1</button>
                 <button class="rep-btn"        id="rep-btn-2" onclick="setReps(2)" title="2 replicates">2</button>
                 <button class="rep-btn"        id="rep-btn-3" onclick="setReps(3)" title="3 replicates">3</button>
+                <span class="rep-bar-label" style="margin-left:10px;">Flag CV &gt;</span>
+                <input type="number" id="qcCvInput" style="width:42px;padding:2px 4px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:var(--fs-xs);text-align:center;" value="15" min="0" step="1" title="Highlight rows where replicate CV% exceeds this value">
+                <span class="rep-bar-label">%</span>
+                <span class="rep-bar-label" id="wellVolLabel" style="display:none;margin-left:8px;">Well vol</span>
+                <input type="number" id="wellVolInput" style="display:none;width:48px;padding:2px 4px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:var(--fs-xs);text-align:center;" value="200" min="1" step="10" title="Assay well volume (µL) for converting µg/well to µg/mL">
+                <span id="wellVolUnit" style="display:none;font-size:var(--fs-xs);color:var(--text-dim);">µL</span>
               </div>
             </div>
 
@@ -522,6 +578,8 @@
                     <th class="col-od   t-right r2-col">OD 2</th>
                     <th class="col-od   t-right r3-col">OD 3</th>
                     <th class="col-avg  t-center">Avg OD</th>
+                    <th class="col-cv   t-center">CV %</th>
+                    <th class="col-excl t-center" title="Include in fit">Use</th>
                     <th class="col-del"></th>
                   </tr>
                 </thead>
@@ -576,7 +634,7 @@
             <!-- Expanded import form -->
             <div id="paste-expanded">
               <div class="lt-section-label" id="plate-paste-label">Import Raw File</div>
-              <p class="page-sub" id="plate-paste-hint" style="margin-bottom:8px;"></p>
+              <p class="lt-tool-subtitle" id="plate-paste-hint" style="margin-bottom:8px;"></p>
               <div class="file-bar" id="file-bar" style="display:none">
                 <input type="file" id="file-picker" accept=".txt" style="display:none" onchange="loadFile(this)">
                 <button class="lt-btn lt-btn-primary" onclick="document.getElementById('file-picker').click()">📂 Open File</button>
@@ -726,18 +784,36 @@
             <div id="results-content" style="display:none">
               <div class="fit-strip">
                 <span class="fit-equation" id="res-equation">—</span>
+                <div class="fit-model-toggle" title="Fit model">
+                  <button class="fmt-btn active" data-model="linear"    onclick="setFitModel('linear')">Linear</button>
+                  <button class="fmt-btn"        data-model="quadratic" onclick="setFitModel('quadratic')">Quadratic</button>
+                </div>
                 <span class="lt-badge" id="res-r2-badge">—</span>
-                <span class="fit-stat" id="res-slope-inline" title="Slope"></span>
-                <span class="fit-stat" id="res-intercept-inline" title="Intercept"></span>
+                <span class="fit-stat" id="res-slope-inline" title="Coefficient"></span>
+                <span class="fit-stat" id="res-intercept-inline" title="Coefficient"></span>
                 <span class="fit-stat" id="res-npts-inline" title="Points"></span>
+                <span class="fit-stat" id="res-rms" title="RMS residual"></span>
+                <span class="fit-stat" id="res-maxr" title="Max absolute residual"></span>
               </div>
               <div class="chart-wrap" id="chart-wrap" onclick="expandChart()" title="Click to enlarge">
                 <svg id="bca-chart" viewBox="0 0 360 260" xmlns="http://www.w3.org/2000/svg"></svg>
                 <div class="chart-legend">
                   <div class="legend-item"><div class="legend-dot" style="background:#5c8dff;"></div>Standards</div>
+                  <div class="legend-item"><div class="legend-diamond-hollow"></div>Excluded</div>
                   <div class="legend-item"><div class="legend-diamond" style="background:#e07832;"></div>Samples</div>
                   <div class="legend-item"><div style="width:16px;height:2px;background:#5c8dff;opacity:0.5;flex-shrink:0;margin-top:1px;"></div>Fit</div>
                 </div>
+              </div>
+              <div class="lt-section-label" style="margin-bottom:6px;">Standard Points
+                <span style="font-weight:500;color:var(--text-dim);text-transform:none;letter-spacing:0;">— uncheck to exclude from fit</span>
+              </div>
+              <div class="res-table-shell">
+                <table class="res-table">
+                  <thead>
+                    <tr><th>Use</th><th id="std-pts-conc-hdr">Conc</th><th>Avg OD</th><th>Residual</th></tr>
+                  </thead>
+                  <tbody id="std-points-tbody"></tbody>
+                </table>
               </div>
               <div class="lt-section-label" style="margin-bottom:6px;">Sample Concentrations</div>
               <div class="res-table-shell">
@@ -748,13 +824,29 @@
                       <th>Avg OD</th>
                       <th>DF</th>
                       <th id="res-conc-header">Conc (µg/mL)</th>
+                      <th>CV %</th>
                       <th>Flag</th>
                     </tr>
                   </thead>
                   <tbody id="results-tbody"></tbody>
                 </table>
               </div>
+              <div class="section-row" style="margin-top:16px;align-items:center;gap:10px;flex-wrap:wrap;">
+                <span class="section-name" style="min-width:auto;">LOADING</span>
+                <span class="mini-label">Target</span>
+                <input type="number" id="loadTargetMass" style="width:52px;padding:2px 6px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:var(--fs-xs);" value="20" min="0" step="1" placeholder="µg">
+                <span style="font-size:var(--fs-xs);color:var(--text-dim);">µg in</span>
+                <input type="number" id="loadTargetVol" style="width:52px;padding:2px 6px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:var(--fs-xs);" value="15" min="1" step="1" placeholder="µL">
+                <span style="font-size:var(--fs-xs);color:var(--text-dim);">µL</span>
+                <button class="lt-btn lt-btn-ghost" style="padding:3px 10px;font-size:var(--fs-xs);" onclick="renderLoadingCalc()" title="Compute sample + diluent volumes per well">Calculate loading</button>
+              </div>
+              <div id="loading-results" style="display:none;margin-top:8px;"></div>
               <div class="export-row">
+                <div class="lt-segmented" id="concUnitSeg" style="margin-right:auto;">
+                  <button class="lt-segmented-btn active" data-unit="µg/mL" onclick="setConcUnit('µg/mL')">µg/mL</button>
+                  <button class="lt-segmented-btn" data-unit="mg/mL" onclick="setConcUnit('mg/mL')">mg/mL</button>
+                  <button class="lt-segmented-btn" data-unit="µg/µL" onclick="setConcUnit('µg/µL')">µg/µL</button>
+                </div>
                 <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="exportFigure()">Export Figure</button>
                 <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="exportCSV()">Export CSV</button>
                 <button class="lt-btn lt-btn-ghost" style="padding:5px 12px;font-size:var(--fs-xs);" onclick="copyResults()">Copy Table</button>
@@ -815,7 +907,13 @@ let currentPreset = 'pierce';
 let numReps       = 1;
 let calcTimer     = null;
 let lastResult    = null;
-let currentFit    = null; // {slope, intercept, r2, unit, minOD, maxOD}
+let currentFit    = null; // {model, unit, minOD, maxOD, minX, maxX, rms, maxR}
+let fitModel      = 'linear';      // 'linear' | 'quadratic'
+let exclConcs     = new Set();     // String(conc) values excluded from the fit (both modes)
+let manualDirty   = false;         // manual-mode data changed, not yet saved to localStorage
+let qcCvThr       = 15;            // replicate QC: flag groups whose %CV exceeds this
+let wellVolume    = 0.2;           // assay well volume in mL (for µg/well → µg/mL conversion)
+let concUnit      = 'µg/mL';       // display unit for concentrations (µg/mL | mg/mL | µg/µL)
 
 let stdRows = []; // {conc, od1, od2, od3}
 let smpRows = []; // {name, od1, od2, od3, df}
@@ -851,6 +949,30 @@ function loadPlateState() {
   } catch(e) { return null; }
 }
 function clearPlateState() { localStorage.removeItem(LS_KEY); }
+
+/* ── Manual-mode localStorage persistence ── */
+const MANUAL_LS_KEY = 'bca-manual-state';
+function saveManualState() {
+  if (currentMode !== 'manual') return;
+  try {
+    const data = {
+      stdRows, smpRows, currentPreset, numReps, fitModel, qcCvThr,
+      exclConcs: [...exclConcs], savedAt: Date.now()
+    };
+    localStorage.setItem(MANUAL_LS_KEY, JSON.stringify(data));
+    manualDirty = false;
+  } catch(e) { /* quota exceeded */ }
+}
+function loadManualState() {
+  try {
+    const raw = localStorage.getItem(MANUAL_LS_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (Date.now() - data.savedAt > 7 * 24 * 3600 * 1000) { clearManualState(); return null; }
+    return data;
+  } catch(e) { return null; }
+}
+function clearManualState() { localStorage.removeItem(MANUAL_LS_KEY); manualDirty = false; }
 
 function restorePlateState() {
   const data = loadPlateState();
@@ -949,6 +1071,7 @@ function setPreset(pid) {
   document.getElementById('std-conc-hdr').textContent = `Conc (${unit})`;
   document.getElementById('smp-conc-hdr').textContent = `Conc (${unit})`;
   document.getElementById('res-conc-header').textContent = `Conc (${unit})`;
+  updateWellVolVisibility();
   renderStdTable();
   scheduleCalc();
 }
@@ -959,6 +1082,44 @@ function setReps(n) {
   document.querySelectorAll('.r2-col').forEach(el => el.classList.toggle('hide-col', n < 2));
   document.querySelectorAll('.r3-col').forEach(el => el.classList.toggle('hide-col', n < 3));
   scheduleCalc();
+}
+
+function setFitModel(m) {
+  fitModel = m;
+  document.querySelectorAll('.fmt-btn').forEach(b => b.classList.toggle('active', b.dataset.model === m));
+  if (currentMode === 'manual') scheduleCalc();
+  else schedulePlateCalc();
+}
+
+function setConcUnit(u) {
+  concUnit = u;
+  document.querySelectorAll('#concUnitSeg .lt-segmented-btn').forEach(b => b.classList.toggle('active', b.dataset.unit === u));
+  if (!lastResult) return;
+  const { model, regPoints, sampleResults, unit } = lastResult;
+  // Re-render results with new display unit
+  document.getElementById('res-conc-header').textContent = `Conc (${displayUnitLabel()})`;
+  document.getElementById('std-pts-conc-hdr').textContent = `Conc (${displayUnitLabel()})`;
+  showSampleResults(sampleResults, unit);
+  // Also update inline results header if plate mode
+  const inlineHdr = document.getElementById('res-conc-header');
+  renderLoadingCalc();
+}
+
+// Show/hide well-volume input based on preset unit
+function updateWellVolVisibility() {
+  const presetUnit = PRESETS[currentPreset]?.unit || 'µg/mL';
+  const vis = presetUnit === 'µg/well' ? '' : 'none';
+  document.getElementById('wellVolLabel').style.display = vis;
+  document.getElementById('wellVolInput').style.display = vis;
+  document.getElementById('wellVolUnit').style.display = vis;
+}
+
+/* Toggle a standard (by concentration key) in/out of the fit — used by both
+   the manual standards table and the results-pane Standard Points table. */
+function toggleStdExcl(key, included) {
+  if (included) exclConcs.delete(key); else exclConcs.add(key);
+  if (currentMode === 'manual') { renderStdTable(); scheduleCalc(); }
+  else schedulePlateCalc();
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -974,17 +1135,34 @@ function renderStdTable() {
             onkeydown="cellKey(event,'std',${i},'conc')"></td>`
       : `<td class="col-conc"><span class="conc-ro">${r.conc}</span></td>`;
     const avg = avgOD(r);
-    return `<tr id="std-tr-${i}">${concCell}
-      <td class="col-od"><input class="ci ci-r" type="number" min="0" step="0.001" value="${r.od1}" placeholder="0.000"
-          data-tbl="std" data-row="${i}" data-col="od1"
-          oninput="onStdIn(${i},'od1',this.value)" onkeydown="cellKey(event,'std',${i},'od1')" onpaste="cellPaste(event,'std',${i},'od1')"></td>
-      <td class="col-od r2-col${numReps<2?' hide-col':''}"><input class="ci ci-r" type="number" min="0" step="0.001" value="${r.od2}" placeholder="—"
-          data-tbl="std" data-row="${i}" data-col="od2"
-          oninput="onStdIn(${i},'od2',this.value)" onkeydown="cellKey(event,'std',${i},'od2')" onpaste="cellPaste(event,'std',${i},'od2')"></td>
-      <td class="col-od r3-col${numReps<3?' hide-col':''}"><input class="ci ci-r" type="number" min="0" step="0.001" value="${r.od3}" placeholder="—"
-          data-tbl="std" data-row="${i}" data-col="od3"
-          oninput="onStdIn(${i},'od3',this.value)" onkeydown="cellKey(event,'std',${i},'od3')" onpaste="cellPaste(event,'std',${i},'od3')"></td>
+    const cx = parseFloat(r.conc);
+    const hasConc = !isNaN(cx);
+    const key = String(cx);
+    const excluded = hasConc && exclConcs.has(key);
+    const cv = cvPct(r);
+    const cvHtml = cv != null
+      ? `<span class="${cv > qcCvThr * 2 ? 'cv-bad' : cv > qcCvThr ? 'cv-warn' : ''}">${cv.toFixed(1)}%</span>`
+      : '—';
+    const outlier = numReps >= 3 ? outlierODIdx(r) : null;
+    function odCell(col, idx) {
+      const isOut = outlier === idx;
+      const val = r['od' + (idx+1)];
+      return `<td class="col-od r${idx+2}-col${numReps <= idx ? ' hide-col' : ''}${isOut ? ' od-outlier' : ''}">` +
+        `<input class="ci ci-r" type="number" min="0" step="0.001" value="${val}" placeholder="${idx > 0 ? '—' : '0.000'}"
+          data-tbl="std" data-row="${i}" data-col="od${idx+1}"
+          oninput="onStdIn(${i},'od${idx+1}',this.value)"
+          onkeydown="cellKey(event,'std',${i},'od${idx+1}')"
+          onpaste="cellPaste(event,'std',${i},'od${idx+1}')"
+          ${isOut ? ' title="Replicate outlier — deviates most from the group mean"' : ''}></td>`;
+    }
+    return `<tr id="std-tr-${i}"${excluded ? ' class="std-excluded"' : ''}>${concCell}
+      ${odCell(r, 0)}
+      ${odCell(r, 1)}
+      ${odCell(r, 2)}
       <td class="col-avg"><span class="avg-cell${isNaN(avg)?' dim':''}" id="std-avg-${i}">${fmtA(avg)}</span></td>
+      <td class="col-cv">${cvHtml}</td>
+      <td class="col-excl"><input type="checkbox" class="excl-cb" ${hasConc?'':'disabled'} ${excluded?'':'checked'}
+          onchange="toggleStdExcl('${key}', this.checked)" title="${excluded?'Excluded from fit':'Included in fit'}"></td>
       <td class="col-del"><button class="del-btn" onclick="delStdRow(${i})" title="Remove">×</button></td>
     </tr>`;
   }).join('');
@@ -1026,6 +1204,26 @@ function onStdIn(i, col, val) {
   scheduleCalc();
 }
 function onSmpIn(i, col, val) { smpRows[i][col] = val; scheduleCalc(); }
+
+/* Rename a sample directly from the results table (propagates to source) */
+function onResultNameEdit(inp) {
+  const oldName = inp.dataset.orig;
+  const v = inp.value.trim();
+  if (!v || v === oldName || oldName === '—') { inp.value = oldName; return; }
+  if (currentMode === 'manual') {
+    smpRows.forEach(r => { if ((r.name || '') === oldName) r.name = v; });
+    renderSmpTable();
+    scheduleCalc();
+  } else {
+    for (const k in wellAssigns) {
+      const a = wellAssigns[k];
+      if (a.type === 'smp' && a.name === oldName) a.name = v;
+    }
+    refreshWells();
+    savePlateState();
+    schedulePlateCalc();
+  }
+}
 
 /* Enter = move down; works across both tables */
 function cellKey(e, tbl, rowIdx, col) {
@@ -1096,41 +1294,54 @@ function delSmpRow(i) {
    LIVE CALCULATION
 ═══════════════════════════════════════════════════════ */
 function scheduleCalc() { clearTimeout(calcTimer); calcTimer = setTimeout(runCalc, 280); }
+function scheduleManualSave() { setTimeout(saveManualState, 300); }
 
-function runCalc() {
-  const pts = stdRows
-    .map(r => ({ x: parseFloat(r.conc), y: avgOD(r) }))
-    .filter(p => !isNaN(p.x) && !isNaN(p.y));
+function runCalc(optRows) {
+  // Use optional rows (plate mode) or global rows (manual mode)
+  const localStd = optRows ? optRows.stdRows : stdRows;
+  const localSmp = optRows ? optRows.smpRows : smpRows;
 
-  if (pts.length < 2) {
+  if (currentMode === 'manual') manualDirty = true;
+  const presetUnit = PRESETS[currentPreset]?.unit || 'µg/mL';
+  const allPts = localStd.map(r => ({ x: normStdConc(parseFloat(r.conc), presetUnit), y: avgOD(r) }))
+    .filter(p => !isNaN(p.x) && !isNaN(p.y))
+    .map(p => ({ ...p, excl: exclConcs.has(String(p.x)) }));
+  const pts = allPts.filter(p => !p.excl);
+
+  const minNeed = fitModel === 'quadratic' ? 3 : 2;
+  if (pts.length < minNeed) {
     currentFit = null;
-    setStatus(pts.length === 0 ? 'Waiting for data…' : `${pts.length} point — need ≥ 2`, pts.length ? 'warn' : '');
+    const msg = pts.length === 0 ? 'Waiting for data…'
+      : `${pts.length} included point${pts.length>1?'s':''} — need ≥ ${minNeed}${fitModel==='quadratic'?' for quadratic':''}`;
+    setStatus(msg, pts.length ? 'warn' : '');
     showResultsEmpty();
-    updateSmpConcs();
+    if (!optRows) updateSmpConcs();
     return;
   }
 
-  const fit = linearRegression(pts);
-  if (!fit) { setStatus('Cannot fit (identical concentrations?)', 'err'); showResultsEmpty(); return; }
+  const model = fitModel === 'quadratic' ? quadraticFit(pts) : linearRegression(pts);
+  if (!model) { setStatus('Cannot fit (check standards)', 'err'); showResultsEmpty(); return; }
 
-  const { slope, intercept, r2 } = fit;
-  const minOD = Math.min(...pts.map(p=>p.y));
-  const maxOD = Math.max(...pts.map(p=>p.y));
+  const minOD = Math.min(...pts.map(p=>p.y)), maxOD = Math.max(...pts.map(p=>p.y));
+  const minX  = Math.min(...pts.map(p=>p.x)), maxX  = Math.max(...pts.map(p=>p.x));
+  model.maxX = maxX; model.minX = minX;
   const unit  = PRESETS[currentPreset]?.unit || 'µg/mL';
-  currentFit  = { slope, intercept, r2, unit, minOD, maxOD };
+  const resid = residualStats(pts, model);
+  currentFit  = { model, unit, minOD, maxOD, minX, maxX, rms: resid.rms, maxR: resid.maxR };
 
-  const sampleResults = smpRows.map(r => {
+  const sampleResults = localSmp.map((r, i) => {
     const od = avgOD(r), df = parseFloat(r.df) || 1;
-    if (isNaN(od)) return { name: r.name || '—', od, df, conc: NaN, flag: '' };
-    const rawConc = (od - intercept) / slope;
+    const cv = cvPct(r);
+    if (isNaN(od)) return { name: r.name || '—', od, df, conc: NaN, flag: '', cv };
+    const rawConc = interpolate(od, model);
     const actConc = rawConc * df;
-    const flag = (actConc<0||rawConc<0) ? 'below-det' : (od<minOD||od>maxOD) ? 'extrap' : '';
-    return { name: r.name || '—', od, df, conc: actConc, flag };
+    const flag = (isNaN(rawConc)||actConc<0||rawConc<0) ? 'below-det' : (od<minOD||od>maxOD) ? 'extrap' : '';
+    return { name: r.name || '—', od, df, conc: actConc, flag, cv };
   }).filter(r => r.name !== '—' || !isNaN(r.od));
 
-  lastResult = { fit, regPoints: pts, sampleResults, unit };
-  showResults(slope, intercept, r2, pts.length, pts, sampleResults, unit);
-  updateSmpConcs();
+  lastResult = { model, regPoints: allPts, sampleResults, unit };
+  showResults(model, pts.length, allPts, sampleResults, unit, resid);
+  if (!optRows) { updateSmpConcs(); scheduleManualSave(); }
 }
 
 /* ── Live plate-mode calculation ── */
@@ -1167,15 +1378,15 @@ function runPlateCalc() {
     return;
   }
 
-  // Build rows for runCalc
-  stdRows = [...stdM.entries()].sort((a, b) => a[0] - b[0]).map(([c, ods]) => ({
+  // Build local rows for runCalc — never mutate globals (P5 decouple)
+  const plateStdRows = [...stdM.entries()].sort((a, b) => a[0] - b[0]).map(([c, ods]) => ({
     conc: String(c),
     od1: ods.length<=3 ? String(ods[0] || '') : String(ods.reduce((s,v)=>s+v,0)/ods.length),
     od2: (ods.length===2||ods.length===3) ? String(ods[1]) : '',
     od3: ods.length===3 ? String(ods[2]) : '',
   }));
 
-  smpRows = [...smpM.values()].map(g => ({
+  const plateSmpRows = [...smpM.values()].map(g => ({
     name: g.name,
     od1: g.ods.length<=3 ? String(g.ods[0] || '') : String(g.ods.reduce((s,v)=>s+v,0)/g.ods.length),
     od2: (g.ods.length===2||g.ods.length===3) ? String(g.ods[1]) : '',
@@ -1191,7 +1402,7 @@ function runPlateCalc() {
     document.getElementById('res-conc-header').textContent = `Conc (${tpl.unit})`;
   }
 
-  runCalc();
+  runCalc({ stdRows: plateStdRows, smpRows: plateSmpRows });
 
   // Restore preset state (results/header already reflect the plate template)
   currentPreset = savedPreset;
@@ -1202,13 +1413,13 @@ function updateSmpConcs() {
     const el = document.getElementById(`smp-conc-${i}`);
     if (!el) return;
     if (!currentFit) { el.textContent = '—'; el.style.color = ''; return; }
-    const { slope, intercept, minOD, maxOD } = currentFit;
+    const { model, minOD, maxOD } = currentFit;
     const od = avgOD(r);
     if (isNaN(od)) { el.textContent = '—'; el.style.color = ''; return; }
     const df = parseFloat(r.df) || 1;
-    const raw = (od - intercept) / slope;
+    const raw = interpolate(od, model);
     const act = raw * df;
-    if (act < 0 || raw < 0) { el.textContent = '< 0'; el.style.color = 'var(--red)'; }
+    if (isNaN(raw) || act < 0 || raw < 0) { el.textContent = '< 0'; el.style.color = 'var(--red)'; }
     else if (od < minOD || od > maxOD) { el.textContent = act.toFixed(2); el.style.color = 'var(--yellow-dark)'; }
     else { el.textContent = act.toFixed(2); el.style.color = 'var(--green-dark)'; }
   });
@@ -1228,16 +1439,25 @@ function setStatus(msg, type='') {
 /* ═══════════════════════════════════════════════════════
    DISPLAY RESULTS
 ═══════════════════════════════════════════════════════ */
-function showResults(slope, intercept, r2, n, stdPts, samples, unit) {
+function showResults(model, n, allPts, samples, unit, resid) {
   document.getElementById('results-empty').style.display   = 'none';
   document.getElementById('results-content').style.display = '';
 
-  const sign = intercept >= 0 ? '+' : '−';
-  const absI = Math.abs(intercept);
-  document.getElementById('res-equation').textContent     = `OD = ${slope.toExponential(3)}·C ${sign} ${absI.toFixed(4)}`;
-  document.getElementById('res-slope-inline').textContent  = `m=${slope.toExponential(2)}`;
-  document.getElementById('res-intercept-inline').textContent = `b=${intercept.toFixed(3)}`;
-  document.getElementById('res-npts-inline').textContent   = `n=${n}`;
+  const r2 = model.r2;
+  if (model.type === 'quadratic') {
+    const sb = model.b >= 0 ? '+' : '−', sc = model.c >= 0 ? '+' : '−';
+    document.getElementById('res-equation').textContent = `OD = ${model.a.toExponential(3)}·C² ${sb} ${Math.abs(model.b).toExponential(3)}·C ${sc} ${Math.abs(model.c).toFixed(4)}`;
+    document.getElementById('res-slope-inline').textContent     = `a=${model.a.toExponential(2)}`;
+    document.getElementById('res-intercept-inline').textContent = `b=${model.b.toExponential(2)}`;
+  } else {
+    const sign = model.intercept >= 0 ? '+' : '−';
+    document.getElementById('res-equation').textContent = `OD = ${model.slope.toExponential(3)}·C ${sign} ${Math.abs(model.intercept).toFixed(4)}`;
+    document.getElementById('res-slope-inline').textContent     = `m=${model.slope.toExponential(2)}`;
+    document.getElementById('res-intercept-inline').textContent = `b=${model.intercept.toFixed(3)}`;
+  }
+  document.getElementById('res-npts-inline').textContent = `n=${n}`;
+  document.getElementById('res-rms').textContent  = `RMS ${resid.rms.toFixed(4)}`;
+  document.getElementById('res-maxr').textContent = `max |r| ${resid.maxR.toFixed(4)}`;
 
   const badge = document.getElementById('res-r2-badge');
   const isBasic = currentPreset === 'basic';
@@ -1246,27 +1466,57 @@ function showResults(slope, intercept, r2, n, stdPts, samples, unit) {
   else if (isBasic && r2 >= 0.88) { badge.className='lt-badge lt-badge-yellow'; badge.textContent=`R² ${r2.toFixed(4)}`; setStatus('Marginal — low-end non-linearity expected', 'warn'); }
   else { badge.className='lt-badge lt-badge-red'; badge.textContent=`R² ${r2.toFixed(4)}`; setStatus(isBasic ? 'Poor fit — check standards' : 'Poor fit — results may be unreliable', 'err'); }
 
-  document.getElementById('res-conc-header').textContent = `Conc (${unit})`;
-  drawChart(stdPts, slope, intercept, samples);
+  document.getElementById('res-conc-header').textContent = `Conc (${displayUnitLabel()})`;
+  document.getElementById('std-pts-conc-hdr').textContent = `Conc (${displayUnitLabel()})`;
+  drawChart(allPts, model, samples);
+  renderStdPointsTable(allPts, model, resid);
   showSampleResults(samples, unit);
+}
+
+/* Standard Points table — exclusion checkboxes + per-point residual (both modes) */
+function renderStdPointsTable(allPts, model, resid) {
+  const tbody = document.getElementById('std-points-tbody');
+  if (!tbody) return;
+  const thr = 2 * resid.rms;
+  tbody.innerHTML = allPts.slice().sort((a,b)=>a.x-b.x).map(p => {
+    const key = String(p.x);
+    if (p.excl) {
+      return `<tr class="std-excluded">
+        <td><input type="checkbox" class="excl-cb" checked onchange="toggleStdExcl('${key}', this.checked)"></td>
+        <td>${fmtTk(p.x)}</td><td>${p.y.toFixed(4)}</td>
+        <td class="std-excl-tag">excluded</td></tr>`;
+    }
+    const r = p.y - predictOD(p.x, model);
+    const out = Math.abs(r) > thr && thr > 0;
+    return `<tr>
+      <td><input type="checkbox" class="excl-cb" checked onchange="toggleStdExcl('${key}', this.checked)"></td>
+      <td>${fmtTk(p.x)}</td><td>${p.y.toFixed(4)}</td>
+      <td class="resid-val${out?' resid-out':''}">${r>=0?'+':'−'}${Math.abs(r).toFixed(4)}</td></tr>`;
+  }).join('');
 }
 
 function showSampleResults(results, unit) {
   const tbody = document.getElementById('results-tbody');
   if (!results.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:14px;">No samples entered</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:14px;">No samples entered</td></tr>';
     return;
   }
   tbody.innerHTML = results.map(r => {
     const odStr   = isNaN(r.od)   ? '—' : r.od.toFixed(4);
-    const concStr = isNaN(r.conc) ? '—' : r.conc.toFixed(2);
+    const concDisp = toDisplayConc(r.conc);
+    const concStr = isNaN(concDisp) ? '—' : concDisp.toFixed(2);
     const flagHtml = r.flag==='extrap'    ? '<span class="flag-extrap">Extrap</span>'
                    : r.flag==='below-det' ? '<span class="flag-low">Low</span>' : '—';
+    const cvHtml = r.cv != null
+      ? `<span class="${r.cv > qcCvThr * 2 ? 'cv-bad' : r.cv > qcCvThr ? 'cv-warn' : ''}">${r.cv.toFixed(1)}%</span>`
+      : '—';
     return `<tr>
-      <td>${esc(r.name)}</td>
+      <td><input class="result-name-input" type="text" value="${esc(r.name)}" data-orig="${esc(r.name)}"
+          onchange="onResultNameEdit(this)" placeholder="Sample name"></td>
       <td>${odStr}</td>
       <td>${r.df}×</td>
       <td class="conc-value">${concStr}</td>
+      <td>${cvHtml}</td>
       <td>${flagHtml}</td>
     </tr>`;
   }).join('');
@@ -1282,8 +1532,12 @@ function showInlineResults() {
   const sl = document.getElementById('res-slope-inline').textContent;
   const ic = document.getElementById('res-intercept-inline').textContent;
   const np = document.getElementById('res-npts-inline').textContent;
+  const rms = document.getElementById('res-rms').textContent;
+  const maxr = document.getElementById('res-maxr').textContent;
   const chart = document.getElementById('bca-chart').innerHTML;
   const rtable = document.getElementById('results-tbody').innerHTML;
+  const stdpts = document.getElementById('std-points-tbody').innerHTML;
+  const stdHdr = document.getElementById('std-pts-conc-hdr').textContent;
   const hdr = document.getElementById('res-conc-header').textContent;
   const status = document.getElementById('calc-status');
   const statusText = status ? status.textContent : '';
@@ -1297,18 +1551,34 @@ function showInlineResults() {
       </div>
       <div class="fit-strip">
         <span class="fit-equation">${eq}</span>
+        <div class="fit-model-toggle" title="Fit model">
+          <button class="fmt-btn${fitModel==='linear'?' active':''}"    data-model="linear"    onclick="setFitModel('linear')">Linear</button>
+          <button class="fmt-btn${fitModel==='quadratic'?' active':''}" data-model="quadratic" onclick="setFitModel('quadratic')">Quadratic</button>
+        </div>
         ${r2b}
         <span class="fit-stat">${sl}</span>
         <span class="fit-stat">${ic}</span>
         <span class="fit-stat">${np}</span>
+        <span class="fit-stat">${rms}</span>
+        <span class="fit-stat">${maxr}</span>
       </div>
       <div class="chart-wrap">
         <svg viewBox="0 0 360 260" xmlns="http://www.w3.org/2000/svg">${chart}</svg>
         <div class="chart-legend">
           <div class="legend-item"><div class="legend-dot" style="background:#5c8dff;"></div>Standards</div>
+          <div class="legend-item"><div class="legend-diamond-hollow"></div>Excluded</div>
           <div class="legend-item"><div class="legend-diamond" style="background:#e07832;"></div>Samples</div>
           <div class="legend-item"><div style="width:16px;height:2px;background:#5c8dff;opacity:0.5;flex-shrink:0;margin-top:1px;"></div>Fit</div>
         </div>
+      </div>
+      <div class="lt-section-label" style="margin-bottom:6px;">Standard Points
+        <span style="font-weight:500;color:var(--text-dim);text-transform:none;letter-spacing:0;">— uncheck to exclude</span>
+      </div>
+      <div class="res-table-shell">
+        <table class="res-table">
+          <thead><tr><th>Use</th><th>${stdHdr}</th><th>Avg OD</th><th>Residual</th></tr></thead>
+          <tbody>${stdpts}</tbody>
+        </table>
       </div>
       <div class="lt-section-label" style="margin-bottom:6px;">Sample Concentrations</div>
       <div class="res-table-shell">
@@ -1328,7 +1598,7 @@ function showInlineResults() {
 /* ═══════════════════════════════════════════════════════
    SVG CHART (shared renderer)
 ═══════════════════════════════════════════════════════ */
-function renderChart(targetId, W, H, stdPts, slope, intercept, samples, unit) {
+function renderChart(targetId, W, H, model, stdPts, samples, unit) {
   const sc  = W / 360;                           // proportional scale (baseline: 360px)
   const ML  = Math.round(54 * sc);
   const MR  = Math.round(14 * sc);
@@ -1359,12 +1629,28 @@ function renderChart(targetId, W, H, stdPts, slope, intercept, samples, unit) {
   s+=`<rect x="${ML}" y="${MT}" width="${PW}" height="${PH}" fill="var(--surface-subtle)" rx="${rx}"/>`;
   yT.forEach(t => s+=`<line x1="${ML}" y1="${yS(t)}" x2="${ML+PW}" y2="${yS(t)}" stroke="var(--border-subtle)" stroke-width="${swGrid}"/>`);
   xT.forEach(t => s+=`<line x1="${xS(t)}" y1="${MT}" x2="${xS(t)}" y2="${MT+PH}" stroke="var(--border-subtle)" stroke-width="${swGrid}"/>`);
-  s+=`<line x1="${xS(0)}" y1="${yS(slope*0+intercept)}" x2="${xS(maxX)}" y2="${yS(slope*maxX+intercept)}" stroke="#5c8dff" stroke-width="${swFit}" stroke-opacity="0.5" stroke-dasharray="${dash}"/>`;
-  stdPts.forEach(p => s+=`<circle cx="${xS(p.x)}" cy="${yS(p.y)}" r="${rad}" fill="#5c8dff" stroke="#fff" stroke-width="${swDot}" opacity="0.9"/>`);
+  // Fit curve — straight line for linear, sampled polyline for quadratic
+  const steps = model.type === 'quadratic' ? 48 : 1;
+  const fitPath = [];
+  for (let i = 0; i <= steps; i++) {
+    const xv = maxX * i / steps;
+    const yv = Math.max(0, Math.min(predictOD(xv, model), maxY));
+    fitPath.push(`${xS(xv)},${yS(yv)}`);
+  }
+  s+=`<polyline points="${fitPath.join(' ')}" fill="none" stroke="#5c8dff" stroke-width="${swFit}" stroke-opacity="0.5" stroke-dasharray="${dash}"/>`;
+  // Standard points — filled circles (included) / hollow diamonds (excluded)
+  stdPts.forEach(p => {
+    if (p.excl) {
+      const cx=xS(p.x), cy=yS(p.y), sz=rad;
+      s+=`<polygon points="${cx},${cy-sz} ${cx+sz},${cy} ${cx},${cy+sz} ${cx-sz},${cy}" fill="none" stroke="#5c8dff" stroke-width="${Math.max(1,swDot*1.3)}"/>`;
+    } else {
+      s+=`<circle cx="${xS(p.x)}" cy="${yS(p.y)}" r="${rad}" fill="#5c8dff" stroke="#fff" stroke-width="${swDot}" opacity="0.9"/>`;
+    }
+  });
   samples.forEach(r => {
     if (isNaN(r.od)) return;
-    const rc=(r.od-intercept)/slope;
-    const cx=xS(Math.max(0,Math.min(rc,maxX))), cy=yS(Math.max(0,Math.min(r.od,maxY))), sz=rad;
+    const rc=interpolate(r.od, model);
+    const cx=xS(Math.max(0,Math.min(isNaN(rc)?0:rc,maxX))), cy=yS(Math.max(0,Math.min(r.od,maxY))), sz=rad;
     s+=`<polygon points="${cx},${cy-sz} ${cx+sz},${cy} ${cx},${cy+sz} ${cx-sz},${cy}" fill="#e07832" stroke="#fff" stroke-width="${swDot}" opacity="0.9"/>`;
   });
   s+=`<line x1="${ML}" y1="${MT}" x2="${ML}" y2="${MT+PH}" stroke="var(--border)" stroke-width="${swAxis}"/>`;
@@ -1376,15 +1662,15 @@ function renderChart(targetId, W, H, stdPts, slope, intercept, samples, unit) {
   document.getElementById(targetId).innerHTML = s;
 }
 
-function drawChart(stdPts, slope, intercept, samples) {
+function drawChart(allPts, model, samples) {
   const unit = PRESETS[currentPreset]?.unit || 'µg/mL';
-  renderChart('bca-chart', 360, 260, stdPts, slope, intercept, samples, unit);
+  renderChart('bca-chart', 360, 260, model, allPts, samples, unit);
 }
 
 function expandChart() {
   if (!lastResult) return;
-  const { fit, regPoints, sampleResults, unit } = lastResult;
-  renderChart('bca-chart-large', 600, 400, regPoints, fit.slope, fit.intercept, sampleResults, unit);
+  const { model, regPoints, sampleResults, unit } = lastResult;
+  renderChart('bca-chart-large', 600, 400, model, regPoints, sampleResults, unit);
   document.getElementById('chart-overlay').classList.add('show');
 }
 
@@ -1773,35 +2059,42 @@ function buildFromPlate(){
 ═══════════════════════════════════════════════════════ */
 function exportCSV(){
   if(!lastResult){alert('No results yet.');return;}
-  const {fit,sampleResults,unit}=lastResult;
-  const lines=['# BCA Assay Results',`# Slope,${fit.slope.toExponential(6)}`,
-    `# Intercept,${fit.intercept.toFixed(6)}`,`# R2,${fit.r2.toFixed(6)}`,'',
-    `Sample Name,Avg OD,Dilution Factor,Protein Conc (${unit}),Flag`,
+  const {model,sampleResults,unit}=lastResult;
+  const fitLines = model.type==='quadratic'
+    ? [`# Model,Quadratic`,`# a,${model.a.toExponential(6)}`,`# b,${model.b.toExponential(6)}`,
+       `# c,${model.c.toFixed(6)}`,`# R2,${model.r2.toFixed(6)}`]
+    : [`# Model,Linear`,`# Slope,${model.slope.toExponential(6)}`,
+       `# Intercept,${model.intercept.toFixed(6)}`,`# R2,${model.r2.toFixed(6)}`];
+  const lines=['# BCA Assay Results', ...fitLines, '',
+    `Sample Name,Avg OD,Dilution Factor,Protein Conc (${displayUnitLabel()}),CV %,Flag`,
     ...sampleResults.map(r=>[`"${(r.name||'').replace(/"/g,'""')}"`,
-      isNaN(r.od)?'':r.od.toFixed(4),r.df,isNaN(r.conc)?'':r.conc.toFixed(2),
+      isNaN(r.od)?'':r.od.toFixed(4),r.df,isNaN(r.conc)?'':toDisplayConc(r.conc).toFixed(2),
+      r.cv!=null?r.cv.toFixed(1):'',
       r.flag==='extrap'?'Extrapolated':r.flag==='below-det'?'Below detection':''].join(','))];
   labtoolsDownloadText('bca-results.csv',lines.join('\r\n'),'text/csv');
+  manualDirty = false;
 }
 function copyResults(){
   if(!lastResult){alert('No results yet.');return;}
   const {sampleResults,unit}=lastResult;
-  const lines=[`Sample Name\tAvg OD\tDilution Factor\tProtein Conc (${unit})\tFlag`,
+  const lines=[`Sample Name\tAvg OD\tDilution Factor\tProtein Conc (${displayUnitLabel()})\tCV %\tFlag`,
     ...sampleResults.map(r=>[r.name||'',isNaN(r.od)?'':r.od.toFixed(4),r.df,
-      isNaN(r.conc)?'':r.conc.toFixed(2),
+      isNaN(r.conc)?'':toDisplayConc(r.conc).toFixed(2),
+      r.cv!=null?r.cv.toFixed(1):'',
       r.flag==='extrap'?'Extrapolated':r.flag==='below-det'?'Below detection':''].join('\t'))];
   labtoolsCopyText(lines.join('\n'));
 }
 
 function exportFigure() {
   if (!lastResult) { alert('No chart to export.'); return; }
-  const { fit, regPoints, sampleResults, unit } = lastResult;
+  const { model, regPoints, sampleResults, unit } = lastResult;
 
   // Create hidden high-res SVG for 600 DPI export (6" × 4" at 600 DPI → 3600×2400)
   const tmp = document.createElement('div');
   tmp.style.cssText = 'position:absolute;visibility:hidden;width:0;height:0;overflow:hidden;';
   tmp.innerHTML = '<svg id="__bca-export-svg" viewBox="0 0 3600 2400" xmlns="http://www.w3.org/2000/svg"></svg>';
   document.body.appendChild(tmp);
-  renderChart('__bca-export-svg', 3600, 2400, regPoints, fit.slope, fit.intercept, sampleResults, unit);
+  renderChart('__bca-export-svg', 3600, 2400, model, regPoints, sampleResults, unit);
 
   // Resolve CSS variables so the serialized SVG is self-contained
   const svgEl = document.getElementById('__bca-export-svg');
@@ -1851,12 +2144,104 @@ function exportFigure() {
   img.src = url;
 }
 
+/* ── Loading calculator ────────────────────────────────────────────── */
+function renderLoadingCalc() {
+  if (!lastResult) { alert('No results yet.'); return; }
+  const targetMass = parseFloat(document.getElementById('loadTargetMass').value) || 20;
+  const targetVol  = parseFloat(document.getElementById('loadTargetVol').value)  || 15;
+  if (targetMass <= 0 || targetVol <= 0) { alert('Enter valid target mass and volume.'); return; }
+
+  const { sampleResults } = lastResult;
+  const container = document.getElementById('loading-results');
+  const rows = sampleResults.map(r => {
+    const conc = r.conc; // µg/mL
+    if (isNaN(conc) || conc <= 0) return { ...r, sampleVol: null, diluentVol: null, ok: false };
+    const sampleVol = (targetMass / conc) * 1000; // µg / (µg/mL) * 1000 = µL
+    const diluentVol = targetVol - sampleVol;
+    const ok = sampleVol > 0 && sampleVol <= targetVol;
+    return { ...r, sampleVol, diluentVol, ok };
+  });
+
+  container.style.display = 'block';
+  container.innerHTML = `
+    <div class="res-table-shell" style="max-height:260px;overflow-y:auto;">
+      <table class="res-table">
+        <thead><tr>
+          <th>Sample</th><th>Conc (µg/mL)</th>
+          <th>Sample (µL)</th><th>Diluent (µL)</th><th>Total (µL)</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(r => {
+            const sv = r.sampleVol, dv = r.diluentVol;
+            const ok = r.ok;
+            return `<tr>
+              <td>${esc(r.name)}</td>
+              <td>${isNaN(r.conc) ? '—' : r.conc.toFixed(1)}</td>
+              <td${!ok && sv != null ? ' style="color:var(--red);font-weight:600;" title="Sample too dilute — exceeds total volume"' : ''}>
+                ${sv != null ? sv.toFixed(1) : '—'}</td>
+              <td>${dv != null && dv >= 0 ? dv.toFixed(1) : dv != null ? '<span style="color:var(--red);">⚠ exceeds vol</span>' : '—'}</td>
+              <td>${sv != null && dv != null ? (sv + dv).toFixed(1) : '—'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:6px;">
+      Target: ${targetMass} µg protein in ${targetVol} µL final volume.
+      ${rows.some(r => !r.ok) ? ' <span style="color:var(--red);">⚠ Some samples too dilute — reduce target mass or increase final volume.</span>' : ''}
+    </div>`;
+}
+
 /* ═══════════════════════════════════════════════════════
    MATH UTILITIES
 ═══════════════════════════════════════════════════════ */
+// Convert a concentration value from the source unit to the display unit (concUnit).
+// Source is always µg/mL after internal normalization (µg/well ÷ wellVolume).
+function toDisplayConc(val) {
+  if (isNaN(val)) return NaN;
+  switch (concUnit) {
+    case 'mg/mL': return val / 1000;          // µg/mL → mg/mL
+    case 'µg/µL': return val / 1000;          // µg/mL → µg/µL
+    default: return val;                       // µg/mL stays µg/mL
+  }
+}
+function displayUnitLabel() {
+  switch (concUnit) {
+    case 'mg/mL': return 'mg/mL';
+    case 'µg/µL': return 'µg/µL';
+    default: return 'µg/mL';
+  }
+}
+// Normalize standard concentration from the preset's native unit to µg/mL.
+// µg/well presets divide by wellVolume; µg/mL pass through.
+function normStdConc(conc, presetUnit) {
+  return presetUnit === 'µg/well' ? conc / wellVolume : conc;
+}
 function avgOD(row){
-  const vs=[row.od1,row.od2,row.od3].map(v=>parseFloat(v)).filter(v=>!isNaN(v)&&v>=0);
+  const vs=[row.od1,row.od2,row.od3].map(v=>parseFloat(v)).filter(v=>isFinite(v));
   return vs.length?vs.reduce((a,b)=>a+b,0)/vs.length:NaN;
+}
+// Standard deviation of the OD replicates in a row
+function sdOD(row){
+  const vs=[row.od1,row.od2,row.od3].map(v=>parseFloat(v)).filter(v=>!isNaN(v));
+  if(vs.length<2)return null;
+  const m=vs.reduce((a,b)=>a+b,0)/vs.length;
+  return Math.sqrt(vs.reduce((s,v)=>s+(v-m)**2,0)/(vs.length-1));
+}
+// CV% = (SD / mean) * 100 for ODs that are > 0 (avoids CV explosion near zero)
+function cvPct(row){
+  const m=avgOD(row); if(isNaN(m)||m===0)return null;
+  const s=sdOD(row); return s!=null?(s/Math.abs(m)*100):null;
+}
+// For triplicates: index (0/1/2) of the OD rep farthest from the mean; null if <3 reps
+function outlierODIdx(row){
+  const vs=[row.od1,row.od2,row.od3].map(v=>parseFloat(v));
+  const valid=vs.map(v=>!isNaN(v));
+  const n=valid.filter(Boolean).length; if(n<3)return null;
+  const m=vs.reduce((a,b)=>a+b,0)/n;
+  let worst=0,dev=0;
+  for(let i=0;i<3;i++){const d=Math.abs(vs[i]-m);if(d>dev){dev=d;worst=i;}}
+  return worst;
 }
 function linearRegression(pts){
   const n=pts.length,sx=pts.reduce((s,p)=>s+p.x,0),sy=pts.reduce((s,p)=>s+p.y,0);
@@ -1864,7 +2249,63 @@ function linearRegression(pts){
   const den=n*sx2-sx*sx; if(den===0)return null;
   const slope=(n*sxy-sx*sy)/den,intercept=(sy-slope*sx)/n;
   const ym=sy/n,sst=pts.reduce((s,p)=>s+(p.y-ym)**2,0),ssr=pts.reduce((s,p)=>s+(p.y-(slope*p.x+intercept))**2,0);
-  return {slope,intercept,r2:sst===0?1:1-ssr/sst};
+  return {type:'linear',slope,intercept,r2:sst===0?1:1-ssr/sst};
+}
+
+/* Quadratic least-squares (y = a·x² + b·x + c) via 3×3 normal equations */
+function quadraticFit(pts){
+  const n=pts.length; if(n<3)return null;
+  let Sx=0,Sx2=0,Sx3=0,Sx4=0,Sy=0,Sxy=0,Sx2y=0;
+  for(const p of pts){const x=p.x,y=p.y,x2=x*x;Sx+=x;Sx2+=x2;Sx3+=x2*x;Sx4+=x2*x2;Sy+=y;Sxy+=x*y;Sx2y+=x2*y;}
+  const sol=solve3([[Sx4,Sx3,Sx2],[Sx3,Sx2,Sx],[Sx2,Sx,n]],[Sx2y,Sxy,Sy]);
+  if(!sol)return null;
+  const [a,b,c]=sol;
+  const ym=Sy/n; let sst=0,ssr=0;
+  for(const p of pts){const pred=a*p.x*p.x+b*p.x+c;ssr+=(p.y-pred)**2;sst+=(p.y-ym)**2;}
+  return {type:'quadratic',a,b,c,r2:sst===0?1:1-ssr/sst};
+}
+function det3(m){
+  return m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])
+        -m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])
+        +m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+}
+function solve3(M,V){
+  const det=det3(M); if(Math.abs(det)<1e-15)return null;
+  const col=j=>M.map((r,i)=>r.map((v,k)=>k===j?V[i]:v));
+  return [det3(col(0))/det,det3(col(1))/det,det3(col(2))/det];
+}
+
+/* OD predicted by the fit at concentration x */
+function predictOD(x,model){
+  return model.type==='quadratic' ? model.a*x*x+model.b*x+model.c : model.slope*x+model.intercept;
+}
+
+/* Invert the fit: concentration for a given OD */
+function interpolate(od,model){
+  if(model.type==='quadratic'){
+    const {a,b,c}=model;
+    if(Math.abs(a)<1e-12) return (od-c)/b;
+    const disc=b*b-4*a*(c-od);
+    if(disc<0) return NaN;
+    const sq=Math.sqrt(disc);
+    const roots=[(-b+sq)/(2*a),(-b-sq)/(2*a)].filter(v=>isFinite(v));
+    const max=(model.maxX!=null?model.maxX:Infinity)*1.05;
+    const within=roots.filter(v=>v>=-1e-6&&v<=max).sort((p,q)=>p-q);
+    if(within.length) return within[0];
+    const nonNeg=roots.filter(v=>v>=0);
+    if(nonNeg.length) return Math.min(...nonNeg);
+    return roots.length?roots[0]:NaN;
+  }
+  if(!isFinite(model.slope)||Math.abs(model.slope)<1e-12) return NaN;
+  return (od-model.intercept)/model.slope;
+}
+
+/* Residual stats across the included standards */
+function residualStats(pts,model){
+  const res=pts.map(p=>p.y-predictOD(p.x,model));
+  const rms=res.length?Math.sqrt(res.reduce((s,e)=>s+e*e,0)/res.length):0;
+  const maxR=res.length?Math.max(...res.map(Math.abs)):0;
+  return {rms,maxR,res};
 }
 function niceTicks(mn,mx,n){
   const step=niceNum((mx-mn)/(n-1),true),lo=Math.floor(mn/step)*step,hi=Math.ceil(mx/step)*step;
@@ -1879,14 +2320,38 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
    INIT
 ═══════════════════════════════════════════════════════ */
 (function init(){
-  smpRows = [
-    newSmpRow(0),
-    newSmpRow(1),
-    newSmpRow(2),
-  ];
-  setPreset('pierce'); // loads stdRows + renders
-  renderSmpTable();
-  setReps(1);
+  // Try to restore saved manual-mode state
+  const manualData = loadManualState();
+  if (manualData) {
+    stdRows = manualData.stdRows || [];
+    smpRows = manualData.smpRows || [];
+    currentPreset = manualData.currentPreset || 'pierce';
+    numReps = manualData.numReps || 1;
+    fitModel = manualData.fitModel || 'linear';
+    qcCvThr = manualData.qcCvThr || 15;
+    exclConcs = new Set(manualData.exclConcs || []);
+    setPreset(currentPreset); // re-renders std table with restored rows
+    renderSmpTable();
+    setReps(numReps);
+    setFitModel(fitModel);
+    // Show restore banner with timestamp
+    const banner = document.getElementById('manual-restore-banner');
+    if (banner) {
+      banner.style.display = 'block';
+      const at = document.getElementById('manual-saved-at');
+      if (at) at.textContent = new Date(manualData.savedAt).toLocaleString();
+    }
+    scheduleCalc();
+  } else {
+    smpRows = [
+      newSmpRow(0),
+      newSmpRow(1),
+      newSmpRow(2),
+    ];
+    setPreset('pierce'); // loads stdRows + renders
+    renderSmpTable();
+    setReps(1);
+  }
 
   // Start in Raw File mode (most common import workflow)
   switchMode('raw');
@@ -1901,6 +2366,34 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
   setTimeout(() => {
     document.getElementById('plate-textarea').focus();
   }, 80);
+
+  // Warn before leaving if manual-mode data is unsaved
+  window.addEventListener('beforeunload', e => {
+    if (!manualDirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  // QC CV threshold input
+  const cvInput = document.getElementById('qcCvInput');
+  if (cvInput) cvInput.addEventListener('change', () => {
+    const v = parseInt(cvInput.value);
+    qcCvThr = Number.isFinite(v) && v >= 0 ? v : 15;
+    cvInput.value = qcCvThr;
+    renderStdTable(); renderSmpTable(); scheduleCalc();
+  });
+
+  // Well volume input (µg/well → µg/mL)
+  const wvInput = document.getElementById('wellVolInput');
+  if (wvInput) wvInput.addEventListener('change', () => {
+    const v = parseFloat(wvInput.value);
+    wellVolume = (Number.isFinite(v) && v > 0 ? v : 200) / 1000; // µL → mL
+    wvInput.value = Math.round(wellVolume * 1000);
+    scheduleCalc();
+  });
+
+  // Update well-volume visibility on init
+  updateWellVolVisibility();
 })();
 </script>
 </body>
