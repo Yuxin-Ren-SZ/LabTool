@@ -27,7 +27,7 @@ LabTools/
 │   ├── stain-timer/index.html         # Staining protocol timer
 │   ├── thermal-to-laser/index.html    # Thermal PDF to laser sheet converter
 │   ├── drug-dosage/index.html         # Per-animal dose calculator and log
-│   └── qpcr-analysis/index.html       # Agilent qPCR export analyzer (plate, curves, ΔΔCq)
+│   └── qpcr-analysis/index.html       # Agilent qPCR analyzer (multi-plate, QC, curves, ΔΔCq, stats, MIQE)
 └── docs/
     ├── counting-modes.html            # Hemocytometer mode reference
     └── plate-dimensions.template.json # Plate geometry reference template
@@ -47,12 +47,18 @@ Key exports include:
 - `calcCellDensity(count, multiplier, df)`, `calcTotalCells(density, volML)`, and `calcViabilityPct(live, dead)`
 - `makeDiagram(largeHL, smallHL)`
 - `MODES`, `SMALL_ALL`, and `SMALL_5`
+- qPCR statistics (used by `tools/qpcr-analysis/`): `parseSampleAnnotation(name)`,
+  `tTestTwoSided(a, b, opts)`, `studentTPvalue(t, df)`, `tCritical(df, alpha)`,
+  `stdCurveFit(points)`, and `genormM(cqByGene)`
 
 Quick console checks:
 
 ```js
 calcCellDensity(80, 0.25, 20)  // 4000000
 calcDoseFromBodyWeight(5, 'kg', 25, 'g')  // 0.125
+parseSampleAnnotation('Control_2')  // { group: 'Control', bioRep: '2' }
+tTestTwoSided([1,2,3],[4,5,6]).p  // ~0.0213 (two-tailed, on ΔCq)
+stdCurveFit([{quantity:1,cq:30},{quantity:10,cq:26.68}]).E  // ~2.0
 ```
 
 ## Shared Browser Utilities

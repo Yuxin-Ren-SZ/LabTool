@@ -15,11 +15,17 @@
  * 4. Cell count calculations     — calcCellDensity, calcTotalCells, calcViabilityPct
  * 5. SVG diagram generator       — makeDiagram
  * 6. Counting mode definitions   — SMALL_ALL, SMALL_5, MODES
+ * 7. qPCR statistics             — parseSampleAnnotation, tTestTwoSided,
+ *                                  studentTPvalue, stdCurveFit, genormM
  *
  * Quick test (paste into browser console):
  *   calcCellDensity(80, 0.25, 20)   // → 4,000,000
  *   calcViabilityPct(80, 20)        // → 80
  *   fmtSig(1234567)                 // → "1,234,567"
+ *   parseSampleAnnotation('Ctrl_2') // → { group: 'Ctrl', bioRep: '2' }
+ *   tTestTwoSided([1,2,3],[4,5,6]).p.toFixed(3)   // → "0.021"
+ *   stdCurveFit([{quantity:1,cq:30},{quantity:10,cq:26.68},
+ *                {quantity:100,cq:23.36}]).E.toFixed(2)   // → "2.00"
  */
 
 'use strict';
@@ -421,3 +427,239 @@ const MODES = [
     hint: 'Cells in one corner square',
   },
 ];
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. qPCR statistics (RT-qPCR data-analysis workflow, MIQE 2.0)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Pure numerics for the qPCR Analysis tool. Zero dependency — the p-value is
+// computed from the regularized incomplete beta function (Numerical Recipes
+// betacf), so no stats library is needed. All functions are side-effect free.
+
+/**
+ * Split a sample label into its experimental group and biological-replicate id
+ * using a trailing-number naming convention. A biological replicate is the unit
+ * of statistical n; technical replicates (wells) share a (group, bioRep).
+ *
+ * Recognises a trailing replicate token: an optional separator, an optional
+ * "rep"/"replicate"/"r"/"#"/"no." word, then digits at the very end.
+ *
+ * @param {string} name  e.g. 'Control_1', 'Treat-2', 'KO rep3', 'Ctrl 1'
+ * @returns {{ group: string, bioRep: string }}
+ *   Falls back to { group: name, bioRep: '1' } when no trailing number is found.
+ *
+ * @example
+ *   parseSampleAnnotation('Control_2')  // → { group: 'Control', bioRep: '2' }
+ *   parseSampleAnnotation('KO rep3')    // → { group: 'KO',      bioRep: '3' }
+ *   parseSampleAnnotation('Vehicle')    // → { group: 'Vehicle', bioRep: '1' }
+ */
+function parseSampleAnnotation(name) {
+  const s = (name == null ? '' : String(name)).trim();
+  if (!s) return { group: '', bioRep: '' };
+  const m = /^(.*?)[\s_\-.#]*(?:rep(?:licate)?|r|#|no\.?)?[\s_\-.#]*(\d+)\s*$/i.exec(s);
+  if (m && m[1].trim()) return { group: m[1].trim(), bioRep: m[2] };
+  return { group: s, bioRep: '1' };
+}
+
+/** Arithmetic mean of a numeric array (NaN for empty). */
+function statMean(a) { return a.length ? a.reduce((s, v) => s + v, 0) / a.length : NaN; }
+
+/** Sample standard deviation (n−1 denominator; NaN for n<2). */
+function statSD(a) {
+  if (a.length < 2) return NaN;
+  const m = statMean(a);
+  return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / (a.length - 1));
+}
+
+/** Natural log of the gamma function (Lanczos approximation). */
+function logGamma(x) {
+  const c = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+             -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+  let y = x, tmp = x + 5.5;
+  tmp -= (x + 0.5) * Math.log(tmp);
+  let ser = 1.000000000190015;
+  for (let j = 0; j < 6; j++) ser += c[j] / ++y;
+  return -tmp + Math.log(2.5066282746310005 * ser / x);
+}
+
+/** Continued-fraction expansion for the incomplete beta function (Numerical Recipes). */
+function betacf(a, b, x) {
+  const FPMIN = 1e-30, EPS = 3e-12, MAXIT = 200;
+  let qab = a + b, qap = a + 1, qam = a - 1;
+  let c = 1, d = 1 - qab * x / qap;
+  if (Math.abs(d) < FPMIN) d = FPMIN;
+  d = 1 / d;
+  let h = d;
+  for (let m = 1; m <= MAXIT; m++) {
+    const m2 = 2 * m;
+    let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+    d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+    c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+    d = 1 / d; h *= d * c;
+    aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+    d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+    c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+    d = 1 / d;
+    const del = d * c; h *= del;
+    if (Math.abs(del - 1) < EPS) break;
+  }
+  return h;
+}
+
+/** Regularized incomplete beta function I_x(a, b), used for the t-distribution CDF. */
+function betai(a, b, x) {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const bt = Math.exp(logGamma(a + b) - logGamma(a) - logGamma(b) +
+                      a * Math.log(x) + b * Math.log(1 - x));
+  return x < (a + 1) / (a + b + 2)
+    ? bt * betacf(a, b, x) / a
+    : 1 - bt * betacf(b, a, 1 - x) / b;
+}
+
+/**
+ * Two-tailed p-value for a Student's t statistic with df degrees of freedom.
+ * p = P(|T| > |t|) = I_{df/(df+t²)}(df/2, 1/2).
+ *
+ * @param {number} t   t statistic
+ * @param {number} df  degrees of freedom (> 0)
+ * @returns {number} two-tailed p-value in [0, 1], or NaN if df invalid
+ *
+ * @example
+ *   studentTPvalue(2.776, 4).toFixed(3)   // → "0.050"
+ */
+function studentTPvalue(t, df) {
+  if (!(df > 0) || isNaN(t)) return NaN;
+  return betai(df / 2, 0.5, df / (df + t * t));
+}
+
+/**
+ * Critical two-tailed t value: the t such that studentTPvalue(t, df) = alpha.
+ * Used for confidence intervals (default alpha 0.05 → 95% CI). Solved by
+ * bisection since studentTPvalue is monotone decreasing in t.
+ *
+ * @param {number} df     degrees of freedom (> 0)
+ * @param {number} [alpha=0.05]  two-tailed significance level
+ * @returns {number} critical t (> 0), or NaN if df invalid
+ *
+ * @example
+ *   tCritical(4).toFixed(3)    // → "2.776"  (95% CI, df=4)
+ */
+function tCritical(df, alpha) {
+  if (!(df > 0)) return NaN;
+  const a = alpha == null ? 0.05 : alpha;
+  let lo = 0, hi = 1e4;
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2;
+    if (studentTPvalue(mid, df) > a) lo = mid; else hi = mid;
+    if (hi - lo < 1e-9) break;
+  }
+  return (lo + hi) / 2;
+}
+
+/**
+ * Two-sample, two-tailed t-test. Defaults to the pooled (equal-variance)
+ * Student's t-test — the same test as Excel `T.TEST(a, b, 2, 2)` used in the
+ * RT-qPCR manual (§5.6.1). Pass { welch: true } for the Welch (unequal-variance)
+ * variant. For qPCR, run this on ΔCq values across biological replicates, never
+ * on fold change (Yuan 2006, PMID 16504059).
+ *
+ * @param {number[]} a  group A values (e.g. control ΔCq per biological replicate)
+ * @param {number[]} b  group B values (e.g. treatment ΔCq)
+ * @param {{welch?: boolean}} [opts]
+ * @returns {{ t:number, df:number, p:number, meanA:number, meanB:number,
+ *             nA:number, nB:number, welch:boolean } | null}
+ *   null when either group has n < 2.
+ *
+ * @example
+ *   tTestTwoSided([1,2,3],[4,5,6]).p.toFixed(3)   // → "0.021"
+ */
+function tTestTwoSided(a, b, opts) {
+  const welch = !!(opts && opts.welch);
+  a = a.filter(v => v != null && !isNaN(v));
+  b = b.filter(v => v != null && !isNaN(v));
+  const nA = a.length, nB = b.length;
+  if (nA < 2 || nB < 2) return null;
+  const mA = statMean(a), mB = statMean(b);
+  const vA = statSD(a) ** 2, vB = statSD(b) ** 2;
+  let t, df;
+  if (welch) {
+    const sA = vA / nA, sB = vB / nB;
+    t = (mA - mB) / Math.sqrt(sA + sB);
+    df = (sA + sB) ** 2 / (sA * sA / (nA - 1) + sB * sB / (nB - 1));
+  } else {
+    const sp2 = ((nA - 1) * vA + (nB - 1) * vB) / (nA + nB - 2);
+    t = (mA - mB) / Math.sqrt(sp2 * (1 / nA + 1 / nB));
+    df = nA + nB - 2;
+  }
+  return { t, df, p: studentTPvalue(t, df), meanA: mA, meanB: mB, nA, nB, welch };
+}
+
+/**
+ * Fit a qPCR standard curve: linear regression of Cq on log10(quantity), then
+ * amplification efficiency E = 10^(−1/slope). Slope ≈ −3.32 → E ≈ 2.0 (100%).
+ *
+ * @param {Array<{quantity:number, cq:number}>} points  dilution-series wells
+ * @returns {{ slope:number, intercept:number, r2:number, E:number,
+ *             effPct:number, n:number } | null}
+ *   null when fewer than 2 distinct-quantity points with positive quantity.
+ *
+ * @example
+ *   stdCurveFit([{quantity:1,cq:30},{quantity:10,cq:26.68},
+ *                {quantity:100,cq:23.36}]).slope.toFixed(2)   // → "-3.32"
+ */
+function stdCurveFit(points) {
+  const pts = (points || [])
+    .filter(p => p && p.quantity > 0 && p.cq != null && !isNaN(p.cq))
+    .map(p => ({ x: Math.log10(p.quantity), y: p.cq }));
+  if (pts.length < 2) return null;
+  const n = pts.length;
+  const mx = statMean(pts.map(p => p.x)), my = statMean(pts.map(p => p.y));
+  let sxx = 0, sxy = 0, syy = 0;
+  for (const p of pts) { sxx += (p.x - mx) ** 2; sxy += (p.x - mx) * (p.y - my); syy += (p.y - my) ** 2; }
+  if (sxx === 0) return null;                       // all points at one dilution
+  const slope = sxy / sxx;
+  const intercept = my - slope * mx;
+  const r2 = syy === 0 ? 1 : (sxy * sxy) / (sxx * syy);
+  const E = Math.pow(10, -1 / slope);
+  return { slope, intercept, r2, E, effPct: (E - 1) * 100, n };
+}
+
+/**
+ * geNorm reference-gene stability M (Vandesompele 2002). Lower M = more stable;
+ * the accepted stability threshold is M < 0.5 (heterogeneous samples < 1.0).
+ * Works directly in Cq space: log2(quantity ratio) of genes j,k for a sample
+ * equals (Cq_k − Cq_j), whose across-sample SD is the pairwise variation V_jk.
+ * M_j is the mean V_jk over all other genes k.
+ *
+ * @param {Object<string, number[]>} cqByGene  gene → Cq array aligned by sample
+ * @returns {{ M:Object<string,number>, ranked:Array<{gene:string,m:number}> }}
+ *   ranked is ascending by M (most stable first); empty when < 2 usable genes.
+ *
+ * @example
+ *   genormM({ GAPDH:[20,20.1,19.9], ACTB:[22,22.2,21.8] }).ranked[0].gene  // → 'GAPDH' or 'ACTB'
+ */
+function genormM(cqByGene) {
+  const genes = Object.keys(cqByGene || {});
+  const M = {};
+  const usable = genes.filter(g => Array.isArray(cqByGene[g]));
+  if (usable.length < 2) return { M, ranked: [] };
+  for (const j of usable) {
+    const vs = [];
+    for (const k of usable) {
+      if (k === j) continue;
+      const diffs = [];
+      const aj = cqByGene[j], ak = cqByGene[k];
+      const len = Math.min(aj.length, ak.length);
+      for (let i = 0; i < len; i++) {
+        if (aj[i] != null && ak[i] != null && !isNaN(aj[i]) && !isNaN(ak[i])) diffs.push(ak[i] - aj[i]);
+      }
+      const v = statSD(diffs);
+      if (!isNaN(v)) vs.push(v);
+    }
+    if (vs.length) M[j] = statMean(vs);
+  }
+  const ranked = Object.keys(M).map(g => ({ gene: g, m: M[g] })).sort((a, b) => a.m - b.m);
+  return { M, ranked };
+}
