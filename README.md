@@ -9,7 +9,7 @@ Open any tool directly in a browser or use the GitHub Pages site; there is no in
 |---|---|
 | [Cell Count Calculator](tools/cell-count/) | Hemocytometer counting with Trypan Blue viability, four counting modes, optional dual-chamber averaging, copy, and CSV export. |
 | [Cell Seeding Calculator](tools/seeding-calc/) | Two-step cell count and C1V1 = C2V2 dilution workflow, with optional direct stock concentration entry and unit scaling. |
-| [Microplate Layout Planner](tools/microplate-layout-planner/) | Multi-well plate layout planner for assigning treatment groups to 6-, 12-, 24-, 48-, 96-, 384-, and 1536-well plates. |
+| [Microplate Layout Planner](tools/microplate-layout-planner/) | Lay out one or more 6-, 12-, 24-, 48-, 96-, 384-, or 1536-well plates, tagging wells with a colored group plus custom fields (Sample ID, Gene, …). Exports a CSV that round-trips and feeds the qPCR tool. |
 | [Stain Timer](tools/stain-timer/) | Configurable multi-step staining protocol timer with countdown, slot tracking, CSV import/export, result logging, and audio alarms. |
 | [Thermal To Laser Label Converter](tools/thermal-to-laser/) | Convert one-label-per-page thermal-printer PDFs into laser-printer mailing-label sheet PDFs with preset management and sheet preview. |
 | [Drug Dosage Calculator](tools/drug-dosage/) | Save named multi-drug dosing protocols and calculate min, exact, and max per-animal dose amounts from body weight. |

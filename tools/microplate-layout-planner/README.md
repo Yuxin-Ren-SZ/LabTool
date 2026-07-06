@@ -1,6 +1,9 @@
 # Microplate Layout Planner
 
-Interactive multi-well plate layout planner for assigning treatment groups to standard plate formats. Part of the [LabTools](../../) collection.
+Interactive planner for laying out **one or more** multi-well plates, tagging each well
+with a colored group plus any number of custom fields (Sample ID, Gene/Target, Dose,
+Timepoint, …). Part of the [LabTools](../../) collection. Layouts export to a CSV that
+round-trips back into the planner and drops straight into the qPCR Analysis tool.
 
 ## Plate Formats
 
@@ -16,41 +19,74 @@ The tool supports:
 
 Plate geometry is based on millimeter reference dimensions in the tool and mirrored in [docs/plate-dimensions.template.json](../../docs/plate-dimensions.template.json). Lower-density plates render round wells; 384- and 1536-well plates render square wells for readability.
 
-## Workflow
+## Multiple Plates
 
-1. Choose a plate format.
-2. Select wells by clicking, dragging, shift-clicking a rectangle, or clicking row and column headers.
-3. Add or select a treatment group.
-4. Assign selected wells to the active group.
-5. Copy a selected pattern and paste it from a destination well.
-6. Export CSV, import a previously exported CSV, or print the visual layout.
+The plate tab bar holds every plate in the session. `+ Add plate` appends a new plate,
+clicking a tab switches to it, double-clicking renames it, and the `×` removes it. Each
+plate keeps its own size and corner marks, so a 96-well and a 384-well plate can live in
+the same session (and the same CSV). **View All** shows every plate side-by-side in a
+read-only overview (also used for print and multi-plate PNG); the button toggles back to
+**Edit Plate**.
 
-Copy and paste preserve the copied shape. Wells that would land outside the destination plate are skipped. Copied groups are brought into the current layout if needed.
+## Fields
 
-## Groups And Display
+Every well carries a record of **fields**. The default fields are `Group` (a category
+field that colors the wells), `Sample ID`, and `Gene` (free text). In the Fields panel you
+can rename fields, add your own (**Category** for colored value sets, **Text** for free
+values), and delete them — at least one category field is always required.
 
-Groups have editable names and colors from the built-in palette. Larger plate formats reduce label density so the layout remains readable:
+- **Color by** chooses which category field colors the wells.
+- **Label by** chooses which field's value prints on the well face.
 
-- Small plates show well IDs and group names.
-- 96-well plates use compact labels.
-- 384- and 1536-well plates rely primarily on color.
+To label wells: select them (click, drag, shift-click a rectangle, or click a row/column
+header), pick a field, choose or type its value, and press **Assign** (or **Apply** for a
+text field). **Clear** empties the selected wells. **Copy**/**Paste** move a well pattern —
+the copied shape and all field values are preserved; wells that would land off the plate
+are skipped.
+
+Larger plate formats reduce label density so the layout stays readable: small plates show
+well IDs and the label value, 96-well plates use compact initials, and 384-/1536-well
+plates rely primarily on color.
 
 ## Orientation Corners
 
-Corner toggles mark cut or notched plate corners for physical orientation. Selected corners appear in the on-screen frame and print layout summary.
+Corner toggles mark cut or notched plate corners for physical orientation. They are stored
+per plate and appear in the on-screen frame, the overview, and the print layout summary.
 
-## Export, Print, And Reset
+## Export, Import, Print, Reset
 
-`Export CSV` downloads `microplate-layout-planner-<plate>-well.csv` with:
+`Export CSV` downloads `microplate-layout-planner-<plate>-well.csv` (single plate) or
+`microplate-layout-planner-<n>-plates.csv` (multiple). The header is built from the current
+fields:
 
 ```csv
-plate_type,row,column,well,group,group_abbreviation,group_color
+plate_type,plate,row,column,well,group,sample,gene,group_color
 ```
 
-`Import CSV` reloads a layout from a file in this same format. Columns are matched by header name (order-tolerant); the derived `row`, `column`, and `group_abbreviation` columns are ignored and recomputed. Groups are rebuilt from the `group`/`group_color` columns and `plate_type` selects the plate format, so an exported layout round-trips exactly. The file also drops straight into the qPCR Analysis tool, which reads each well's `group` as its sample label.
+- `plate_type` (per row) and `well` are always present; `plate` is added only when there is
+  more than one plate.
+- Each field contributes one data column named by its key (default keys `group`, `sample`,
+  `gene`; custom fields are slugged from their name). Every **category** field also emits a
+  `<key>_color` column so the palette round-trips.
 
-`Print Layout` opens the browser print dialog with a clean plate map, group summary, and color legend. When the visible well labels use generated abbreviations, the print legend maps each abbreviation and color back to the full group name. Use the browser's save-as-PDF option if a PDF is needed.
+`Import CSV` rebuilds plates and fields from a file in this format. Columns are matched by
+header name (order-tolerant). Structural columns (`plate_type`, `plate`, `row`, `column`,
+`well`) and derived columns (`*_color`, legacy `*_abbreviation`) frame the data; every other
+column becomes a field — a **category** when a matching `<key>_color` column exists (or the
+legacy `group`), otherwise text. Rows are grouped into plates by the `plate` column. An
+exported layout round-trips exactly, except that a single-plate export omits the `plate`
+column, so that one plate reimports as `Plate 1` (rename it from the tab if needed). Older
+single-plate exports (which used a `group_abbreviation` column) still load — that column is
+ignored.
 
-`Export PNG` downloads a 1920 x 1080 landscape PNG containing only the plate view and an assigned-group legend on the right side.
+Because the default fields export literal `group`, `sample`, and `gene` columns, the file is
+recognized directly by the **qPCR Analysis** tool, which reads each well's `sample` as its
+sample name, `group` as a group override, and `gene` as its target.
 
-`Reset Plate` clears the current layout after confirmation.
+`Print Layout` prints every plate (the overview) with a per-plate summary and a legend for
+the active color field. Use the browser's save-as-PDF option if a PDF is needed.
+
+`Export PNG` downloads a 1920 x 1080 landscape PNG with all plates arranged in a grid and a
+legend for the active color field.
+
+`Reset Plate` clears the layout on the active plate after confirmation.

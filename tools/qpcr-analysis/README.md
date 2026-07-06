@@ -18,7 +18,7 @@ dropped in any order:
 | **Plate Setup** | Optional. Pre-fills sample names. |
 | **Thermal Profile** | Optional. Shown as a one-line cycling summary. |
 | **Experiment Notes** | Optional. Shown in the run summary. |
-| **Microplate Layout Planner `.csv`** | Optional. A layout exported by the [Microplate Layout Planner](../microplate-layout-planner/) tool (`plate_type,row,column,well,group,…`); the `group` of each well is imported as its sample name. |
+| **Microplate Layout Planner `.csv`** | Optional. A layout exported by the [Microplate Layout Planner](../microplate-layout-planner/) tool (`plate_type,plate,well,group,sample,gene,…`). Each well's `sample` becomes its sample name, `group` a group override, and `gene` its target; a `plate` column maps labels onto multi-plate runs. A layout with only a `group` column still works — the `group` is used as the sample name. |
 
 UTF-8 and UTF-16 (with BOM) encodings are both handled.
 

@@ -272,11 +272,11 @@
       display: block;
     }
 
-    .plate-grid[data-label-mode="rich"] .well.assigned .well-label {
+    .plate-grid[data-label-mode="rich"] .well.has-label .well-label {
       display: block;
     }
 
-    .plate-grid[data-label-mode="compact"] .well.assigned .well-initials {
+    .plate-grid[data-label-mode="compact"] .well.has-label .well-initials {
       display: block;
     }
 
@@ -561,6 +561,184 @@
       }
     }
 
+    .plate-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .plate-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 10px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: border-color 0.12s, background 0.12s, color 0.12s;
+    }
+
+    .plate-tab.active {
+      border-color: var(--blue-dark);
+      background: var(--blue-bg);
+      color: var(--blue-dark);
+    }
+
+    .plate-tab .plate-tab-size {
+      color: var(--text-muted);
+      font-size: var(--fs-2xs);
+      font-weight: 700;
+    }
+
+    .plate-tab-remove {
+      border: 0;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 0.95rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 1px;
+    }
+
+    .plate-tab-remove:hover {
+      color: var(--red);
+    }
+
+    .plate-tab-add {
+      border: 1.5px dashed var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      padding: 6px 11px;
+      border-radius: var(--radius-md);
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .plate-tab-add:hover {
+      border-color: var(--blue);
+      color: var(--blue-dark);
+    }
+
+    .cl-selectors {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .cl-selectors label {
+      display: block;
+      font-size: var(--fs-2xs);
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 3px;
+    }
+
+    .field-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      padding: 6px 8px;
+      cursor: pointer;
+      transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
+    }
+
+    .field-row.active {
+      border-color: var(--blue-dark);
+      box-shadow: 0 0 0 2px var(--blue-border);
+      background: var(--blue-bg);
+    }
+
+    .field-kind {
+      font-size: var(--fs-2xs);
+      font-weight: 800;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 1px 5px;
+    }
+
+    .field-name {
+      min-width: 0;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.84rem;
+      font-weight: 700;
+      outline: none;
+    }
+
+    .field-add {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 6px;
+    }
+
+    .value-text-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    #overview-stage {
+      display: none;
+      flex-wrap: wrap;
+      gap: 18px;
+      align-items: flex-start;
+      justify-content: flex-start;
+      width: 100%;
+    }
+
+    body.overview .workspace {
+      display: none;
+    }
+
+    body.overview #overview-stage {
+      display: flex;
+    }
+
+    .overview-cell {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      background: var(--surface-subtle);
+      padding: 12px;
+      break-inside: avoid;
+    }
+
+    .overview-title {
+      font-size: 0.82rem;
+      font-weight: 800;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .overview-cell svg {
+      display: block;
+    }
+
     @media print {
       body {
         background: #fff;
@@ -570,9 +748,18 @@
       .lt-footer,
       .layout-actions,
       .control-strip,
+      .plate-tabs,
       .side-panel,
       .status-line {
         display: none !important;
+      }
+
+      .plate-stage {
+        display: none !important;
+      }
+
+      #overview-stage {
+        display: flex !important;
       }
 
       .lt-page-body {
@@ -658,13 +845,14 @@
   <div class="layout-top">
     <div>
       <h1 class="lt-tool-title">Microplate Layout Planner</h1>
-      <p class="lt-tool-subtitle">Map treatment groups onto standard multi-well plates.</p>
+      <p class="lt-tool-subtitle">Map treatment groups, sample IDs, and custom fields across one or more multi-well plates.</p>
     </div>
     <div class="layout-actions">
       <input type="file" id="import-csv-input" accept=".csv,.txt" style="display:none" />
       <button class="btn-reset" type="button" id="import-csv-btn">Import CSV</button>
       <button class="btn-reset" type="button" id="export-csv-btn">Export CSV</button>
       <button class="btn-reset" type="button" id="export-png-btn">Export PNG</button>
+      <button class="btn-reset" type="button" id="view-all-btn">View All</button>
       <button class="btn-reset" type="button" id="print-btn">Print Layout</button>
       <button class="btn-reset" type="button" id="reset-btn">Reset Plate</button>
     </div>
@@ -686,6 +874,8 @@
       <div class="lt-badge lt-badge-blue" id="plate-summary">96 wells</div>
     </div>
   </div>
+
+  <div class="plate-tabs" id="plate-tabs" aria-label="Plates"></div>
 
   <div class="print-summary" id="print-summary"></div>
   <div class="print-legend" id="print-legend" aria-label="Printed group legend"></div>
@@ -725,13 +915,29 @@
       </div>
 
       <div class="side-section">
-        <div class="lt-section-label lt-section-label--tight">Groups</div>
-        <div class="group-create">
-          <input class="lt-input" id="new-group-name" type="text" maxlength="32" placeholder="Group name" />
-          <button class="btn-reset" type="button" id="add-group-btn">Add</button>
+        <div class="lt-section-label lt-section-label--tight">Fields</div>
+        <div class="cl-selectors">
+          <div>
+            <label for="color-by">Color by</label>
+            <select class="lt-select" id="color-by"></select>
+          </div>
+          <div>
+            <label for="label-by">Label by</label>
+            <select class="lt-select" id="label-by"></select>
+          </div>
         </div>
-        <div class="group-list" id="group-list"></div>
+        <div class="field-list" id="field-list"></div>
+        <div class="field-add">
+          <input class="lt-input" id="new-field-name" type="text" maxlength="32" placeholder="Field name" />
+          <select class="lt-select" id="new-field-kind">
+            <option value="text">Text</option>
+            <option value="category">Category</option>
+          </select>
+          <button class="btn-reset" type="button" id="add-field-btn">Add</button>
+        </div>
       </div>
+
+      <div class="side-section" id="value-editor" aria-label="Field value editor"></div>
 
       <div class="side-section">
         <div class="lt-section-label lt-section-label--tight">Legend</div>
@@ -739,6 +945,8 @@
       </div>
     </aside>
   </div>
+
+  <div id="overview-stage" aria-label="All plates overview"></div>
 
   <div class="lt-alert lt-alert-info status-line" id="status-line">Ready.</div>
 
@@ -864,29 +1072,95 @@ const PNG_EXPORT = {
   rightLegendWidth: 420,
 };
 
-let plateType = '96';
-let groups = [
-  { id: 'g1', name: 'Control', color: GROUP_COLORS[0] },
-  { id: 'g2', name: 'Treatment', color: GROUP_COLORS[1] },
-];
-let activeGroupId = 'g1';
-let assignments = {};
+// ── State ────────────────────────────────────────────────────────────────────
+// Fields are shared columns across every plate (keeps the CSV consistent). Exactly
+// one category field drives well color (colorFieldId). A well's data is a record
+// { [fieldId]: value } where a category value is a category id and a text value is a
+// string. Each plate owns its size, corner marks, and assignments.
+let fields = [];                 // [{ id, name, kind: 'category'|'text' }]
+let categoriesByField = {};      // fieldId -> [{ id, name, color }]
+let colorFieldId = 'group';      // category field that colors wells ("Color by")
+let labelFieldId = 'group';      // field whose value prints on the well face ("Label by")
+let activeFieldId = 'group';     // field targeted by the assign controls
+let activeCatByField = {};       // categoryFieldId -> active category id
+
+let plates = [];                 // [{ id, name, plateType, cutCorners:Set, assignments:{} }]
+let activePlateId = null;
+let overviewMode = false;
+
 let selectedWells = new Set();
 let selectionAnchor = null;
 let dragState = null;
 let clipboard = null;
-let groupSeq = 3;
-let cutCorners = new Set(['top-left']);
 let plateFrameObserver = null;
 let plateRenderRaf = 0;
 let currentPlatePxPerMm = PLATE_SCALE_LIMITS.min;
+let uidSeq = 1;
 
 const els = {};
+
+function uid(prefix) { return `${prefix}${(uidSeq++).toString(36)}${Date.now().toString(36)}`; }
+
+function seedDefaults() {
+  // `key` is the CSV column header (interop contract with qPCR: group/sample/gene);
+  // `name` is the editable display label. They start aligned but can diverge.
+  fields = [
+    { id: 'group', key: 'group', name: 'Group', kind: 'category' },
+    { id: 'sample', key: 'sample', name: 'Sample ID', kind: 'text' },
+    { id: 'gene', key: 'gene', name: 'Gene', kind: 'text' },
+  ];
+  categoriesByField = {
+    group: [
+      { id: 'c1', name: 'Control', color: GROUP_COLORS[0] },
+      { id: 'c2', name: 'Treatment', color: GROUP_COLORS[1] },
+    ],
+  };
+  activeCatByField = { group: 'c1' };
+  colorFieldId = 'group';
+  labelFieldId = 'group';
+  activeFieldId = 'group';
+  plates = [makePlate('96', 'Plate 1')];
+  activePlateId = plates[0].id;
+}
+
+function makePlate(plateType, name) {
+  return { id: uid('p'), name: name || nextPlateName(), plateType, cutCorners: new Set(['top-left']), assignments: {} };
+}
+
+function nextPlateName() {
+  let n = plates.length + 1;
+  const taken = new Set(plates.map((p) => p.name));
+  while (taken.has(`Plate ${n}`)) n += 1;
+  return `Plate ${n}`;
+}
+
+// ── Active-plate + field accessors ───────────────────────────────────────────
+function AP() { return plates.find((p) => p.id === activePlateId) || plates[0]; }
+function getField(id) { return fields.find((f) => f.id === id) || null; }
+function categoryFields() { return fields.filter((f) => f.kind === 'category'); }
+function cats(fieldId) { return categoriesByField[fieldId] || []; }
+function getCat(fieldId, catId) { return cats(fieldId).find((c) => c.id === catId) || null; }
+function wellValue(plate, wellId, fieldId) {
+  const rec = plate.assignments[wellId];
+  return rec ? rec[fieldId] : undefined;
+}
+function colorForWell(plate, wellId) {
+  const cat = getCat(colorFieldId, wellValue(plate, wellId, colorFieldId));
+  return cat ? cat.color : '';
+}
+function labelForWell(plate, wellId) {
+  const field = getField(labelFieldId);
+  if (!field) return '';
+  const value = wellValue(plate, wellId, labelFieldId);
+  if (value === undefined || value === '') return '';
+  return field.kind === 'category' ? (getCat(labelFieldId, value)?.name || '') : String(value);
+}
 
 document.addEventListener('DOMContentLoaded', init);
 
 function init() {
   cacheElements();
+  seedDefaults();
   setupLayoutObservers();
   renderPlateOptions();
   renderCornerToggles();
@@ -911,9 +1185,16 @@ function cacheElements() {
   els.clearBtn = document.getElementById('clear-btn');
   els.copyBtn = document.getElementById('copy-btn');
   els.pasteBtn = document.getElementById('paste-btn');
-  els.addGroupBtn = document.getElementById('add-group-btn');
-  els.newGroupName = document.getElementById('new-group-name');
-  els.groupList = document.getElementById('group-list');
+  els.plateTabs = document.getElementById('plate-tabs');
+  els.colorBy = document.getElementById('color-by');
+  els.labelBy = document.getElementById('label-by');
+  els.fieldList = document.getElementById('field-list');
+  els.newFieldName = document.getElementById('new-field-name');
+  els.newFieldKind = document.getElementById('new-field-kind');
+  els.addFieldBtn = document.getElementById('add-field-btn');
+  els.valueEditor = document.getElementById('value-editor');
+  els.overviewStage = document.getElementById('overview-stage');
+  els.viewAllBtn = document.getElementById('view-all-btn');
   els.legendList = document.getElementById('legend-list');
   els.importCsvInput = document.getElementById('import-csv-input');
   els.statusLine = document.getElementById('status-line');
@@ -928,7 +1209,7 @@ function setupLayoutObservers() {
   }
 
   window.addEventListener('resize', schedulePlateRender, { passive: true });
-  window.addEventListener('beforeprint', syncPlateRender);
+  window.addEventListener('beforeprint', () => { renderOverview(); syncPlateRender(); });
   window.addEventListener('afterprint', syncPlateRender);
 }
 
@@ -955,14 +1236,17 @@ function wireEvents() {
   document.addEventListener('pointerup', endDragSelection);
   document.addEventListener('keydown', onDocumentKeyDown);
 
-  els.assignBtn.addEventListener('click', assignSelectedToActiveGroup);
+  els.assignBtn.addEventListener('click', applyActiveFieldToSelection);
   els.clearBtn.addEventListener('click', clearSelectedWells);
   els.copyBtn.addEventListener('click', copySelectedWells);
   els.pasteBtn.addEventListener('click', pasteClipboardAtSelection);
-  els.addGroupBtn.addEventListener('click', addGroupFromInput);
-  els.newGroupName.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') addGroupFromInput();
+  els.addFieldBtn.addEventListener('click', addFieldFromInput);
+  els.newFieldName.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') addFieldFromInput();
   });
+  els.colorBy.addEventListener('change', () => { colorFieldId = els.colorBy.value; renderAll(); });
+  els.labelBy.addEventListener('change', () => { labelFieldId = els.labelBy.value; renderPlate(); renderMaybeOverview(); });
+  els.viewAllBtn.addEventListener('click', toggleOverview);
   document.getElementById('import-csv-btn').addEventListener('click', () => els.importCsvInput.click());
   els.importCsvInput.addEventListener('change', onImportCsvFile);
   document.getElementById('export-csv-btn').addEventListener('click', exportCsv);
@@ -974,12 +1258,13 @@ function wireEvents() {
 function renderPlateOptions() {
   els.plateType.innerHTML = Object.keys(PLATE_REFERENCE_MM).map((key) => {
     const plate = PLATE_REFERENCE_MM[key];
-    const selected = key === plateType ? ' selected' : '';
+    const selected = key === AP().plateType ? ' selected' : '';
     return `<option value="${key}"${selected}>${plate.label} (${plate.rows} x ${plate.cols})</option>`;
   }).join('');
 }
 
 function renderCornerToggles() {
+  const cutCorners = AP().cutCorners;
   els.cornerToggles.innerHTML = CORNERS.map((corner) => {
     const checked = cutCorners.has(corner.id) ? ' checked' : '';
     return `
@@ -991,8 +1276,8 @@ function renderCornerToggles() {
 
   els.cornerToggles.querySelectorAll('input[data-corner]').forEach((input) => {
     input.addEventListener('change', () => {
-      if (input.checked) cutCorners.add(input.dataset.corner);
-      else cutCorners.delete(input.dataset.corner);
+      if (input.checked) AP().cutCorners.add(input.dataset.corner);
+      else AP().cutCorners.delete(input.dataset.corner);
       renderPlateFrameCorners();
       renderPrintSummary();
     });
@@ -1000,14 +1285,54 @@ function renderCornerToggles() {
 }
 
 function renderAll() {
+  renderPlateTabs();
   renderPlate();
-  renderGroups();
+  renderFields();
   renderLegend();
   renderSelectionState();
   renderPrintSummary();
+  renderMaybeOverview();
+}
+
+// ── Plate tabs ───────────────────────────────────────────────────────────────
+function renderPlateTabs() {
+  els.plateTabs.innerHTML = '';
+  plates.forEach((plate) => {
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = `plate-tab${plate.id === activePlateId ? ' active' : ''}`;
+    tab.title = 'Click to edit · double-click to rename';
+    tab.innerHTML = `<span>${escHtml(plate.name)}</span><span class="plate-tab-size">${plate.plateType}w</span>` +
+      (plates.length > 1 ? '<span class="plate-tab-remove" title="Remove plate">&times;</span>' : '');
+    tab.addEventListener('click', (event) => {
+      if (event.target.classList.contains('plate-tab-remove')) { removePlate(plate.id); return; }
+      switchToPlate(plate.id);
+    });
+    tab.addEventListener('dblclick', () => renamePlate(plate.id));
+    els.plateTabs.appendChild(tab);
+  });
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'plate-tab-add';
+  add.textContent = '+ Add plate';
+  add.addEventListener('click', addPlate);
+  els.plateTabs.appendChild(add);
+}
+
+function toggleOverview() {
+  overviewMode = !overviewMode;
+  document.body.classList.toggle('overview', overviewMode);
+  els.viewAllBtn.textContent = overviewMode ? 'Edit Plate' : 'View All';
+  if (overviewMode) renderOverview();
+  else renderPlate();
+}
+
+function renderMaybeOverview() {
+  if (overviewMode) renderOverview();
 }
 
 function renderPlate() {
+  const plateType = AP().plateType;
   const plate = PLATE_REFERENCE_MM[plateType];
   const metrics = getPlateMetrics(plate);
   currentPlatePxPerMm = metrics.pxPerMm;
@@ -1033,7 +1358,7 @@ function renderPlate() {
     }
   }
 
-  els.plateSummary.textContent = `${plateType} wells`;
+  els.plateSummary.textContent = `${plate.rows * plate.cols} wells`;
   renderPlateFrameCorners();
 }
 
@@ -1066,8 +1391,10 @@ function createRowButton(plate, metrics, row) {
 }
 
 function createWellButton(plate, metrics, row, col) {
+  const ap = AP();
   const wellId = getWellId(row, col);
-  const group = getGroup(assignments[wellId]);
+  const color = colorForWell(ap, wellId);
+  const labelText = labelForWell(ap, wellId);
   const button = document.createElement('button');
   button.className = 'well';
   button.type = 'button';
@@ -1076,21 +1403,22 @@ function createWellButton(plate, metrics, row, col) {
   button.dataset.col = String(col);
   button.dataset.shape = plate.shape || 'round';
   button.setAttribute('role', 'gridcell');
-  button.setAttribute('aria-label', group ? `${wellId}, ${group.name}` : `${wellId}, unassigned`);
+  button.setAttribute('aria-label', labelText ? `${wellId}, ${labelText}` : `${wellId}, unassigned`);
   button.style.setProperty('--well-size', px(metrics.wellDiameterPx));
   button.style.setProperty('--well-x', px(getWellCenterXPx(plate, metrics, col)));
   button.style.setProperty('--well-y', px(getWellCenterYPx(plate, metrics, row)));
   button.innerHTML = `
     <span class="well-id">${wellId}</span>
-    <span class="well-label">${group ? escHtml(group.name) : ''}</span>
-    <span class="well-initials">${group ? escHtml(groupInitials(group.name)) : ''}</span>
+    <span class="well-label">${escHtml(labelText)}</span>
+    <span class="well-initials">${escHtml(groupInitials(labelText))}</span>
   `;
 
-  if (group) {
+  if (color) {
     button.classList.add('assigned');
-    button.style.setProperty('--well-color', group.color);
-    button.style.setProperty('--well-text', contrastText(group.color));
+    button.style.setProperty('--well-color', color);
+    button.style.setProperty('--well-text', contrastText(color));
   }
+  if (labelText) button.classList.add('has-label');
   if (selectedWells.has(wellId)) button.classList.add('selected');
   return button;
 }
@@ -1101,7 +1429,7 @@ function renderPlateFrameCorners() {
   if (!width || !height) return;
 
   const cutSize = getPlateCutSize(width, height);
-  const points = buildPlateFramePoints(width, height, cutSize);
+  const points = buildPlateFramePoints(width, height, cutSize, AP().cutCorners);
   const polygon = points.map(([x, y]) => `${x}px ${y}px`).join(', ');
   const pathData = points.map(([x, y], index) => `${index === 0 ? 'M' : 'L'}${x} ${y}`).join(' ') + ' Z';
 
@@ -1117,7 +1445,7 @@ function getPlateCutSize(width, height) {
   return Math.round(Math.min(requested, safeMax));
 }
 
-function buildPlateFramePoints(width, height, cutSize) {
+function buildPlateFramePoints(width, height, cutSize, cutCorners) {
   const points = [];
   const hasTopLeft = cutCorners.has('top-left');
   const hasTopRight = cutCorners.has('top-right');
@@ -1148,119 +1476,187 @@ function buildPlateFramePoints(width, height, cutSize) {
   return points;
 }
 
-function renderGroups() {
-  if (groups.length === 0) {
-    els.groupList.innerHTML = '<div class="lt-alert lt-alert-info">No groups.</div>';
-  } else {
-    els.groupList.innerHTML = '';
-    groups.forEach((group) => {
+// ── Field manager + value editor ─────────────────────────────────────────────
+function renderFields() {
+  els.colorBy.innerHTML = categoryFields().map((f) =>
+    `<option value="${f.id}"${f.id === colorFieldId ? ' selected' : ''}>${escHtml(f.name)}</option>`).join('');
+  els.labelBy.innerHTML = fields.map((f) =>
+    `<option value="${f.id}"${f.id === labelFieldId ? ' selected' : ''}>${escHtml(f.name)}</option>`).join('');
+
+  els.fieldList.innerHTML = '';
+  fields.forEach((field) => {
+    const row = document.createElement('div');
+    row.className = `field-row${field.id === activeFieldId ? ' active' : ''}`;
+    row.dataset.fieldId = field.id;
+    const lastCategory = field.kind === 'category' && categoryFields().length === 1;
+    row.innerHTML = `
+      <span class="field-kind" title="${field.kind === 'category' ? 'Category (colored values)' : 'Free text'}">${field.kind === 'category' ? 'Cat' : 'Txt'}</span>
+      <input class="field-name" type="text" maxlength="32" value="${escAttr(field.name)}" aria-label="Field name" />
+      <button class="group-delete" type="button" title="Delete field" ${lastCategory ? 'disabled' : ''}>&times;</button>
+    `;
+    row.addEventListener('click', (event) => {
+      if (event.target.classList.contains('group-delete') || event.target.classList.contains('field-name')) return;
+      setActiveField(field.id);
+    });
+    const nameInput = row.querySelector('.field-name');
+    nameInput.addEventListener('focus', () => setActiveField(field.id));
+    nameInput.addEventListener('input', (event) => {
+      field.name = event.target.value.trim() || 'Field';
+      renderPlate(); renderLegend(); renderPrintSummary();
+    });
+    if (!lastCategory) row.querySelector('.group-delete').addEventListener('click', () => deleteField(field.id));
+    els.fieldList.appendChild(row);
+  });
+
+  renderValueEditor();
+}
+
+function renderValueEditor() {
+  const field = getField(activeFieldId) || fields[0];
+  els.valueEditor.innerHTML = '';
+  if (!field) return;
+  const title = document.createElement('div');
+  title.className = 'lt-section-label lt-section-label--tight';
+  title.textContent = `${field.name} value`;
+  els.valueEditor.appendChild(title);
+
+  if (field.kind === 'category') {
+    const create = document.createElement('div');
+    create.className = 'group-create';
+    create.innerHTML = `<input class="lt-input" id="new-cat-name" type="text" maxlength="32" placeholder="${escAttr(field.name)} value" /><button class="btn-reset" type="button" id="add-cat-btn">Add</button>`;
+    els.valueEditor.appendChild(create);
+
+    const list = document.createElement('div');
+    list.className = 'group-list';
+    cats(field.id).forEach((cat) => {
       const row = document.createElement('div');
-      row.className = `group-row${group.id === activeGroupId ? ' active' : ''}`;
-      row.dataset.groupId = group.id;
+      row.className = `group-row${activeCatByField[field.id] === cat.id ? ' active' : ''}`;
+      row.dataset.catId = cat.id;
       row.innerHTML = `
-        <button class="group-swatch" type="button" title="Set active group"></button>
-        <input class="group-name" type="text" maxlength="32" value="${escAttr(group.name)}" aria-label="Group name" />
-        <button class="group-delete" type="button" title="Delete group" aria-label="Delete group">&times;</button>
-      `;
-      const swatch = row.querySelector('.group-swatch');
-      swatch.style.background = group.color;
-      swatch.addEventListener('click', () => setActiveGroup(group.id));
+        <button class="group-swatch" type="button" title="Set active value"></button>
+        <input class="group-name" type="text" maxlength="32" value="${escAttr(cat.name)}" aria-label="Value name" />
+        <button class="group-delete" type="button" title="Delete value">&times;</button>`;
+      row.querySelector('.group-swatch').style.background = cat.color;
       row.addEventListener('click', (event) => {
-        if (event.target.classList.contains('group-delete')) return;
-        if (event.target.classList.contains('group-name')) return;
-        setActiveGroup(group.id);
+        if (event.target.classList.contains('group-delete') || event.target.classList.contains('group-name')) return;
+        setActiveCategory(field.id, cat.id);
       });
       row.querySelector('.group-name').addEventListener('input', (event) => {
-        group.name = event.target.value.trim() || 'Unnamed group';
-        renderPlate();
-        renderLegend();
-        renderPrintSummary();
+        cat.name = event.target.value.trim() || 'Value';
+        renderPlate(); renderLegend(); renderPrintSummary();
       });
-      row.querySelector('.group-name').addEventListener('focus', () => setActiveGroup(group.id));
-      row.querySelector('.group-delete').addEventListener('click', () => deleteGroup(group.id));
-      els.groupList.appendChild(row);
+      row.querySelector('.group-name').addEventListener('focus', () => setActiveCategory(field.id, cat.id));
+      row.querySelector('.group-delete').addEventListener('click', () => deleteCategory(field.id, cat.id));
+      list.appendChild(row);
+    });
+    els.valueEditor.appendChild(list);
+    create.querySelector('#add-cat-btn').addEventListener('click', () => addCategoryFromInput(field.id));
+    create.querySelector('#new-cat-name').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') addCategoryFromInput(field.id);
+    });
+  } else {
+    const row = document.createElement('div');
+    row.className = 'value-text-row';
+    row.innerHTML = `<input class="lt-input" id="text-value" type="text" maxlength="60" placeholder="${escAttr(field.name)} for selected wells" /><button class="lt-btn lt-btn-primary" type="button" id="apply-text-btn">Apply</button>`;
+    els.valueEditor.appendChild(row);
+    row.querySelector('#apply-text-btn').addEventListener('click', applyActiveFieldToSelection);
+    row.querySelector('#text-value').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') applyActiveFieldToSelection();
     });
   }
-
-  els.assignBtn.disabled = !activeGroupId || selectedWells.size === 0;
 }
 
 function renderLegend() {
-  if (groups.length === 0) {
-    els.legendList.innerHTML = '<div class="lt-alert lt-alert-info">No assigned groups.</div>';
+  const field = getField(colorFieldId);
+  const infos = assignedCategoryInfo(colorFieldId, [AP()]);
+  if (infos.length === 0) {
+    els.legendList.innerHTML = `<div class="lt-alert lt-alert-info">No assigned ${escHtml(field ? field.name : 'values')}.</div>`;
     return;
   }
-
   els.legendList.innerHTML = '';
-  groups.forEach((group) => {
-    const display = getGroupDisplayInfo(group);
-    const abbreviation = display.abbreviationUsed
-      ? `<span class="legend-abbrev">${escHtml(display.abbreviation)}</span>`
+  infos.forEach((info) => {
+    const abbreviation = info.abbreviationUsed
+      ? `<span class="legend-abbrev">${escHtml(info.abbreviation)}</span>`
       : '';
     const row = document.createElement('div');
     row.className = 'legend-row';
     row.innerHTML = `
-      <span><span class="group-swatch" style="background:${display.color}"></span> ${escHtml(display.name)}${abbreviation}</span>
-      <span class="legend-count">${display.count}</span>
+      <span><span class="group-swatch" style="background:${info.color}"></span> ${escHtml(info.name)}${abbreviation}</span>
+      <span class="legend-count">${info.count}</span>
     `;
     els.legendList.appendChild(row);
   });
 }
 
+function countWellsWithValue(plate, fieldId, value) {
+  let n = 0;
+  for (const w in plate.assignments) if (plate.assignments[w][fieldId] === value) n += 1;
+  return n;
+}
+
+function assignedCategoryInfo(fieldId, platesList, labelMode = getCurrentLabelMode()) {
+  return cats(fieldId).map((cat) => {
+    const count = platesList.reduce((sum, plate) => sum + countWellsWithValue(plate, fieldId, cat.id), 0);
+    const abbreviation = groupInitials(cat.name);
+    return {
+      id: cat.id, name: cat.name, color: cat.color, abbreviation,
+      abbreviationUsed: labelMode === 'compact' && abbreviation !== '', count,
+    };
+  }).filter((info) => info.count > 0);
+}
+
 function renderSelectionState() {
   els.selectedCount.textContent = String(selectedWells.size);
   els.clipboardCount.textContent = clipboard ? String(clipboard.cells.length) : '0';
-  els.assignBtn.disabled = !activeGroupId || selectedWells.size === 0;
+  els.assignBtn.disabled = selectedWells.size === 0;
   els.clearBtn.disabled = selectedWells.size === 0;
   els.copyBtn.disabled = selectedWells.size === 0;
   els.pasteBtn.disabled = !clipboard;
 }
 
 function renderPrintSummary() {
-  const plate = PLATE_REFERENCE_MM[plateType];
-  const corners = Array.from(cutCorners).map(cornerLabel).join(', ') || 'none';
-  const used = Object.keys(assignments).length;
-  const groupLines = getAssignedGroupDisplayInfo()
-    .map((group) => `${escHtml(group.name)} (${group.count})`)
-    .join('; ');
-  els.printSummary.innerHTML = `
-    <strong>${plate.label}</strong> - ${plate.rows} x ${plate.cols}; ${used} assigned wells; corner marks: ${escHtml(corners)}.
-    ${groupLines ? `<br>${groupLines}` : ''}
-  `;
+  const lines = plates.map((plate) => {
+    const ref = PLATE_REFERENCE_MM[plate.plateType];
+    const corners = Array.from(plate.cutCorners).map(cornerLabel).join(', ') || 'none';
+    const used = Object.keys(plate.assignments).length;
+    return `<strong>${escHtml(plate.name)}</strong> — ${ref.label}, ${ref.rows} x ${ref.cols}; ${used} labelled wells; corner marks: ${escHtml(corners)}.`;
+  }).join('<br>');
+  els.printSummary.innerHTML = lines;
   renderPrintLegend();
 }
 
 function renderPrintLegend() {
-  const assignedGroups = getAssignedGroupDisplayInfo();
-  if (assignedGroups.length === 0) {
+  const field = getField(colorFieldId);
+  const infos = assignedCategoryInfo(colorFieldId, plates, 'compact');
+  if (infos.length === 0) {
     els.printLegend.innerHTML = '';
     return;
   }
 
-  const rows = assignedGroups.map((group) => {
-    const abbreviation = group.abbreviationUsed
-      ? `<span class="print-legend-abbrev">${escHtml(group.abbreviation)} =</span>`
+  const rows = infos.map((info) => {
+    const abbreviation = info.abbreviationUsed
+      ? `<span class="print-legend-abbrev">${escHtml(info.abbreviation)} =</span>`
       : '';
     return `
       <div class="print-legend-item">
-        <span class="print-legend-swatch" style="background:${group.color}"></span>
+        <span class="print-legend-swatch" style="background:${info.color}"></span>
         ${abbreviation}
-        <span class="print-legend-name">${escHtml(group.name)}</span>
-        <span class="print-legend-count">(${group.count})</span>
+        <span class="print-legend-name">${escHtml(info.name)}</span>
+        <span class="print-legend-count">(${info.count})</span>
       </div>`;
   }).join('');
 
   els.printLegend.innerHTML = `
-    <div class="print-legend-title">Group Legend</div>
+    <div class="print-legend-title">${escHtml(field ? field.name : 'Legend')} Legend</div>
     <div class="print-legend-grid">${rows}</div>
   `;
 }
 
 function onPlateTypeChange() {
-  plateType = els.plateType.value;
+  AP().plateType = els.plateType.value;
   trimAssignmentsAndSelectionToPlate();
   renderAll();
-  setStatus(`Switched to ${PLATE_REFERENCE_MM[plateType].label}.`, 'info');
+  setStatus(`Set ${AP().name} to ${PLATE_REFERENCE_MM[AP().plateType].label}.`, 'info');
 }
 
 function onPlatePointerDown(event) {
@@ -1320,7 +1716,7 @@ function onDocumentKeyDown(event) {
 }
 
 function selectRow(row) {
-  const plate = PLATE_REFERENCE_MM[plateType];
+  const plate = PLATE_REFERENCE_MM[AP().plateType];
   selectedWells = new Set();
   for (let col = 0; col < plate.cols; col++) {
     selectedWells.add(getWellId(row, col));
@@ -1330,7 +1726,7 @@ function selectRow(row) {
 }
 
 function selectColumn(col) {
-  const plate = PLATE_REFERENCE_MM[plateType];
+  const plate = PLATE_REFERENCE_MM[AP().plateType];
   selectedWells = new Set();
   for (let row = 0; row < plate.rows; row++) {
     selectedWells.add(getWellId(row, col));
@@ -1456,62 +1852,179 @@ function getWellCenterYPx(plate, metrics, row) {
   return roundPx(metrics.gridOffsetYpx + row * metrics.pitchPx);
 }
 
-function setActiveGroup(groupId) {
-  activeGroupId = groupId;
-  els.groupList.querySelectorAll('.group-row').forEach((row) => {
-    row.classList.toggle('active', row.dataset.groupId === groupId);
-  });
-  renderSelectionState();
+// ── Plate operations ─────────────────────────────────────────────────────────
+function switchToPlate(plateId) {
+  if (plateId === activePlateId) return;
+  activePlateId = plateId;
+  selectedWells.clear();
+  selectionAnchor = null;
+  renderPlateOptions();
+  renderCornerToggles();
+  renderAll();
+  setStatus(`Editing ${AP().name}.`, 'info');
 }
 
-function addGroupFromInput() {
-  const name = els.newGroupName.value.trim() || `Group ${groupSeq}`;
-  const id = `g${Date.now().toString(36)}${groupSeq}`;
-  const color = GROUP_COLORS[(groupSeq - 1) % GROUP_COLORS.length];
-  groupSeq += 1;
-  groups.push({ id, name, color });
-  activeGroupId = id;
-  els.newGroupName.value = '';
-  renderGroups();
+function addPlate() {
+  const plate = makePlate(AP().plateType, nextPlateName());
+  plates.push(plate);
+  activePlateId = plate.id;
+  selectedWells.clear();
+  selectionAnchor = null;
+  renderPlateOptions();
+  renderCornerToggles();
+  renderAll();
+  setStatus(`Added ${plate.name}.`, 'success');
+}
+
+function removePlate(plateId) {
+  if (plates.length <= 1) return;
+  const plate = plates.find((p) => p.id === plateId);
+  if (!plate) return;
+  if (!confirm(`Remove ${plate.name} and its layout?`)) return;
+  plates = plates.filter((p) => p.id !== plateId);
+  if (activePlateId === plateId) activePlateId = plates[0].id;
+  selectedWells.clear();
+  selectionAnchor = null;
+  renderPlateOptions();
+  renderCornerToggles();
+  renderAll();
+  setStatus(`Removed ${plate.name}.`, 'info');
+}
+
+function renamePlate(plateId) {
+  const plate = plates.find((p) => p.id === plateId);
+  if (!plate) return;
+  const name = (prompt('Plate name', plate.name) || '').trim();
+  if (!name) return;
+  plate.name = name;
+  renderPlateTabs();
+  renderPrintSummary();
+}
+
+// ── Field operations ─────────────────────────────────────────────────────────
+function setActiveField(fieldId) {
+  activeFieldId = fieldId;
+  renderFields();
+}
+
+function addFieldFromInput() {
+  const name = els.newFieldName.value.trim() || 'Field';
+  const kind = els.newFieldKind.value === 'category' ? 'category' : 'text';
+  const id = uid('f');
+  const key = uniqueFieldKey(name);
+  fields.push({ id, key, name, kind });
+  if (kind === 'category') { categoriesByField[id] = []; activeCatByField[id] = null; }
+  activeFieldId = id;
+  els.newFieldName.value = '';
+  renderFields();
+  renderColorLabelDefaults();
+  setStatus(`Added ${kind} field "${name}".`, 'success');
+}
+
+function deleteField(fieldId) {
+  const field = getField(fieldId);
+  if (!field) return;
+  if (field.kind === 'category' && categoryFields().length === 1) return;
+  fields = fields.filter((f) => f.id !== fieldId);
+  delete categoriesByField[fieldId];
+  delete activeCatByField[fieldId];
+  plates.forEach((plate) => {
+    Object.keys(plate.assignments).forEach((wellId) => {
+      delete plate.assignments[wellId][fieldId];
+      if (Object.keys(plate.assignments[wellId]).length === 0) delete plate.assignments[wellId];
+    });
+  });
+  if (activeFieldId === fieldId) activeFieldId = fields[0].id;
+  renderColorLabelDefaults();
+  renderAll();
+  setStatus(`Deleted field "${field.name}".`, 'info');
+}
+
+// Keep colorFieldId/labelFieldId pointing at valid fields after field changes.
+function renderColorLabelDefaults() {
+  if (!getField(colorFieldId) || getField(colorFieldId).kind !== 'category') {
+    colorFieldId = (categoryFields()[0] || {}).id || colorFieldId;
+  }
+  if (!getField(labelFieldId)) labelFieldId = colorFieldId;
+}
+
+function setActiveCategory(fieldId, catId) {
+  activeFieldId = fieldId;
+  activeCatByField[fieldId] = catId;
+  renderFields();
+}
+
+function nextCategoryColor(fieldId) {
+  return GROUP_COLORS[cats(fieldId).length % GROUP_COLORS.length];
+}
+
+function addCategoryFromInput(fieldId) {
+  const input = document.getElementById('new-cat-name');
+  const name = (input ? input.value.trim() : '') || `Value ${cats(fieldId).length + 1}`;
+  const cat = { id: uid('c'), name, color: nextCategoryColor(fieldId) };
+  (categoriesByField[fieldId] = categoriesByField[fieldId] || []).push(cat);
+  activeCatByField[fieldId] = cat.id;
+  activeFieldId = fieldId;
+  renderFields();
   renderLegend();
   renderPrintSummary();
-  setStatus(`Added ${name}.`, 'success');
+  setStatus(`Added ${getField(fieldId).name} value "${name}".`, 'success');
 }
 
-function deleteGroup(groupId) {
-  const group = getGroup(groupId);
-  if (!group) return;
-  groups = groups.filter((item) => item.id !== groupId);
-  Object.keys(assignments).forEach((wellId) => {
-    if (assignments[wellId] === groupId) delete assignments[wellId];
+function deleteCategory(fieldId, catId) {
+  const cat = getCat(fieldId, catId);
+  if (!cat) return;
+  categoriesByField[fieldId] = cats(fieldId).filter((c) => c.id !== catId);
+  plates.forEach((plate) => {
+    Object.keys(plate.assignments).forEach((wellId) => {
+      if (plate.assignments[wellId][fieldId] === catId) {
+        delete plate.assignments[wellId][fieldId];
+        if (Object.keys(plate.assignments[wellId]).length === 0) delete plate.assignments[wellId];
+      }
+    });
   });
-  if (activeGroupId === groupId) activeGroupId = groups[0] ? groups[0].id : null;
+  if (activeCatByField[fieldId] === catId) activeCatByField[fieldId] = (cats(fieldId)[0] || {}).id || null;
   renderAll();
-  setStatus(`Deleted ${group.name} and cleared its wells.`, 'info');
+  setStatus(`Deleted value "${cat.name}" and cleared its wells.`, 'info');
 }
 
-function assignSelectedToActiveGroup() {
-  const group = getGroup(activeGroupId);
-  if (!group || selectedWells.size === 0) return;
+// ── Assign / clear / copy / paste (per-well field records) ───────────────────
+function applyActiveFieldToSelection() {
+  if (selectedWells.size === 0) { setStatus('Select wells first.', 'danger'); return; }
+  const field = getField(activeFieldId);
+  if (!field) return;
+  let value;
+  if (field.kind === 'category') {
+    value = activeCatByField[field.id];
+    if (!value) { setStatus(`Add a ${field.name} value first.`, 'danger'); return; }
+  } else {
+    const input = document.getElementById('text-value');
+    value = input ? input.value.trim() : '';
+    if (!value) { setStatus(`Enter a ${field.name} value.`, 'danger'); return; }
+  }
+  const ap = AP();
   selectedWells.forEach((wellId) => {
-    assignments[wellId] = group.id;
+    const rec = ap.assignments[wellId] || (ap.assignments[wellId] = {});
+    rec[field.id] = value;
   });
   renderPlate();
   renderLegend();
   renderSelectionState();
   renderPrintSummary();
-  setStatus(`Assigned ${selectedWells.size} wells to ${group.name}.`, 'success');
+  renderMaybeOverview();
+  const shown = field.kind === 'category' ? (getCat(field.id, value)?.name || value) : value;
+  setStatus(`Set ${field.name} = "${shown}" on ${selectedWells.size} wells.`, 'success');
 }
 
 function clearSelectedWells() {
   if (selectedWells.size === 0) return;
-  selectedWells.forEach((wellId) => {
-    delete assignments[wellId];
-  });
+  const ap = AP();
+  selectedWells.forEach((wellId) => { delete ap.assignments[wellId]; });
   renderPlate();
   renderLegend();
   renderSelectionState();
   renderPrintSummary();
+  renderMaybeOverview();
   setStatus(`Cleared ${selectedWells.size} wells.`, 'info');
 }
 
@@ -1520,25 +2033,16 @@ function copySelectedWells() {
     setStatus('Select wells before copying.', 'danger');
     return;
   }
-
+  const ap = AP();
   const wells = sortedSelectedPositions();
   const minRow = Math.min(...wells.map((well) => well.row));
   const minCol = Math.min(...wells.map((well) => well.col));
-  const usedGroupIds = new Set();
-  const cells = wells.map((well) => {
-    const groupId = assignments[well.id] || null;
-    if (groupId) usedGroupIds.add(groupId);
-    return {
-      dr: well.row - minRow,
-      dc: well.col - minCol,
-      groupId,
-    };
-  });
-
-  clipboard = {
-    cells,
-    groups: groups.filter((group) => usedGroupIds.has(group.id)).map((group) => ({ ...group })),
-  };
+  const cells = wells.map((well) => ({
+    dr: well.row - minRow,
+    dc: well.col - minCol,
+    rec: { ...(ap.assignments[well.id] || {}) },
+  }));
+  clipboard = { cells };
   renderSelectionState();
   setStatus(`Copied ${clipboard.cells.length} wells.`, 'success');
 }
@@ -1548,15 +2052,14 @@ function pasteClipboardAtSelection() {
     setStatus('Copy wells before pasting.', 'danger');
     return;
   }
-
   const anchor = pasteAnchorPosition();
   if (!anchor) {
     setStatus('Select a destination well before pasting.', 'danger');
     return;
   }
 
-  ensureClipboardGroups();
-  const plate = PLATE_REFERENCE_MM[plateType];
+  const ap = AP();
+  const plate = PLATE_REFERENCE_MM[ap.plateType];
   const pasted = [];
   let skipped = 0;
 
@@ -1568,29 +2071,22 @@ function pasteClipboardAtSelection() {
       return;
     }
     const wellId = getWellId(row, col);
-    if (cell.groupId) assignments[wellId] = cell.groupId;
-    else delete assignments[wellId];
+    if (Object.keys(cell.rec).length) ap.assignments[wellId] = { ...cell.rec };
+    else delete ap.assignments[wellId];
     pasted.push(wellId);
   });
 
   selectedWells = new Set(pasted);
   selectionAnchor = pasted[0] || selectionAnchor;
   renderPlate();
-  renderGroups();
   renderLegend();
   renderSelectionState();
   renderPrintSummary();
+  renderMaybeOverview();
   markPastedWells(pasted);
 
   const suffix = skipped > 0 ? ` ${skipped} out-of-bounds wells skipped.` : '';
   setStatus(`Pasted ${pasted.length} wells.${suffix}`, skipped > 0 ? 'warn' : 'success');
-}
-
-function ensureClipboardGroups() {
-  clipboard.groups.forEach((copiedGroup) => {
-    if (!getGroup(copiedGroup.id)) groups.push({ ...copiedGroup });
-  });
-  if (!activeGroupId && groups[0]) activeGroupId = groups[0].id;
 }
 
 function markPastedWells(wellIds) {
@@ -1608,6 +2104,61 @@ function pasteAnchorPosition() {
   return anchorWell ? wellPosition(anchorWell) : null;
 }
 
+// ── Read-only "view all" overview (SVG small multiples) ──────────────────────
+function renderOverview() {
+  els.overviewStage.innerHTML = '';
+  plates.forEach((plate) => {
+    const ref = PLATE_REFERENCE_MM[plate.plateType];
+    const cell = document.createElement('div');
+    cell.className = 'overview-cell';
+    const title = document.createElement('div');
+    title.className = 'overview-title';
+    title.textContent = `${plate.name} · ${ref.label} · ${Object.keys(plate.assignments).length} labelled`;
+    cell.appendChild(title);
+    cell.insertAdjacentHTML('beforeend', buildPlateSvg(plate, ref, 360));
+    els.overviewStage.appendChild(cell);
+  });
+}
+
+function buildPlateSvg(plate, ref, targetWidthPx) {
+  const pxPerMm = targetWidthPx / PLATE_UI_MM.outerWidth;
+  const W = PLATE_UI_MM.outerWidth * pxPerMm;
+  const H = PLATE_UI_MM.outerHeight * pxPerMm;
+  const pitch = ref.pitchMm * pxPerMm;
+  const wellD = ref.wellDiameterMm * pxPerMm;
+  const r = wellD / 2;
+  const offX = ref.a1ColOffsetMm * pxPerMm;
+  const offY = ref.a1RowOffsetMm * pxPerMm;
+  const cutSize = getPngPlateCutSize(W, H, pxPerMm);
+  const pts = buildPlateFramePoints(W, H, cutSize, plate.cutCorners)
+    .map(([x, y]) => `${roundPx(x)},${roundPx(y)}`).join(' ');
+  const labelMode = getLabelMode(wellD);
+
+  let cells = '';
+  for (let row = 0; row < ref.rows; row++) {
+    for (let col = 0; col < ref.cols; col++) {
+      const wellId = getWellId(row, col);
+      const color = colorForWell(plate, wellId);
+      const cx = offX + col * pitch;
+      const cy = offY + row * pitch;
+      const fill = color || '#ffffff';
+      const stroke = color ? 'rgba(0,0,0,0.28)' : '#d8d6d0';
+      if (ref.shape === 'square') {
+        cells += `<rect x="${roundPx(cx - r)}" y="${roundPx(cy - r)}" width="${roundPx(wellD)}" height="${roundPx(wellD)}" rx="${roundPx(wellD * 0.18)}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
+      } else {
+        cells += `<circle cx="${roundPx(cx)}" cy="${roundPx(cy)}" r="${roundPx(r)}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`;
+      }
+      const labelText = labelForWell(plate, wellId);
+      if (labelText && labelMode !== 'color') {
+        const txt = labelMode === 'compact' ? groupInitials(labelText) : labelText;
+        const fs = clamp(wellD * (labelMode === 'compact' ? 0.4 : 0.26), 5, 13);
+        cells += `<text x="${roundPx(cx)}" y="${roundPx(cy)}" font-size="${roundPx(fs)}" font-family="Arial, sans-serif" font-weight="700" fill="${contrastText(color || '#ffffff')}" text-anchor="middle" dominant-baseline="central">${escHtml(txt)}</text>`;
+      }
+    }
+  }
+  return `<svg width="${roundPx(W)}" height="${roundPx(H)}" viewBox="0 0 ${roundPx(W)} ${roundPx(H)}" xmlns="http://www.w3.org/2000/svg"><polygon points="${pts}" fill="#fffefb" stroke="#b9b5ac" stroke-width="1.5"/>${cells}</svg>`;
+}
+
 function exportPng() {
   const canvas = document.createElement('canvas');
   canvas.width = PNG_EXPORT.width;
@@ -1620,7 +2171,9 @@ function exportPng() {
 
   drawPngExport(ctx);
 
-  const filename = `microplate-layout-planner-${plateType}-well.png`;
+  const filename = plates.length > 1
+    ? `microplate-layout-planner-${plates.length}-plates.png`
+    : `microplate-layout-planner-${AP().plateType}-well.png`;
   canvas.toBlob((blob) => {
     if (!blob) {
       setStatus('Unable to generate PNG export.', 'danger');
@@ -1636,18 +2189,36 @@ function exportPng() {
 }
 
 function drawPngExport(ctx) {
-  const plate = PLATE_REFERENCE_MM[plateType];
-  const plateBounds = getPngPlateBounds();
   const legendBounds = getPngLegendBounds();
-  const metrics = getPngPlateMetrics(plate, plateBounds);
-  const labelMode = getPngLabelMode(plate);
-  const assignedGroups = getAssignedGroupDisplayInfo(labelMode);
-
   ctx.save();
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, PNG_EXPORT.width, PNG_EXPORT.height);
-  drawPngPlate(ctx, plate, metrics, labelMode);
-  drawPngLegend(ctx, legendBounds, assignedGroups);
+
+  const area = getPngPlateBounds();
+  const n = plates.length;
+  const cols = Math.ceil(Math.sqrt(n));
+  const rows = Math.ceil(n / cols);
+  const cellGap = 24;
+  const titleH = 30;
+  const cellW = (area.width - cellGap * (cols - 1)) / cols;
+  const cellH = (area.height - cellGap * (rows - 1)) / rows;
+
+  plates.forEach((plate, i) => {
+    const cx = area.x + (i % cols) * (cellW + cellGap);
+    const cy = area.y + Math.floor(i / cols) * (cellH + cellGap);
+    const ref = PLATE_REFERENCE_MM[plate.plateType];
+    ctx.fillStyle = '#37352f';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = '800 20px Arial, sans-serif';
+    fillTextFit(ctx, `${plate.name} · ${ref.label}`, cx, cy + 20, cellW);
+    const bounds = { x: cx, y: cy + titleH, width: cellW, height: cellH - titleH };
+    const metrics = getPngPlateMetrics(ref, bounds);
+    drawPngPlate(ctx, plate, ref, metrics, getPngLabelMode(ref));
+  });
+
+  const legendInfos = assignedCategoryInfo(colorFieldId, plates, 'compact');
+  drawPngLegend(ctx, legendBounds, legendInfos, getField(colorFieldId));
   ctx.restore();
 }
 
@@ -1706,9 +2277,9 @@ function getPngLabelMode(plate) {
   return getLabelMode(plate.wellDiameterMm * PLATE_SCALE_LIMITS.max);
 }
 
-function drawPngPlate(ctx, plate, metrics, labelMode) {
+function drawPngPlate(ctx, plateObj, ref, metrics, labelMode) {
   const cutSize = getPngPlateCutSize(metrics.frameWidthPx, metrics.frameHeightPx, metrics.pxPerMm);
-  const points = buildPlateFramePoints(metrics.frameWidthPx, metrics.frameHeightPx, cutSize);
+  const points = buildPlateFramePoints(metrics.frameWidthPx, metrics.frameHeightPx, cutSize, plateObj.cutCorners);
 
   ctx.save();
   ctx.translate(metrics.x, metrics.y);
@@ -1719,34 +2290,35 @@ function drawPngPlate(ctx, plate, metrics, labelMode) {
   ctx.textBaseline = 'middle';
   ctx.font = `700 ${metrics.axisLabelFontPx}px Arial, sans-serif`;
 
-  for (let col = 0; col < plate.cols; col++) {
+  for (let col = 0; col < ref.cols; col++) {
     ctx.fillText(String(col + 1), getPngWellCenterX(metrics, col), metrics.colLabelCenterYpx);
   }
 
-  for (let row = 0; row < plate.rows; row++) {
+  for (let row = 0; row < ref.rows; row++) {
     ctx.fillText(rowLabel(row), metrics.rowLabelCenterXpx, getPngWellCenterY(metrics, row));
-    for (let col = 0; col < plate.cols; col++) {
-      drawPngWell(ctx, plate, metrics, row, col, labelMode);
+    for (let col = 0; col < ref.cols; col++) {
+      drawPngWell(ctx, plateObj, ref, metrics, row, col, labelMode);
     }
   }
 
   ctx.restore();
 }
 
-function drawPngWell(ctx, plate, metrics, row, col, labelMode) {
+function drawPngWell(ctx, plateObj, ref, metrics, row, col, labelMode) {
   const wellId = getWellId(row, col);
-  const group = getGroup(assignments[wellId]);
+  const color = colorForWell(plateObj, wellId);
+  const labelText = labelForWell(plateObj, wellId);
   const x = getPngWellCenterX(metrics, col);
   const y = getPngWellCenterY(metrics, row);
   const size = metrics.wellDiameterPx;
   const radius = size / 2;
 
   ctx.save();
-  ctx.fillStyle = group ? group.color : '#ffffff';
-  ctx.strokeStyle = group ? 'rgba(0, 0, 0, 0.28)' : '#d8d6d0';
+  ctx.fillStyle = color || '#ffffff';
+  ctx.strokeStyle = color ? 'rgba(0, 0, 0, 0.28)' : '#d8d6d0';
   ctx.lineWidth = Math.max(1.5, size * 0.035);
 
-  if (plate.shape === 'square') {
+  if (ref.shape === 'square') {
     drawRoundRectPath(ctx, x - radius, y - radius, size, size, size * 0.18);
   } else {
     ctx.beginPath();
@@ -1755,37 +2327,38 @@ function drawPngWell(ctx, plate, metrics, row, col, labelMode) {
   ctx.fill();
   ctx.stroke();
 
-  if (group && labelMode === 'rich') {
-    ctx.fillStyle = contrastText(group.color);
+  if (labelText && labelMode === 'rich') {
+    ctx.fillStyle = contrastText(color || '#ffffff');
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = `800 ${metrics.wellIdFontPx}px Arial, sans-serif`;
     ctx.fillText(wellId, x, y - metrics.wellIdFontPx * 0.42);
     ctx.font = `700 ${metrics.wellLabelFontPx}px Arial, sans-serif`;
-    fillTextFit(ctx, group.name, x, y + metrics.wellLabelFontPx * 0.82, size * 0.82);
-  } else if (group && labelMode === 'compact') {
-    ctx.fillStyle = contrastText(group.color);
+    fillTextFit(ctx, labelText, x, y + metrics.wellLabelFontPx * 0.82, size * 0.82);
+  } else if (labelText && labelMode === 'compact') {
+    ctx.fillStyle = contrastText(color || '#ffffff');
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = `800 ${metrics.wellInitialsFontPx}px Arial, sans-serif`;
-    ctx.fillText(groupInitials(group.name), x, y);
+    ctx.fillText(groupInitials(labelText), x, y);
   }
 
   ctx.restore();
 }
 
-function drawPngLegend(ctx, bounds, groupsForLegend) {
+function drawPngLegend(ctx, bounds, groupsForLegend, field) {
   ctx.save();
   ctx.fillStyle = '#37352f';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   ctx.font = '800 24px Arial, sans-serif';
-  ctx.fillText('Group Legend', bounds.x, bounds.y + 28);
+  const legendTitle = `${field ? field.name : 'Group'} Legend`;
+  ctx.fillText(legendTitle, bounds.x, bounds.y + 28);
 
   if (groupsForLegend.length === 0) {
     ctx.fillStyle = '#78746c';
     ctx.font = '600 20px Arial, sans-serif';
-    ctx.fillText('No assigned groups', bounds.x, bounds.y + 64);
+    ctx.fillText('No assigned values', bounds.x, bounds.y + 64);
     ctx.restore();
     return;
   }
@@ -1886,34 +2459,65 @@ function fillTextFit(ctx, text, x, y, maxWidth) {
   ctx.fillText(`${clipped}...`, x, y);
 }
 
-// Shared CSV schema. These lowercase header names are an interop contract with the
-// qPCR Analysis tool (its detectType/parsePlateLayout read `well`, `group`, `plate_type`);
-// export and import both key off this list, so they can never silently drift.
-const CSV_COLUMNS = ['plate_type', 'row', 'column', 'well', 'group', 'group_abbreviation', 'group_color'];
+// CSV schema. Structural columns (plate_type, plate, row, column, well) frame the file;
+// each field contributes one data column named by its `key`, and every category field
+// adds a `<key>_color` column so the palette round-trips. The lowercase `well`, `group`,
+// `sample`, `gene` headers are the interop contract with the qPCR Analysis tool.
+const CSV_STRUCTURAL = ['plate_type', 'plate', 'row', 'column', 'well'];
+
+function sanitizeFieldKey(name) {
+  return String(name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'field';
+}
+
+function uniqueFieldKey(name) {
+  // Reserved suffixes carry palette / derived metadata in the CSV — a field key ending in
+  // one would be swallowed by the import heuristic, so nudge it (e.g. cell_color -> cell_color_f).
+  let base = sanitizeFieldKey(name);
+  if (base.endsWith('_color') || base.endsWith('_abbreviation')) base += '_f';
+  const taken = new Set(fields.map((f) => f.key).concat(CSV_STRUCTURAL));
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}_${n}`)) n += 1;
+  return `${base}_${n}`;
+}
+
+function prettyFieldName(key) {
+  const known = { group: 'Group', sample: 'Sample ID', gene: 'Gene' };
+  if (known[key]) return known[key];
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 function exportCsv() {
-  const plate = PLATE_REFERENCE_MM[plateType];
-  const rows = [CSV_COLUMNS.slice()];
+  const multi = plates.length > 1;
+  const catFields = categoryFields();
+  const header = ['plate_type', ...(multi ? ['plate'] : []), 'row', 'column', 'well',
+    ...fields.map((f) => f.key), ...catFields.map((f) => `${f.key}_color`)];
+  const rows = [header];
 
-  for (let row = 0; row < plate.rows; row++) {
-    for (let col = 0; col < plate.cols; col++) {
-      const wellId = getWellId(row, col);
-      const group = getGroup(assignments[wellId]);
-      const display = group ? getGroupDisplayInfo(group) : null;
-      rows.push([
-        plateType,
-        rowLabel(row),
-        String(col + 1),
-        wellId,
-        display ? display.name : '',
-        display && display.abbreviationUsed ? display.abbreviation : '',
-        display ? display.color : '',
-      ]);
+  plates.forEach((plate) => {
+    const ref = PLATE_REFERENCE_MM[plate.plateType];
+    for (let row = 0; row < ref.rows; row++) {
+      for (let col = 0; col < ref.cols; col++) {
+        const wellId = getWellId(row, col);
+        const rec = plate.assignments[wellId] || {};
+        const fieldVals = fields.map((f) => {
+          const v = rec[f.id];
+          if (v === undefined || v === '') return '';
+          return f.kind === 'category' ? (getCat(f.id, v)?.name || '') : String(v);
+        });
+        const colorVals = catFields.map((f) => {
+          const cat = getCat(f.id, rec[f.id]);
+          return cat ? cat.color : '';
+        });
+        rows.push([plate.plateType, ...(multi ? [plate.name] : []), rowLabel(row), String(col + 1), wellId, ...fieldVals, ...colorVals]);
+      }
     }
-  }
+  });
 
   const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n');
-  const filename = `microplate-layout-planner-${plateType}-well.csv`;
+  const filename = multi
+    ? `microplate-layout-planner-${plates.length}-plates.csv`
+    : `microplate-layout-planner-${AP().plateType}-well.csv`;
   if (typeof labtoolsDownloadText === 'function') {
     labtoolsDownloadText(filename, csv, 'text/csv;charset=utf-8');
   } else {
@@ -1942,9 +2546,11 @@ function onImportCsvFile(event) {
   reader.readAsText(file);
 }
 
-// Rebuild the plate from a CSV in this tool's own export format. Reads columns by header
-// name (order-tolerant) and ignores derived columns (row, column, group_abbreviation),
-// which are recomputed on render.
+// Rebuild plates + fields from a CSV in this tool's export format. Columns are matched by
+// header name (order-tolerant). Structural columns (plate_type/plate/row/column/well) and
+// derived columns (*_color, *_abbreviation) frame the data; every other column becomes a
+// field — category when a matching `<key>_color` column exists (or the legacy `group`),
+// else text. Rows are grouped into plates by the optional `plate` column.
 function importCsv(text) {
   const lines = text.split(/\r\n|\r|\n/).filter((line) => line.trim().length);
   if (lines.length < 2) {
@@ -1952,65 +2558,100 @@ function importCsv(text) {
     return;
   }
   const header = parseCsvLine(lines[0]).map((cell) => cell.trim().toLowerCase());
-  const iWell = header.indexOf('well');
-  const iGroup = header.indexOf('group');
-  const iColor = header.indexOf('group_color');
-  const iPlate = header.indexOf('plate_type');
-  if (iWell < 0 || iGroup < 0) {
-    setStatus('CSV needs "well" and "group" columns.', 'danger');
+  const idx = {};
+  header.forEach((h, i) => { if (!(h in idx)) idx[h] = i; });
+  const iWell = idx.well;
+  if (iWell === undefined) {
+    setStatus('CSV needs a "well" column.', 'danger');
     return;
   }
 
-  const newGroups = [];
-  const groupByName = new Map();
-  const newAssignments = {};
-  let importedPlateType = '';
-  let seq = 1;
+  const structural = new Set(CSV_STRUCTURAL);
+  const colorCols = new Set(header.filter((h) => h.endsWith('_color')));
+  const fieldKeys = header.filter((h) => h && !structural.has(h) && !h.endsWith('_color') && !h.endsWith('_abbreviation'));
+  if (fieldKeys.length === 0) {
+    setStatus('CSV has no field columns (e.g. group, sample, gene).', 'danger');
+    return;
+  }
+
+  const newFields = fieldKeys.map((key) => ({
+    id: key,
+    key,
+    name: prettyFieldName(key),
+    kind: (colorCols.has(`${key}_color`) || key === 'group') ? 'category' : 'text',
+  }));
+  if (!newFields.some((f) => f.kind === 'category')) newFields[0].kind = 'category';
+
+  const newCats = {};
+  const catLookup = {};
+  newFields.filter((f) => f.kind === 'category').forEach((f) => { newCats[f.id] = []; catLookup[f.id] = new Map(); });
+
+  const plateMap = new Map();
+  const getPlate = (name, ptype) => {
+    const keyName = name || 'Plate 1';
+    let p = plateMap.get(keyName);
+    if (!p) {
+      p = { id: uid('p'), name: keyName, plateType: PLATE_REFERENCE_MM[ptype] ? ptype : '96', cutCorners: new Set(['top-left']), assignments: {} };
+      plateMap.set(keyName, p);
+    } else if (PLATE_REFERENCE_MM[ptype]) {
+      p.plateType = ptype;
+    }
+    return p;
+  };
 
   for (let i = 1; i < lines.length; i++) {
     const cells = parseCsvLine(lines[i]);
-    if (iPlate >= 0 && !importedPlateType) {
-      const pt = (cells[iPlate] || '').trim();
-      if (PLATE_REFERENCE_MM[pt]) importedPlateType = pt;
-    }
     const well = (cells[iWell] || '').trim().toUpperCase();
-    const name = (cells[iGroup] || '').trim();
-    if (!well || !name || !/^[A-Z]+\d+$/.test(well)) continue;
-    let group = groupByName.get(name);
-    if (!group) {
-      const color = iColor >= 0 ? (cells[iColor] || '').trim() : '';
-      group = {
-        id: `g${seq}`,
-        name,
-        color: isValidHexColor(color) ? color : GROUP_COLORS[(seq - 1) % GROUP_COLORS.length],
-      };
-      groupByName.set(name, group);
-      newGroups.push(group);
-      seq += 1;
-    }
-    newAssignments[well] = group.id;
+    if (!/^[A-Z]+\d+$/.test(well)) continue;
+    const ptype = idx.plate_type !== undefined ? (cells[idx.plate_type] || '').trim() : '';
+    const pname = idx.plate !== undefined ? (cells[idx.plate] || '').trim() : '';
+    const plate = getPlate(pname, ptype);
+
+    newFields.forEach((field) => {
+      const raw = (cells[idx[field.key]] || '').trim();
+      if (!raw) return;
+      let value = raw;
+      if (field.kind === 'category') {
+        const map = catLookup[field.id];
+        value = map.get(raw);
+        if (!value) {
+          const color = colorCols.has(`${field.key}_color`) ? (cells[idx[`${field.key}_color`]] || '').trim() : '';
+          value = uid('c');
+          newCats[field.id].push({ id: value, name: raw, color: isValidHexColor(color) ? color : GROUP_COLORS[newCats[field.id].length % GROUP_COLORS.length] });
+          map.set(raw, value);
+        }
+      }
+      (plate.assignments[well] = plate.assignments[well] || {})[field.id] = value;
+    });
   }
 
-  if (importedPlateType) {
-    plateType = importedPlateType;
-    if (els.plateType) els.plateType.value = plateType;
+  const builtPlates = Array.from(plateMap.values());
+  if (!builtPlates.length) {
+    setStatus('No wells found in CSV.', 'danger');
+    return;
   }
+  builtPlates.forEach(trimPlate);
 
-  // A layout with wells but no non-blank groups is an empty plate: keep current groups.
-  if (newGroups.length) {
-    groups = newGroups;
-    groupSeq = newGroups.length + 1;
-    activeGroupId = newGroups[0].id;
-  }
-  assignments = newAssignments;
+  fields = newFields;
+  categoriesByField = newCats;
+  plates = builtPlates;
+  activePlateId = plates[0].id;
+  colorFieldId = newFields.find((f) => f.kind === 'category').id;
+  labelFieldId = colorFieldId;
+  activeFieldId = colorFieldId;
+  activeCatByField = {};
+  newFields.filter((f) => f.kind === 'category').forEach((f) => { activeCatByField[f.id] = (newCats[f.id][0] || {}).id || null; });
   selectedWells.clear();
   selectionAnchor = null;
   clipboard = null;
-  trimAssignmentsAndSelectionToPlate();
+  if (overviewMode) toggleOverview();
+
+  renderPlateOptions();
+  renderCornerToggles();
   renderAll();
 
-  const wellCount = Object.keys(assignments).length;
-  setStatus(`Imported ${wellCount} assigned wells across ${newGroups.length || groups.length} groups.`, 'success');
+  const labelled = builtPlates.reduce((n, p) => n + Object.keys(p.assignments).length, 0);
+  setStatus(`Imported ${builtPlates.length} plate(s), ${labelled} labelled wells across ${newFields.length} fields.`, 'success');
 }
 
 // Minimal CSV line parser with quoted-field ("") handling — matches the export writer.
@@ -2044,28 +2685,35 @@ function isValidHexColor(value) {
 }
 
 function resetPlate() {
-  if (!confirm('Reset this plate layout?')) return;
-  assignments = {};
+  if (!confirm(`Reset the layout on ${AP().name}?`)) return;
+  AP().assignments = {};
   selectedWells.clear();
   selectionAnchor = null;
   clipboard = null;
   renderAll();
-  setStatus('Plate reset.', 'info');
+  setStatus(`${AP().name} reset.`, 'info');
+}
+
+// Drop out-of-range assignments/selection from a single plate after a size change.
+function trimPlate(plate) {
+  const ref = PLATE_REFERENCE_MM[plate.plateType];
+  Object.keys(plate.assignments).forEach((wellId) => {
+    const pos = wellPosition(wellId);
+    if (pos.row >= ref.rows || pos.col >= ref.cols) delete plate.assignments[wellId];
+  });
 }
 
 function trimAssignmentsAndSelectionToPlate() {
-  const plate = PLATE_REFERENCE_MM[plateType];
-  Object.keys(assignments).forEach((wellId) => {
-    const pos = wellPosition(wellId);
-    if (pos.row >= plate.rows || pos.col >= plate.cols) delete assignments[wellId];
-  });
+  const plate = AP();
+  const ref = PLATE_REFERENCE_MM[plate.plateType];
+  trimPlate(plate);
   selectedWells = new Set(Array.from(selectedWells).filter((wellId) => {
     const pos = wellPosition(wellId);
-    return pos.row < plate.rows && pos.col < plate.cols;
+    return pos.row < ref.rows && pos.col < ref.cols;
   }));
   if (selectionAnchor) {
     const pos = wellPosition(selectionAnchor);
-    if (pos.row >= plate.rows || pos.col >= plate.cols) selectionAnchor = null;
+    if (pos.row >= ref.rows || pos.col >= ref.cols) selectionAnchor = null;
   }
 }
 
@@ -2114,32 +2762,6 @@ function wellPosition(wellId) {
   return {
     row,
     col: parseInt(match[2], 10) - 1,
-  };
-}
-
-function getGroup(groupId) {
-  return groups.find((group) => group.id === groupId) || null;
-}
-
-function countAssignedWells(groupId) {
-  return Object.values(assignments).filter((id) => id === groupId).length;
-}
-
-function getAssignedGroupDisplayInfo(labelMode = getCurrentLabelMode()) {
-  return groups
-    .map((group) => getGroupDisplayInfo(group, labelMode))
-    .filter((group) => group.count > 0);
-}
-
-function getGroupDisplayInfo(group, labelMode = getCurrentLabelMode()) {
-  const abbreviation = groupInitials(group.name);
-  return {
-    id: group.id,
-    name: group.name,
-    color: group.color,
-    abbreviation,
-    abbreviationUsed: labelMode === 'compact' && abbreviation !== '',
-    count: countAssignedWells(group.id),
   };
 }
 
