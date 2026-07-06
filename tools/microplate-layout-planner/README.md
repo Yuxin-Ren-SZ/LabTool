@@ -1,4 +1,4 @@
-# Well Plate Map Generator
+# Microplate Layout Planner
 
 Interactive multi-well plate layout planner for assigning treatment groups to standard plate formats. Part of the [LabTools](../../) collection.
 
@@ -23,7 +23,7 @@ Plate geometry is based on millimeter reference dimensions in the tool and mirro
 3. Add or select a treatment group.
 4. Assign selected wells to the active group.
 5. Copy a selected pattern and paste it from a destination well.
-6. Export CSV or print the visual layout.
+6. Export CSV, import a previously exported CSV, or print the visual layout.
 
 Copy and paste preserve the copied shape. Wells that would land outside the destination plate are skipped. Copied groups are brought into the current layout if needed.
 
@@ -41,11 +41,13 @@ Corner toggles mark cut or notched plate corners for physical orientation. Selec
 
 ## Export, Print, And Reset
 
-`Export CSV` downloads `experiment-layout-<plate>-well.csv` with:
+`Export CSV` downloads `microplate-layout-planner-<plate>-well.csv` with:
 
 ```csv
 plate_type,row,column,well,group,group_abbreviation,group_color
 ```
+
+`Import CSV` reloads a layout from a file in this same format. Columns are matched by header name (order-tolerant); the derived `row`, `column`, and `group_abbreviation` columns are ignored and recomputed. Groups are rebuilt from the `group`/`group_color` columns and `plate_type` selects the plate format, so an exported layout round-trips exactly. The file also drops straight into the qPCR Analysis tool, which reads each well's `group` as its sample label.
 
 `Print Layout` opens the browser print dialog with a clean plate map, group summary, and color legend. When the visible well labels use generated abbreviations, the print legend maps each abbreviation and color back to the full group name. Use the browser's save-as-PDF option if a PDF is needed.
 

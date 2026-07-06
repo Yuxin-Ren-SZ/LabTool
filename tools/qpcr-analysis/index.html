@@ -249,7 +249,7 @@
           or <span class="drop-zone-link">browse…</span><br/>
           Tabular Results is required · Amplification Plots, Plate Setup, Thermal Profile &amp; Notes optional<br/>
           Drop <b>several Tabular Results</b> files to load them as <b>multiple plates</b> (combined for QC &amp; ΔΔCq)<br/>
-          Also accepts a <b>Well Plate Map Generator</b> <code>.csv</code> to label samples by group
+          Also accepts a <b>Microplate Layout Planner</b> <code>.csv</code> to label samples by group
         </div>
       </div>
       <div class="file-list" id="fileList"></div>
@@ -641,7 +641,7 @@ function detectType(text) {
   if (!lines.length) return 'unknown';
   const head = lines[0];
   const lower = head.toLowerCase();
-  // Plate-label CSV (comma-delimited, no tabs): either the Well Plate Map Generator export
+  // Plate-label CSV (comma-delimited, no tabs): either the Microplate Layout Planner export
   // (well + group) or this tool's own Export labels (well + sample [+ group] [+ gene]).
   if (head.indexOf('\t') === -1) {
     const cl = parseCsvLine(head).map(c => c.trim().toLowerCase());
@@ -671,7 +671,7 @@ function parseCsvLine(line) {
   out.push(cur);
   return out;
 }
-// Well Plate Map Generator CSV → Map(well -> group name).
+// Microplate Layout Planner CSV → Map(well -> group name).
 function parsePlateLayout(text) {
   const samples = new Map(), genes = new Map(), groups = new Map();
   const lines = splitLines(text).filter(l => l.trim().length);
@@ -960,7 +960,7 @@ async function handleFiles(fileList) {
       state.sampleByWell[r.well] = s;
     }
   }
-  // Imported plate labels (Well Plate Map Generator, or this tool's own Export labels).
+  // Imported plate labels (Microplate Layout Planner, or this tool's own Export labels).
   // The CSV carries plain well labels (+ an optional Plate column); resolve each to a uid.
   if (parsed.layout) {
     const resolve = (plate, well) => {

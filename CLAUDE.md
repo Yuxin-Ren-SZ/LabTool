@@ -23,7 +23,7 @@ LabTools/
 ├── tools/
 │   ├── cell-count/index.html          # Hemocytometer calculator
 │   ├── seeding-calc/index.html        # Count-to-dilution workflow
-│   ├── experiment-layout/index.html   # Multi-well plate mapper
+│   ├── microplate-layout-planner/index.html   # Microplate Layout Planner
 │   ├── stain-timer/index.html         # Staining protocol timer
 │   ├── thermal-to-laser/index.html    # Thermal PDF to laser sheet converter
 │   ├── drug-dosage/index.html         # Per-animal dose calculator and log

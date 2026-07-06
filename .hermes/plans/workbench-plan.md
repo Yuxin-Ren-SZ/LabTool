@@ -8,7 +8,7 @@ copy-pasting CSV files. Think of it as a universal clipboard for lab data:
 
 ### User Story
 
-1. Design a 96-well plate layout in **experiment-layout**
+1. Design a 96-well plate layout in **microplate-layout-planner**
 2. Click "↑ To Workbench" → plate layout saved
 3. Switch to **qpcr-analysis**, click "↓ From Workbench"
 4. Choose the plate layout → imported as sample/gene groups
@@ -87,13 +87,13 @@ interface WorkbenchItem {
 
 | Type | Shape | Producer(s) | Consumer(s) |
 |------|-------|------------|-------------|
-| `plate-layout` | `{ wells: Record<WellID, {group, color, label?}>, groups: Group[] }` | experiment-layout | qpcr-analysis, bca-assay, seeding-calc |
+| `plate-layout` | `{ wells: Record<WellID, {group, color, label?}>, groups: Group[] }` | microplate-layout-planner | qpcr-analysis, bca-assay, seeding-calc |
 | `sample-list` | `{ samples: {name: string, conc?: number, a260_280?: number, a260_230?: number}[] }` | rt-calc, bca-assay (from Nanodrop) | qpcr-analysis, seeding-calc |
 | `conc-data` | `{ results: {well: string, sample: string, conc: number, unit: string}[] }` | bca-assay | seeding-calc, rt-calc |
 | `qpcr-results` | `{ runs: RunData[], deltaCq?: DeltaCqResult[] }` | qpcr-analysis | — (archive / export) |
 | `rt-config` | `{ kit: string, targetRNA: number, maxRNAVol: number, reagentVols: Record<string,number> }` | rt-calc | — (protocol reuse) |
 | `protocol` | `{ steps: {name, durationMin, durationSec, slot?}[] }` | stain-timer | — |
-| `seeding-plan` | `{ wells: {well, density, volume, media}[] }` | seeding-calc | experiment-layout |
+| `seeding-plan` | `{ wells: {well, density, volume, media}[] }` | seeding-calc | microplate-layout-planner |
 | `generic` | `any` | any tool | any tool (user-specified) |
 
 ### Well ID Convention
@@ -152,7 +152,7 @@ async function sendToWorkbench() {
   const id = await workbench.put('plate-layout', '96-well Experiment',
     { wells: currentWells, groups: currentGroups },
     { wellCount: 96, plateFormat: '96' },
-    'experiment-layout');
+    'microplate-layout-planner');
   showToast(`Layout saved to Workbench`);
 }
 
@@ -323,7 +323,7 @@ dropTarget.addEventListener('drop', async e => {
 ### How it works
 
 ```
-Tab A (experiment-layout)          Tab B (qpcr-analysis)
+Tab A (microplate-layout-planner)          Tab B (qpcr-analysis)
         │                                    │
         │ workbench.put(...)                  │
         │   → IndexedDB write                 │
@@ -378,7 +378,7 @@ User clicks **[Export JSON]** in the drawer. Downloads a `.labtools-workbench.js
       "id": "uuid-1",
       "type": "plate-layout",
       "label": "96-well Experiment",
-      "tool": "experiment-layout",
+      "tool": "microplate-layout-planner",
       "timestamp": 1719000000000,
       "data": { ... },
       "metadata": { "wellCount": 96 }
@@ -396,7 +396,7 @@ Items are merged into the current workbench (duplicate IDs are skipped).
 
 ## Per-Tool Serialization Specs
 
-### experiment-layout → `plate-layout`
+### microplate-layout-planner → `plate-layout`
 
 ```js
 function serializeCurrentState() {
@@ -490,11 +490,11 @@ via browser console. Export/Import works.
 
 Pick 3 tools with clear producer/consumer relationships:
 
-1. **experiment-layout** (producer: plate-layout)
+1. **microplate-layout-planner** (producer: plate-layout)
 2. **qpcr-analysis** (consumer: plate-layout)
 3. **bca-assay** (producer: conc-data)
 
-**Verify:** Design plate in experiment-layout → send to workbench →
+**Verify:** Design plate in microplate-layout-planner → send to workbench →
 switch to qpcr-analysis → apply as sample groups → plate SVG updates.
 Then run BCA → send results → verify they appear in workbench drawer.
 
@@ -523,7 +523,7 @@ Then run BCA → send results → verify they appear in workbench drawer.
 | `assets/js/labtools-workbench.js` | **Create** | Core API + IndexedDB + BroadcastChannel |
 | `assets/css/labtools.css` | **Modify** | Add `.wb-*` CSS (~80 lines) |
 | `index.html` | **Modify** | Add drawer HTML/CSS/JS + toggle button |
-| `tools/experiment-layout/index.html` | **Modify** | Add wb-put + wb-get buttons + serialize |
+| `tools/microplate-layout-planner/index.html` | **Modify** | Add wb-put + wb-get buttons + serialize |
 | `tools/qpcr-analysis/index.html` | **Modify** | Add wb-get with mode-aware import |
 | `tools/bca-assay/index.html` | **Modify** | Add wb-put (conc-data) + wb-get (plate-layout) |
 | `tools/rt-calc/index.html` | **Modify** | Add wb-put (sample-list) + wb-get (conc-data) |
@@ -538,7 +538,7 @@ Then run BCA → send results → verify they appear in workbench drawer.
 ## Open Design Decisions
 
 1. **Plate generator integration** — you mentioned "well plate generator" as a source.
-   Is this a new tool you want Claude to build, or does experiment-layout cover this?
+   Is this a new tool you want Claude to build, or does microplate-layout-planner cover this?
 
 2. **Auto-pick behavior** — when qpcr-analysis has gene mode active and user pulls
    a plate-layout, should it auto-apply to "gene groups" without asking, or always

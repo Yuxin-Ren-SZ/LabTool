@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Well Plate Map Generator - LabTools</title>
+  <title>Microplate Layout Planner - LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <script src="../../assets/js/labtools-common.js"></script>
   <style>
@@ -649,7 +649,7 @@
 <nav class="lt-nav">
   <a class="lt-nav-brand" href="../../index.html">&#128300; LabTools</a>
   <span class="lt-nav-sep">/</span>
-  <span class="lt-nav-page">Well Plate Map Generator</span>
+  <span class="lt-nav-page">Microplate Layout Planner</span>
 </nav>
 
 <div class="lt-page-body">
@@ -657,10 +657,12 @@
 
   <div class="layout-top">
     <div>
-      <h1 class="lt-tool-title">Well Plate Map Generator</h1>
+      <h1 class="lt-tool-title">Microplate Layout Planner</h1>
       <p class="lt-tool-subtitle">Map treatment groups onto standard multi-well plates.</p>
     </div>
     <div class="layout-actions">
+      <input type="file" id="import-csv-input" accept=".csv,.txt" style="display:none" />
+      <button class="btn-reset" type="button" id="import-csv-btn">Import CSV</button>
       <button class="btn-reset" type="button" id="export-csv-btn">Export CSV</button>
       <button class="btn-reset" type="button" id="export-png-btn">Export PNG</button>
       <button class="btn-reset" type="button" id="print-btn">Print Layout</button>
@@ -913,6 +915,7 @@ function cacheElements() {
   els.newGroupName = document.getElementById('new-group-name');
   els.groupList = document.getElementById('group-list');
   els.legendList = document.getElementById('legend-list');
+  els.importCsvInput = document.getElementById('import-csv-input');
   els.statusLine = document.getElementById('status-line');
   els.printSummary = document.getElementById('print-summary');
   els.printLegend = document.getElementById('print-legend');
@@ -960,6 +963,8 @@ function wireEvents() {
   els.newGroupName.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') addGroupFromInput();
   });
+  document.getElementById('import-csv-btn').addEventListener('click', () => els.importCsvInput.click());
+  els.importCsvInput.addEventListener('change', onImportCsvFile);
   document.getElementById('export-csv-btn').addEventListener('click', exportCsv);
   document.getElementById('export-png-btn').addEventListener('click', exportPng);
   document.getElementById('print-btn').addEventListener('click', () => window.print());
@@ -1615,7 +1620,7 @@ function exportPng() {
 
   drawPngExport(ctx);
 
-  const filename = `experiment-layout-${plateType}-well.png`;
+  const filename = `microplate-layout-planner-${plateType}-well.png`;
   canvas.toBlob((blob) => {
     if (!blob) {
       setStatus('Unable to generate PNG export.', 'danger');
@@ -1881,9 +1886,14 @@ function fillTextFit(ctx, text, x, y, maxWidth) {
   ctx.fillText(`${clipped}...`, x, y);
 }
 
+// Shared CSV schema. These lowercase header names are an interop contract with the
+// qPCR Analysis tool (its detectType/parsePlateLayout read `well`, `group`, `plate_type`);
+// export and import both key off this list, so they can never silently drift.
+const CSV_COLUMNS = ['plate_type', 'row', 'column', 'well', 'group', 'group_abbreviation', 'group_color'];
+
 function exportCsv() {
   const plate = PLATE_REFERENCE_MM[plateType];
-  const rows = [['plate_type', 'row', 'column', 'well', 'group', 'group_abbreviation', 'group_color']];
+  const rows = [CSV_COLUMNS.slice()];
 
   for (let row = 0; row < plate.rows; row++) {
     for (let col = 0; col < plate.cols; col++) {
@@ -1903,13 +1913,134 @@ function exportCsv() {
   }
 
   const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n');
-  const filename = `experiment-layout-${plateType}-well.csv`;
+  const filename = `microplate-layout-planner-${plateType}-well.csv`;
   if (typeof labtoolsDownloadText === 'function') {
     labtoolsDownloadText(filename, csv, 'text/csv;charset=utf-8');
   } else {
     fallbackDownloadText(filename, csv);
   }
   setStatus(`Exported ${filename}.`, 'success');
+}
+
+function onImportCsvFile(event) {
+  const input = event.target;
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      importCsv(String(reader.result || ''));
+    } catch (err) {
+      setStatus('Could not read that CSV — is it a plate layout export?', 'danger');
+    }
+    input.value = '';
+  };
+  reader.onerror = () => {
+    setStatus('Could not read the file.', 'danger');
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// Rebuild the plate from a CSV in this tool's own export format. Reads columns by header
+// name (order-tolerant) and ignores derived columns (row, column, group_abbreviation),
+// which are recomputed on render.
+function importCsv(text) {
+  const lines = text.split(/\r\n|\r|\n/).filter((line) => line.trim().length);
+  if (lines.length < 2) {
+    setStatus('CSV has no data rows.', 'danger');
+    return;
+  }
+  const header = parseCsvLine(lines[0]).map((cell) => cell.trim().toLowerCase());
+  const iWell = header.indexOf('well');
+  const iGroup = header.indexOf('group');
+  const iColor = header.indexOf('group_color');
+  const iPlate = header.indexOf('plate_type');
+  if (iWell < 0 || iGroup < 0) {
+    setStatus('CSV needs "well" and "group" columns.', 'danger');
+    return;
+  }
+
+  const newGroups = [];
+  const groupByName = new Map();
+  const newAssignments = {};
+  let importedPlateType = '';
+  let seq = 1;
+
+  for (let i = 1; i < lines.length; i++) {
+    const cells = parseCsvLine(lines[i]);
+    if (iPlate >= 0 && !importedPlateType) {
+      const pt = (cells[iPlate] || '').trim();
+      if (PLATE_REFERENCE_MM[pt]) importedPlateType = pt;
+    }
+    const well = (cells[iWell] || '').trim().toUpperCase();
+    const name = (cells[iGroup] || '').trim();
+    if (!well || !name || !/^[A-Z]+\d+$/.test(well)) continue;
+    let group = groupByName.get(name);
+    if (!group) {
+      const color = iColor >= 0 ? (cells[iColor] || '').trim() : '';
+      group = {
+        id: `g${seq}`,
+        name,
+        color: isValidHexColor(color) ? color : GROUP_COLORS[(seq - 1) % GROUP_COLORS.length],
+      };
+      groupByName.set(name, group);
+      newGroups.push(group);
+      seq += 1;
+    }
+    newAssignments[well] = group.id;
+  }
+
+  if (importedPlateType) {
+    plateType = importedPlateType;
+    if (els.plateType) els.plateType.value = plateType;
+  }
+
+  // A layout with wells but no non-blank groups is an empty plate: keep current groups.
+  if (newGroups.length) {
+    groups = newGroups;
+    groupSeq = newGroups.length + 1;
+    activeGroupId = newGroups[0].id;
+  }
+  assignments = newAssignments;
+  selectedWells.clear();
+  selectionAnchor = null;
+  clipboard = null;
+  trimAssignmentsAndSelectionToPlate();
+  renderAll();
+
+  const wellCount = Object.keys(assignments).length;
+  setStatus(`Imported ${wellCount} assigned wells across ${newGroups.length || groups.length} groups.`, 'success');
+}
+
+// Minimal CSV line parser with quoted-field ("") handling — matches the export writer.
+function parseCsvLine(line) {
+  const out = [];
+  let cur = '';
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; } else quoted = false;
+      } else {
+        cur += ch;
+      }
+    } else if (ch === '"') {
+      quoted = true;
+    } else if (ch === ',') {
+      out.push(cur);
+      cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+function isValidHexColor(value) {
+  return /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(String(value).trim());
 }
 
 function resetPlate() {

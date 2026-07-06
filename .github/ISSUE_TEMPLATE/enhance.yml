@@ -18,7 +18,7 @@ body:
       options:
         - cell-count
         - seeding-calc
-        - experiment-layout
+        - microplate-layout-planner
         - stain-timer
         - thermal-to-laser
         - drug-dosage

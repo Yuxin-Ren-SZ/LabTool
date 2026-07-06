@@ -18,7 +18,7 @@ dropped in any order:
 | **Plate Setup** | Optional. Pre-fills sample names. |
 | **Thermal Profile** | Optional. Shown as a one-line cycling summary. |
 | **Experiment Notes** | Optional. Shown in the run summary. |
-| **Well Plate Map Generator `.csv`** | Optional. A layout exported by the [Well Plate Map Generator](../experiment-layout/) tool (`plate_type,row,column,well,group,…`); the `group` of each well is imported as its sample name. |
+| **Microplate Layout Planner `.csv`** | Optional. A layout exported by the [Microplate Layout Planner](../microplate-layout-planner/) tool (`plate_type,row,column,well,group,…`); the `group` of each well is imported as its sample name. |
 
 UTF-8 and UTF-16 (with BOM) encodings are both handled.
 

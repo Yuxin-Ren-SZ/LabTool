@@ -20,7 +20,7 @@ Use lowercase type, colon, space, and a brief phrase. Do not add a scope suffix.
 | `docs` | Wrong, missing, or unclear documentation | `docs: counting-modes diagram missing 5-square description` |
 | `question` | Science, formula, or expected behavior question | `question: why does 4-corner mode divide rather than multiply` |
 
-When opening an issue on GitHub, select the matching template. The templates include the current shipped tools: `cell-count`, `seeding-calc`, `experiment-layout`, `stain-timer`, `thermal-to-laser`, and `drug-dosage`.
+When opening an issue on GitHub, select the matching template. The templates include the current shipped tools: `cell-count`, `seeding-calc`, `microplate-layout-planner`, `stain-timer`, `thermal-to-laser`, and `drug-dosage`.
 
 ## Pull Requests
 
@@ -31,7 +31,7 @@ Use concise Conventional Commit-style subjects when possible:
 ```text
 feat(seeding-calc): add bypass mode for known concentrations
 fix(cell-count): correct multiplier for 5-square mode
-enhance(experiment-layout): improve 1536-well readability
+enhance(microplate-layout-planner): improve 1536-well readability
 docs(thermal-to-laser): document preset export behavior
 style(css): align card padding tokens
 ```
