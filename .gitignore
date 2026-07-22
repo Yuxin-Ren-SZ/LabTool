@@ -1,8 +1,9 @@
 # Dev Docs
 TODO.md
 
-# Claude
+# Claude / Hermes
 .remember/
+.claude/
 
 # Codex
 .codex

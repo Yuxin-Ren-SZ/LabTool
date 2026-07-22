@@ -4,7 +4,7 @@
 
 LabTools is a zero-dependency static site. The root `index.html` is the tool hub. Shared styling lives in `assets/css/labtools.css`, shared calculation helpers live in `assets/js/labtools-calc.js`, and shared browser utilities live in `assets/js/labtools-common.js`. Each shipped tool is self-contained under `tools/<tool-name>/` with its own `index.html` and `README.md`.
 
-Current tools are `cell-count`, `seeding-calc`, `experiment-layout`, `stain-timer`, `thermal-to-laser`, and `drug-dosage`. Reference content belongs in `docs/`. Built-in browser-editable data lives in tool config files such as `tools/thermal-to-laser/preset-config.js` and `tools/drug-dosage/protocol-config.js`.
+Current tools are `cell-count`, `seeding-calc`, `microplate-layout-planner`, `stain-timer`, `thermal-to-laser`, and `drug-dosage`. Reference content belongs in `docs/`. Built-in browser-editable data lives in tool config files such as `tools/thermal-to-laser/preset-config.js` and `tools/drug-dosage/protocol-config.js`.
 
 ## Build, Test, And Development Commands
 
