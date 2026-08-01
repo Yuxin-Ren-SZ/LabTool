@@ -1,0 +1,26 @@
+name: tests
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+
+jobs:
+  fixtures-and-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Fixtures up to date
+        run: node scripts/gen-fixtures.mjs --check
+      - name: Unit tests
+        run: node --test 'tests/unit/*.test.mjs'
+      - name: JS syntax check (shared + tool scripts)
+        run: |
+          node --check assets/js/labtools-workbench.js
+          node --check assets/js/labtools-calc.js
+          node --check assets/js/labtools-common.js
+          node --check tools/thermal-to-laser/tool.js
+          node --check tools/drug-dosage/tool.js

@@ -53,6 +53,31 @@ Use an optional static server only when needed:
 python3 -m http.server
 ```
 
+## Automated Tests + Human Review
+
+Headless checks (Node ≥ 18, no dependencies — run before opening a PR):
+
+```sh
+node scripts/gen-fixtures.mjs --check   # fixtures up to date?
+node --test 'tests/unit/*.test.mjs'     # unit tests (calc, schemas, workbench model)
+```
+
+Browser review (required when workbench data flows or tool serialization change):
+
+```sh
+python3 -m http.server 8000
+# open http://localhost:8000/tests/index.html?run=auto
+```
+
+The harness loads every tool in a same-origin iframe, drives it through its
+`__labtoolsTestHooks`, and diffs outputs against committed snapshots in
+`tests/snapshots/`. It also renders a human-review checklist; tick each item
+after visual inspection and download the report into `tests/reports/` (gitignored).
+
+If a change intentionally alters tool output, re-capture snapshots from the
+harness ("Capture Snapshots") and commit them alongside the change — a stale
+snapshot diff in review means the output changed unexpectedly.
+
 ## Manual Validation
 
 For UI changes, open the affected tool, exercise the changed workflow, check the browser console, and verify a narrow mobile viewport if layout changed.
