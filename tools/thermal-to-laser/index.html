@@ -6,6 +6,7 @@
   <title>Thermal To Laser Label Converter · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <script src="../../assets/js/labtools-common.js"></script>
+  <script src="../../assets/js/labtools-workbench.js"></script>
   <script src="./preset-config.js"></script>
   <script src="./pdf-lib.min.js"></script>
   <style>
@@ -494,6 +495,7 @@
           <div class="panel-surface">
             <div class="lt-toolbar-row">
               <button class="btn-reset file-btn" id="source-pdf-trigger" type="button">Upload PDFs</button>
+              <button class="btn-reset file-btn" id="wb-load-btn" type="button">Load from Workbench</button>
               <input id="source-pdf" type="file" accept="application/pdf" multiple hidden />
               <span class="micro-note">Select one or more PDFs. Supporting browsers in secure contexts will start in Downloads; other browsers use the normal file picker. Files are combined in the order you choose them.</span>
             </div>
@@ -632,6 +634,42 @@
 <footer class="lt-footer">LabTools · Open source lab utilities</footer>
 
 <script src="./tool.js"></script>
+
+<script>
+'use strict';
+// ─── Workbench integration ──────────────────────────────────────────────────
+// Consumes plate-layouts: fills the preset Notes field with a well summary so
+// label-sheet cells can be traced back to plate wells.
+const WB_TOOL = 'thermal-to-laser';
+
+document.addEventListener('DOMContentLoaded', function () {
+  const loadBtn = document.getElementById('wb-load-btn');
+  if (!loadBtn) return;
+
+  loadBtn.addEventListener('click', function () {
+    workbench.getByType('plate-layout').then(function (items) {
+      if (items.length === 0) { showToast('No plate layouts in Workbench'); return; }
+      showPicker(items, function (item) {
+        const data = item.data || {};
+        const plates = data.plates || [];
+        if (!plates.length) { showToast('Layout has no plates'); return; }
+
+        const notes = plates.map(function (p) {
+          const wells = Object.keys(p.assignments || {});
+          return (p.name || 'Plate') + ': ' + (p.plateType || '?') + '-well, ' + wells.length + ' assigned';
+        }).join('\n');
+
+        const notesField = document.getElementById('presetNotes');
+        if (notesField) {
+          notesField.value = (notesField.value ? notesField.value + '\n' : '') + notes;
+          notesField.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        showToast('✓ Applied "' + item.label + '"');
+      });
+    }).catch(function (e) { console.error('WB load:', e); });
+  });
+});
+</script>
 
 </body>
 </html>
