@@ -1617,6 +1617,14 @@ document.addEventListener('DOMContentLoaded', function () {
     }).catch(function (e) { console.error('WB load:', e); });
   });
 });
+
+labtoolsRegisterTestHooks('stain-timer', {
+  serialize: serializeForWorkbench,
+  apply: applyFromWorkbench,
+  state: function () {
+    return { stepCount: protocol.length, solutions: protocol.map(function (s) { return s.solution; }) };
+  },
+});
 </script>
 </body>
 </html>

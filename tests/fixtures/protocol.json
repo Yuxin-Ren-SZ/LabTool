@@ -1,0 +1,40 @@
+{
+  "steps": [
+    {
+      "solution": "Fixation (4% PFA)",
+      "durationMin": 10,
+      "durationSec": 0,
+      "slot": "1"
+    },
+    {
+      "solution": "Permeabilization (0.1% Triton X-100)",
+      "durationMin": 15,
+      "durationSec": 0,
+      "slot": "1"
+    },
+    {
+      "solution": "Blocking (5% BSA)",
+      "durationMin": 30,
+      "durationSec": 0,
+      "slot": "1"
+    },
+    {
+      "solution": "Primary antibody",
+      "durationMin": 60,
+      "durationSec": 0,
+      "slot": "2"
+    },
+    {
+      "solution": "Wash (PBS ×3)",
+      "durationMin": 0,
+      "durationSec": 30,
+      "slot": "3"
+    },
+    {
+      "solution": "Secondary antibody",
+      "durationMin": 45,
+      "durationSec": 0,
+      "slot": "2"
+    }
+  ]
+}

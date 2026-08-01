@@ -709,3 +709,23 @@ window.workbench  = workbench;
 window.showPicker = showPicker;
 window.showToast  = showToast;
 window.wbTypes    = TYPE_META;
+
+/**
+ * Register stable test hooks for a tool so the integration harness
+ * (tests/index.html) can drive it without reaching into globals.
+ *
+ * Usage (in each tool, after its workbench integration functions):
+ *   labtoolsRegisterTestHooks('bca-assay', {
+ *     serialize: serializeForWorkbench,
+ *     apply: applyFromWorkbench,
+ *     state: function () { return { stdRows: stdRows, smpRows: smpRows }; },
+ *   });
+ *
+ * @param {string} toolName  e.g. 'bca-assay'
+ * @param {object} hooks     { serialize?, apply?, state?, describe? }
+ */
+function labtoolsRegisterTestHooks(toolName, hooks) {
+  window.__labtoolsTestHooks = window.__labtoolsTestHooks || {};
+  window.__labtoolsTestHooks[toolName] = hooks;
+}
+window.labtoolsRegisterTestHooks = labtoolsRegisterTestHooks;

@@ -1456,6 +1456,17 @@ document.addEventListener('DOMContentLoaded', function () {
     }).catch(function (e) { console.error('WB load:', e); });
   });
 });
+
+labtoolsRegisterTestHooks('seeding-calc', {
+  serialize: serializeForWorkbench,
+  apply: applyFromWorkbench,
+  state: function () {
+    return {
+      density: wbCurrentDensityCellsPerML(),
+      bypassOn: !!(document.getElementById('bypass-toggle') && document.getElementById('bypass-toggle').checked),
+    };
+  },
+});
 </script>
 </body>
 </html>

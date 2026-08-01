@@ -2503,6 +2503,19 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 });
+
+labtoolsRegisterTestHooks('bca-assay', {
+  serialize: serializeForWorkbench,
+  apply: applyFromWorkbench,
+  state: function () {
+    return {
+      mode: currentMode,
+      stdRows: stdRows.length,
+      smpRows: smpRows.length,
+      lastResult: lastResult ? { model: lastResult.model, samples: lastResult.sampleResults.length } : null,
+    };
+  },
+});
 </script>
 </body>
 </html>

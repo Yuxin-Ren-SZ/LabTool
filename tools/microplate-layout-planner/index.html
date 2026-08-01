@@ -2960,6 +2960,19 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 });
+
+labtoolsRegisterTestHooks('microplate-layout-planner', {
+  serialize: serializeForWorkbench,
+  apply: applyFromWorkbench,
+  state: function () {
+    return {
+      plates: plates.map(function (p) {
+        return { name: p.name, plateType: p.plateType, wells: Object.keys(p.assignments || {}).length };
+      }),
+      fields: fields.map(function (f) { return f.name; }),
+    };
+  },
+});
 </script>
 
 </body>

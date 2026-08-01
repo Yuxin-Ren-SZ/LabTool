@@ -669,6 +669,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }).catch(function (e) { console.error('WB load:', e); });
   });
 });
+
+labtoolsRegisterTestHooks('thermal-to-laser', {
+  state: function () {
+    var notes = document.getElementById('presetNotes');
+    return { notes: notes ? notes.value : '' };
+  },
+});
 </script>
 
 </body>

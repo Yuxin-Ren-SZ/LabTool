@@ -2825,6 +2825,19 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 
+labtoolsRegisterTestHooks('qpcr-analysis', {
+  serialize: serializeForWorkbench,
+  apply: applyFromWorkbench,
+  state: function () {
+    return {
+      expName: state.expName,
+      plates: state.plates.slice(),
+      wellCount: state.records.length,
+      namedWells: Object.keys(state.sampleByWell).length,
+    };
+  },
+});
+
 init();
 </script>
 </body>

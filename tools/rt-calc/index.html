@@ -1080,6 +1080,14 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 
+labtoolsRegisterTestHooks('rt-calc', {
+  serialize: serializeForWorkbench,
+  apply: applyFromWorkbench,
+  state: function () {
+    return { sampleCount: samples.length, names: samples.map(function (s) { return s.name; }) };
+  },
+});
+
 init();
 </script>
 

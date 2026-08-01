@@ -484,6 +484,16 @@ document.addEventListener('DOMContentLoaded', function () {
     }).catch(function (e) { console.error('WB save:', e); });
   });
 });
+
+labtoolsRegisterTestHooks('cell-count', {
+  serialize: serializeForWorkbench,
+  state: function () {
+    return {
+      density: document.getElementById('res-density').textContent,
+      live1: document.getElementById('live1').value,
+    };
+  },
+});
 </script>
 </body>
 </html>
