@@ -1159,3 +1159,369 @@ a { color: inherit; text-decoration: none; }
     grid-template-columns: 1fr;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Workbench — Shared Data Clipboard & Cross-Tool Transport
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Body wrapper (shifted when drawer opens) ── */
+.wb-body-wrapper {
+  transition: margin-left 0.22s ease;
+}
+body.wb-drawer-open .wb-body-wrapper {
+  margin-left: 320px;
+}
+
+/* ── Drawer container (fixed left) ── */
+.wb-drawer-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 200;
+  pointer-events: none;
+}
+
+/* ── Toggle tab (collapsed) ── */
+.wb-toggle {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 80px;
+  border: none;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  transition: left 0.22s ease, box-shadow 0.15s;
+  z-index: 201;
+}
+.wb-toggle:hover {
+  box-shadow: var(--shadow-hover);
+}
+.wb-toggle.open {
+  left: 320px;
+}
+.wb-toggle-icon {
+  font-size: 1.1rem;
+  writing-mode: vertical-lr;
+  letter-spacing: 0.15em;
+  line-height: 1;
+  user-select: none;
+}
+
+/* ── Drawer panel ── */
+.wb-drawer {
+  position: absolute;
+  top: 0;
+  left: -320px;
+  width: 320px;
+  height: 100%;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  box-shadow: 2px 0 16px rgba(0,0,0,0.06);
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  transition: left 0.22s ease;
+  overflow: hidden;
+}
+.wb-drawer.open {
+  left: 0;
+}
+
+/* ── Drawer header ── */
+.wb-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.wb-drawer-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.wb-drawer-close {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.wb-drawer-close:hover {
+  background: var(--tag-bg);
+  color: var(--text);
+}
+
+/* ── Drawer body (scrollable) ── */
+.wb-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+}
+
+/* ── Drawer footer ── */
+.wb-drawer-footer {
+  display: flex;
+  gap: 4px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.wb-drawer-footer .lt-btn-ghost {
+  flex: 1;
+  padding: 6px 8px;
+}
+
+/* ── Type group ── */
+.wb-group {
+  margin-bottom: 16px;
+}
+.wb-group-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 6px;
+  padding: 0 2px;
+}
+.wb-group-icon {
+  font-size: 0.88rem;
+}
+.wb-group-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Item card ── */
+.wb-card {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.wb-card:hover {
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.wb-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.wb-card-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: text;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-card-label:hover {
+  color: var(--blue-dark);
+}
+.wb-card-delete {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+.wb-card-delete:hover {
+  background: #fde8e8;
+  color: var(--red);
+}
+.wb-card-meta {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* ── Empty state ── */
+.wb-empty {
+  text-align: center;
+  padding: 28px 16px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.wb-empty small {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+/* ── Overlay (behind drawer) ── */
+.wb-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.18);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+  z-index: 199;
+}
+.wb-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── Toast ── */
+.wb-toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  background: var(--text);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 10px 22px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 300;
+  white-space: nowrap;
+}
+.wb-toast--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── Picker modal ── */
+.wb-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 250;
+  animation: wbFadeIn 0.15s ease;
+}
+@keyframes wbFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.wb-picker-modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.15);
+  width: 420px;
+  max-width: calc(100vw - 48px);
+  max-height: 480px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wb-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.wb-picker-close {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.wb-picker-close:hover {
+  background: var(--tag-bg);
+}
+
+.wb-picker-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 16px 16px;
+}
+
+.wb-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.1s;
+  margin-bottom: 2px;
+}
+.wb-picker-item:hover {
+  background: var(--surface-hover);
+}
+.wb-picker-item-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+.wb-picker-item-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.wb-picker-item-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-picker-item-meta {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  margin-top: 1px;
+}
+
+/* ── Responsive: shrink drawer on narrow screens ── */
+@media (max-width: 600px) {
+  .wb-drawer { width: 280px; left: -280px; }
+  body.wb-drawer-open .wb-body-wrapper { margin-left: 280px; }
+  .wb-toggle.open { left: 280px; }
+}
