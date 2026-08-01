@@ -1023,8 +1023,8 @@ function applyFromWorkbench(data, type) {
         samples[i].conc = r.conc;
       }
     });
-    renderSampleTable();
-    scheduleCalc();
+    renderTable();
+    saveState();
   } else if (type === 'sample-list') {
     var newSamples = (data.samples || []).map(function (s) {
       return {
@@ -1035,7 +1035,7 @@ function applyFromWorkbench(data, type) {
         scale: sampleScale(0),
       };
     });
-    if (newSamples.length) { samples = newSamples; renderSampleTable(); scheduleCalc(); }
+    if (newSamples.length) { samples = newSamples; renderTable(); saveState(); }
   }
 }
 

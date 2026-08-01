@@ -2512,8 +2512,26 @@ labtoolsRegisterTestHooks('bca-assay', {
       mode: currentMode,
       stdRows: stdRows.length,
       smpRows: smpRows.length,
+      plateMatrix: plateMatrix ? plateMatrix.length + 'x' + (plateMatrix[0] ? plateMatrix[0].length : 0) : null,
       lastResult: lastResult ? { model: lastResult.model, samples: lastResult.sampleResults.length } : null,
     };
+  },
+  seedManual: function (data) {
+    // Replace manual-mode rows with fixture data and recalculate.
+    const numOrNull = (v) => { const n = parseFloat(v); return isNaN(n) ? NaN : n; };
+    stdRows = (data.stdRows || []).map(function (s) {
+      return { conc: Number(s.conc), od1: numOrNull(s.od1), od2: numOrNull(s.od2), od3: numOrNull(s.od3) };
+    });
+    smpRows = (data.smpRows || []).map(function (s) {
+      return { name: s.name || '', od1: numOrNull(s.od1), od2: numOrNull(s.od2), od3: numOrNull(s.od3), df: s.df == null ? 1 : Number(s.df) };
+    });
+    if (data.currentPreset) currentPreset = data.currentPreset;
+    if (data.numReps) numReps = data.numReps;
+    if (data.fitModel) fitModel = data.fitModel;
+    if (typeof switchMode === 'function') switchMode('manual');
+    if (typeof renderStdTable === 'function') renderStdTable();
+    if (typeof renderSmpTable === 'function') renderSmpTable();
+    scheduleCalc();
   },
 });
 </script>

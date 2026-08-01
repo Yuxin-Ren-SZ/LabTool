@@ -1,0 +1,17 @@
+{
+  "mode": "raw",
+  "stdRows": 9,
+  "smpRows": 6,
+  "plateMatrix": "8x12",
+  "lastResult": {
+    "model": {
+      "type": "linear",
+      "slope": 0.0008002602348460805,
+      "intercept": 0.05982217285517826,
+      "r2": 0.9999808787000286,
+      "maxX": 2000,
+      "minX": 0
+    },
+    "samples": 6
+  }
+}
