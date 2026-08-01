@@ -20,6 +20,20 @@ Generated from comprehensive audit of all 10 tools (2026-06-27).
 - [x] **seeding-calc** — `btn-reset/btn-next/btn-back` → shared `lt-btn` variants
 - [x] **stain-timer** — `btn-run/btn-start/btn-skip` → shared `lt-btn` variants
 
+## ✅ DONE — Workbench (cross-tool data clipboard)
+
+- [x] **labtools-workbench.js** — IndexedDB store + BroadcastChannel cross-tab sync + drawer UI
+- [x] **Root page + all tools** — left drawer (toggle tab, grouped by type, rename/delete/export/import)
+- [x] **microplate-layout-planner** — save/load `plate-layout`
+- [x] **qpcr-analysis** — save `qpcr-results`, load `plate-layout` / `sample-list` as labels
+- [x] **bca-assay** — save `conc-data`, load `plate-layout`
+- [x] **rt-calc** — save `sample-list`, load `conc-data` / `sample-list`
+- [x] **seeding-calc** — save `seeding-plan`, load `conc-data` / `sample-list`
+- [x] **cell-count** — save `sample-list`
+- [x] **stain-timer** — save/load `protocol`
+- [x] **thermal-to-laser** — load `plate-layout` into preset notes
+- [ ] **drag-drop from drawer** — planned, not yet implemented
+
 ## HIGH PRIORITY
 
 - [ ] **stain-timer** — add Notification API + `visibilitychange` catch-up for background tabs
