@@ -6,6 +6,7 @@
   <title>Stain Timer · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
   <style>
     /* ── Card width (base styles live in labtools.css .card) ── */
@@ -1602,7 +1603,7 @@ document.addEventListener('DOMContentLoaded', function () {
         { stepCount: protocol.length }, WB_TOOL);
     }).then(function () {
       showToast('✓ Saved "' + label + '"');
-    }).catch(function (e) { console.error('WB save:', e); });
+    }).catch(function (e) { showToast('✗ ' + e.message); console.error('WB save:', e); });
   });
 
   if (loadBtn) loadBtn.addEventListener('click', function () {
@@ -1617,6 +1618,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }).catch(function (e) { console.error('WB load:', e); });
   });
 });
+
+labtoolsRegisterToolTypes('stain-timer', ['protocol'], ['protocol']);
 
 labtoolsRegisterTestHooks('stain-timer', {
   serialize: serializeForWorkbench,

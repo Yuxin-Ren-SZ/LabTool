@@ -20,15 +20,21 @@ const DB_VERSION = 1;
 const STORE_NAME = 'items';
 const CHANNEL_NAME = 'labtools-workbench';
 
-const TYPE_META = {
-  'plate-layout':   { icon: '📋', label: 'Plate Layouts',   color: '#5c8dff' },
-  'sample-list':    { icon: '🧪', label: 'Sample Lists',    color: '#57a85a' },
-  'conc-data':      { icon: '📊', label: 'Concentration Data', color: '#d97706' },
-  'qpcr-results':   { icon: '📈', label: 'qPCR Results',    color: '#e03e3e' },
-  'seeding-plan':   { icon: '⚗️', label: 'Seeding Plans',   color: '#8e44ad' },
-  'protocol':       { icon: '⏱', label: 'Protocols',        color: '#2c7fb8' },
-  'generic':        { icon: '📄', label: 'Other',            color: '#9b9a97' },
-};
+// Display metadata is derived from the data-contract registry
+// (assets/js/labtools-types.js) — label/icon/color per type.
+function typeMeta(type) {
+  const def = (window.DATA_TYPES || {})[type];
+  if (def) {
+    return { icon: def.icon || '📄', label: def.name + 's', color: def.color || '#9b9a97' };
+  }
+  // Fallback for types not in the registry (should not happen — tests enforce)
+  return { icon: '📄', label: (type || 'generic') + 's', color: '#9b9a97' };
+}
+
+function typeMetaFor(type) {
+  const def = (window.DATA_TYPES || {})[type];
+  return def || null;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. Utilities
@@ -155,6 +161,9 @@ const workbench = {
 
   /**
    * Put data into the workbench.
+   * Validates the payload against the data-contract registry (strict mode):
+   * rejects with an Error listing violations when the shape is invalid.
+   *
    * @param {string}  type     e.g. 'plate-layout', 'sample-list'
    * @param {string}  label    User-given name
    * @param {*}       data     Tool-specific JSON-serializable payload
@@ -163,6 +172,17 @@ const workbench = {
    * @returns {Promise<string>} The new item's id
    */
   put: function (type, label, data, metadata, tool) {
+    // Strict validation against the data contract (assets/js/labtools-types.js)
+    if (window.validateWorkbenchType) {
+      const check = window.validateWorkbenchType(type, data);
+      if (!check.valid) {
+        const detail = check.errors.slice(0, 5).join('; ');
+        return Promise.reject(new Error(
+          `Invalid ${type} data — ${check.errors.length} schema violation(s): ${detail}`
+        ));
+      }
+    }
+
     const item = {
       id: uuid(),
       type: type,
@@ -427,7 +447,7 @@ function showPicker(items, onSelect, types) {
     html += '<div class="wb-empty">No matching items in Workbench.</div>';
   } else {
     items.forEach(function (item) {
-      var meta = TYPE_META[item.type] || TYPE_META['generic'];
+      var meta = typeMeta(item.type);
       html += '<div class="wb-picker-item" data-id="' + escapeHtml(item.id) + '">';
       html += '<span class="wb-picker-item-icon">' + meta.icon + '</span>';
       html += '<div class="wb-picker-item-info">';
@@ -622,7 +642,7 @@ function renderDrawer() {
 
     var html = '';
     Object.keys(groups).forEach(function (type) {
-      var meta = TYPE_META[type] || TYPE_META['generic'];
+      var meta = typeMeta(type);
       var groupItems = groups[type];
       html += '<div class="wb-group">';
       html += '<div class="wb-group-header">';
@@ -708,7 +728,7 @@ document.addEventListener('DOMContentLoaded', function () {
 window.workbench  = workbench;
 window.showPicker = showPicker;
 window.showToast  = showToast;
-window.wbTypes    = TYPE_META;
+window.wbTypes    = (window.DATA_TYPES || {});
 
 /**
  * Register stable test hooks for a tool so the integration harness

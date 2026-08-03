@@ -8,6 +8,7 @@
   <!-- Shared pure-function utilities: avgTwo, fmt, fmtSig, calcCellDensity, calcTotalCells,
        calcViabilityPct, bestVolumeDisplay, autoBestConcUnit, restrictToNumeric, makeDiagram, MODES -->
   <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
   <style>
     /* ── Card width (base styles live in labtools.css .card) ── */
@@ -1441,7 +1442,7 @@ document.addEventListener('DOMContentLoaded', function () {
         { unit: 'cells/mL' }, WB_TOOL);
     }).then(function () {
       showToast('✓ Saved "' + label + '"');
-    }).catch(function (e) { console.error('WB save:', e); });
+    }).catch(function (e) { showToast('✗ ' + e.message); console.error('WB save:', e); });
   });
 
   if (loadBtn) loadBtn.addEventListener('click', function () {
@@ -1456,6 +1457,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }).catch(function (e) { console.error('WB load:', e); });
   });
 });
+
+labtoolsRegisterToolTypes('seeding-calc', ['seeding-plan'], ['conc-data', 'sample-list']);
 
 labtoolsRegisterTestHooks('seeding-calc', {
   serialize: serializeForWorkbench,

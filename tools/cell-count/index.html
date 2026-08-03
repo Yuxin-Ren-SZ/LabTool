@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <!-- Shared pure-function utilities (avgTwo, fmt, calcCellDensity, makeDiagram, MODES …) -->
   <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
   <style>
     /* ── Card width (base styles live in labtools.css .card) ── */
@@ -481,9 +482,11 @@ document.addEventListener('DOMContentLoaded', function () {
         { sampleCount: 1, unit: 'cells/mL' }, WB_TOOL);
     }).then(function () {
       showToast('✓ Saved "' + label + '"');
-    }).catch(function (e) { console.error('WB save:', e); });
+    }).catch(function (e) { showToast('✗ ' + e.message); console.error('WB save:', e); });
   });
 });
+
+labtoolsRegisterToolTypes('cell-count', ['sample-list'], []);
 
 labtoolsRegisterTestHooks('cell-count', {
   serialize: serializeForWorkbench,

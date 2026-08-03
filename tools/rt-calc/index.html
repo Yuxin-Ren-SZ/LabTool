@@ -6,6 +6,7 @@
   <title>RT Calculator · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <script src="../../assets/js/labtools-common.js"></script>
+  <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
   <style>
     .card { max-width: 1100px; }
@@ -1064,7 +1065,7 @@ document.addEventListener('DOMContentLoaded', function () {
         { sampleCount: samples.length }, WB_TOOL);
     }).then(function () {
       showToast('✓ Saved "' + label + '"');
-    }).catch(function (e) { console.error('WB save:', e); });
+    }).catch(function (e) { showToast('✗ ' + e.message); console.error('WB save:', e); });
   });
 
   if (loadBtn) loadBtn.addEventListener('click', function () {
@@ -1079,6 +1080,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }).catch(function (e) { console.error('WB load:', e); });
   });
 });
+
+labtoolsRegisterToolTypes('rt-calc', ['sample-list'], ['conc-data', 'sample-list']);
 
 labtoolsRegisterTestHooks('rt-calc', {
   serialize: serializeForWorkbench,

@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <script src="../../assets/js/labtools-common.js"></script>
   <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
   <style>
     .card { max-width: 1180px; }
@@ -2803,6 +2804,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }).then(function () {
       showToast('✓ Saved "' + label + '"');
     }).catch(function (e) {
+      showToast('✗ ' + e.message);
       console.error('Workbench save error:', e);
     });
   });
@@ -2824,6 +2826,8 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 });
+
+labtoolsRegisterToolTypes('qpcr-analysis', ['qpcr-results'], ['plate-layout', 'sample-list']);
 
 labtoolsRegisterTestHooks('qpcr-analysis', {
   serialize: serializeForWorkbench,

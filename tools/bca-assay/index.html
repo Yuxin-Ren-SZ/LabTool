@@ -6,6 +6,7 @@
   <title>BCA Assay Calculator · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <script src="../../assets/js/labtools-common.js"></script>
+  <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
   <style>
     /* ── Layout ── */
@@ -2483,6 +2484,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }).then(function () {
       showToast('✓ Saved "' + label + '"');
     }).catch(function (e) {
+      showToast('✗ ' + e.message);
       console.error('Workbench save error:', e);
     });
   });
@@ -2503,6 +2505,8 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 });
+
+labtoolsRegisterToolTypes('bca-assay', ['conc-data'], ['plate-layout']);
 
 labtoolsRegisterTestHooks('bca-assay', {
   serialize: serializeForWorkbench,

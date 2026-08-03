@@ -6,6 +6,7 @@
   <title>Thermal To Laser Label Converter · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <script src="../../assets/js/labtools-common.js"></script>
+  <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
   <script src="./preset-config.js"></script>
   <script src="./pdf-lib.min.js"></script>
@@ -669,6 +670,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }).catch(function (e) { console.error('WB load:', e); });
   });
 });
+
+labtoolsRegisterToolTypes('thermal-to-laser', [], ['plate-layout']);
 
 labtoolsRegisterTestHooks('thermal-to-laser', {
   state: function () {
