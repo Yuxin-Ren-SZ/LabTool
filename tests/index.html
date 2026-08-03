@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>LabTools Test Harness</title>
   <link rel="stylesheet" href="../assets/css/labtools.css"/>
+  <script src="../assets/js/labtools-types.js"></script>
   <script src="../assets/js/labtools-workbench.js"></script>
   <style>
     body { font-family: var(--font); background: var(--bg); color: var(--text); padding: 24px; }
@@ -119,6 +120,7 @@ const FLOWS = [
     fixture: 'bca-raw.txt', snapshot: 'flow-15-bca-raw.json' },
   { id: 'flow-16-bca-manual', name: 'bca manual-mode calc', tool: 'bca-assay',
     fixture: 'bca-manual.json', snapshot: 'flow-16-bca-manual.json' },
+  { id: 'flow-17-strict-rejection', name: 'strict put() rejects invalid data', tool: null, fixture: null, snapshot: null },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -389,6 +391,22 @@ async function flowBcaManual(flow) {
   return { ok: out && out.results && out.results.length > 0, output: out, note: `${out ? out.results.length : 0} results` };
 }
 
+async function flowStrictRejection() {
+  // Strict mode: workbench.put must reject schema-violating payloads.
+  const rejected = await workbench.put('protocol', 'Bad protocol', { steps: [{ solution: 'X' }] })
+    .then(() => null, (e) => e);
+  if (!rejected || !/schema violation/.test(rejected.message || '')) {
+    return { ok: false, output: { rejected: !!rejected, msg: rejected && rejected.message } };
+  }
+  // Valid payload passes validation (rejects later only if IndexedDB fails — it won't here)
+  const accepted = await workbench.put('protocol', 'Good protocol', {
+    steps: [{ solution: 'Fix', durationMin: 10, durationSec: 0, slot: '1' }],
+  }).then((id) => id, (e) => e);
+  // cleanup
+  if (accepted) await workbench.remove(accepted);
+  return { ok: !!accepted, output: { invalidRejected: true, validAccepted: !!accepted } };
+}
+
 // ── Runner ──────────────────────────────────────────────────────────────────
 
 const IMPL = {
@@ -408,6 +426,7 @@ const IMPL = {
   'flow-14-nanodrop': flowNanodrop,
   'flow-15-bca-raw': flowBcaRaw,
   'flow-16-bca-manual': flowBcaManual,
+  'flow-17-strict-rejection': flowStrictRejection,
 };
 
 async function runFlow(flow) {

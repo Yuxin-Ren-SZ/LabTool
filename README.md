@@ -27,7 +27,9 @@ LabTools/
 │   ├── css/labtools.css               # Shared design system
 │   └── js/
 │       ├── labtools-calc.js           # Shared pure calculation helpers
-│       └── labtools-common.js         # Shared browser utilities
+│       ├── labtools-common.js         # Shared browser utilities
+│       ├── labtools-types.js          # Data-contract registry (workbench payload schemas)
+│       └── labtools-workbench.js      # Workbench: IndexedDB store + drawer UI
 ├── tools/
 │   ├── cell-count/
 │   ├── seeding-calc/
@@ -75,6 +77,6 @@ The site is hosted on GitHub Pages from the `dev` branch. PRs should target `dev
 
 ## Design And Data
 
-Shared UI tokens and `lt-` component classes live in `assets/css/labtools.css`. Shared bench-math helpers live in `assets/js/labtools-calc.js` as plain global functions with no DOM dependencies. Shared browser utilities for download, clipboard, file reading, and safe JSON parsing live in `assets/js/labtools-common.js`.
+Shared UI tokens and `lt-` component classes live in `assets/css/labtools.css`. Shared bench-math helpers live in `assets/js/labtools-calc.js` as plain global functions with no DOM dependencies. Shared browser utilities for download, clipboard, file reading, and safe JSON parsing live in `assets/js/labtools-common.js`. The workbench data-contract registry (payload schemas for cross-tool data exchange, strict-validated on save) lives in `assets/js/labtools-types.js`; the workbench store and drawer UI live in `assets/js/labtools-workbench.js`.
 
 Browser-saved presets, protocols, and logs use `localStorage`; they stay in the current browser and do not rewrite checked-in config files. Tools that expose config export or copy actions generate snippets/files for manual review before committing.

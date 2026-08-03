@@ -19,7 +19,9 @@ LabTools/
 │   ├── css/labtools.css               # Shared design system
 │   └── js/
 │       ├── labtools-calc.js           # Shared pure-function utilities
-│       └── labtools-common.js         # Shared browser utilities
+│       ├── labtools-common.js         # Shared browser utilities
+│       ├── labtools-types.js          # Data-contract registry (workbench payload schemas)
+│       └── labtools-workbench.js      # Workbench: IndexedDB store + drawer UI
 ├── tools/
 │   ├── cell-count/index.html          # Hemocytometer calculator
 │   ├── seeding-calc/index.html        # Count-to-dilution workflow
@@ -72,6 +74,28 @@ stdCurveFit([{quantity:1,cq:30},{quantity:10,cq:26.68}]).E  // ~2.0
 - `labtoolsSafeJsonParse(raw, fallback)`
 
 Keep these generic and dependency-free.
+
+## Data Contract Registry
+
+`assets/js/labtools-types.js` is the single source of truth for workbench data
+shapes. It defines `DATA_TYPES` (per type: name, icon, color, description,
+producers, consumers, and a validation schema) plus two helpers:
+
+- `validateWorkbenchType(type, data)` — strict schema check returning
+  `{ valid, errors }`
+- `labtoolsRegisterToolTypes(toolName, produces, consumes)` — tools declare
+  which data types they can save/load
+
+`workbench.put()` validates payloads against the registry and **rejects**
+schema-violating data (strict mode). Each tool declares its types once:
+
+```js
+labtoolsRegisterToolTypes('qpcr-analysis', ['qpcr-results'], ['plate-layout', 'sample-list']);
+```
+
+Load `labtools-types.js` BEFORE `labtools-workbench.js` in every page that
+uses the workbench. Unit tests (`tests/unit/types.test.mjs`) enforce that every
+declared type exists in the registry and that fixtures validate.
 
 ## Shared Design System
 
