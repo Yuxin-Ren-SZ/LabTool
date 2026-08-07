@@ -1,0 +1,41 @@
+Well	Well Type	Well Name	Dye	Target	Replicate	Cq	Final Call	Threshold	Baseline Start	Baseline End	Quantity	Efficiency	Cq Avg	Cq SD	Tm
+A1	Unknown	Ctrl_1	SYBR	HPRT1	1	21.13	+	200.0	2	5		2.00			83.1
+A2	Unknown	Ctrl_1	SYBR	HPRT1	2	21.02	+	200.0	2	5		2.00			82.9
+A3	Unknown	Ctrl_2	SYBR	HPRT1	1	21.88	+	200.0	2	5		2.00			83.6
+A4	Unknown	Ctrl_2	SYBR	HPRT1	2	21.72	+	200.0	2	5		2.00			83.8
+A5	Unknown	Ctrl_3	SYBR	HPRT1	1	22.5	+	200.0	2	5		2.00			82.9
+A6	Unknown	Ctrl_3	SYBR	HPRT1	2	22.44	+	200.0	2	5		2.00			83.4
+A7	Unknown	T1_1	SYBR	HPRT1	1	21.16	+	200.0	2	5		2.00			83.1
+A8	Unknown	T1_1	SYBR	HPRT1	2	20.83	+	200.0	2	5		2.00			84
+A9	Unknown	T1_2	SYBR	HPRT1	1	21.76	+	200.0	2	5		2.00			83.3
+A10	Unknown	T1_2	SYBR	HPRT1	2	21.72	+	200.0	2	5		2.00			82.2
+A11	Unknown	T1_3	SYBR	HPRT1	1	22.71	+	200.0	2	5		2.00			83
+A12	Unknown	T1_3	SYBR	HPRT1	2	22.49	+	200.0	2	5		2.00			83.6
+B1	NTC		SYBR	HPRT1	1	Undetermined	-	200.0	2	5		2.00			
+B2	Unknown	Ctrl_1	SYBR	MAP2	1	26.05	+	200.0	2	5		2.00			83.1
+B3	Unknown	Ctrl_1	SYBR	MAP2	2	25.96	+	200.0	2	5		2.00			83.5
+B4	Unknown	Ctrl_2	SYBR	MAP2	1	26.8	+	200.0	2	5		2.00			83.8
+B5	Unknown	Ctrl_2	SYBR	MAP2	2	26.88	+	200.0	2	5		2.00			83.4
+B6	Unknown	Ctrl_3	SYBR	MAP2	1	27.76	+	200.0	2	5		2.00			83.1
+B7	Unknown	Ctrl_3	SYBR	MAP2	2	27.61	+	200.0	2	5		2.00			83.7
+B8	Unknown	T1_1	SYBR	MAP2	1	25.89	+	200.0	2	5		2.00			82.6
+B9	Unknown	T1_1	SYBR	MAP2	2	26.04	+	200.0	2	5		2.00			82
+B10	Unknown	T1_2	SYBR	MAP2	1	26.78	+	200.0	2	5		2.00			83.7
+B11	Unknown	T1_2	SYBR	MAP2	2	26.7	+	200.0	2	5		2.00			82.2
+B12	Unknown	T1_3	SYBR	MAP2	1	27.74	+	200.0	2	5		2.00			82.3
+C1	Unknown	T1_3	SYBR	MAP2	2	27.64	+	200.0	2	5		2.00			83.6
+C2	NTC		SYBR	MAP2	1	Undetermined	-	200.0	2	5		2.00			
+C3	Unknown	Ctrl_1	SYBR	GFAP	1	25.19	+	200.0	2	5		2.00			82.6
+C4	Unknown	Ctrl_1	SYBR	GFAP	2	24.98	+	200.0	2	5		2.00			82.2
+C5	Unknown	Ctrl_2	SYBR	GFAP	1	25.89	+	200.0	2	5		2.00			82.8
+C6	Unknown	Ctrl_2	SYBR	GFAP	2	25.77	+	200.0	2	5		2.00			83.4
+C7	Unknown	Ctrl_3	SYBR	GFAP	1	26.4	+	200.0	2	5		2.00			82.1
+C8	Unknown	Ctrl_3	SYBR	GFAP	2	26.75	+	200.0	2	5		2.00			82.3
+C9	Unknown	T1_1	SYBR	GFAP	1	25.17	+	200.0	2	5		2.00			83.2
+C10	Unknown	T1_1	SYBR	GFAP	2	24.98	+	200.0	2	5		2.00			82.1
+C11	Unknown	T1_2	SYBR	GFAP	1	25.61	+	200.0	2	5		2.00			83.7
+C12	Unknown	T1_2	SYBR	GFAP	2	25.88	+	200.0	2	5		2.00			83.1
+D1	Unknown	T1_3	SYBR	GFAP	1	26.6	+	200.0	2	5		2.00			82.6
+D2	Unknown	T1_3	SYBR	GFAP	2	26.75	+	200.0	2	5		2.00			83.9
+D3	NTC		SYBR	GFAP	1	Undetermined	-	200.0	2	5		2.00			
+D4	NRT		SYBR	HPRT1	1	Undetermined	-	200.0	2	5		2.00			

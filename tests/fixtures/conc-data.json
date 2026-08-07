@@ -1,0 +1,50 @@
+{
+  "results": [
+    {
+      "sample": "CSF_01",
+      "conc": 362.5,
+      "unit": "µg/mL",
+      "flag": "",
+      "cv": 2.5
+    },
+    {
+      "sample": "CSF_02",
+      "conc": 575,
+      "unit": "µg/mL",
+      "flag": "",
+      "cv": 1.4
+    },
+    {
+      "sample": "CSF_03",
+      "conc": 900,
+      "unit": "µg/mL",
+      "flag": "",
+      "cv": 3.7
+    },
+    {
+      "sample": "CSF_04",
+      "conc": 1225,
+      "unit": "µg/mL",
+      "flag": "",
+      "cv": 1.4
+    },
+    {
+      "sample": "CSF_05",
+      "conc": 687.5,
+      "unit": "µg/mL",
+      "flag": "",
+      "cv": 3.6
+    },
+    {
+      "sample": "CSF_06",
+      "conc": 1037.5,
+      "unit": "µg/mL",
+      "flag": "",
+      "cv": 1.2
+    }
+  ],
+  "unit": "µg/mL",
+  "model": "linear",
+  "fitModel": "linear",
+  "timestamp": 1785495600000
+}

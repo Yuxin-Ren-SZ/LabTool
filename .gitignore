@@ -1,8 +1,9 @@
 # Dev Docs
 TODO.md
 
-# Claude
+# Claude / Hermes
 .remember/
+.claude/
 
 # Codex
 .codex
@@ -34,3 +35,6 @@ npm-debug.log*
 
 # Tool-specific sample assets
 tools/**/test_data/
+
+# Test run artifacts (human review evidence — keep local)
+tests/reports/

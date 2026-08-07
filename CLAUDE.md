@@ -4,7 +4,9 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-LabTools is a collection of zero-dependency, static HTML tools for cell biology bench work. There is no build step, bundler, package manager, or framework. Each tool is browser-runnable and mostly self-contained, with shared assets for common styling, pure calculation utilities, and small browser helpers.
+LabTools is a collection of zero-dependency, static HTML tools for cell biology bench work. Each tool is browser-runnable and mostly self-contained, with shared assets for common styling, pure calculation utilities, and small browser helpers.
+
+**Dependency policy:** the *shipped* tools have no build step, bundler, or runtime dependency — that is a hard rule. The *dev/test tooling* is the one carve-out: `package.json` declares `puppeteer` as a devDependency so the headless e2e suite (`tests/e2e/`) can drive real tool pages in CI. Nothing under `tools/` or `assets/` may import it.
 
 ## Development And Deployment
 
@@ -19,15 +21,17 @@ LabTools/
 │   ├── css/labtools.css               # Shared design system
 │   └── js/
 │       ├── labtools-calc.js           # Shared pure-function utilities
-│       └── labtools-common.js         # Shared browser utilities
+│       ├── labtools-common.js         # Shared browser utilities
+│       ├── labtools-types.js          # Data-contract registry (workbench payload schemas)
+│       └── labtools-workbench.js      # Workbench: IndexedDB store + drawer UI
 ├── tools/
 │   ├── cell-count/index.html          # Hemocytometer calculator
 │   ├── seeding-calc/index.html        # Count-to-dilution workflow
-│   ├── experiment-layout/index.html   # Multi-well plate mapper
+│   ├── microplate-layout-planner/index.html   # Microplate Layout Planner
 │   ├── stain-timer/index.html         # Staining protocol timer
 │   ├── thermal-to-laser/index.html    # Thermal PDF to laser sheet converter
 │   ├── drug-dosage/index.html         # Per-animal dose calculator and log
-│   └── qpcr-analysis/index.html       # Agilent qPCR export analyzer (plate, curves, ΔΔCq)
+│   └── qpcr-analysis/index.html       # Agilent qPCR analyzer (multi-plate, QC, curves, ΔΔCq, stats, MIQE)
 └── docs/
     ├── counting-modes.html            # Hemocytometer mode reference
     └── plate-dimensions.template.json # Plate geometry reference template
@@ -47,12 +51,18 @@ Key exports include:
 - `calcCellDensity(count, multiplier, df)`, `calcTotalCells(density, volML)`, and `calcViabilityPct(live, dead)`
 - `makeDiagram(largeHL, smallHL)`
 - `MODES`, `SMALL_ALL`, and `SMALL_5`
+- qPCR statistics (used by `tools/qpcr-analysis/`): `parseSampleAnnotation(name)`,
+  `tTestTwoSided(a, b, opts)`, `studentTPvalue(t, df)`, `tCritical(df, alpha)`,
+  `stdCurveFit(points)`, and `genormM(cqByGene)`
 
 Quick console checks:
 
 ```js
 calcCellDensity(80, 0.25, 20)  // 4000000
 calcDoseFromBodyWeight(5, 'kg', 25, 'g')  // 0.125
+parseSampleAnnotation('Control_2')  // { group: 'Control', bioRep: '2' }
+tTestTwoSided([1,2,3],[4,5,6]).p  // ~0.0213 (two-tailed, on ΔCq)
+stdCurveFit([{quantity:1,cq:30},{quantity:10,cq:26.68}]).E  // ~2.0
 ```
 
 ## Shared Browser Utilities
@@ -66,6 +76,28 @@ calcDoseFromBodyWeight(5, 'kg', 25, 'g')  // 0.125
 - `labtoolsSafeJsonParse(raw, fallback)`
 
 Keep these generic and dependency-free.
+
+## Data Contract Registry
+
+`assets/js/labtools-types.js` is the single source of truth for workbench data
+shapes. It defines `DATA_TYPES` (per type: name, icon, color, description,
+producers, consumers, and a validation schema) plus two helpers:
+
+- `validateWorkbenchType(type, data)` — strict schema check returning
+  `{ valid, errors }`
+- `labtoolsRegisterToolTypes(toolName, produces, consumes)` — tools declare
+  which data types they can save/load
+
+`workbench.put()` validates payloads against the registry and **rejects**
+schema-violating data (strict mode). Each tool declares its types once:
+
+```js
+labtoolsRegisterToolTypes('qpcr-analysis', ['qpcr-results'], ['plate-layout', 'sample-list']);
+```
+
+Load `labtools-types.js` BEFORE `labtools-workbench.js` in every page that
+uses the workbench. Unit tests (`tests/unit/types.test.mjs`) enforce that every
+declared type exists in the registry and that fixtures validate.
 
 ## Shared Design System
 

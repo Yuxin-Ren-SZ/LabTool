@@ -6,6 +6,9 @@
   <title>qPCR Analysis · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <script src="../../assets/js/labtools-common.js"></script>
+  <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-types.js"></script>
+  <script src="../../assets/js/labtools-workbench.js"></script>
   <style>
     .card { max-width: 1180px; }
 
@@ -74,8 +77,12 @@
     .mini-label { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 600; }
 
     /* ── Plate ── */
-    .plate-wrap { overflow-x: auto; }
-    #plateSvg { max-width: 100%; height: auto; display: block; }
+    /* multi-plate small-multiples */
+    .plate-grid { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; overflow-x: auto; }
+    .plate-cell { flex: 0 0 auto; }
+    .plate-cell .plate-title { font-size: var(--fs-sm); font-weight: 700; color: var(--text-secondary);
+      margin: 0 0 4px 2px; display: flex; align-items: center; gap: 6px; }
+    .plate-cell svg { touch-action: none; -webkit-user-select: none; user-select: none; max-width: 100%; height: auto; display: block; }
     .plate-legend { display: flex; align-items: center; gap: 14px; margin-top: 10px; flex-wrap: wrap;
       font-size: var(--fs-xs); color: var(--text-secondary); }
     .legend-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px;
@@ -126,6 +133,38 @@
     table.data tbody tr.qc-flag:hover { background: var(--yellow-bg); }
     .qc-sd { color: var(--yellow-dark); font-weight: 700; }
 
+    /* ── QC / MIQE verdict panels ── */
+    .qc-panel { display: flex; flex-direction: column; gap: 6px; }
+    .qc-item {
+      display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px;
+      border: 1px solid var(--border-subtle); border-left-width: 4px;
+      border-radius: var(--radius-sm); background: var(--surface-subtle);
+    }
+    .qc-item .qc-ico { font-size: 15px; line-height: 1.35; flex: 0 0 auto; }
+    .qc-item .qc-body { flex: 1 1 auto; min-width: 0; }
+    .qc-item .qc-name { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
+    .qc-item .qc-detail { font-size: var(--fs-sm); color: var(--text-secondary); margin-top: 2px; }
+    .qc-item .qc-tag { font-size: 0.68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+      color: var(--text-muted); margin-left: 6px; }
+    .qc-item.pass { border-left-color: var(--green, #57a85a); }
+    .qc-item.warn { border-left-color: var(--yellow-dark, #d9a700); background: var(--yellow-bg); }
+    .qc-item.fail { border-left-color: var(--red); background: var(--red-bg, #fdecec); }
+    .qc-item.na   { border-left-color: var(--border); opacity: 0.75; }
+    .qc-item.info { border-left-color: var(--blue-border); }
+    .qc-item.pass .qc-ico { color: var(--green, #57a85a); }
+    .qc-item.warn .qc-ico { color: var(--yellow-dark, #d9a700); }
+    .qc-item.fail .qc-ico { color: var(--red); }
+
+    .methods-text {
+      width: 100%; box-sizing: border-box; padding: 12px 14px; resize: vertical;
+      border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55;
+      color: var(--text); background: var(--surface-subtle); outline: none;
+    }
+    .methods-text:focus { border-color: var(--blue); }
+    /* fold-chart individual biological-replicate dots */
+    .fold-dot { fill: var(--text-secondary); fill-opacity: 0.85; stroke: #fff; stroke-width: 0.6; }
+
     .empty-state { text-align: center; padding: 18px; color: var(--text-muted); font-size: var(--fs-sm); }
 
     /* ── Selection / bulk-assign bar ── */
@@ -146,7 +185,6 @@
     }
     .grp-input:focus { border-color: var(--blue); }
     .sel-spacer { flex: 1 1 auto; }
-    #plateSvg { touch-action: none; -webkit-user-select: none; user-select: none; }
     .col-lbl, .row-lbl { cursor: pointer; }
 
     /* table checkbox column */
@@ -212,7 +250,8 @@
         <div class="drop-zone-sub">
           or <span class="drop-zone-link">browse…</span><br/>
           Tabular Results is required · Amplification Plots, Plate Setup, Thermal Profile &amp; Notes optional<br/>
-          Also accepts a <b>Well Plate Map Generator</b> <code>.csv</code> to label samples by group
+          Drop <b>several Tabular Results</b> files to load them as <b>multiple plates</b> (combined for QC &amp; ΔΔCq)<br/>
+          Also accepts a <b>Microplate Layout Planner</b> <code>.csv</code> to label samples by group
         </div>
       </div>
       <div class="file-list" id="fileList"></div>
@@ -227,6 +266,8 @@
             <span class="section-title">Run summary</span>
             <div class="section-tools">
               <button class="lt-btn lt-btn-ghost" id="btnResetAll">Clear &amp; start over</button>
+              <button class="lt-btn lt-btn-ghost" id="wb-save-btn">Save to Workbench</button>
+              <button class="lt-btn lt-btn-ghost" id="wb-load-btn">Load from Workbench</button>
             </div>
           </div>
           <div class="summary-grid" id="summaryGrid"></div>
@@ -250,15 +291,14 @@
               <button class="lt-btn lt-btn-ghost" id="btnPlatePng">PNG</button>
             </div>
           </div>
-          <div class="plate-wrap">
-            <svg id="plateSvg" xmlns="http://www.w3.org/2000/svg"></svg>
-          </div>
+          <div class="plate-grid" id="plateGrid"></div>
 
           <!-- Selection + bulk group assignment -->
           <div class="sel-bar" id="selBar">
             <span class="sel-count" id="selCount"><b>0</b> wells selected</span>
             <div class="lt-segmented sel-field" id="assignField">
               <button data-field="sample" class="lt-segmented-btn active">Sample</button>
+              <button data-field="group" class="lt-segmented-btn">Group</button>
               <button data-field="target" class="lt-segmented-btn">Gene</button>
             </div>
             <input class="grp-input" id="grpInput" list="sampleNameList" placeholder="Sample name…" autocomplete="off" />
@@ -273,8 +313,10 @@
           <div class="plate-legend" id="plateLegend"></div>
           <p class="drop-zone-sub" style="margin-top:8px;">
             Drag across wells to select a block, click row/column headers to select a whole row/column, or
-            tick rows in the table (Shift-click for a range). Choose <b>Sample</b> or <b>Gene</b>, type a name,
-            and <b>Assign to selection</b>. Gene labels apply to the current plate dye and feed ΔΔCq.
+            tick rows in the table (Shift-click for a range). Choose <b>Sample</b>, <b>Group</b> or <b>Gene</b>,
+            type a name, and <b>Assign to selection</b>. Gene labels apply to the current plate dye and feed ΔΔCq.
+            Each distinct <b>Sample</b> name is one <b>biological replicate</b>; <b>Group</b> (Control/Treatment) is
+            the comparison axis — auto-read from names like <code>Control_1</code>, or set it explicitly here.
           </p>
         </div>
 
@@ -348,6 +390,14 @@
           <div class="section-head">
             <span class="section-title">Per-sample / target summary</span>
             <div class="section-tools">
+              <span class="mini-label">Show</span>
+              <div class="lt-segmented" id="sumFilter">
+                <button data-filter="withcq" class="lt-segmented-btn active">With Cq</button>
+                <button data-filter="named" class="lt-segmented-btn">Named</button>
+                <button data-filter="all" class="lt-segmented-btn">All</button>
+              </div>
+              <input class="grp-input" id="sumSearch" placeholder="Filter sample / gene…" autocomplete="off" style="min-width:120px;max-width:180px" />
+              <span class="mini-label" id="sumCount"></span>
               <span class="mini-label">Flag SD Cq &gt;</span>
               <input type="number" class="thr-input" id="qcThrInput" step="0.1" min="0" value="0.5"
                 title="Highlight replicate groups whose Cq SD exceeds this value" />
@@ -365,15 +415,57 @@
           </div>
         </div>
 
+        <!-- Data QC: 5 checks -->
+        <div class="section">
+          <div class="section-head">
+            <span class="section-title">Data QC — 5 checks (MIQE)</span>
+            <div class="section-tools">
+              <span class="mini-label">n.d. cutoff Cq &gt;</span>
+              <input type="number" class="thr-input" id="lodInput" step="0.5" min="0" value="38"
+                title="Cq above this (or Undetermined) is treated as below detection (n.d.) and excluded from ΔCq/stats (§5.2.5)" />
+            </div>
+          </div>
+          <div id="qcPanel" class="qc-panel"></div>
+          <p class="drop-zone-sub" style="margin-top:8px;">
+            Run these before trusting ΔCq. Checks 2–3 need NTC/NRT wells labelled by Well Type in the export;
+            Check 4 (melt) needs a Tm column. See the manual §5.2 for the rationale behind each.
+          </p>
+        </div>
+
+        <!-- Standard curve / amplification efficiency -->
+        <div class="section" id="stdSection" style="display:none;">
+          <div class="section-head">
+            <span class="section-title">Standard curve &amp; efficiency</span>
+          </div>
+          <div class="tbl-scroll">
+            <table class="data" id="stdTable">
+              <thead><tr>
+                <th>Gene</th><th class="num">n</th><th class="num">Slope</th>
+                <th class="num">R²</th><th class="num">E</th><th class="num">Efficiency %</th><th>Verdict</th>
+              </tr></thead>
+              <tbody id="stdBody"></tbody>
+            </table>
+          </div>
+          <p class="drop-zone-sub" style="margin-top:8px;">
+            Fitted from wells with <b>Well Type = Standard</b> and a Quantity value: E = 10<sup>−1/slope</sup>
+            (100% ≈ slope −3.32, E 2.0). When a curve is present its E feeds the efficiency-corrected (Pfaffl) fold.
+          </p>
+        </div>
+
         <!-- ΔΔCq -->
         <div class="section">
           <div class="section-head">
             <span class="section-title">ΔΔCq relative quantification</span>
             <div class="section-tools" id="ddTools">
-              <span class="mini-label">Calibrator sample</span>
-              <select class="mini-select" id="ddCal"></select>
+              <span class="mini-label">Control group</span>
+              <select class="mini-select" id="ddControl"></select>
+              <span class="mini-label" id="ddCalLabel" style="display:none">Inter-plate calibrator</span>
+              <select class="mini-select" id="ddCal" style="display:none"></select>
               <label class="mini-label" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;">
-                <input type="checkbox" id="ddEffCorr"> Use efficiency correction
+                <input type="checkbox" id="ddPaired"> Paired design
+              </label>
+              <label class="mini-label" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;">
+                <input type="checkbox" id="ddEffCorr"> Efficiency-corrected (Pfaffl)
               </label>
               <button class="lt-btn lt-btn-primary" id="btnDdRecalc">Recalculate</button>
               <button class="lt-btn lt-btn-ghost" id="btnDdCsv">CSV</button>
@@ -384,20 +476,27 @@
             <div class="ref-chips" id="ddRefChips"></div>
           </div>
           <div class="lt-alert lt-alert-info" id="ddAlert">
-            ΔΔCq needs at least two genes with Cq (≥1 reference + ≥1 gene of interest) and named samples.
-            Use the <b>Gene</b> assignment above to label wells, pick reference gene(s), then a calibrator sample.
+            ΔΔCq needs ≥2 genes with Cq (≥1 reference + ≥1 gene of interest), named samples, and ≥2 groups.
+            Label wells with <b>Gene</b> and <b>Group</b> above, pick reference gene(s), then the control group.
           </div>
+          <div class="lt-alert lt-alert-danger hidden" id="ddPseudoWarn" style="margin-top:10px;"></div>
+          <div class="lt-alert lt-alert-info hidden" id="ddPlateNote" style="margin-top:10px;"></div>
           <div class="tbl-scroll" id="ddTableWrap" style="display:none;">
             <table class="data" id="ddTable">
               <thead><tr>
-                <th>Sample</th><th>Gene</th>
-                <th class="num">Mean Cq</th><th class="num">Ref Cq</th>
-                <th class="num">ΔCq</th><th class="num">ΔΔCq</th><th class="num">ΔΔCq SD</th>
-                <th class="num">Fold</th><th class="num">Fold range</th>
+                <th>Group</th><th>Gene</th><th class="num">n (bio)</th>
+                <th class="num">Mean ΔCq</th><th class="num">ΔΔCq</th>
+                <th class="num">Fold</th><th class="num">95% CI</th>
+                <th class="num">p (ΔCq)</th><th class="num">p adj.</th><th>Sig.</th>
               </tr></thead>
               <tbody id="ddBody"></tbody>
             </table>
           </div>
+          <p class="drop-zone-sub" id="ddStatNote" style="display:none;margin-top:8px;">
+            Two-tailed Student's t-test on <b>ΔCq</b> (not fold; Yuan 2006), each group vs control;
+            n = biological replicates. <b>p adj.</b> = Holm across all group×gene tests (multiple-testing, MIQE #10).
+            Error bars/CI span biological-replicate spread — the control group carries its own error bar (§5.6.3).
+          </p>
           <div id="ddChartWrap" style="display:none;">
             <div class="section-head" style="margin-top:14px;">
               <span class="section-title" style="font-size:13px;">Fold-change</span>
@@ -414,6 +513,33 @@
               <div class="chart-empty" id="foldEmpty">No fold-change values to plot.</div>
             </div>
           </div>
+        </div>
+
+        <!-- MIQE 2.0 checklist -->
+        <div class="section">
+          <div class="section-head">
+            <span class="section-title">MIQE 2.0 checklist (essential)</span>
+          </div>
+          <div id="miqePanel" class="qc-panel"></div>
+          <p class="drop-zone-sub" style="margin-top:8px;">
+            The 12 essential items from MIQE 2.0 (Bustin et al. 2025, Appendix A). Auto-status where the tool can
+            verify from the run; the rest are reminders for your Methods/supplementary.
+          </p>
+        </div>
+
+        <!-- Methods paragraph -->
+        <div class="section">
+          <div class="section-head">
+            <span class="section-title">Methods paragraph</span>
+            <div class="section-tools">
+              <input class="grp-input" id="methodInstrument" placeholder="Instrument model…" style="width:150px" autocomplete="off" />
+              <button class="lt-btn lt-btn-ghost" id="btnMethodsCopy">Copy</button>
+            </div>
+          </div>
+          <textarea id="methodsText" class="methods-text" readonly rows="7"></textarea>
+          <p class="drop-zone-sub" style="margin-top:8px;">
+            A submission-ready draft filled from this run (§5.8.5 template). Review the bracketed fields before use.
+          </p>
         </div>
 
       </div>
@@ -452,7 +578,6 @@ const state = {
   sort: { col: 'well', dir: 1 },
   files: [],             // {name, type}
   wellsPresent: new Set(),
-  plateGeom: null,       // { ML, MT, pitch, rad, nRows, nCols }
   lastRowIdx: null,      // for Shift-range selection in the table
   assignField: 'sample', // bulk-assign target field: 'sample' | 'target'
   targetByKey: {},       // "WELL|DYE" -> gene name override
@@ -460,15 +585,27 @@ const state = {
   customThr: {},         // dye -> true when user overrode the instrument threshold
   ddRefs: new Set(),     // reference gene names for ΔΔCq
   ddRefsInit: false,     // whether default references were auto-picked
-  ddCal: '',             // calibrator sample
+  ddControlGroup: '',    // experimental group used as the ΔΔCq baseline (control)
+  ddControlInit: false,  // whether the control group was auto-picked
   ddEffCorr: false,      // efficiency-corrected (Pfaffl) fold vs 2^(-ΔΔCq)
+  pairedDesign: false,   // paired design → control subtracts itself (SD 0), per §5.6.3
   chartGroupBy: 'sample',// curve color grouping: sample | gene | sampleGene | call | well
   chartLayout: 'together', // together | separate (small multiples)
   userNamed: new Set(),  // wells the user explicitly named (vs auto-seeded) — keeps controls as samples
+  userGroup: {},         // WELL -> explicit group override (beats the naming convention)
   labelsDirty: false,    // sample/gene labels changed since last Export Labels
   qcSdThr: 0.5,          // replicate QC: flag groups whose Cq SD exceeds this
+  sumFilter: 'withcq',   // summary table: withcq | named | all
+  sumSearch: '',         // summary table free-text filter
+  lodCutoff: 38,         // Cq above this (or Undetermined) = below detection → n.d., excluded (§5.2.5)
+  plates: [],            // plate ids in load order (each Tabular Results file = one plate)
+  plateGeoms: {},        // plate id -> { ML, MT, pitch, rad, nRows, nCols } for pointer hit-testing
+  interPlateCal: '',     // inter-plate calibrator sample name (shared cDNA on every plate, §5.7)
+  interPlateInit: false, // whether the calibrator was auto-detected
 };
-const drag = { active: false, mode: 'add', baseline: null, start: null, last: null };
+// Unit separator: joins plate id + well label into a globally-unique well key (r.well).
+const PSEP = '␟';
+const drag = { active: false, mode: 'add', baseline: null, start: null, last: null, plate: null };
 
 const $ = id => document.getElementById(id);
 const NULLISH = /^(no cq|n\/a|no reference|no tm|---|\s*)$/i;
@@ -508,10 +645,11 @@ function detectType(text) {
   if (!lines.length) return 'unknown';
   const head = lines[0];
   const lower = head.toLowerCase();
-  // Well Plate Map Generator CSV (comma-delimited, has well + group columns, no tabs)
+  // Plate-label CSV (comma-delimited, no tabs): either the Microplate Layout Planner export
+  // (well + group) or this tool's own Export labels (well + sample [+ group] [+ gene]).
   if (head.indexOf('\t') === -1) {
     const cl = parseCsvLine(head).map(c => c.trim().toLowerCase());
-    if (cl.includes('well') && cl.includes('group')) return 'platelayout';
+    if (cl.includes('well') && (cl.includes('group') || cl.includes('sample'))) return 'platelayout';
   }
   const cells = head.split('\t').map(cleanCell);
   const headerHas = s => cells.some(c => c.toLowerCase().startsWith(s));
@@ -537,23 +675,33 @@ function parseCsvLine(line) {
   out.push(cur);
   return out;
 }
-// Well Plate Map Generator CSV → Map(well -> group name).
+// Microplate Layout Planner CSV → Map(well -> group name).
 function parsePlateLayout(text) {
-  const samples = new Map(), genes = new Map();
+  const samples = new Map(), genes = new Map(), groups = new Map();
   const lines = splitLines(text).filter(l => l.trim().length);
-  if (lines.length < 2) return { samples, genes };
+  if (lines.length < 2) return { samples, genes, groups };
   const header = parseCsvLine(lines[0]).map(h => h.trim().toLowerCase());
-  const iWell = header.indexOf('well'), iGroup = header.indexOf('group');
-  const iGene = header.indexOf('gene');
-  if (iWell < 0 || iGroup < 0) return { samples, genes };
+  const iWell = header.indexOf('well'), iPlate = header.indexOf('plate');
+  const iSample = header.indexOf('sample'), iGroup = header.indexOf('group'), iGene = header.indexOf('gene');
+  // Sample-name source: this tool's Sample column, else the Map Generator's group column.
+  const iName = iSample >= 0 ? iSample : iGroup;
+  // Explicit group override only when a separate Group column sits alongside Sample.
+  const iGroupOverride = (iSample >= 0 && iGroup >= 0) ? iGroup : -1;
+  if (iWell < 0 || iName < 0) return { samples, genes, groups };
   for (let i = 1; i < lines.length; i++) {
     const c = parseCsvLine(lines[i]);
-    const well = cleanCell(c[iWell]), grp = cleanCell(c[iGroup]);
+    const well = cleanCell(c[iWell]);
+    if (!well) continue;
+    const plate = iPlate >= 0 ? cleanCell(c[iPlate]) : '';
+    const k = plate ? plate + '␟' + well : well;    // encode plate so multi-plate labels resolve
+    const name = cleanCell(c[iName]);
     const gene = iGene >= 0 ? cleanCell(c[iGene]) : '';
-    if (well && grp) samples.set(well, grp);
-    if (well && gene) genes.set(well, gene);
+    const grp = iGroupOverride >= 0 ? cleanCell(c[iGroupOverride]) : '';
+    if (name) samples.set(k, name);
+    if (gene) genes.set(k, gene);
+    if (grp) groups.set(k, grp);
   }
-  return { samples, genes };
+  return { samples, genes, groups };
 }
 
 // Tabular Results: 1 row per well × dye.
@@ -575,10 +723,11 @@ function parseTabular(text) {
     threshold:find(startsWith('threshold')),
     blStart:  find(startsWith('baseline start')),
     blEnd:    find(startsWith('baseline end')),
-    quantity: find(startsWith('quantity (')),
+    quantity: find(h => h === 'quantity' || h.startsWith('quantity ') || h.startsWith('quantity(')),
     eff:      find(startsWith('efficiency')),
     cqAvg:    find(startsWith('cq avg')),
     cqSd:     find(startsWith('cq sd')),
+    tm:       find(h => h === 'tm' || h.startsWith('tm ') || h.startsWith('tm(') || h.startsWith('melt')),
   };
   if (col.well < 0 || col.dye < 0 || col.cq < 0) {
     return { error: 'Could not find Well / Dye / Cq columns — is this the Tabular Results export?' };
@@ -609,6 +758,7 @@ function parseTabular(text) {
       eff: numOrNull(get(col.eff)),
       cqAvg: numOrNull(get(col.cqAvg)),
       cqSd: numOrNull(get(col.cqSd)),
+      tm: numOrNull(get(col.tm)),
       series: null,
       sampleName: '',
     });
@@ -728,7 +878,7 @@ async function handleFiles(fileList) {
   const files = Array.from(fileList).filter(f => /\.(txt|csv)$/i.test(f.name) && !f.name.startsWith('._'));
   if (!files.length) { showError('No .txt/.csv files found. Export the run as tab-separated text from the Agilent software.'); return; }
 
-  const parsed = { tabular: null, amp: null, setup: null, thermal: null, notes: '', layout: null };
+  const parsed = { tabulars: [], amp: null, setup: null, thermal: null, notes: '', layout: null };
   const seen = [];
   for (const f of files) {
     let text;
@@ -736,7 +886,7 @@ async function handleFiles(fileList) {
     catch (e) { seen.push({ name: f.name, type: 'unknown' }); continue; }
     const type = detectType(text);
     seen.push({ name: f.name, type });
-    if (type === 'tabular' && !parsed.tabular) parsed.tabular = { name: f.name, res: parseTabular(text) };
+    if (type === 'tabular') parsed.tabulars.push({ name: f.name, res: parseTabular(text) });   // one plate per file
     else if (type === 'amplification') parsed.amp = parseAmplification(text);
     else if (type === 'platesetup') parsed.setup = parsePlateSetup(text);
     else if (type === 'thermal') parsed.thermal = parseThermal(text);
@@ -746,12 +896,32 @@ async function handleFiles(fileList) {
   state.files = seen;
   renderFileList();
 
-  if (!parsed.tabular) { showError('No Tabular Results file recognized. It is required — it holds the Cq values and calls.'); return; }
-  if (parsed.tabular.res.error) { showError(parsed.tabular.res.error); return; }
+  if (!parsed.tabulars.length) { showError('No Tabular Results file recognized. It is required — it holds the Cq values and calls.'); return; }
+  const bad = parsed.tabulars.find(t => t.res.error);
+  if (bad) { showError(bad.res.error); return; }
+
+  // Assign a unique plate id to each Tabular Results file, tag every record, and namespace
+  // its well into a globally-unique key (r.well = plate␟A1) while keeping r.wellLabel for display.
+  const usedIds = new Set();
+  const plateIds = [];
+  const allRecs = [];
+  parsed.tabulars.forEach((t, i) => {
+    let id = stripSuffix(t.name) || ('Plate ' + (i + 1));
+    let base = id, k = 2;
+    while (usedIds.has(id)) id = base + ' (' + (k++) + ')';
+    usedIds.add(id); plateIds.push(id);
+    for (const r of t.res.recs) {
+      r.plate = id;
+      r.wellLabel = r.well;
+      r.well = id + PSEP + r.well;
+      allRecs.push(r);
+    }
+  });
+  state.plates = plateIds;
 
   // Build state
-  state.expName = stripSuffix(parsed.tabular.name);
-  state.records = parsed.tabular.res.recs;
+  state.expName = plateIds.length > 1 ? `${plateIds.length} plates` : stripSuffix(parsed.tabulars[0].name);
+  state.records = allRecs;
   state.thermal = parsed.thermal;
   state.notes = parsed.notes;
   state.byKey = new Map();
@@ -764,14 +934,24 @@ async function handleFiles(fileList) {
   state.customThr = {};
   state.ddRefs = new Set();
   state.ddRefsInit = false;
-  state.ddCal = '';
+  state.ddControlGroup = '';
+  state.ddControlInit = false;
+  state.interPlateCal = '';
+  state.interPlateInit = false;
   state.userNamed = new Set();
+  state.userGroup = {};
+  state.plateGeoms = {};
   state.labelsDirty = false;
+  _stdCache = null; _stdCacheKey = '';
 
+  // Amplification traces + Plate Setup key by the plain well label. With multiple plates their
+  // wells collide, so curve overlay + custom-threshold recompute are limited to single-plate loads.
+  const singlePlate = state.plates.length === 1;
   for (const r of state.records) {
-    const key = r.well + '|' + r.dye;
+    const key = r.well + '|' + r.dye;                    // uid|dye — globally unique
     state.byKey.set(key, r);
-    if (parsed.amp && parsed.amp.has(key)) r.series = parsed.amp.get(key);
+    const ampKey = r.wellLabel + '|' + r.dye;
+    if (singlePlate && parsed.amp && parsed.amp.has(ampKey)) r.series = parsed.amp.get(ampKey);
     // remember the instrument values so a custom threshold can be reset
     r.cq0 = r.cq; r.call0 = r.call; r.threshold0 = r.threshold; r.target0 = r.target;
     // seed per-dye threshold from the instrument value
@@ -779,23 +959,30 @@ async function handleFiles(fileList) {
     // sample name: prefer Plate Setup, else any non-empty Well Name from tabular
     if (state.sampleByWell[r.well] == null) {
       let s = '';
-      if (parsed.setup && parsed.setup.has(r.well)) s = parsed.setup.get(r.well).sampleName || '';
+      if (parsed.setup && parsed.setup.has(r.wellLabel)) s = parsed.setup.get(r.wellLabel).sampleName || '';
       if (!s && r.wellName) s = r.wellName;
       state.sampleByWell[r.well] = s;
     }
   }
-  // Well Plate Map Generator groups take priority as sample names
+  // Imported plate labels (Microplate Layout Planner, or this tool's own Export labels).
+  // The CSV carries plain well labels (+ an optional Plate column); resolve each to a uid.
   if (parsed.layout) {
-    for (const [well, grp] of parsed.layout.samples) {
-      if (state.wellsPresent.has(well)) state.sampleByWell[well] = grp;
-    }
-    // optional Gene column: apply to every dye present in the well so export round-trips
-    for (const [well, gene] of parsed.layout.genes) {
-      if (!state.wellsPresent.has(well)) continue;
-      for (const r of state.records) {
-        if (r.well === well) state.targetByKey[r.well + '|' + r.dye] = gene;
-      }
-    }
+    const resolve = (plate, well) => {
+      if (plate) return state.wellsPresent.has(plate + PSEP + well) ? plate + PSEP + well : null;
+      if (singlePlate) { const u = state.plates[0] + PSEP + well; return state.wellsPresent.has(u) ? u : null; }
+      // multi-plate with no Plate column: apply to that well on every plate
+      return state.plates.map(p => p + PSEP + well).filter(u => state.wellsPresent.has(u));
+    };
+    const each = (map, fn) => { for (const [k, v] of map) {
+      const [plate, well] = k.indexOf(PSEP) >= 0 ? k.split(PSEP) : ['', k];
+      const uid = resolve(plate, well);
+      (Array.isArray(uid) ? uid : uid ? [uid] : []).forEach(u => fn(u, v));
+    } };
+    each(parsed.layout.samples, (u, name) => { state.sampleByWell[u] = name; state.userNamed.add(u); });
+    each(parsed.layout.groups, (u, grp) => { state.userGroup[u] = grp; });
+    each(parsed.layout.genes, (u, gene) => {
+      for (const r of state.records) if (r.well === u) state.targetByKey[r.well + '|' + r.dye] = gene;
+    });
   }
   applySampleNames();
   applyTargetNames();
@@ -870,11 +1057,20 @@ function renderAll() {
   renderPlate();
   renderTable();
   renderSummaryTable();
-  renderDDControls();
-  renderDD();
+  renderAnalysis();
   renderChart();
   updateSelBar();
   updateThrInput();
+}
+// QC + relative-quantification + reporting panels (everything downstream of Cq/labels).
+// renderDDControls first: it auto-picks reference genes + control group that the QC/MIQE panels read.
+function renderAnalysis() {
+  renderStdCurve();
+  renderDDControls();
+  renderDD();
+  renderQcPanel();
+  renderMiqe();
+  renderMethods();
 }
 
 function renderFileList() {
@@ -895,11 +1091,14 @@ function renderSummary() {
   const posDye = recs.filter(r => r.dye === state.plateDye && r.call === '+').length;
   const items = [
     ['Experiment', state.expName || '—'],
+  ];
+  if (state.plates.length > 1) items.push(['Plates', `${state.plates.length} <small>· ${state.plates.map(esc).join(', ')}</small>`]);
+  items.push(
     ['Wells', `${wells} <small>× ${state.dyes.length} dye${state.dyes.length !== 1 ? 's' : ''}</small>`],
     ['Dyes', state.dyes.join(', ') || '—'],
     ['Targets', state.targets.join(', ') || '—'],
     ['Positive (' + state.plateDye + ')', `${posDye} <small>/ ${wells}</small>`],
-  ];
+  );
   if (state.thermal && state.thermal.summary) items.push(['Thermal profile', state.thermal.summary]);
   if (state.notes) items.push(['Notes', state.notes]);
   // Control QC: NTC/NRT wells that amplified suggest contamination.
@@ -944,6 +1143,12 @@ function sampleColor(name) {
   const i = sortedSamples().indexOf(name);
   return PALETTE[(i < 0 ? 0 : i) % PALETTE.length];
 }
+// Stable per-group color for the fold chart (indexed by the current group list).
+function groupColor(name) {
+  const groups = Array.from(ddGroupMap().keys());
+  const i = groups.indexOf(name);
+  return PALETTE[(i < 0 ? 0 : i) % PALETTE.length];
+}
 function wellFill(r, range) {
   if (state.plateMode === 'call') return r.call === '+' ? '#57a85a' : (r.call === '-' ? '#eceae6' : '#f5f4f2');
   if (state.plateMode === 'target') return r.cq != null ? targetColor(r.target) : '#f0efed';
@@ -955,50 +1160,58 @@ function wellFill(r, range) {
   return hexLerp('#2d7a2d', '#dcefdc', t);
 }
 
-function renderPlate() {
-  const recs = state.records.filter(r => r.dye === state.plateDye);
-  const nRows = Math.max(8, ...state.records.map(r => r.row + 1));
-  const nCols = Math.max(12, ...state.records.map(r => r.colIdx + 1));
-  const ML = 26, MT = 22, pitch = 38, rad = 15;
+// Render one plate's SVG grid; geometry is stored in state.plateGeoms[plate] for hit-testing.
+function renderOnePlate(plate, range) {
+  const recs = state.records.filter(r => r.plate === plate && r.dye === state.plateDye);
+  const plateRecs = state.records.filter(r => r.plate === plate);
+  const nRows = Math.max(8, ...plateRecs.map(r => r.row + 1));
+  const nCols = Math.max(12, ...plateRecs.map(r => r.colIdx + 1));
+  const ML = 26, MT = 22, pitch = 34, rad = 13;
   const W = ML + nCols * pitch + 8;
   const H = MT + nRows * pitch + 8;
-  state.plateGeom = { ML, MT, pitch, rad, nRows, nCols };
-  const range = cqRange(state.plateDye);
-  const byWell = new Map(recs.map(r => [r.well, r]));
+  state.plateGeoms[plate] = { ML, MT, pitch, rad, nRows, nCols };
+  const byLabel = new Map(recs.map(r => [r.wellLabel, r]));
 
   let s = '';
-  // column labels (clickable: select whole column)
   for (let c = 0; c < nCols; c++) {
     const x = ML + c * pitch + pitch / 2;
-    s += `<text class="col-lbl" data-col="${c}" x="${x}" y="${MT - 7}" text-anchor="middle" font-size="11" fill="var(--text-muted)" font-family="var(--font)">${c + 1}</text>`;
+    s += `<text class="col-lbl" data-col="${c}" x="${x}" y="${MT - 7}" text-anchor="middle" font-size="10" fill="var(--text-muted)" font-family="var(--font)">${c + 1}</text>`;
   }
   for (let row = 0; row < nRows; row++) {
     const rowLetter = String.fromCharCode(65 + row);
     const y = MT + row * pitch + pitch / 2;
-    s += `<text class="row-lbl" data-row="${row}" x="${ML - 9}" y="${y + 4}" text-anchor="middle" font-size="11" fill="var(--text-muted)" font-family="var(--font)">${rowLetter}</text>`;
+    s += `<text class="row-lbl" data-row="${row}" x="${ML - 9}" y="${y + 4}" text-anchor="middle" font-size="10" fill="var(--text-muted)" font-family="var(--font)">${rowLetter}</text>`;
     for (let c = 0; c < nCols; c++) {
-      const well = rowLetter + (c + 1);
+      const label = rowLetter + (c + 1);
       const cx = ML + c * pitch + pitch / 2;
       const cy = MT + row * pitch + pitch / 2;
-      const r = byWell.get(well);
+      const r = byLabel.get(label);
       const fill = r ? wellFill(r, range) : '#fafafa';
-      const isSel = state.selWells.has(well);
+      const isSel = r && state.selWells.has(r.well);
       const stroke = isSel ? 'var(--blue-dark)' : '#d8d6d0';
       const sw = isSel ? 3 : 1.2;
-      const label = r ? cqLabel(r) : '';
-      const tip = r ? `${well}${r.sampleName ? ' · ' + r.sampleName : ''} · ${state.plateDye} · ${r.target}${r.wellType ? ' · ' + r.wellType : ''}\nCq: ${r.cq != null ? r.cq.toFixed(2) : 'No Cq'} · Call: ${r.call || '—'}` : well;
+      const txt = r ? cqLabel(r) : '';
+      const tip = r ? `${plate} · ${label}${r.sampleName ? ' · ' + r.sampleName : ''} · ${state.plateDye} · ${r.target}${r.wellType ? ' · ' + r.wellType : ''}\nCq: ${r.cq != null ? r.cq.toFixed(2) : 'No Cq'} · Call: ${r.call || '—'}` : label;
       s += `<g class="well-g" style="pointer-events:none">`;
       s += `<title>${esc(tip)}</title>`;
       s += `<circle cx="${cx}" cy="${cy}" r="${rad}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
-      if (label) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" font-size="8.5" fill="${labelColor(fill)}" font-family="var(--font-mono)">${label}</text>`;
+      if (txt) s += `<text x="${cx}" y="${cy + 3}" text-anchor="middle" font-size="8" fill="${labelColor(fill)}" font-family="var(--font-mono)">${txt}</text>`;
       s += `</g>`;
     }
   }
-  const svg = $('plateSvg');
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svg.setAttribute('width', W);
-  svg.setAttribute('height', H);
-  svg.innerHTML = s;
+  return { svg: s, W, H };
+}
+function renderPlate() {
+  const grid = $('plateGrid');
+  const range = cqRange(state.plateDye);
+  const multi = state.plates.length > 1;
+  state.plateGeoms = {};
+  grid.innerHTML = state.plates.map(plate => {
+    const { svg, W, H } = renderOnePlate(plate, range);
+    const title = multi ? `<div class="plate-title">${esc(plate)} <span class="qc-tag">${state.records.filter(r => r.plate === plate && r.dye === state.plateDye && r.call === '+').length} +</span></div>` : '';
+    return `<div class="plate-cell">${title}` +
+      `<svg data-plate="${esc(plate)}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${svg}</svg></div>`;
+  }).join('');
   renderLegend(range);
 }
 function cqLabel(r) {
@@ -1039,27 +1252,29 @@ function renderLegend(range) {
   }
 }
 
-// ── Well selection (drives grouping + chart) ────────────────────────────────
-function setWellSel(well, on) {
-  if (!state.wellsPresent.has(well)) return;
-  if (on) state.selWells.add(well); else state.selWells.delete(well);
+// ── Well selection (drives grouping + chart); keys are uids (plate␟label) ─────
+function uidFor(plate, row, col) { return plate + PSEP + String.fromCharCode(65 + row) + (col + 1); }
+function setWellSel(uid, on) {
+  if (!state.wellsPresent.has(uid)) return;
+  if (on) state.selWells.add(uid); else state.selWells.delete(uid);
 }
-function selectWells(wells, on) { for (const w of wells) setWellSel(w, on); }
-// Apply a rectangular block (between two {row,col} cells) to a baseline set.
-function applyRect(baseline, a, b, on) {
+function selectWells(uids, on) { for (const u of uids) setWellSel(u, on); }
+// Apply a rectangular block (between two {row,col} cells on one plate) to a baseline set.
+function applyRect(plate, baseline, a, b, on) {
   state.selWells = new Set(baseline);
   const r0 = Math.min(a.row, b.row), r1 = Math.max(a.row, b.row);
   const c0 = Math.min(a.col, b.col), c1 = Math.max(a.col, b.col);
   for (let row = r0; row <= r1; row++)
     for (let col = c0; col <= c1; col++)
-      setWellSel(String.fromCharCode(65 + row) + (col + 1), on);
+      setWellSel(uidFor(plate, row, col), on);
 }
-function wellsInRow(row) {
-  const L = String.fromCharCode(65 + row);
-  return Array.from({ length: state.plateGeom.nCols }, (_, c) => L + (c + 1)).filter(w => state.wellsPresent.has(w));
+function wellsInRow(plate, row) {
+  const g = state.plateGeoms[plate];
+  return Array.from({ length: g.nCols }, (_, c) => uidFor(plate, row, c)).filter(u => state.wellsPresent.has(u));
 }
-function wellsInCol(col) {
-  return Array.from({ length: state.plateGeom.nRows }, (_, r) => String.fromCharCode(65 + r) + (col + 1)).filter(w => state.wellsPresent.has(w));
+function wellsInCol(plate, col) {
+  const g = state.plateGeoms[plate];
+  return Array.from({ length: g.nRows }, (_, r) => uidFor(plate, r, col)).filter(u => state.wellsPresent.has(u));
 }
 // Refresh everything affected by a selection change.
 function refreshSelection(full) {
@@ -1077,12 +1292,16 @@ function updateSelBar() {
   updateDatalist();
 }
 function updateDatalist() {
-  const names = state.assignField === 'target' ? state.targets.slice().sort() : sortedSamples();
+  let names;
+  if (state.assignField === 'target') names = state.targets.slice().sort();
+  else if (state.assignField === 'group') names = Array.from(ddGroupMap().keys()).sort();
+  else names = sortedSamples();
   $('sampleNameList').innerHTML = names.map(n => `<option value="${esc(n)}"></option>`).join('');
 }
 function setAssignField(field) {
   state.assignField = field;
-  $('grpInput').placeholder = field === 'target' ? 'Gene / target name…' : 'Sample name…';
+  $('grpInput').placeholder = field === 'target' ? 'Gene / target name…'
+    : field === 'group' ? 'Group (Control / Treatment)…' : 'Sample name…';
   updateDatalist();
 }
 
@@ -1127,15 +1346,23 @@ function renderAfterCq() {
   renderPlate();
   renderTable();
   renderSummaryTable();
-  renderDDControls();
-  renderDD();
+  renderAnalysis();
   renderChart();
   updateThrInput();
 }
 
-// Map a pointer event to a {row,col} cell on the plate, or null if outside the grid.
-function svgCell(svg, e) {
-  const g = state.plateGeom; if (!g) return null;
+// The <svg data-plate> the pointer is over, or null.
+function plateSvgAt(e) {
+  const t = e.target;
+  return t && t.closest ? t.closest('svg[data-plate]') : null;
+}
+// Find a plate's current SVG element by id (re-query after renderPlate rebuilds the grid).
+function plateSvgById(plate) {
+  return Array.from($('plateGrid').querySelectorAll('svg[data-plate]')).find(s => s.dataset.plate === plate) || null;
+}
+// Map a pointer event to a {row,col} cell on a specific plate's SVG, or null if outside the grid.
+function svgCell(svg, plate, e) {
+  const g = state.plateGeoms[plate]; if (!g) return null;
   const ctm = svg.getScreenCTM(); if (!ctm) return null;
   const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
   const p = pt.matrixTransform(ctm.inverse());
@@ -1145,40 +1372,44 @@ function svgCell(svg, e) {
   return { row, col };
 }
 function onPlateDown(e) {
+  const svg = plateSvgAt(e); if (!svg) return;
+  const plate = svg.dataset.plate;
   const t = e.target;
-  // Row / column header click → toggle that whole row / column.
-  if (t.classList && t.classList.contains('row-lbl')) { e.preventDefault(); toggleLine(wellsInRow(+t.dataset.row)); return; }
-  if (t.classList && t.classList.contains('col-lbl')) { e.preventDefault(); toggleLine(wellsInCol(+t.dataset.col)); return; }
-  const cell = svgCell($('plateSvg'), e);
+  // Row / column header click → toggle that whole row / column on this plate.
+  if (t.classList && t.classList.contains('row-lbl')) { e.preventDefault(); toggleLine(wellsInRow(plate, +t.dataset.row)); return; }
+  if (t.classList && t.classList.contains('col-lbl')) { e.preventDefault(); toggleLine(wellsInCol(plate, +t.dataset.col)); return; }
+  const cell = svgCell(svg, plate, e);
   if (!cell) return;
   e.preventDefault();
-  const startWell = String.fromCharCode(65 + cell.row) + (cell.col + 1);
-  if (!state.wellsPresent.has(startWell)) return;
+  const startUid = uidFor(plate, cell.row, cell.col);
+  if (!state.wellsPresent.has(startUid)) return;
   drag.active = true;
-  drag.mode = state.selWells.has(startWell) ? 'remove' : 'add'; // toggle-drag like a spreadsheet
+  drag.plate = plate;
+  drag.mode = state.selWells.has(startUid) ? 'remove' : 'add'; // toggle-drag like a spreadsheet
   drag.baseline = new Set(state.selWells);
   drag.start = cell; drag.last = cell;
-  applyRect(drag.baseline, cell, cell, drag.mode === 'add');
+  applyRect(plate, drag.baseline, cell, cell, drag.mode === 'add');
   refreshSelection(false);          // light: plate + bar only while dragging
-  try { $('plateSvg').setPointerCapture(e.pointerId); } catch (_) {}
+  // Capture on the persistent grid — renderPlate() rebuilds the inner SVGs each move.
+  try { $('plateGrid').setPointerCapture(e.pointerId); } catch (_) {}
 }
 function onPlateMove(e) {
   if (!drag.active) return;
-  const cell = svgCell($('plateSvg'), e);
+  const svg = plateSvgById(drag.plate);        // re-query: the SVG element is recreated each render
+  const cell = svg ? svgCell(svg, drag.plate, e) : null;
   if (!cell || (cell.row === drag.last.row && cell.col === drag.last.col)) return;
   drag.last = cell;
-  applyRect(drag.baseline, drag.start, cell, drag.mode === 'add');
+  applyRect(drag.plate, drag.baseline, drag.start, cell, drag.mode === 'add');
   refreshSelection(false);
 }
 function onPlateUp(e) {
   if (!drag.active) return;
   drag.active = false;
-  try { $('plateSvg').releasePointerCapture(e.pointerId); } catch (_) {}
   renderChart(); renderTable();     // finalize chart + table checkboxes
 }
-function toggleLine(wells) {
-  const allSel = wells.length > 0 && wells.every(w => state.selWells.has(w));
-  selectWells(wells, !allSel);
+function toggleLine(uids) {
+  const allSel = uids.length > 0 && uids.every(u => state.selWells.has(u));
+  selectWells(uids, !allSel);
   refreshSelection(); renderTable();
 }
 
@@ -1194,13 +1425,18 @@ const COLS = [
   { key: 'threshold', label: 'Threshold', num: true },
   { key: 'eff', label: 'Eff %', num: true },
 ];
+// Prepend a Plate column when more than one plate is loaded.
+function activeCols() {
+  return state.plates.length > 1 ? [{ key: 'plate', label: 'Plate', num: false }, ...COLS] : COLS;
+}
 
 function renderTable() {
   const rows = filteredRows();
   const head = $('resHead');
   const allSel = rows.length > 0 && rows.every(r => state.selWells.has(r.well));
+  const cols = activeCols();
   head.innerHTML = `<th class="chk-col"><input type="checkbox" class="all-chk" title="Select all rows shown"${allSel ? ' checked' : ''}></th>` +
-    COLS.map(c => {
+    cols.map(c => {
       const ind = state.sort.col === c.key ? `<span class="sort-ind">${state.sort.dir > 0 ? '▲' : '▼'}</span>` : '';
       return `<th data-col="${c.key}" class="${c.num ? 'num' : ''}">${c.label}${ind}</th>`;
     }).join('');
@@ -1216,11 +1452,13 @@ function renderTable() {
   const body = $('resBody');
   body.innerHTML = rows.map((r, i) => {
     const checked = state.selWells.has(r.well) ? 'checked' : '';
-    const cells = COLS.map(c => {
+    const cells = cols.map(c => {
       let v = r[c.key];
       if (c.edit) {
-        return `<td><input class="sample-input" data-well="${r.well}" placeholder="—" value="${esc(r.sampleName)}"/></td>`;
+        return `<td><input class="sample-input" data-well="${esc(r.well)}" placeholder="—" value="${esc(r.sampleName)}"/></td>`;
       }
+      if (c.key === 'well') return `<td>${esc(r.wellLabel)}</td>`;
+      if (c.key === 'plate') return `<td>${esc(r.plate)}</td>`;
       if (c.key === 'cq') {
         const isOut = r.cq != null && outliers.has(r.well + '|' + r.dye);
         const txt = r.cq == null ? '—' : r.cq.toFixed(2);
@@ -1236,7 +1474,7 @@ function renderTable() {
       }
       return `<td>${esc(v == null ? '' : String(v)) || '—'}</td>`;
     }).join('');
-    return `<tr data-well="${r.well}"><td class="chk-col"><input type="checkbox" class="row-chk" data-well="${r.well}" data-idx="${i}" ${checked}></td>${cells}</tr>`;
+    return `<tr data-well="${esc(r.well)}"><td class="chk-col"><input type="checkbox" class="row-chk" data-well="${esc(r.well)}" data-idx="${i}" ${checked}></td>${cells}</tr>`;
   }).join('');
 
   body.querySelectorAll('.sample-input').forEach(inp => {
@@ -1266,7 +1504,8 @@ function filteredRows() {
   const { col, dir } = state.sort;
   rows.sort((a, b) => {
     let x = a[col], y = b[col];
-    if (col === 'well') { // natural well order: row then column number
+    if (col === 'well' || col === 'plate') { // plate then natural well order (row, then column number)
+      if (a.plate !== b.plate) return String(a.plate).localeCompare(String(b.plate), undefined, { numeric: true }) * dir;
       if (a.row !== b.row) return (a.row - b.row) * dir;
       return (a.colIdx - b.colIdx) * dir;
     }
@@ -1299,6 +1538,10 @@ function assignToSelection(name) {
       if (state.byKey.has(key)) state.targetByKey[key] = n;
     }
     applyTargetNames(); recomputeTargets();
+  } else if (state.assignField === 'group') {
+    for (const w of state.selWells) {
+      if (n) state.userGroup[w] = n; else delete state.userGroup[w];
+    }
   } else {
     for (const w of state.selWells) {
       state.sampleByWell[w] = n;
@@ -1314,8 +1557,7 @@ function afterSampleChange() {
   renderPlate();
   renderTable();
   renderSummaryTable();
-  renderDDControls();
-  renderDD();
+  renderAnalysis();
   updateDatalist();
 }
 function syncRowChecks() {
@@ -1367,8 +1609,19 @@ function outlierKeys() {
 }
 
 function renderSummaryTable() {
-  const groups = Array.from(buildGroups().values())
+  const all = Array.from(buildGroups().values())
     .sort((a, b) => a.sample.localeCompare(b.sample) || a.target.localeCompare(b.target));
+  // Filter out empty/unnamed wells so a 96-well plate does not print 96 rows.
+  const named = g => g.recs.some(r => r.sampleName);        // has a real sample name (not a bare well id)
+  const q = state.sumSearch.trim().toLowerCase();
+  const groups = all.filter(g => {
+    if (state.sumFilter === 'withcq' && g.meanCq == null) return false;   // hide wells with no Cq
+    if (state.sumFilter === 'named' && !named(g)) return false;           // hide unnamed wells
+    if (q && !(g.sample.toLowerCase().includes(q) || (g.target || '').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  const cnt = $('sumCount');
+  if (cnt) cnt.textContent = groups.length === all.length ? `${all.length} groups` : `${groups.length} of ${all.length}`;
   $('sumBody').innerHTML = groups.map(g => {
     const flag = g.sdCq != null && g.sdCq > state.qcSdThr;
     const cv = (g.sdCq != null && g.meanCq) ? g.sdCq / g.meanCq * 100 : null;
@@ -1379,7 +1632,218 @@ function renderSummaryTable() {
       `${g.sdCq != null ? g.sdCq.toFixed(2) : '—'}${flag ? ' ⚠' : ''}</td>` +
       `<td class="num">${cv != null ? cv.toFixed(1) : '—'}</td></tr>`;
   }).join('') ||
-    `<tr><td colspan="8" class="empty-state">No data.</td></tr>`;
+    `<tr><td colspan="8" class="empty-state">${all.length ? 'No groups match the current filter.' : 'No data.'}</td></tr>`;
+}
+
+// ── Data QC: the 5 checks (§5.2) rendered as pass/warning/fail verdicts ───────
+const QC_ICON = { pass: '✓', warn: '△', fail: '✕', na: '–', info: 'ⓘ' };
+function qcItem(status, name, detail, tag) {
+  return `<div class="qc-item ${status}"><span class="qc-ico">${QC_ICON[status] || '–'}</span>` +
+    `<div class="qc-body"><div class="qc-name">${esc(name)}${tag ? `<span class="qc-tag">${esc(tag)}</span>` : ''}</div>` +
+    `<div class="qc-detail">${detail}</div></div></div>`;
+}
+function isSybr() { return state.dyes.some(d => /sybr/i.test(d)); }
+function renderQcPanel() {
+  const panel = $('qcPanel');
+  if (!panel) return;
+  const items = [];
+
+  // Check 1: technical-replicate Cq SD < threshold
+  const grp = Array.from(buildGroups().values()).filter(g => g.sdCq != null);
+  const bad = grp.filter(g => g.sdCq > state.qcSdThr);
+  if (!grp.length) items.push(qcItem('na', 'Check 1 · Technical replicate Cq SD', 'No replicate groups with ≥2 wells yet.', 'mandatory'));
+  else items.push(qcItem(bad.length ? 'warn' : 'pass', 'Check 1 · Technical replicate Cq SD < ' + state.qcSdThr,
+    bad.length ? `${bad.length} of ${grp.length} groups exceed SD ${state.qcSdThr} — see the summary table; redo or mark outliers.`
+               : `All ${grp.length} replicate groups within SD ${state.qcSdThr}.`, 'mandatory'));
+
+  // Check 2: NTC no signal
+  const ntc = state.records.filter(r => /no template|ntc/i.test(r.wellType || ''));
+  const ntcPos = ntc.filter(r => r.call === '+' || (!cqIsND(r.cq)));
+  if (!ntc.length) items.push(qcItem('na', 'Check 2 · NTC no signal', 'No NTC (no-template control) wells found in the export. Label them by Well Type.', 'mandatory · MIQE'));
+  else items.push(qcItem(ntcPos.length ? 'fail' : 'pass', 'Check 2 · NTC no signal',
+    ntcPos.length ? `${ntcPos.length} NTC well(s) show signal (Cq ≤ ${state.lodCutoff} or a positive call) → reagent contamination or primer-dimer; the whole plate is unusable (§4.5.3).`
+                  : `${ntc.length} NTC well(s), all below detection.`, 'mandatory · MIQE'));
+
+  // Check 3: NRT control present / signal
+  const nrt = state.records.filter(r => /no rt|nrt/i.test(r.wellType || ''));
+  const nrtPos = nrt.filter(r => !cqIsND(r.cq));
+  if (!nrt.length) items.push(qcItem('info', 'Check 3 · NRT (no-RT) control', 'No NRT wells on this plate. NRT need not be on every plate, but must exist for first primer validation and each new RNA batch (§2.5.2). MIQE 2.0: essential→desirable once DNA-free is validated.', 'MIQE'));
+  else items.push(qcItem(nrtPos.length ? 'warn' : 'pass', 'Check 3 · NRT (no-RT) control',
+    nrtPos.length ? `${nrtPos.length} NRT well(s) show signal → gDNA background; quantify with- vs without-RT copies before trusting low-Cq targets.`
+                  : `${nrt.length} NRT well(s), all below detection — DNA-free confirmed on this plate.`, 'MIQE'));
+
+  // Check 4: melt curve single peak (SYBR only) — needs Tm data (not in this export)
+  if (!isSybr()) items.push(qcItem('na', 'Check 4 · Melt curve single peak', 'Dyes are probe-based (e.g. TaqMan) — melt-curve check does not apply.', 'SYBR only · MIQE'));
+  else {
+    const hasTm = state.records.some(r => r.tm != null);
+    items.push(qcItem(hasTm ? 'info' : 'na', 'Check 4 · Melt curve single peak (SYBR)',
+      hasTm ? 'Tm values present — inspect for a single dissociation peak per assay.'
+            : 'No melt / Tm data in this export. Add the dissociation-curve export (or a Tm column) to verify single-peak specificity (§3.3.2).', 'SYBR only · MIQE'));
+  }
+
+  // Check 5: Cq cutoff / below-detection counts
+  const withCq = state.records.filter(r => !isControlRec(r) && r.cq != null);
+  const suspect = withCq.filter(r => r.cq > 35 && r.cq <= state.lodCutoff).length;
+  const belowLod = withCq.filter(r => r.cq > state.lodCutoff).length;
+  items.push(qcItem(belowLod || suspect ? 'warn' : 'pass', 'Check 5 · Cq cutoff & LOD',
+    `${suspect} well(s) with Cq 35–${state.lodCutoff} (suspect); ${belowLod} well(s) above ${state.lodCutoff} treated as below detection (n.d.), excluded from ΔCq/stats. ` +
+    `Report LOD + LLOQ per assay from a dilution series for clinical/high-impact work.`, 'mandatory · MIQE'));
+
+  // Design checks: biological n and reference count
+  const gmap = ddGroupMap();
+  const smallGroups = Array.from(gmap.entries()).filter(([, ss]) => ss.length < 3).map(([g]) => g);
+  if (gmap.size) items.push(qcItem(smallGroups.length ? 'warn' : 'pass', 'Design · Biological n ≥ 3 per group',
+    smallGroups.length ? `Group(s) ${smallGroups.map(esc).join(', ')} have < 3 biological replicates (distinct sample names).`
+                       : `All ${gmap.size} groups have ≥ 3 biological replicates.`, 'mandatory'));
+  const nRef = Array.from(state.ddRefs).length;
+  items.push(qcItem(nRef >= 2 ? 'pass' : (nRef === 1 ? 'warn' : 'na'), 'Design · Reference genes ≥ 2',
+    nRef >= 2 ? `${nRef} reference genes selected — normalize on their mean (geNorm-style).`
+      : nRef === 1 ? 'Only 1 reference gene. MIQE expects a validated panel of ≥ 2 (geNorm/RefFinder M < 0.5).'
+      : 'No reference gene selected yet.', 'MIQE'));
+
+  // Multi-plate design: every plate must hold both control and treatment; never one plate all-control (§5.7).
+  if (state.plates.length > 1) {
+    const groupsByPlate = {};
+    for (const r of state.records) {
+      if (!r.sampleName || isControlRec(r) || r.sampleName === state.interPlateCal) continue;   // skip controls + calibrator
+      const g = groupOf(r.sampleName);
+      (groupsByPlate[r.plate] = groupsByPlate[r.plate] || new Set()).add(g);
+    }
+    const control = state.ddControlGroup;
+    const confounded = state.plates.filter(p => {
+      const gs = groupsByPlate[p]; if (!gs) return false;
+      const hasCtrl = control ? gs.has(control) : false;
+      return gs.size <= 1 || (control && (!hasCtrl || gs.size === 1));   // single-group plate = confound
+    });
+    const singleGroupPlates = state.plates.filter(p => (groupsByPlate[p] || new Set()).size === 1);
+    const hasCal = !!state.interPlateCal;
+    items.push(qcItem(singleGroupPlates.length ? (hasCal ? 'warn' : 'fail') : 'pass',
+      'Design · Each plate holds control + treatment (§5.7)',
+      singleGroupPlates.length
+        ? `Plate(s) ${singleGroupPlates.map(esc).join(', ')} carry only one experimental group — group differences are confounded with plate/batch. ` +
+          (hasCal ? `An inter-plate calibrator (${esc(state.interPlateCal)}) is correcting offsets, but balanced plates are still preferred.` : `Add an inter-plate calibrator, or split groups across plates so each plate has both.`)
+        : `All ${state.plates.length} plates carry more than one group — plate offset cancels in ΔΔCq.`, 'MIQE'));
+  }
+
+  panel.innerHTML = items.join('');
+}
+
+// ── Standard curve (Tier 3) ──────────────────────────────────────────────────
+function renderStdCurve() {
+  const fits = stdCurveByGene();
+  const genes = Object.keys(fits);
+  const sec = $('stdSection');
+  if (!genes.length) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  $('stdBody').innerHTML = genes.map(g => {
+    const f = fits[g];
+    const okE = f.effPct >= 90 && f.effPct <= 110, okR = f.r2 >= 0.98;
+    const verdict = okE && okR ? '<span class="qc-tag">good</span>'
+      : `<span class="qc-warn">${!okE ? 'efficiency off 90–110%' : 'R² < 0.98'}</span>`;
+    return `<tr><td>${esc(g)}</td><td class="num">${f.n}</td><td class="num">${f.slope.toFixed(3)}</td>` +
+      `<td class="num">${f.r2.toFixed(4)}</td><td class="num">${f.E.toFixed(3)}</td>` +
+      `<td class="num${okE ? '' : ' qc-warn'}">${f.effPct.toFixed(1)}</td><td>${verdict}</td></tr>`;
+  }).join('');
+}
+
+// ── geNorm reference-gene stability (Tier 3): M across candidate references ───
+function genormForRefs() {
+  const refs = Array.from(state.ddRefs);
+  if (refs.length < 2) return null;
+  const samples = ddSamples();
+  const cqByGene = {};
+  for (const g of refs) cqByGene[g] = samples.map(s => { const v = meanCqFor(s, g); return v == null ? NaN : v; });
+  return genormM(cqByGene);
+}
+
+// ── MIQE 2.0 essential checklist (Appendix A) ────────────────────────────────
+function renderMiqe() {
+  const panel = $('miqePanel');
+  if (!panel) return;
+  const items = [];
+  const st = (ok, warn) => ok ? 'pass' : (warn ? 'warn' : 'na');
+
+  // 1 primer sequences (can't verify from export)
+  items.push(qcItem('info', '1 · Primer/probe sequences published', 'Provide in supplementary — not derivable from the run.'));
+  // 2 reference panel + geNorm M
+  const gm = genormForRefs();
+  const worstM = gm && gm.ranked.length ? gm.ranked[gm.ranked.length - 1].m : null;
+  const nRef = Array.from(state.ddRefs).length;
+  items.push(qcItem(nRef >= 2 ? (worstM != null && worstM < 0.5 ? 'pass' : 'warn') : 'na',
+    '2 · Reference gene panel + geNorm validation',
+    nRef >= 2 ? `${nRef} references; geNorm M (max) = ${worstM != null ? worstM.toFixed(2) : '—'} (target < 0.5).`
+              : 'Select ≥ 2 reference genes to compute geNorm M.'));
+  // 3 PCR efficiency per primer pair
+  const fits = stdCurveByGene(); const nFit = Object.keys(fits).length;
+  items.push(qcItem(nFit ? 'pass' : 'na', '3 · PCR efficiency per primer pair',
+    nFit ? `${nFit} gene(s) have a standard-curve efficiency (see the Standard curve table).`
+         : 'Add Standard wells with Quantity to fit efficiency, or report it from a dilution series.'));
+  // 4 biological n stated
+  const gmap = ddGroupMap();
+  const allBio3 = gmap.size && Array.from(gmap.values()).every(ss => ss.length >= 3);
+  items.push(qcItem(gmap.size ? (allBio3 ? 'pass' : 'warn') : 'na', '4 · Biological n stated (n ≥ 3)',
+    gmap.size ? Array.from(gmap.entries()).map(([g, ss]) => `${esc(g)}: n=${ss.length}`).join(' · ') : 'Name samples by group to establish n.'));
+  // 5 stats on ΔCq
+  items.push(qcItem('pass', '5 · Statistics performed on ΔCq', 'This tool runs the two-tailed t-test on ΔCq (not fold), per Yuan 2006.'));
+  // 6 NTC
+  const ntc = state.records.filter(r => /no template|ntc/i.test(r.wellType || ''));
+  const ntcClean = ntc.length && !ntc.some(r => r.call === '+' || !cqIsND(r.cq));
+  items.push(qcItem(ntc.length ? (ntcClean ? 'pass' : 'fail') : 'na', '6 · NTC results reported',
+    ntc.length ? (ntcClean ? `${ntc.length} NTC well(s), clean.` : 'NTC shows signal — see Check 2.') : 'No NTC wells labelled.'));
+  // 7 NRT
+  const nrt = state.records.filter(r => /no rt|nrt/i.test(r.wellType || ''));
+  items.push(qcItem(nrt.length ? 'pass' : 'info', '7 · NRT results (essential first time)',
+    nrt.length ? `${nrt.length} NRT well(s) present.` : 'Report NRT for first primer validation / new RNA batch (desirable once DNA-free).'));
+  // 8 melt curve
+  items.push(qcItem(!isSybr() ? 'na' : (state.records.some(r => r.tm != null) ? 'pass' : 'warn'), '8 · Melt curve single peak (SYBR)',
+    !isSybr() ? 'Probe chemistry — not applicable.' : (state.records.some(r => r.tm != null) ? 'Tm data present.' : 'No melt/Tm data in this export — see Check 4.')));
+  // 9 raw Cq + raw fluorescence (RDML)
+  const hasCurves = state.records.some(r => r.series && r.series.length);
+  items.push(qcItem('warn', '9 · Raw Cq + raw fluorescence (RDES/RDML) — NEW',
+    hasCurves ? 'Amplification curves loaded; export raw Cq + fluorescence in RDML for submission (MIQE 2.0 essential).'
+              : 'MIQE 2.0 now requires raw Cq + fluorescence (RDML). Include the amplification data.'));
+  // 10 efficiency-corrected quantity
+  items.push(qcItem(state.ddEffCorr ? 'pass' : 'warn', '10 · Efficiency-corrected quantity (not pure ΔΔCq)',
+    state.ddEffCorr ? 'Efficiency-corrected (Pfaffl) fold is enabled.' : 'MIQE 2.0 recommends against pure ΔΔCq — enable efficiency correction (with a standard-curve E).'));
+  // 11 LOD + LLOQ
+  items.push(qcItem('warn', '11 · LOD + LLOQ per assay — NEW', 'Determine from a dilution series and report both (MIQE 2.0).'));
+  // 12 statistical power / sample-size justification
+  items.push(qcItem('info', '12 · Statistical power / sample-size justification — NEW', 'Justify n a priori (MIQE 2.0 new essential).'));
+
+  panel.innerHTML = items.join('');
+}
+
+// ── Methods paragraph generator (§5.8.5 template) ────────────────────────────
+function buildMethodsText() {
+  const instrument = ($('methodInstrument') && $('methodInstrument').value.trim()) || '[instrument model]';
+  const dye = state.dyes[0] || 'SYBR Green';
+  const refs = Array.from(state.ddRefs);
+  const refStr = refs.length ? refs.join(', ') : '[reference genes]';
+  const gmap = ddGroupMap();
+  const ns = Array.from(gmap.values()).map(ss => ss.length);
+  const nStr = ns.length ? (uniq(ns).length === 1 ? String(ns[0]) : `${Math.min(...ns)}–${Math.max(...ns)}`) : '[X]';
+  const method = state.ddEffCorr ? 'the efficiency-corrected method (Pfaffl 2001)' : 'the ΔΔCq method (Livak & Schmittgen 2001)';
+  const effLine = Object.keys(stdCurveByGene()).length
+    ? 'PCR efficiency for each primer pair was determined from a standard curve (slope, R², E reported in supplementary).'
+    : 'PCR efficiency for each primer pair was determined from a 5-point standard curve (slope, R², dynamic range reported in supplementary).';
+  const plateLine = state.plates.length > 1
+    ? (state.interPlateCal
+        ? `Samples were distributed across ${state.plates.length} plates; an inter-plate calibrator (a shared cDNA run on every plate) was used to correct plate-to-plate variation. `
+        : `Samples were distributed across ${state.plates.length} plates, with each plate containing both control and treatment so that plate effects cancel in the ΔΔCq. `)
+    : '';
+  return `Quantitative real-time PCR was performed using ${dye} chemistry on a ${instrument}. ` +
+    `Each sample was assayed in technical triplicate (n = ${nStr} biological replicates per group). ` +
+    plateLine +
+    `Reference genes (${refStr}) were validated (geNorm M < 0.5) prior to use; normalization employed the arithmetic mean ` +
+    `of Cq values from ${refs.length || '[N]'} reference genes (mathematically equivalent to the geometric mean of quantities). ` +
+    `Relative expression was calculated using ${method}. Statistical comparison between groups was performed on ΔCq values ` +
+    `using a two-tailed Student's t-test (Holm correction across targets for multiple testing). ` +
+    `Cq > ${state.lodCutoff} or Undetermined was considered below LOD and shown as n.d. ${effLine} ` +
+    `Reporting follows MIQE 2.0 guidelines (Bustin et al. 2025).`;
+}
+function renderMethods() {
+  const ta = $('methodsText');
+  if (ta) ta.value = buildMethodsText();
 }
 
 // ── ΔΔCq ────────────────────────────────────────────────────────────────────
@@ -1389,33 +1853,211 @@ function targetsWithCq() {
 function namedSamples() {
   return uniq(state.records.filter(r => r.sampleName && !isControlRec(r)).map(r => r.sampleName));
 }
-function cqsFor(sample, target) {
-  return state.records.filter(r => (r.sampleName || r.well) === sample && r.target === target && r.cq != null).map(r => r.cq);
+// Below detection (n.d.): missing Cq, Undetermined, or Cq above the LOD cutoff (§5.2.5).
+// n.d. values are excluded from ΔCq and statistics — never treated as 0.
+function cqIsND(cq) { return cq == null || cq > state.lodCutoff; }
+function cqsFor(sample, target, plate) {
+  return state.records
+    .filter(r => (r.sampleName || r.well) === sample && r.target === target && !cqIsND(r.cq) && (plate == null || r.plate === plate))
+    .map(r => r.cq);
 }
-function meanCqFor(sample, target) {
-  const cqs = cqsFor(sample, target);
+function meanCqFor(sample, target, plate) {
+  const cqs = cqsFor(sample, target, plate);
   return cqs.length ? mean(cqs) : null;
 }
-// Mean amplification efficiency E (=1+eff%/100) across records for one or more genes.
-// Falls back to 2.0 (100% efficiency) when no efficiency values are present.
+// Mean amplification efficiency E (=1+eff%/100) for one or more genes. Prefers a fitted
+// standard-curve E when available (Tier 3 / valid Pfaffl), else the per-well Agilent
+// efficiency, else falls back to 2.0 (100%).
 function effForGenes(genes) {
+  const fitted = genes.map(g => (stdCurveByGene()[g] || {}).E).filter(v => v != null && isFinite(v));
+  if (fitted.length) return mean(fitted);
   const effs = state.records.filter(r => genes.includes(r.target) && r.eff != null).map(r => r.eff);
   return effs.length ? 1 + mean(effs) / 100 : 2.0;
 }
 // Combined reference Cq for a sample = mean Cq across the selected reference genes
 // (the arithmetic mean of Cq equals the geometric mean of quantities — geNorm-style).
-function refCqFor(sample, refs) {
+function refCqFor(sample, refs, plate) {
   if (!refs.length) return null;
-  const vals = refs.map(t => meanCqFor(sample, t));
+  const vals = refs.map(t => meanCqFor(sample, t, plate));
   if (vals.some(v => v == null)) return null;       // require every reference for the sample
   return mean(vals);
 }
+// Which plate a biological-replicate sample lives on (its first record's plate).
+function plateOfSample(sample) {
+  const r = state.records.find(rr => (rr.sampleName || rr.well) === sample);
+  return r ? r.plate : null;
+}
+// Samples that appear on ≥2 plates (candidate inter-plate calibrators, §5.7).
+function crossPlateSamples() {
+  const byName = new Map();
+  for (const r of state.records) {
+    if (!r.sampleName) continue;
+    if (!byName.has(r.sampleName)) byName.set(r.sampleName, new Set());
+    byName.get(r.sampleName).add(r.plate);
+  }
+  return Array.from(byName.entries()).filter(([, ps]) => ps.size >= 2).map(([n]) => n);
+}
 const HOUSEKEEPING = /^(gapdh|actb|b-?actin|β-?actin|b2m|18s|hprt1?|ppia|tbp|ywhaz|rpl\d|rps\d|gusb|tubb|sdha|pgk1|ubc)$/i;
-// Samples for ΔΔCq: the named groups if any exist, else fall back to well ids.
+const CONTROL_GROUP_RE = /control|ctrl|vehicle|veh|wild|^wt$|mock|untreated|dmso|sham|scramble|shscr|\bnc\b|^0$/i;
+// Samples for ΔΔCq: named biological replicates if any, else fall back to well ids.
 function ddSamples() {
   const named = namedSamples();
   if (named.length) return named;
   return uniq(state.records.filter(r => !isControlRec(r)).map(r => r.sampleName || r.well)).filter(Boolean);
+}
+// Experimental group of a sample: an explicit per-well override wins, else the naming
+// convention (parseSampleAnnotation). This is the ΔΔCq comparison axis; the sample name
+// itself is the biological-replicate unit.
+function groupOf(sample) {
+  for (const r of state.records) {
+    if ((r.sampleName || r.well) === sample) {
+      const ov = state.userGroup[r.well];
+      if (ov != null && ov !== '') return ov;
+    }
+  }
+  return parseSampleAnnotation(sample).group || sample;
+}
+// Map group name → [sample names] over the ΔΔCq samples.
+function ddGroupMap() {
+  const m = new Map();
+  for (const s of ddSamples()) {
+    const g = groupOf(s);
+    if (!m.has(g)) m.set(g, []);
+    m.get(g).push(s);
+  }
+  return m;
+}
+function autoControlGroup(names) {
+  return names.find(n => CONTROL_GROUP_RE.test(n)) || names[0] || '';
+}
+// Holm–Bonferroni step-down adjustment; mutates each test object's .pAdj (MIQE #10).
+function holmAdjust(tests) {
+  const valid = tests.filter(t => t && t.p != null && !isNaN(t.p));
+  const m = valid.length;
+  valid.sort((a, b) => a.p - b.p);
+  let prev = 0;
+  valid.forEach((t, i) => {
+    const adj = Math.min(1, Math.max(prev, (m - i) * t.p));
+    t.pAdj = adj; prev = adj;
+  });
+}
+
+// ── Standard curve (Tier 3): E = 10^(−1/slope) per gene from Standard wells ──
+let _stdCache = null, _stdCacheKey = '';
+function stdCurveByGene() {
+  const key = state.records.length + '|' + state.lodCutoff + '|' + Object.keys(state.targetByKey).length;
+  if (_stdCache && _stdCacheKey === key) return _stdCache;
+  const byGene = {};
+  for (const r of state.records) {
+    if (!/standard/i.test(r.wellType || '')) continue;
+    if (r.quantity == null || r.quantity <= 0 || cqIsND(r.cq)) continue;
+    (byGene[r.target] = byGene[r.target] || []).push({ quantity: r.quantity, cq: r.cq });
+  }
+  const out = {};
+  for (const g of Object.keys(byGene)) {
+    const fit = stdCurveFit(byGene[g]);
+    if (fit) out[g] = fit;
+  }
+  _stdCache = out; _stdCacheKey = key;
+  return out;
+}
+
+// ── ΔΔCq computation (biological-replicate based, control-group baseline) ────
+// Inter-plate calibrator offset per plate for a gene t (§5.7): the calibrator sample's ΔCq on
+// each plate minus the across-plate mean. Subtracting it removes plate-specific batch shift.
+// Returns { plate -> offset } or null when correction is off/unavailable.
+function interPlateOffsets(t, refs) {
+  const cal = state.interPlateCal;
+  if (!cal || state.plates.length < 2) return null;
+  const per = {};
+  for (const p of state.plates) {
+    const tgt = meanCqFor(cal, t, p), rf = refCqFor(cal, refs, p);
+    if (tgt != null && rf != null) per[p] = tgt - rf;
+  }
+  const ps = Object.keys(per);
+  if (ps.length < 2) return null;                  // need the calibrator on ≥2 plates
+  const gm = mean(ps.map(p => per[p]));
+  const off = {};
+  for (const p of ps) off[p] = per[p] - gm;
+  return off;
+}
+function ddCompute() {
+  const refs = Array.from(state.ddRefs);
+  const cal = state.interPlateCal;
+  const goi = targetsWithCq().filter(t => !state.ddRefs.has(t));
+  const gmap = ddGroupMap();
+  // The inter-plate calibrator is a correction sample, not an experimental group.
+  const groupNames = Array.from(gmap.keys()).filter(g => !(cal && gmap.get(g).length === 1 && gmap.get(g)[0] === cal));
+  const control = groupNames.includes(state.ddControlGroup) ? state.ddControlGroup : autoControlGroup(groupNames);
+  const effCorr = state.ddEffCorr, paired = state.pairedDesign;
+  const eRef = effForGenes(refs);
+  const rows = [], tests = [];
+  let ipApplied = false;
+  for (const t of goi) {
+    const eTgt = effForGenes([t]);
+    const base = effCorr ? eTgt : 2;
+    const offsets = interPlateOffsets(t, refs);     // plate → ΔCq offset, or null
+    if (offsets) ipApplied = true;
+    // one ΔCq per biological replicate (technical wells already averaged by meanCqFor),
+    // with any inter-plate offset removed from the target channel before ΔCq.
+    const repByGroup = new Map();
+    for (const g of groupNames) {
+      const arr = [];
+      for (const s of gmap.get(g)) {
+        const plate = plateOfSample(s);
+        let tgtCq = meanCqFor(s, t, plate), refCq = refCqFor(s, refs, plate);
+        if (tgtCq == null || refCq == null) continue;
+        if (offsets && offsets[plate] != null) tgtCq -= offsets[plate];   // inter-plate calibration
+        arr.push({ sample: s, plate, tgtCq, refCq, dCq: tgtCq - refCq });
+      }
+      repByGroup.set(g, arr);
+    }
+    const ctrl = repByGroup.get(control) || [];
+    const ctrlDeltas = ctrl.map(r => r.dCq);
+    const ctrlMeanDCq = ctrlDeltas.length ? mean(ctrlDeltas) : null;
+    const calTgt = ctrl.length ? mean(ctrl.map(r => r.tgtCq)) : null;
+    const calRef = ctrl.length ? mean(ctrl.map(r => r.refCq)) : null;
+    for (const g of groupNames) {
+      const reps = repByGroup.get(g);
+      if (!reps.length) continue;
+      const isCtrl = g === control;
+      const detail = reps.map(r => {
+        let ddCq = ctrlMeanDCq != null ? r.dCq - ctrlMeanDCq : null;
+        if (paired && isCtrl) ddCq = 0;
+        let fold = null;
+        if (effCorr && calTgt != null) {
+          fold = Math.pow(eTgt, calTgt - r.tgtCq) / Math.pow(eRef, calRef - r.refCq);
+        } else if (ddCq != null) {
+          fold = Math.pow(2, -ddCq);
+        }
+        return { sample: r.sample, dCq: r.dCq, ddCq, fold };
+      });
+      const dCqs = detail.map(r => r.dCq);
+      const nB = dCqs.length;
+      const meanDCq = mean(dCqs);
+      const sdDCq = nB > 1 ? sd(dCqs) : null;
+      const ddCq = (paired && isCtrl) ? 0 : (ctrlMeanDCq != null ? meanDCq - ctrlMeanDCq : null);
+      const meanFold = ddCq != null ? Math.pow(base, -ddCq) : null;
+      // 95% CI in ΔCq space (t-based) mapped to fold; control keeps its own error (§5.6.3)
+      let ciLoFold = null, ciHiFold = null, ciHalf = null;
+      if (nB > 1 && sdDCq != null && ddCq != null && !(paired && isCtrl)) {
+        ciHalf = tCritical(nB - 1) * sdDCq / Math.sqrt(nB);
+        ciLoFold = meanFold * Math.pow(base, -ciHalf);
+        ciHiFold = meanFold * Math.pow(base, ciHalf);
+      }
+      // per-replicate fold values for the dot overlay (method 3)
+      const repFolds = detail.map(r => r.fold).filter(v => v != null && isFinite(v) && v > 0);
+      let tt = null;
+      if (!isCtrl && ctrlDeltas.length >= 2 && dCqs.length >= 2) {
+        tt = tTestTwoSided(dCqs, ctrlDeltas);
+        if (tt) tests.push(tt);
+      }
+      rows.push({ group: g, target: t, isControl: isCtrl, nBio: nB, nWells: reps.reduce((s, r) => s + cqsFor(r.sample, t).length, 0),
+        meanDCq, ddCq, meanFold, sdDCq, ciLoFold, ciHiFold, repFolds, ttest: tt });
+    }
+  }
+  holmAdjust(tests);
+  return { rows, control, groupNames, interPlateApplied: ipApplied };
 }
 
 function renderDDControls() {
@@ -1444,12 +2086,32 @@ function renderDDControls() {
     });
   });
 
-  // Calibrator select
-  const samples = ddSamples();
-  const cal = $('ddCal');
-  if (!samples.includes(state.ddCal)) state.ddCal = samples[0] || '';
-  cal.innerHTML = samples.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
-  cal.value = state.ddCal;
+  // Control-group select (the ΔΔCq baseline)
+  const gmap = ddGroupMap();
+  const groupNames = Array.from(gmap.keys());
+  if (!state.ddControlInit && groupNames.length) { state.ddControlGroup = autoControlGroup(groupNames); state.ddControlInit = true; }
+  if (!groupNames.includes(state.ddControlGroup)) state.ddControlGroup = autoControlGroup(groupNames);
+  const ctrlSel = $('ddControl');
+  ctrlSel.innerHTML = groupNames.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  ctrlSel.value = state.ddControlGroup;
+
+  // Inter-plate calibrator select (only meaningful with ≥2 plates and a shared sample)
+  const multiPlate = state.plates.length > 1;
+  const calCands = multiPlate ? crossPlateSamples() : [];
+  const calLabel = $('ddCalLabel'), calSel = $('ddCal');
+  if (calCands.length) {
+    if (!state.interPlateInit) {
+      state.interPlateCal = calCands.find(n => /cal|ipc|link|inter|reference sample/i.test(n)) || calCands[0];
+      state.interPlateInit = true;
+    }
+    if (!calCands.includes(state.interPlateCal)) state.interPlateCal = calCands[0];
+    calLabel.style.display = ''; calSel.style.display = '';
+    calSel.innerHTML = `<option value="">— none —</option>` + calCands.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    calSel.value = state.interPlateCal;
+  } else {
+    state.interPlateCal = '';
+    calLabel.style.display = 'none'; calSel.style.display = 'none';
+  }
 
   // Gating + guidance
   const refs = Array.from(state.ddRefs);
@@ -1458,113 +2120,114 @@ function renderDDControls() {
   if (tgts.length < 2) msg = 'ΔΔCq needs at least two genes with Cq. Use the Gene assignment above to label wells (e.g. a target and a housekeeping gene).';
   else if (!refs.length) msg = 'Select at least one reference (housekeeping) gene above.';
   else if (!goi.length) msg = 'All genes are marked as reference — leave at least one gene of interest unselected.';
-  else if (!samples.length) msg = 'Name your samples so replicates can be grouped.';
+  else if (groupNames.length < 2) msg = 'ΔΔCq needs ≥2 experimental groups (e.g. Control and Treatment). Name samples like "Control_1"/"Treat_1" or set Group explicitly.';
   const ready = !msg;
   $('ddAlert').style.display = ready ? 'none' : 'block';
   if (!ready) $('ddAlert').innerHTML = msg;
   $('ddTableWrap').style.display = ready ? 'block' : 'none';
   $('ddChartWrap').style.display = ready ? 'block' : 'none';
+  $('ddStatNote').style.display = ready ? 'block' : 'none';
   $('btnDdCsv').disabled = !ready;
 }
-function ddResults() {
-  const refs = Array.from(state.ddRefs);
-  const calibrator = state.ddCal;
-  const goi = targetsWithCq().filter(t => !state.ddRefs.has(t));
-  const samples = ddSamples();
-  const effCorr = state.ddEffCorr;
-  const eRef = effForGenes(refs);
-  const out = [];
-  for (const t of goi) {
-    const eTgt = effForGenes([t]);
-    const calRefCq = refCqFor(calibrator, refs);
-    const calTgtCq = meanCqFor(calibrator, t);
-    const calDelta = (calTgtCq != null && calRefCq != null) ? calTgtCq - calRefCq : null;
-    for (const sm of samples) {
-      const tgtCq = meanCqFor(sm, t);
-      const refCq = refCqFor(sm, refs);
-      if (tgtCq == null || refCq == null) continue;
-      const dCq = tgtCq - refCq;
-      const ddCq = calDelta != null ? dCq - calDelta : null;
-      // Replicate-level ΔCq distribution (each target rep vs the sample's mean reference Cq)
-      // → ΔΔCq SD/SEM. Subtracting the constant calibrator ΔCq leaves the spread unchanged.
-      const reps = cqsFor(sm, t);
-      const ddSD = reps.length > 1 ? sd(reps.map(c => c - refCq)) : null;
-      const ddSEM = ddSD != null ? ddSD / Math.sqrt(reps.length) : null;
-      // Fold: Pfaffl (efficiency-corrected) or the classic 2^(-ΔΔCq) base.
-      let fold = null, base = effCorr ? eTgt : 2;
-      if (ddCq != null) {
-        if (effCorr) {
-          fold = Math.pow(eTgt, -(tgtCq - calTgtCq)) / Math.pow(eRef, -(refCq - calRefCq));
-        } else {
-          fold = Math.pow(2, -ddCq);
-        }
-      }
-      // Range maps the ΔΔCq ±1 SD onto fold space using the target's efficiency base.
-      const foldLow  = (fold != null && ddSD != null) ? fold * Math.pow(base, -ddSD) : null;
-      const foldHigh = (fold != null && ddSD != null) ? fold * Math.pow(base,  ddSD) : null;
-      out.push({ sample: sm, target: t, meanCq: tgtCq, refCq, dCq, ddCq, ddSD, ddSEM, fold, foldLow, foldHigh });
-    }
-  }
-  return out;
-}
+function fmtP(p) { return p == null || isNaN(p) ? '—' : (p < 0.001 ? '<0.001' : p.toFixed(3)); }
+function sigStars(p) { return p == null || isNaN(p) ? '' : (p < 0.001 ? '***' : p < 0.01 ? '**' : p < 0.05 ? '*' : 'ns'); }
+
 function renderDD() {
   if ($('ddTableWrap').style.display === 'none') return;
-  const rows = ddResults();
-  $('ddBody').innerHTML = rows.map(r =>
-    `<tr><td>${esc(r.sample)}</td><td>${esc(r.target)}</td>` +
-    `<td class="num">${r.meanCq.toFixed(2)}</td><td class="num">${r.refCq.toFixed(2)}</td>` +
-    `<td class="num">${r.dCq.toFixed(2)}</td>` +
-    `<td class="num">${r.ddCq != null ? r.ddCq.toFixed(2) : '—'}</td>` +
-    `<td class="num">${r.ddSD != null ? r.ddSD.toFixed(2) : '—'}</td>` +
-    `<td class="num">${r.fold != null ? r.fold.toFixed(3) : '—'}</td>` +
-    `<td class="num">${(r.foldLow != null && r.foldHigh != null) ? r.foldLow.toFixed(3) + '–' + r.foldHigh.toFixed(3) : '—'}</td></tr>`).join('') ||
-    `<tr><td colspan="9" class="empty-state">No paired gene/reference Cq values for the named samples.</td></tr>`;
+  const { rows, control, interPlateApplied } = ddCompute();
+  const fmtFoldT = v => v == null ? '—' : (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
+
+  // Inter-plate calibration status (multi-plate only)
+  const pnote = $('ddPlateNote');
+  if (state.plates.length > 1) {
+    pnote.classList.remove('hidden');
+    pnote.innerHTML = interPlateApplied
+      ? `<b>${esc(state.plates.length)} plates</b> combined; ΔCq corrected for plate offset using calibrator <b>${esc(state.interPlateCal)}</b> (§5.7).`
+      : `<b>${esc(state.plates.length)} plates</b> combined <u>without</u> inter-plate calibration. Pick a shared calibrator sample above (a common cDNA run on every plate) to remove plate-to-plate offset, or ensure each plate holds both control and treatment so offsets cancel in ΔΔCq.`;
+  } else {
+    pnote.classList.add('hidden');
+  }
+  $('ddBody').innerHTML = rows.map(r => {
+    const p = r.ttest ? r.ttest.p : null, pAdj = r.ttest ? r.ttest.pAdj : null;
+    const ci = (r.ciLoFold != null && r.ciHiFold != null) ? fmtFoldT(r.ciLoFold) + '–' + fmtFoldT(r.ciHiFold) : '—';
+    const star = r.isControl ? '<span class="qc-tag">control</span>' : sigStars(pAdj != null ? pAdj : p);
+    return `<tr${r.isControl ? '' : ''}><td><b>${esc(r.group)}</b></td><td>${esc(r.target)}</td>` +
+      `<td class="num">${r.nBio}</td>` +
+      `<td class="num">${r.meanDCq != null ? r.meanDCq.toFixed(2) : '—'}</td>` +
+      `<td class="num">${r.ddCq != null ? r.ddCq.toFixed(2) : '—'}</td>` +
+      `<td class="num">${fmtFoldT(r.meanFold)}</td>` +
+      `<td class="num">${ci}</td>` +
+      `<td class="num">${r.isControl ? '—' : fmtP(p)}</td>` +
+      `<td class="num">${r.isControl ? '—' : fmtP(pAdj)}</td>` +
+      `<td>${star}</td></tr>`;
+  }).join('') ||
+    `<tr><td colspan="10" class="empty-state">No paired gene/reference Cq values for the named samples.</td></tr>`;
+
+  // Pseudoreplication guard: warn when a group's statistical n is thin or absent.
+  const warn = $('ddPseudoWarn');
+  const groups = uniq(rows.map(r => r.group));
+  const nByGroup = {};
+  rows.forEach(r => { nByGroup[r.group] = Math.max(nByGroup[r.group] || 0, r.nBio); });
+  const singles = groups.filter(g => (nByGroup[g] || 0) < 2);
+  const thin = groups.filter(g => (nByGroup[g] || 0) >= 2 && (nByGroup[g] || 0) < 3);
+  if (singles.length) {
+    warn.classList.remove('hidden');
+    warn.innerHTML = `<b>Pseudoreplication risk:</b> group(s) <b>${singles.map(esc).join(', ')}</b> have only 1 biological ` +
+      `replicate. Technical replicates (wells sharing a sample name) are <u>not</u> independent n — statistics on them ` +
+      `measure pipetting noise, not biology (§5.4.1). Add distinct biological replicates (e.g. Control_1, Control_2, Control_3).`;
+  } else if (thin.length) {
+    warn.classList.remove('hidden');
+    warn.innerHTML = `<b>Low power:</b> group(s) <b>${thin.map(esc).join(', ')}</b> have n = 2 biological replicates. ` +
+      `MIQE and most journals expect n ≥ 3. Interpret p-values with caution.`;
+  } else {
+    warn.classList.add('hidden');
+  }
   renderFoldChart();
 }
 
-// ── Fold-change bar chart (grouped by sample, bars per gene) ──────────────────
+// ── Fold-change bar chart: genes on x-axis, a bar per group, 95% CI whiskers,
+//    and individual biological-replicate dots overlaid (methods 2+3, §5.6.4). ──
 function renderFoldChart() {
   const svg = $('foldChart'), empty = $('foldEmpty');
   if (!svg) return;
-  const rows = ddResults().filter(r => r.fold != null && isFinite(r.fold) && r.fold > 0);
-  if (!rows.length) {
+  const { rows } = ddCompute();
+  const usable = rows.filter(r => r.meanFold != null && isFinite(r.meanFold) && r.meanFold > 0);
+  if (!usable.length) {
     svg.innerHTML = ''; svg.style.display = 'none'; empty.style.display = 'block';
     return;
   }
   svg.style.display = 'block'; empty.style.display = 'none';
 
   const log2 = state.foldScale === 'log2';
-  const samples = uniq(rows.map(r => r.sample));
-  const genes = uniq(rows.map(r => r.target));
+  const genes = uniq(usable.map(r => r.target));
+  const groups = uniq(rows.map(r => r.group));           // keep control first-ish order
   const byKey = {};
-  rows.forEach(r => byKey[r.sample + '|' + r.target] = r);
+  usable.forEach(r => byKey[r.group + '|' + r.target] = r);
 
-  // transform: identity (linear) or log2
   const tf = log2 ? (v => Math.log2(v)) : (v => v);
-  const baseVal = 1;                          // calibrator reference (fold = 1)
-  // y range covers fold + error bounds and always the fold=1 line
+  const baseVal = 1;
   let lo = Infinity, hi = -Infinity;
-  for (const r of rows) {
-    for (const v of [r.fold, r.foldLow, r.foldHigh]) {
+  for (const r of usable) {
+    const vals = [r.meanFold, r.ciLoFold, r.ciHiFold, ...(r.repFolds || [])];
+    for (const v of vals) {
       if (v == null || !isFinite(v) || v <= 0) continue;
       lo = Math.min(lo, tf(v)); hi = Math.max(hi, tf(v));
     }
   }
   const baseT = tf(baseVal);
   lo = Math.min(lo, baseT); hi = Math.max(hi, baseT);
-  if (!log2) lo = Math.min(lo, 0);            // linear bars grow from 0
+  if (!log2) lo = Math.min(lo, 0);
   if (lo === hi) { lo -= 1; hi += 1; }
   const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
 
   const W = 800, H = 400, ML = 54, MR = 16, MT = 30, MB = 64;
   const px = ML, py = MT, pw = W - ML - MR, ph = H - MT - MB;
-  const yS = v => py + ph - (tf(v) - lo) / (hi - lo) * ph;       // value (fold) → y
-  const yT = t => py + ph - (t - lo) / (hi - lo) * ph;           // transformed → y
+  const yS = v => py + ph - (tf(v) - lo) / (hi - lo) * ph;
+  const yT = t => py + ph - (t - lo) / (hi - lo) * ph;
   const fmtFold = v => v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
 
   let s = '';
   s += `<rect x="${px}" y="${py}" width="${pw}" height="${ph}" fill="var(--surface)" stroke="var(--border-subtle)" rx="4"/>`;
-  // y gridlines + labels
   for (const t of niceTicks(lo, hi, 5)) {
     const yy = yT(t);
     if (yy < py - 0.5 || yy > py + ph + 0.5) continue;
@@ -1572,61 +2235,69 @@ function renderFoldChart() {
     const label = log2 ? fmtFold(Math.pow(2, t)) : fmtFold(t);
     s += `<text x="${px - 6}" y="${yy + 3}" text-anchor="end" font-size="9" fill="var(--text-muted)" font-family="var(--font)">${label}</text>`;
   }
-  // calibrator reference line (fold = 1)
   const y1 = yS(baseVal);
   if (y1 >= py && y1 <= py + ph) {
     s += `<line x1="${px}" y1="${y1}" x2="${px + pw}" y2="${y1}" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="5 4" opacity="0.7"/>`;
     s += `<text x="${px + pw - 2}" y="${y1 - 3}" text-anchor="end" font-size="8.5" fill="var(--text-muted)" font-family="var(--font)">fold = 1</text>`;
   }
 
-  const baseY = log2 ? y1 : yS(0);             // bars grow from this y
-  const groupW = pw / samples.length;
-  const barGap = 0.18;                         // fraction of slot left as gap
-  const slotW = groupW / genes.length;
+  const baseY = log2 ? y1 : yS(0);
+  const groupW = pw / genes.length;
+  const barGap = 0.2;
+  const slotW = groupW / groups.length;
   const barW = slotW * (1 - barGap);
 
-  samples.forEach((sm, si) => {
-    const gx = px + si * groupW;
-    genes.forEach((g, gi) => {
-      const r = byKey[sm + '|' + g];
+  genes.forEach((g, gi) => {
+    const gx = px + gi * groupW;
+    groups.forEach((grp, si) => {
+      const r = byKey[grp + '|' + g];
       if (!r) return;
-      const color = targetColor(g);
-      const bx = gx + gi * slotW + (slotW - barW) / 2;
-      const yv = yS(r.fold);
+      const color = groupColor(grp);
+      const bx = gx + si * slotW + (slotW - barW) / 2;
+      const cx = bx + barW / 2;
+      const yv = yS(r.meanFold);
       const top = Math.min(yv, baseY), bh = Math.abs(yv - baseY);
-      s += `<rect x="${bx.toFixed(1)}" y="${top.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0, bh).toFixed(1)}" fill="${color}" opacity="0.88" rx="1.5"/>`;
-      // error whisker
-      if (r.foldLow != null && r.foldHigh != null && r.foldLow > 0) {
-        const cx = bx + barW / 2, yLo2 = yS(r.foldHigh), yHi2 = yS(r.foldLow);
+      s += `<rect x="${bx.toFixed(1)}" y="${top.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0, bh).toFixed(1)}" fill="${color}" opacity="0.85" rx="1.5"/>`;
+      // 95% CI whisker
+      if (r.ciLoFold != null && r.ciHiFold != null && r.ciLoFold > 0) {
+        const yTop = yS(r.ciHiFold), yBot = yS(r.ciLoFold);
         const cap = Math.min(barW * 0.35, 5);
-        s += `<line x1="${cx.toFixed(1)}" y1="${yLo2.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${yHi2.toFixed(1)}" stroke="var(--text)" stroke-width="1"/>`;
-        s += `<line x1="${(cx - cap).toFixed(1)}" y1="${yLo2.toFixed(1)}" x2="${(cx + cap).toFixed(1)}" y2="${yLo2.toFixed(1)}" stroke="var(--text)" stroke-width="1"/>`;
-        s += `<line x1="${(cx - cap).toFixed(1)}" y1="${yHi2.toFixed(1)}" x2="${(cx + cap).toFixed(1)}" y2="${yHi2.toFixed(1)}" stroke="var(--text)" stroke-width="1"/>`;
+        s += `<line x1="${cx.toFixed(1)}" y1="${yTop.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${yBot.toFixed(1)}" stroke="var(--text)" stroke-width="1"/>`;
+        s += `<line x1="${(cx - cap).toFixed(1)}" y1="${yTop.toFixed(1)}" x2="${(cx + cap).toFixed(1)}" y2="${yTop.toFixed(1)}" stroke="var(--text)" stroke-width="1"/>`;
+        s += `<line x1="${(cx - cap).toFixed(1)}" y1="${yBot.toFixed(1)}" x2="${(cx + cap).toFixed(1)}" y2="${yBot.toFixed(1)}" stroke="var(--text)" stroke-width="1"/>`;
+      }
+      // individual biological-replicate dots (deterministic jitter by index)
+      (r.repFolds || []).forEach((v, di) => {
+        if (v == null || !isFinite(v) || v <= 0) return;
+        const jm = (r.repFolds.length - 1) / 2;
+        const jx = cx + (di - jm) * Math.min(barW / Math.max(1, r.repFolds.length), 4);
+        s += `<circle class="fold-dot" cx="${jx.toFixed(1)}" cy="${yS(v).toFixed(1)}" r="2.6"/>`;
+      });
+      // significance star above the bar (vs control)
+      if (!r.isControl && r.ttest) {
+        const st = sigStars(r.ttest.pAdj != null ? r.ttest.pAdj : r.ttest.p);
+        if (st && st !== 'ns') {
+          const topY = Math.min(yv, r.ciHiFold != null ? yS(r.ciHiFold) : yv);
+          s += `<text x="${cx.toFixed(1)}" y="${(topY - 4).toFixed(1)}" text-anchor="middle" font-size="11" fill="var(--text)" font-family="var(--font)" font-weight="700">${st}</text>`;
+        }
       }
     });
-    // sample label
-    const cx = gx + groupW / 2;
-    const long = samples.length > 6 || sm.length > 10;
-    if (long) {
-      s += `<text x="${cx.toFixed(1)}" y="${py + ph + 12}" text-anchor="end" font-size="9" fill="var(--text-secondary)" font-family="var(--font)" transform="rotate(-35 ${cx.toFixed(1)} ${py + ph + 12})">${esc(sm)}</text>`;
-    } else {
-      s += `<text x="${cx.toFixed(1)}" y="${py + ph + 14}" text-anchor="middle" font-size="9.5" fill="var(--text-secondary)" font-family="var(--font)">${esc(sm)}</text>`;
-    }
+    // gene label
+    const cxg = gx + groupW / 2;
+    s += `<text x="${cxg.toFixed(1)}" y="${py + ph + 14}" text-anchor="middle" font-size="9.5" fill="var(--text-secondary)" font-family="var(--font)">${esc(g)}</text>`;
   });
 
-  // axes
   s += `<line x1="${px}" y1="${py}" x2="${px}" y2="${py + ph}" stroke="var(--border)" stroke-width="1.1"/>`;
   s += `<line x1="${px}" y1="${py + ph}" x2="${px + pw}" y2="${py + ph}" stroke="var(--border)" stroke-width="1.1"/>`;
 
-  // gene legend (top)
+  // group legend (top)
   let lx = px + 4, ly = py - 14;
-  genes.slice(0, 8).forEach(g => {
-    s += `<rect x="${lx}" y="${ly - 7}" width="10" height="10" rx="2" fill="${targetColor(g)}"/>`;
-    s += `<text x="${lx + 14}" y="${ly + 2}" font-size="10" fill="var(--text-secondary)" font-family="var(--font)">${esc(g)}</text>`;
-    lx += 22 + g.length * 6.2;
+  groups.slice(0, 8).forEach(grp => {
+    s += `<rect x="${lx}" y="${ly - 7}" width="10" height="10" rx="2" fill="${groupColor(grp)}"/>`;
+    s += `<text x="${lx + 14}" y="${ly + 2}" font-size="10" fill="var(--text-secondary)" font-family="var(--font)">${esc(grp)}</text>`;
+    lx += 22 + grp.length * 6.2;
   });
 
-  // y-axis title
   const yTitle = log2 ? 'Fold change (log₂)' : 'Fold change';
   s += `<text x="13" y="${py + ph / 2}" text-anchor="middle" font-size="11" fill="var(--text-secondary)" font-family="var(--font)" font-weight="600" transform="rotate(-90 13 ${py + ph / 2})">${yTitle}</text>`;
 
@@ -1635,12 +2306,13 @@ function renderFoldChart() {
 
 // ── Amplification chart (SVG string, mirrors bca-assay) ─────────────────────
 function chartGroupLabel(r) {
+  const wl = state.plates.length > 1 ? r.plate + '·' + r.wellLabel : r.wellLabel;
   switch (state.chartGroupBy) {
     case 'gene': return r.target || '—';
-    case 'sampleGene': return (r.sampleName || r.well) + ' · ' + (r.target || '—');
+    case 'sampleGene': return (r.sampleName || wl) + ' · ' + (r.target || '—');
     case 'call': return r.call === '+' ? 'Positive' : (r.call === '-' ? 'Negative' : 'No call');
-    case 'well': return r.well;
-    default: return r.sampleName || r.well;
+    case 'well': return wl;
+    default: return r.sampleName || wl;
   }
 }
 function renderChart() {
@@ -1758,10 +2430,11 @@ function niceTicks(lo, hi, n) {
 
 // ── Export ──────────────────────────────────────────────────────────────────
 function resultsTSV() {
-  const cols = ['Well', 'Sample', 'Target', 'Dye', 'Cq', 'Call', 'Threshold', 'Baseline Start', 'Baseline End', 'Efficiency (%)', 'Quantity'];
+  const multi = state.plates.length > 1;
+  const cols = [...(multi ? ['Plate'] : []), 'Well', 'Sample', 'Target', 'Dye', 'Cq', 'Call', 'Threshold', 'Baseline Start', 'Baseline End', 'Efficiency (%)', 'Quantity'];
   const lines = [cols.join('\t')];
   for (const r of filteredRows()) {
-    lines.push([r.well, r.sampleName, r.target, r.dye,
+    lines.push([...(multi ? [r.plate] : []), r.wellLabel, r.sampleName, r.target, r.dye,
       r.cq != null ? r.cq.toFixed(3) : '', r.call || '',
       r.threshold != null ? r.threshold.toFixed(3) : '',
       r.blStart ?? '', r.blEnd ?? '',
@@ -1775,33 +2448,46 @@ function tsvToCsv(tsv) {
     line.split('\t').map(c => /[",\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c).join(',')).join('\n');
 }
 function ddCsv() {
-  const out = ddResults();
-  const foldLabel = state.ddEffCorr ? 'Fold (Pfaffl)' : 'Fold (2^-ddCq)';
-  const head = ['Sample', 'Target', 'Mean Cq', 'Ref Cq', 'dCq', 'ddCq', 'ddCq SD', 'ddCq SEM', foldLabel, 'Fold low', 'Fold high'];
-  const lines = [head.join(',')];
-  for (const r of out) lines.push([r.sample, r.target, r.meanCq.toFixed(3), r.refCq.toFixed(3),
-    r.dCq.toFixed(3), r.ddCq != null ? r.ddCq.toFixed(3) : '',
-    r.ddSD != null ? r.ddSD.toFixed(3) : '', r.ddSEM != null ? r.ddSEM.toFixed(3) : '',
-    r.fold != null ? r.fold.toFixed(4) : '',
-    r.foldLow != null ? r.foldLow.toFixed(4) : '', r.foldHigh != null ? r.foldHigh.toFixed(4) : ''].join(','));
+  const { rows, control } = ddCompute();
+  const foldLabel = state.ddEffCorr ? 'Mean fold (Pfaffl)' : 'Mean fold (2^-ddCq)';
+  const cell = c => /[",\n]/.test(String(c)) ? '"' + String(c).replace(/"/g, '""') + '"' : String(c);
+  const head = ['Group', 'Gene', 'Is control', 'n (bio)', 'Mean dCq', 'ddCq', foldLabel,
+    'Fold CI low', 'Fold CI high', 'SD dCq', 't', 'df', 'p (dCq)', 'p adj (Holm)'];
+  const lines = [`# Control group: ${control}`, head.map(cell).join(',')];
+  for (const r of rows) {
+    const tt = r.ttest;
+    lines.push([r.group, r.target, r.isControl ? 'yes' : 'no', r.nBio,
+      r.meanDCq != null ? r.meanDCq.toFixed(3) : '',
+      r.ddCq != null ? r.ddCq.toFixed(3) : '',
+      r.meanFold != null ? r.meanFold.toFixed(4) : '',
+      r.ciLoFold != null ? r.ciLoFold.toFixed(4) : '',
+      r.ciHiFold != null ? r.ciHiFold.toFixed(4) : '',
+      r.sdDCq != null ? r.sdDCq.toFixed(3) : '',
+      tt ? tt.t.toFixed(3) : '', tt ? tt.df.toFixed(2) : '',
+      tt ? tt.p.toFixed(4) : '', tt && tt.pAdj != null ? tt.pAdj.toFixed(4) : ''].map(cell).join(','));
+  }
   return lines.join('\n');
 }
-// Well, Sample, Gene labels — re-importable as a plate layout (round-trips via parsePlateLayout).
+// Plate, Well, Sample, Group, Gene labels — re-importable as a plate layout (round-trips via parsePlateLayout).
 function labelsCsv() {
-  const wellCmp = (a, b) => (a.charCodeAt(0) - b.charCodeAt(0)) ||
-    ((parseInt(a.slice(1), 10) || 0) - (parseInt(b.slice(1), 10) || 0));
-  const wells = [...state.wellsPresent].sort(wellCmp);
+  const multi = state.plates.length > 1;
   const cell = c => /[",\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c;
-  const lines = ['Well,Sample,Gene'];
-  for (const w of wells) {
+  // one row per well (uid), ordered by plate then natural well order
+  const seen = new Set(), wells = [];
+  for (const r of state.records) { if (!seen.has(r.well)) { seen.add(r.well); wells.push(r); } }
+  wells.sort((a, b) => String(a.plate).localeCompare(String(b.plate), undefined, { numeric: true }) || a.row - b.row || a.colIdx - b.colIdx);
+  const lines = [(multi ? 'Plate,' : '') + 'Well,Sample,Group,Gene'];
+  for (const r of wells) {
+    const w = r.well;
     const sample = state.sampleByWell[w] || '';
+    const group = state.userGroup[w] || '';         // only explicit overrides; derived groups re-derive on import
     let gene = '';
-    for (const r of state.records) {
-      if (r.well !== w) continue;
-      const g = state.targetByKey[w + '|' + r.dye];
+    for (const rr of state.records) {
+      if (rr.well !== w) continue;
+      const g = state.targetByKey[w + '|' + rr.dye];
       if (g) { gene = g; break; }
     }
-    lines.push([w, sample, gene].map(c => cell(String(c))).join(','));
+    lines.push([...(multi ? [r.plate] : []), r.wellLabel, sample, group, gene].map(c => cell(String(c))).join(','));
   }
   return lines.join('\n');
 }
@@ -1911,10 +2597,17 @@ function init() {
     renderTable(); renderSummaryTable();
   });
 
+  // Summary-table filters (hide empty/unnamed wells, free-text search)
+  $('sumFilter').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.sumFilter = b.dataset.filter; setActive($('sumFilter'), b); renderSummaryTable();
+  });
+  $('sumSearch').addEventListener('input', e => { state.sumSearch = e.target.value; renderSummaryTable(); });
+
   // Plate drag-to-select
-  const psvg = $('plateSvg');
-  psvg.addEventListener('pointerdown', onPlateDown);
-  psvg.addEventListener('pointermove', onPlateMove);
+  const pgrid = $('plateGrid');
+  pgrid.addEventListener('pointerdown', onPlateDown);
+  pgrid.addEventListener('pointermove', onPlateMove);
   window.addEventListener('pointerup', onPlateUp);
 
   // Selection bar
@@ -1944,15 +2637,31 @@ function init() {
   $('btnExportLabels').addEventListener('click', exportLabels);
   $('btnCsv').addEventListener('click', () => labtoolsDownloadText(exportName('results.csv'), tsvToCsv(resultsTSV()), 'text/csv'));
   $('btnDdCsv').addEventListener('click', () => labtoolsDownloadText(exportName('ddcq.csv'), ddCsv(), 'text/csv'));
-  $('btnPlatePng').addEventListener('click', () => svgToPng($('plateSvg'), exportName('plate.png')));
+  $('btnPlatePng').addEventListener('click', () => {
+    const svgs = $('plateGrid').querySelectorAll('svg[data-plate]');
+    if (!svgs.length) return;
+    svgs.forEach((svg, i) => svgToPng(svg, exportName((svgs.length > 1 ? svg.dataset.plate + '-' : '') + 'plate.png')));
+  });
   $('btnAmpPng').addEventListener('click', () => {
     if (!state.selWells.size) { showError('Select wells to plot before exporting the chart.'); return; }
     svgToPng($('ampSvg'), exportName('amplification.png'));
   });
 
-  $('ddCal').addEventListener('change', e => { state.ddCal = e.target.value; renderDD(); });
-  $('ddEffCorr').addEventListener('change', e => { state.ddEffCorr = e.target.checked; renderDD(); });
-  $('btnDdRecalc').addEventListener('click', function () { renderDDControls(); renderDD(); flash(this, 'Recalculated ✓', 'Recalculate'); });
+  $('ddControl').addEventListener('change', e => { state.ddControlGroup = e.target.value; state.ddControlInit = true; renderDD(); renderQcPanel(); renderMiqe(); renderMethods(); });
+  $('ddCal').addEventListener('change', e => { state.interPlateCal = e.target.value; state.interPlateInit = true; renderDD(); renderQcPanel(); });
+  $('ddPaired').addEventListener('change', e => { state.pairedDesign = e.target.checked; renderDD(); });
+  $('ddEffCorr').addEventListener('change', e => { state.ddEffCorr = e.target.checked; renderDD(); renderMiqe(); renderMethods(); });
+  $('btnDdRecalc').addEventListener('click', function () { renderAnalysis(); flash(this, 'Recalculated ✓', 'Recalculate'); });
+  $('lodInput').addEventListener('change', e => {
+    const v = parseFloat(e.target.value);
+    state.lodCutoff = Number.isFinite(v) && v > 0 ? v : 38;
+    e.target.value = state.lodCutoff;
+    _stdCache = null; renderAfterCq();
+  });
+  $('methodInstrument').addEventListener('input', renderMethods);
+  $('btnMethodsCopy').addEventListener('click', function () {
+    labtoolsCopyText($('methodsText').value).then(() => flash(this, 'Copied!', 'Copy')).catch(() => {});
+  });
   $('foldScale').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     state.foldScale = b.dataset.scale; setActive($('foldScale'), b); renderFoldChart();
@@ -1962,8 +2671,10 @@ function init() {
   $('btnResetAll').addEventListener('click', () => {
     Object.assign(state, { records: [], byKey: new Map(), sampleByWell: {}, selWells: new Set(),
       wellsPresent: new Set(), files: [], lastRowIdx: null, targetByKey: {}, thresholds: {},
-      customThr: {}, ddRefs: new Set(), ddRefsInit: false, ddCal: '', userNamed: new Set(),
-      labelsDirty: false });
+      customThr: {}, ddRefs: new Set(), ddRefsInit: false, ddControlGroup: '', ddControlInit: false,
+      interPlateCal: '', interPlateInit: false, plates: [], plateGeoms: {},
+      pairedDesign: false, userNamed: new Set(), userGroup: {}, labelsDirty: false });
+    _stdCache = null; _stdCacheKey = '';
     $('results').style.display = 'none';
     $('fileList').innerHTML = '';
     $('fileInput').value = '';
@@ -1979,6 +2690,157 @@ function init() {
 }
 function setActive(group, btn) { group.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn)); }
 function flash(btn, on, off) { btn.textContent = on; setTimeout(() => { btn.textContent = off; }, 1400); }
+
+// ─── Workbench integration ──────────────────────────────────────────────────
+const TOOL_NAME = 'qpcr-analysis';
+const WB_PRODUCES = 'qpcr-results';
+const WB_CONSUMES = ['plate-layout', 'sample-list'];
+
+function serializeForWorkbench() {
+  // Collect well-level labels (sample, gene, group)
+  var wells = {};
+  state.wellsPresent.forEach(function (w) {
+    var sample = state.sampleByWell[w] || '';
+    var gene = state.targetByKey[w] || '';
+    var group = state.userGroup[w] || '';
+    if (sample || gene || group) {
+      wells[w] = { sample: sample, gene: gene, group: group };
+    }
+  });
+
+  return {
+    expName: state.expName,
+    plateCount: state.plates.length,
+    dyes: state.dyes.slice(),
+    targets: state.targets.slice(),
+    wellCount: state.records.length,
+    wells: wells,
+    notes: state.notes,
+  };
+}
+
+function applyFromWorkbench(data, type) {
+  if (type === 'plate-layout') {
+    // Convert plate-layout assignments to sample/gene/group maps
+    var samples = {};
+    var genes = {};
+    var groups = {};
+
+    (data.plates || []).forEach(function (plate) {
+      var assignments = plate.assignments || {};
+      Object.keys(assignments).forEach(function (wellId) {
+        var a = assignments[wellId];
+        if (a.sample) samples[wellId] = a.sample;
+        if (a.gene) genes[wellId] = a.gene;
+        if (a.group) groups[wellId] = a.group;
+      });
+    });
+
+    // Apply to state — resolve well IDs (plain labels like A1) to uid format (plate␟A1)
+    var singlePlate = state.plates.length === 1;
+    var applyEach = function (map, setter) {
+      Object.keys(map).forEach(function (well) {
+        var uid = singlePlate
+          ? (state.wellsPresent.has(state.plates[0] + PSEP + well) ? state.plates[0] + PSEP + well : null)
+          : state.plates.map(function (p) { return p + PSEP + well; }).filter(function (u) { return state.wellsPresent.has(u); });
+        if (!uid) return;
+        (Array.isArray(uid) ? uid : [uid]).forEach(function (u) { setter(u, map[well]); });
+      });
+    };
+
+    applyEach(samples, function (u, v) { state.sampleByWell[u] = v; state.userNamed.add(u); });
+    applyEach(groups, function (u, v) { state.userGroup[u] = v; });
+    // Apply gene labels per well×dye
+    applyEach(genes, function (u, v) {
+      state.records.forEach(function (r) {
+        if (r.well === u) state.targetByKey[u + '|' + (r.dye || state.plateDye)] = v;
+      });
+    });
+
+    state.labelsDirty = true;
+    state.userNamed = new Set(Object.keys(state.sampleByWell));
+    renderAll();
+  } else if (type === 'sample-list') {
+    // Apply sample list — populate sample names from the list
+    var samples = (data.samples || []);
+    if (samples.length === 0) return;
+    // For each named well in the current state, try to match by index
+    var wellIds = Array.from(state.wellsPresent);
+    samples.forEach(function (s, i) {
+      if (i < wellIds.length) {
+        state.sampleByWell[wellIds[i]] = s.name || '';
+        state.userNamed.add(wellIds[i]);
+      }
+    });
+    state.labelsDirty = true;
+    renderAll();
+  }
+}
+
+function suggestLabel() {
+  var exp = state.expName || 'qPCR Run';
+  var date = new Date().toISOString().slice(0, 10);
+  return exp + ' ' + date;
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  var saveBtn = document.getElementById('wb-save-btn');
+  var loadBtn = document.getElementById('wb-load-btn');
+
+  if (saveBtn) saveBtn.addEventListener('click', function () {
+    if (!state.records.length) { showToast('No data to save. Load a file first.'); return; }
+    var label = prompt('Name this item:', suggestLabel());
+    if (!label || !label.trim()) return;
+    label = label.trim();
+
+    workbench.findByName(label).then(function (existing) {
+      if (existing) {
+        if (!confirm('"' + label + '" already exists. Overwrite?')) return;
+        return workbench.remove(existing.id);
+      }
+    }).then(function () {
+      return workbench.put(WB_PRODUCES, label, serializeForWorkbench(),
+        { plateCount: state.plates.length, wellCount: state.records.length }, TOOL_NAME);
+    }).then(function () {
+      showToast('✓ Saved "' + label + '"');
+    }).catch(function (e) {
+      showToast('✗ ' + e.message);
+      console.error('Workbench save error:', e);
+    });
+  });
+
+  if (loadBtn) loadBtn.addEventListener('click', function () {
+    if (!state.records.length) { showToast('Load a file first to enable import.'); return; }
+    var allItems = [];
+    Promise.all(WB_CONSUMES.map(function (t) { return workbench.getByType(t); })).then(function (results) {
+      results.forEach(function (items, i) {
+        items.forEach(function (item) { allItems.push(item); });
+      });
+      if (allItems.length === 0) { showToast('No matching data in Workbench'); return; }
+      showPicker(allItems, function (item) {
+        applyFromWorkbench(item.data, item.type);
+        showToast('✓ Applied "' + item.label + '"');
+      });
+    }).catch(function (e) {
+      console.error('Workbench load error:', e);
+    });
+  });
+});
+
+labtoolsRegisterToolTypes('qpcr-analysis', ['qpcr-results'], ['plate-layout', 'sample-list']);
+
+labtoolsRegisterTestHooks('qpcr-analysis', {
+  serialize: serializeForWorkbench,
+  apply: applyFromWorkbench,
+  state: function () {
+    return {
+      expName: state.expName,
+      plates: state.plates.slice(),
+      wellCount: state.records.length,
+      namedWells: Object.keys(state.sampleByWell).length,
+    };
+  },
+});
 
 init();
 </script>
