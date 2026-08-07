@@ -1033,7 +1033,7 @@ function applyFromWorkbench(data, type) {
         conc: isNaN(s.conc) ? null : s.conc,
         a260_280: isNaN(s.a260_280) ? null : s.a260_280,
         a260_230: isNaN(s.a260_230) ? null : s.a260_230,
-        scale: sampleScale(0),
+        scale: -1, // auto by default (matches new-sample creation)
       };
     });
     if (newSamples.length) { samples = newSamples; renderTable(); saveState(); }

@@ -60,6 +60,16 @@ test('rt-calc: parse Nanodrop then apply conc-data fills concentrations', async 
   });
 });
 
+test('rt-calc: apply sample-list creates samples (regression: sampleScale)', async () => {
+  // apply(sample-list) used to throw `sampleScale is not defined` (rt-calc:1036).
+  await withTool('rt-calc', async (page, errors) => {
+    await callHook(page, 'rt-calc', 'apply', fixtureJson('sample-list-rt.json'), 'sample-list');
+    const state = await callHook(page, 'rt-calc', 'state');
+    assert.ok(state.sampleCount > 0, 'sample-list import should create samples');
+    assert.deepEqual(errors, [], 'apply must not throw');
+  });
+});
+
 test('seeding-calc: apply conc-data sets stock density + bypass mode', async () => {
   await withTool('seeding-calc', async (page, errors) => {
     await callHook(page, 'seeding-calc', 'apply', fixtureJson('conc-data.json'), 'conc-data');
