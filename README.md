@@ -1,7 +1,7 @@
 # LabTools
 
 A zero-dependency collection of interactive browser tools for cell biology bench work.
-Open any tool directly in a browser or use the GitHub Pages site; there is no install, build, package manager, or dev server requirement.
+Open any tool directly in a browser or use the GitHub Pages site; there is no install, build, package manager, or dev server requirement. (The shipped tools stay dependency-free; only the dev/test tooling uses npm — see [CONTRIBUTING.md](CONTRIBUTING.md).)
 
 ## Tools
 

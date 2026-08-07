@@ -8,7 +8,7 @@ Current tools are `cell-count`, `seeding-calc`, `microplate-layout-planner`, `st
 
 ## Build, Test, And Development Commands
 
-There is no build step, package manager, or required dev server.
+Shipped tools have no build step or runtime dependency. The only carve-out is dev/test tooling: `package.json` declares `puppeteer` (devDependency) for the headless e2e suite. Never import it from `tools/` or `assets/`.
 
 - `open index.html`
   Opens the hub locally in a browser.
@@ -27,16 +27,24 @@ Use 2-space indentation in HTML, CSS, and JavaScript. Keep tools self-contained 
 
 Automated tests are not configured. Open the affected `index.html`, exercise the changed workflow, check the browser console, and confirm outputs against expected formulas or sample values. For shared math helpers, quick browser-console smoke tests are expected, for example `calcCellDensity(80, 0.25, 20)` or `calcDoseFromBodyWeight(5, 'kg', 25, 'g')`.
 
-### Automated test pipeline (Node ≥ 18, zero-dependency)
+### Automated test pipeline
+
+Node ≥ 18. Fixtures + unit tests are zero-dependency; the e2e suite uses the
+`puppeteer` devDependency (`npm ci`).
 
 - `node scripts/gen-fixtures.mjs` — regenerate deterministic fixtures in `tests/fixtures/`
 - `node scripts/gen-fixtures.mjs --check` — verify fixtures are up to date (CI)
-- `node --test 'tests/unit/*.test.mjs'` — headless unit tests (calc library, fixture schemas, workbench data model)
-- Browser harness (human review): `python3 -m http.server 8000`, open `http://localhost:8000/tests/index.html?run=auto`
-  — loads each tool in a same-origin iframe, drives it through its `__labtoolsTestHooks`,
-  compares outputs against committed snapshots in `tests/snapshots/`, and renders a human
-  review checklist. Run report downloads to `tests/reports/` (gitignored).
-  After an intentional output change, re-capture snapshots via the harness button and commit them.
+- `npm run test:unit` (`node --test tests/unit/*.test.mjs`) — headless unit tests (calc library, fixture schemas, workbench data model)
+- `npm run test:e2e` — headless-Chromium integration suite (`tests/e2e/`) that drives real
+  tool pages via `__labtoolsTestHooks`, using condition-polling (no fixed sleeps).
+  Covers apply→serialize round-trips, parsers (authoritative regenerable snapshots in
+  `tests/snapshots/`), the real IndexedDB workbench (CRUD / export-import / strict rejection),
+  and a per-producer live-serialize → `validateWorkbenchType` safety net. Runs in CI (gates merges).
+- `npm test` — unit then e2e.
+- After an intentional parser-output change, rebaseline snapshots with
+  `npm run test:e2e:update` and commit them.
+- Human visual-QA (drawer animation, cross-tab visuals) is a separate page:
+  `python3 -m http.server 8000`, open `http://localhost:8000/tests/review.html`.
 
 ### Test hooks convention
 

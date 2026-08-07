@@ -4,7 +4,9 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-LabTools is a collection of zero-dependency, static HTML tools for cell biology bench work. There is no build step, bundler, package manager, or framework. Each tool is browser-runnable and mostly self-contained, with shared assets for common styling, pure calculation utilities, and small browser helpers.
+LabTools is a collection of zero-dependency, static HTML tools for cell biology bench work. Each tool is browser-runnable and mostly self-contained, with shared assets for common styling, pure calculation utilities, and small browser helpers.
+
+**Dependency policy:** the *shipped* tools have no build step, bundler, or runtime dependency — that is a hard rule. The *dev/test tooling* is the one carve-out: `package.json` declares `puppeteer` as a devDependency so the headless e2e suite (`tests/e2e/`) can drive real tool pages in CI. Nothing under `tools/` or `assets/` may import it.
 
 ## Development And Deployment
 

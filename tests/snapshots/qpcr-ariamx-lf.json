@@ -1,8 +1,8 @@
 {
   "expName": "aria-mx-tabular",
+  "namedWells": 40,
   "plates": [
     "aria-mx-tabular"
   ],
-  "wellCount": 40,
-  "namedWells": 40
+  "wellCount": 40
 }

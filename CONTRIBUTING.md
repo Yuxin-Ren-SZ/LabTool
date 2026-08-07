@@ -40,7 +40,7 @@ Keep one concern per PR. If you add a new tool, update the root `index.html`, ad
 
 ## Development Workflow
 
-There is no build step, package manager, bundler, or test runner. Open the affected page directly in a browser:
+The shipped tools need no build step, bundler, or runtime dependency — open the affected page directly in a browser. (The automated test suite is the one exception: it uses `puppeteer` as a devDependency; see below.) Open a tool:
 
 ```sh
 open index.html
@@ -55,28 +55,34 @@ python3 -m http.server
 
 ## Automated Tests + Human Review
 
-Headless checks (Node ≥ 18, no dependencies — run before opening a PR):
+Run before opening a PR (Node ≥ 18):
 
 ```sh
-node scripts/gen-fixtures.mjs --check   # fixtures up to date?
-node --test 'tests/unit/*.test.mjs'     # unit tests (calc, schemas, workbench model)
+node scripts/gen-fixtures.mjs --check   # fixtures up to date? (zero-dep)
+npm ci                                  # dev deps (puppeteer + Chromium), once
+npm test                                # unit + headless e2e; both gate CI
 ```
 
-Browser review (required when workbench data flows or tool serialization change):
+- **Unit** (`npm run test:unit`) — calc, schemas, workbench model. Zero-dep, fast.
+- **e2e** (`npm run test:e2e`) — drives real tool pages in headless Chromium via
+  `__labtoolsTestHooks`, with condition-polling (no fixed sleeps). Covers
+  apply→serialize round-trips, parsers (authoritative snapshots in
+  `tests/snapshots/`), the real IndexedDB workbench, and a per-producer
+  live-serialize → `validateWorkbenchType` safety net.
+
+If a change intentionally alters a parser's output, rebaseline the affected
+snapshot with `npm run test:e2e:update` and commit it — a snapshot mismatch in
+CI otherwise (correctly) fails the build.
+
+Human visual-QA — drawer animation, cross-tab sync, and other things a machine
+can't judge — lives on its own page. Serve the repo and walk the checklist:
 
 ```sh
 python3 -m http.server 8000
-# open http://localhost:8000/tests/index.html?run=auto
+# open http://localhost:8000/tests/review.html
 ```
 
-The harness loads every tool in a same-origin iframe, drives it through its
-`__labtoolsTestHooks`, and diffs outputs against committed snapshots in
-`tests/snapshots/`. It also renders a human-review checklist; tick each item
-after visual inspection and download the report into `tests/reports/` (gitignored).
-
-If a change intentionally alters tool output, re-capture snapshots from the
-harness ("Capture Snapshots") and commit them alongside the change — a stale
-snapshot diff in review means the output changed unexpectedly.
+Download the signed review into `tests/reports/` (gitignored).
 
 ## Manual Validation
 

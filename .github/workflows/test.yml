@@ -24,3 +24,25 @@ jobs:
           node --check assets/js/labtools-common.js
           node --check tools/thermal-to-laser/tool.js
           node --check tools/drug-dosage/tool.js
+
+  e2e:
+    # Headless-Chromium integration suite (tests/e2e). Pinned to 22.04 for
+    # stable apt package names for Chromium's shared libraries.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dev dependencies (puppeteer downloads Chrome)
+        run: npm ci
+      - name: Chromium system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+            libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            libgbm1 libpango-1.0-0 libcairo2 libasound2
+      - name: e2e tests
+        run: npm run test:e2e
