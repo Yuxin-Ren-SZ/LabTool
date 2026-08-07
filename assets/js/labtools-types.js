@@ -139,7 +139,9 @@ const DATA_TYPES = {
               cutCorners: { type: 'array', items: { type: 'string' } },
               assignments: {
                 type: 'map', required: true,
-                keyPattern: /^[A-H][1-9]([0-9])?$/,
+                // Well IDs across all plate formats: rows A–Z and AA–AF (1536),
+                // columns 1–48. Row A–H only would reject 384/1536 layouts.
+                keyPattern: /^[A-Z]{1,2}[0-9]{1,3}$/,
                 values: { type: 'object' },
               },
             },
@@ -196,7 +198,9 @@ const DATA_TYPES = {
             type: 'object',
             props: {
               sample: { type: 'string', required: true },
-              conc:   { type: 'number', required: true },
+              // Producers (e.g. bca-assay) emit null for blank/invalid rows,
+              // so conc is nullable — required:true would reject those saves.
+              conc:   { type: 'number', nullable: true },
               unit:   { type: 'string' },
               flag:   { type: 'string' },
               cv:     { type: 'number', nullable: true },

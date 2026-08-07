@@ -62,9 +62,18 @@ test('plate-layout schema: well ids, plate types, required plates', () => {
     plates: [{ name: 'P', plateType: '96', assignments: { A1: { group: 'c1' }, H12: {} } }],
   }).valid);
 
-  // invalid well key fails
+  // 384/1536 well keys (rows past H, incl. two-letter AA–AF) pass —
+  // regression: keyPattern [A-H] used to reject these, breaking every save.
+  assert.ok(validateWorkbenchType('plate-layout', {
+    plates: [{ name: 'P', plateType: '384', assignments: { I1: {}, P24: {} } }],
+  }).valid, '384-well rows I–P must be accepted');
+  assert.ok(validateWorkbenchType('plate-layout', {
+    plates: [{ name: 'P', plateType: '1536', assignments: { AA1: {}, AF48: {} } }],
+  }).valid, '1536-well rows AA–AF must be accepted');
+
+  // genuinely malformed well key still fails (lowercase / trailing letter)
   const badKey = validateWorkbenchType('plate-layout', {
-    plates: [{ name: 'P', plateType: '96', assignments: { X99: {} } }],
+    plates: [{ name: 'P', plateType: '96', assignments: { a1: {} } }],
   });
   assert.ok(!badKey.valid && badKey.errors.some((e) => e.includes('does not match')));
 
@@ -103,13 +112,22 @@ test('sample-list schema: name required, conc optional', () => {
   assert.ok(validateWorkbenchType('sample-list', { samples: [{ name: 'A', conc: null }] }).valid);
 });
 
-test('conc-data schema: results required, sample+conc required per row', () => {
+test('conc-data schema: results/sample required, conc nullable', () => {
   assert.ok(validateWorkbenchType('conc-data', {
     results: [{ sample: 'S1', conc: 124.5, unit: 'µg/mL' }],
     unit: 'µg/mL',
   }).valid);
-  const noConc = validateWorkbenchType('conc-data', { results: [{ sample: 'S1' }] });
-  assert.ok(!noConc.valid && noConc.errors.some((e) => e.includes('required')));
+  // conc may be null for blank/invalid rows — regression: conc:required used
+  // to reject bca-assay saves whenever any sample OD was missing.
+  assert.ok(validateWorkbenchType('conc-data', {
+    results: [{ sample: 'S1', conc: null, unit: 'µg/mL', flag: '', cv: null }],
+  }).valid, 'null conc must be accepted');
+  // a non-number, non-null conc is still rejected
+  const badConc = validateWorkbenchType('conc-data', { results: [{ sample: 'S1', conc: 'lots' }] });
+  assert.ok(!badConc.valid && badConc.errors.some((e) => e.includes('expected number')));
+  // sample is still required
+  const noSample = validateWorkbenchType('conc-data', { results: [{ conc: 1 }] });
+  assert.ok(!noSample.valid && noSample.errors.some((e) => e.includes('required')));
 });
 
 test('protocol schema: steps required, each with solution + durations + slot', () => {
