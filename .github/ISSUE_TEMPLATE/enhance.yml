@@ -21,6 +21,7 @@ body:
         - microplate-layout-planner
         - stain-timer
         - thermal-to-laser
+        - qpcr-workflow
         - drug-dosage
         - other
     validations:

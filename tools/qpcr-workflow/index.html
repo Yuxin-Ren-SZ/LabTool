@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RT-qPCR Workflow Assistant - LabTools</title>
+  <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
+  <script src="./tool.js" defer></script>
+  <style>
+    .card {
+      max-width: 1180px;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .tool-shell {
+      display: grid;
+      grid-template-columns: 236px minmax(0, 1fr);
+      min-height: 720px;
+    }
+
+    .tool-sidebar {
+      background: var(--surface-subtle);
+      border-right: 1px solid var(--border-subtle);
+      padding: 22px 18px;
+    }
+
+    .tool-title {
+      font-size: 1.08rem;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.25;
+      margin-bottom: 8px;
+    }
+
+    .tool-scope {
+      color: var(--text-secondary);
+      font-size: var(--fs-sm);
+      line-height: 1.5;
+      margin-bottom: 18px;
+    }
+
+    .page-nav {
+      display: grid;
+      gap: 6px;
+    }
+
+    .page-nav-btn {
+      border: 1px solid transparent;
+      border-radius: var(--radius-md);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: var(--fs-sm);
+      font-weight: 700;
+      line-height: 1.25;
+      padding: 10px 11px;
+      text-align: left;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+
+    .page-nav-btn:hover {
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .page-nav-btn.active {
+      background: var(--blue-bg);
+      border-color: var(--blue-border);
+      color: var(--blue-dark);
+    }
+
+    .sidebar-note {
+      border-top: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      line-height: 1.45;
+      margin-top: 18px;
+      padding-top: 14px;
+    }
+
+    .tool-main {
+      min-width: 0;
+      padding: 26px;
+    }
+
+    .page-panel {
+      display: none;
+    }
+
+    .page-panel.active {
+      display: block;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .page-kicker {
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      font-weight: 800;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .page-title {
+      color: var(--text);
+      font-size: 1.3rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 7px;
+    }
+
+    .page-copy {
+      color: var(--text-secondary);
+      font-size: var(--fs-base);
+      line-height: 1.58;
+      max-width: 78ch;
+    }
+
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .panel {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      min-width: 0;
+    }
+
+    .panel-title {
+      color: var(--text);
+      font-size: 0.92rem;
+      font-weight: 800;
+      line-height: 1.3;
+      margin-bottom: 8px;
+    }
+
+    .hint {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: 1.5;
+    }
+
+    .scope-list {
+      display: grid;
+      gap: 8px;
+      color: var(--text-secondary);
+      font-size: var(--fs-sm);
+      line-height: 1.5;
+      margin-top: 10px;
+      padding-left: 18px;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field-stack {
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .field-stack + .field-stack {
+      margin-top: 12px;
+    }
+
+    .field-span-full {
+      grid-column: 1 / -1;
+    }
+
+    select.lt-input {
+      appearance: none;
+      background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+      background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%;
+      background-size: 5px 5px, 5px 5px;
+      background-repeat: no-repeat;
+      padding-right: 30px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .metric {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 11px 12px;
+      min-width: 0;
+    }
+
+    .metric-label {
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .metric-value {
+      color: var(--text);
+      font-size: 1.05rem;
+      font-weight: 800;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+
+    .notice {
+      border: 1px solid var(--yellow-border);
+      background: var(--yellow-bg);
+      color: var(--yellow-dark);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      font-size: var(--fs-sm);
+      line-height: 1.45;
+      margin-bottom: 14px;
+      display: none;
+    }
+
+    .notice.active {
+      display: block;
+    }
+
+    .import-box {
+      display: grid;
+      gap: 11px;
+    }
+
+    .import-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .file-row {
+      align-items: center;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+    }
+
+    .file-row input[type="file"] {
+      font-size: var(--fs-sm);
+      min-width: 0;
+    }
+
+    .plate-shell {
+      overflow: auto;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      padding: 12px;
+    }
+
+    .plate-table {
+      border-collapse: separate;
+      border-spacing: 4px;
+      table-layout: fixed;
+      width: max-content;
+      min-width: 760px;
+    }
+
+    .plate-table th {
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: var(--fs-2xs);
+      font-weight: 800;
+      height: 24px;
+      text-align: center;
+      width: 58px;
+    }
+
+    .plate-table th:first-child {
+      width: 28px;
+    }
+
+    .plate-well {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-dim);
+      height: 58px;
+      max-width: 58px;
+      overflow: hidden;
+      padding: 4px;
+      text-align: center;
+      vertical-align: middle;
+      width: 58px;
+    }
+
+    .plate-well.filled {
+      background: var(--blue-bg);
+      border-color: var(--blue-border);
+      color: var(--blue-dark);
+    }
+
+    .plate-well.reference {
+      background: var(--green-bg);
+      border-color: var(--green-border);
+      color: var(--green-dark);
+    }
+
+    .well-sample,
+    .well-target,
+    .well-rep {
+      display: block;
+      font-size: 0.62rem;
+      font-weight: 800;
+      line-height: 1.08;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .well-target {
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    .well-rep {
+      color: var(--text-muted);
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .guide-box {
+      background: var(--surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: var(--fs-sm);
+      line-height: 1.55;
+      margin-top: 12px;
+      padding: 12px;
+      white-space: pre-wrap;
+    }
+
+    .table-shell {
+      background: var(--surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      overflow: auto;
+      max-height: 440px;
+    }
+
+    .data-table {
+      border-collapse: collapse;
+      font-size: var(--fs-sm);
+      min-width: 720px;
+      width: 100%;
+    }
+
+    .data-table th,
+    .data-table td {
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 9px 10px;
+      text-align: left;
+      vertical-align: top;
+      white-space: nowrap;
+    }
+
+    .data-table th {
+      background: var(--surface-subtle);
+      color: var(--text-muted);
+      font-size: var(--fs-xs);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      position: sticky;
+      text-transform: uppercase;
+      top: 0;
+      z-index: 1;
+    }
+
+    .data-table tbody tr:nth-child(even) td {
+      background: #fcfcfb;
+    }
+
+    .data-table tbody tr:hover td {
+      background: var(--blue-bg);
+    }
+
+    .empty-state {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      line-height: 1.5;
+      padding: 16px;
+    }
+
+    .qc-ok,
+    .qc-warn {
+      border-radius: var(--radius-xs);
+      display: inline-flex;
+      font-size: var(--fs-2xs);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      padding: 2px 6px;
+      text-transform: uppercase;
+    }
+
+    .qc-ok {
+      background: var(--green-bg);
+      color: var(--green-dark);
+    }
+
+    .qc-warn {
+      background: var(--yellow-bg);
+      color: var(--yellow-dark);
+    }
+
+    .viz-shell {
+      background: var(--surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      min-height: 180px;
+    }
+
+    .viz-empty {
+      color: var(--text-muted);
+      font-size: var(--fs-sm);
+      padding: 18px 4px;
+    }
+
+    .ddct-row {
+      display: grid;
+      grid-template-columns: minmax(132px, 190px) minmax(0, 1fr) 72px;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .ddct-label {
+      color: var(--text-secondary);
+      font-size: var(--fs-sm);
+      line-height: 1.25;
+      min-width: 0;
+    }
+
+    .ddct-label strong {
+      color: var(--text);
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .ddct-track {
+      background: linear-gradient(to right, transparent calc(50% - 1px), var(--border) calc(50% - 1px), var(--border) calc(50% + 1px), transparent calc(50% + 1px)), var(--surface-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      height: 22px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .ddct-bar {
+      background: var(--blue);
+      border-radius: var(--radius-xs);
+      height: 12px;
+      position: absolute;
+      top: 4px;
+    }
+
+    .ddct-bar.negative {
+      background: var(--green);
+    }
+
+    .ddct-value {
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: var(--fs-sm);
+      text-align: right;
+    }
+
+    @media (max-width: 940px) {
+      .tool-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .tool-sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .page-nav {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .grid-2,
+      .grid-3,
+      .field-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 620px) {
+      .tool-main {
+        padding: 18px;
+      }
+
+      .page-header,
+      .file-row,
+      .ddct-row {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      .page-nav,
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .action-row {
+        justify-content: flex-start;
+      }
+
+      .ddct-value {
+        text-align: left;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav class="lt-nav">
+    <a class="lt-nav-brand" href="../../index.html">LabTools</a>
+    <span class="lt-nav-sep">/</span>
+    <span class="lt-nav-page">RT-qPCR Workflow Assistant</span>
+  </nav>
+
+  <main class="lt-page-body">
+    <section class="card">
+      <div class="tool-shell">
+        <aside class="tool-sidebar">
+          <h1 class="tool-title">RT-qPCR Workflow Assistant</h1>
+          <p class="tool-scope">Browser-only planning and relative-expression helper for 96-well RT-qPCR setup. No data leaves this browser.</p>
+          <div class="page-nav" role="tablist" aria-label="qPCR workflow pages">
+            <button class="page-nav-btn active" data-page="scope" type="button">Scope</button>
+            <button class="page-nav-btn" data-page="setup" type="button">Setup</button>
+            <button class="page-nav-btn" data-page="plate" type="button">Plate</button>
+            <button class="page-nav-btn" data-page="reagents" type="button">Reagents</button>
+            <button class="page-nav-btn" data-page="nucleic" type="button">Nucleic Acid</button>
+            <button class="page-nav-btn" data-page="ddct" type="button">ΔΔCt</button>
+          </div>
+          <p class="sidebar-note">Designed for setup planning, reagent scaling, concentration calculations, and exploratory ΔΔCt analysis. Confirm final protocols and interpretation with your lab standard operating procedure.</p>
+        </aside>
+
+        <section class="tool-main">
+          <section class="page-panel active" id="page-scope">
+            <div class="page-header">
+              <div>
+                <div class="page-kicker">Scope</div>
+                <h2 class="page-title">What this tool does and does not do</h2>
+                <p class="page-copy">This tool is a static LabTools page for RT-qPCR setup planning and relative-expression calculations. It accepts pasted or uploaded CSV text, produces browser-side tables, and exports CSV files for manual review.</p>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="panel">
+                <div class="panel-title">In scope</div>
+                <ul class="scope-list">
+                  <li>96-well plate planning with customizable layout mode and technical replicates.</li>
+                  <li>Primer master mix and sample cDNA/H2O mix scaling with explicit overage.</li>
+                  <li>Generic nucleic acid concentration calculations from Nanodrop, Qubit, or similar CSV-style output.</li>
+                  <li>Single- or multi-reference ΔΔCt analysis with configurable control treatment and PCR efficiency.</li>
+                  <li>CSV export of generated plate maps, reagent tables, concentration tables, and ΔΔCt results.</li>
+                </ul>
+              </div>
+              <div class="panel">
+                <div class="panel-title">Out of scope</div>
+                <ul class="scope-list">
+                  <li>No external dependencies, server upload, instrument-specific binary parsing, or permanent storage.</li>
+                  <li>No diagnostic interpretation or statistical claims beyond summary means shown in the browser.</li>
+                  <li>No automatic validation against a specific primer set, kit, or thermocycler protocol.</li>
+                  <li>No guaranteed replacement for manual plate review before pipetting.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="panel" style="margin-top: 14px;">
+              <div class="panel-title">Import formats</div>
+              <p class="hint">Samples and assays can be entered as comma-separated lists. Measurement and Cq data use CSV rows with flexible headers. Export buttons only download generated CSV text; they do not alter checked-in config files.</p>
+            </div>
+          </section>
+
+          <section class="page-panel" id="page-setup">
+            <div class="page-header">
+              <div>
+                <div class="page-kicker">Setup</div>
+                <h2 class="page-title">Experiment inputs</h2>
+                <p class="page-copy">Enter real experiment inputs here. The page starts blank by design so test data does not leak into exported plans.</p>
+              </div>
+              <div class="action-row">
+                <button class="lt-btn lt-btn-ghost" id="clearSetupBtn" type="button">Clear Setup</button>
+                <button class="lt-btn lt-btn-ghost" id="downloadTemplateBtn" type="button">Download Templates</button>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="panel">
+                <div class="field-stack">
+                  <label class="lt-label" for="samplesInput">Samples</label>
+                  <textarea class="lt-input lt-textarea" id="samplesInput" rows="8" placeholder="CellLine_Treatment, CellLine_Treatment&#10;or one sample per line"></textarea>
+                  <p class="hint">Recommended sample name format is `CellLine_Treatment`. You can also provide explicit `CellLineName` and `Treatment` columns in Cq imports.</p>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="field-stack">
+                  <label class="lt-label" for="assaysInput">Assays / genes</label>
+                  <textarea class="lt-input lt-textarea" id="assaysInput" rows="8" placeholder="Actin, GAPDH, WNT5A&#10;or CSV: gene,assay_type,efficiency"></textarea>
+                  <p class="hint">CSV assay rows may include `gene`, `assay_type` (`reference` or `target`), and `efficiency`. If omitted, genes listed under reference genes are treated as references.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel" style="margin-top: 14px;">
+              <div class="field-grid">
+                <div class="field-stack">
+                  <label class="lt-label" for="referenceInput">Reference genes</label>
+                  <input class="lt-input" id="referenceInput" type="text" placeholder="Actin, GAPDH"/>
+                  <p class="hint">One or more genes. Multiple references use the mean reference Cq per sample for ΔCt.</p>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="controlInput">Control treatment</label>
+                  <input class="lt-input" id="controlInput" type="text" placeholder="siNC, DMSO, untreated"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="replicatesInput">Technical replicates</label>
+                  <input class="lt-input" id="replicatesInput" type="number" min="1" max="12" step="1" value="3"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="layoutModeInput">Plate layout mode</label>
+                  <select class="lt-input" id="layoutModeInput">
+                    <option value="auto">Pipetting-friendly auto layout</option>
+                    <option value="sampleRows">Sample rows / target column groups</option>
+                    <option value="targetRows">Target rows / sample column groups</option>
+                    <option value="compact">Compact fill, only as a fallback</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="page-panel" id="page-plate">
+            <div class="page-header">
+              <div>
+                <div class="page-kicker">Plate</div>
+                <h2 class="page-title">96-well layout preview</h2>
+                <p class="page-copy">Preview is rendered as a fixed table rather than a dense CSS grid to reduce browser differences. Each filled well shows sample, target, and replicate number. Still verify exported wells before pipetting.</p>
+              </div>
+              <div class="action-row">
+                <button class="lt-btn lt-btn-primary" id="exportPlateBtn" type="button">Export Plate Map</button>
+              </div>
+            </div>
+
+            <div class="summary-grid">
+              <div class="metric"><div class="metric-label">Samples</div><div class="metric-value" id="sampleCount">0</div></div>
+              <div class="metric"><div class="metric-label">Assays</div><div class="metric-value" id="assayCount">0</div></div>
+              <div class="metric"><div class="metric-label">Wells</div><div class="metric-value" id="wellCount">0</div></div>
+              <div class="metric"><div class="metric-label">Layout</div><div class="metric-value" id="layoutName">-</div></div>
+            </div>
+
+            <div class="notice" id="warningBox"></div>
+            <div class="plate-shell" id="platePreview"></div>
+            <div class="guide-box" id="loadingGuide"></div>
+          </section>
+
+          <section class="page-panel" id="page-reagents">
+            <div class="page-header">
+              <div>
+                <div class="page-kicker">Reagents</div>
+                <h2 class="page-title">Master mix and sample mix</h2>
+                <p class="page-copy">Edit per-reaction volumes and overage. Overage is intentionally explicit: prepared reactions = wells + extra reactions + ceiling(wells × percent overage).</p>
+              </div>
+              <div class="action-row">
+                <button class="lt-btn lt-btn-ghost" id="exportPrimerBtn" type="button">Export Primer Mix</button>
+                <button class="lt-btn lt-btn-ghost" id="exportSampleMixBtn" type="button">Export Sample Mix</button>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="field-grid">
+                <div class="field-stack">
+                  <label class="lt-label" for="masterMixInput">Master mix per reaction (uL)</label>
+                  <input class="lt-input" id="masterMixInput" type="number" min="0" step="0.1" value="10"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="forwardPrimerInput">Forward primer per reaction (uL)</label>
+                  <input class="lt-input" id="forwardPrimerInput" type="number" min="0" step="0.1" value="0.5"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="reversePrimerInput">Reverse primer per reaction (uL)</label>
+                  <input class="lt-input" id="reversePrimerInput" type="number" min="0" step="0.1" value="0.5"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="waterInput">Water per sample reaction (uL)</label>
+                  <input class="lt-input" id="waterInput" type="number" min="0" step="0.1" value="5"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="cdnaInput">cDNA per sample reaction (uL)</label>
+                  <input class="lt-input" id="cdnaInput" type="number" min="0" step="0.1" value="4"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="assayExtraInput">Assay extra reactions</label>
+                  <input class="lt-input" id="assayExtraInput" type="number" min="0" step="1" value="2"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="assayOveragePctInput">Assay overage (%)</label>
+                  <input class="lt-input" id="assayOveragePctInput" type="number" min="0" step="1" value="0"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="sampleExtraInput">Sample extra reactions</label>
+                  <input class="lt-input" id="sampleExtraInput" type="number" min="0" step="1" value="2"/>
+                </div>
+                <div class="field-stack">
+                  <label class="lt-label" for="sampleOveragePctInput">Sample overage (%)</label>
+                  <input class="lt-input" id="sampleOveragePctInput" type="number" min="0" step="1" value="0"/>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top: 14px;">
+              <div>
+                <div class="lt-section-label">Primer Master Mix</div>
+                <div class="table-shell" id="primerTable"></div>
+              </div>
+              <div>
+                <div class="lt-section-label">Sample cDNA / H2O Mix</div>
+                <div class="table-shell" id="sampleMixTable"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="page-panel" id="page-nucleic">
+            <div class="page-header">
+              <div>
+                <div class="page-kicker">Nucleic Acid</div>
+                <h2 class="page-title">RNA, DNA, or other concentration table</h2>
+                <p class="page-copy">Paste or upload CSV from Nanodrop, Qubit, plate readers, or manual entry. Concentration headers are normalized when possible.</p>
+              </div>
+              <div class="action-row">
+                <button class="lt-btn lt-btn-ghost" id="exportNucleicBtn" type="button">Export Calculation</button>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="panel">
+                <div class="field-grid">
+                  <div class="field-stack">
+                    <label class="lt-label" for="nucleicTypeInput">Measurement type</label>
+                    <select class="lt-input" id="nucleicTypeInput">
+                      <option value="RNA">RNA</option>
+                      <option value="DNA">DNA</option>
+                      <option value="nucleic acid">Other nucleic acid</option>
+                    </select>
+                  </div>
+                  <div class="field-stack">
+                    <label class="lt-label" for="targetMassInput">Target mass (ng)</label>
+                    <input class="lt-input" id="targetMassInput" type="number" min="0" step="1" value="4000"/>
+                  </div>
+                  <div class="field-stack">
+                    <label class="lt-label" for="finalVolumeInput">Final volume (uL)</label>
+                    <input class="lt-input" id="finalVolumeInput" type="number" min="0" step="0.1" value="32"/>
+                  </div>
+                  <div class="field-stack">
+                    <label class="lt-label" for="ratio280MinInput">A260/A280 minimum</label>
+                    <input class="lt-input" id="ratio280MinInput" type="number" min="0" step="0.01" value="1.8"/>
+                  </div>
+                  <div class="field-stack">
+                    <label class="lt-label" for="ratio230MinInput">A260/A230 minimum</label>
+                    <input class="lt-input" id="ratio230MinInput" type="number" min="0" step="0.01" value="2.0"/>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel import-box">
+                <div class="field-stack">
+                  <label class="lt-label" for="nucleicInput">Measurement CSV</label>
+                  <textarea class="lt-input lt-textarea" id="nucleicInput" rows="8" placeholder="sample_name,concentration_ng_per_uL,A260_A280,A260_A230"></textarea>
+                </div>
+                <div class="file-row">
+                  <input id="nucleicFileInput" type="file" accept=".csv,.txt,.tsv"/>
+                  <button class="lt-btn lt-btn-ghost" id="clearNucleicBtn" type="button">Clear Data</button>
+                </div>
+                <p class="hint">Accepted concentration headers include `concentration_ng_per_uL`, `Concentration`, `Conc.`, `Nucleic Acid`, `Nucleic Acid ng/uL`, and `ng/uL`.</p>
+              </div>
+            </div>
+
+            <div class="table-shell" id="nucleicTable" style="margin-top: 14px;"></div>
+          </section>
+
+          <section class="page-panel" id="page-ddct">
+            <div class="page-header">
+              <div>
+                <div class="page-kicker">ΔΔCt</div>
+                <h2 class="page-title">Relative expression analysis</h2>
+                <p class="page-copy">Paste tidy Cq rows. The tool calculates ΔCt, ΔΔCt, fold change, a results table, and a compact ΔΔCt visualization.</p>
+              </div>
+              <div class="action-row">
+                <button class="lt-btn lt-btn-ghost" id="exportDdctBtn" type="button">Export ΔΔCt Results</button>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="panel import-box">
+                <div class="field-stack">
+                  <label class="lt-label" for="cqInput">Tidy Cq CSV</label>
+                  <textarea class="lt-input lt-textarea" id="cqInput" rows="10" placeholder="sample_name,assay/gene,Cq&#10;CellLine_control,Actin,19.8&#10;CellLine_control,TargetGene,25.2"></textarea>
+                </div>
+                <div class="file-row">
+                  <input id="cqFileInput" type="file" accept=".csv,.txt,.tsv"/>
+                  <button class="lt-btn lt-btn-ghost" id="clearCqBtn" type="button">Clear Data</button>
+                </div>
+                <p class="hint">Recognized headers include `sample_name`, `sample`, `Sample`, `assay/gene`, `target`, `Target`, `gene`, `Cq`, `Ct`, `CellLineName`, and `Treatment`.</p>
+              </div>
+
+              <div class="panel">
+                <div class="field-grid">
+                  <div class="field-stack">
+                    <label class="lt-label" for="efficiencyInput">Default PCR efficiency</label>
+                    <input class="lt-input" id="efficiencyInput" type="number" min="1" step="0.01" value="2"/>
+                    <p class="hint">Use 2.0 for 100% efficiency. Fold change uses efficiency ^ -ΔΔCt.</p>
+                  </div>
+                  <div class="field-stack">
+                    <label class="lt-label" for="efficiencyModeInput">Target efficiency source</label>
+                    <select class="lt-input" id="efficiencyModeInput">
+                      <option value="assay">Use assay CSV efficiency when present</option>
+                      <option value="default">Use default efficiency for all targets</option>
+                    </select>
+                  </div>
+                </div>
+                <p class="hint" style="margin-top: 10px;">PCR efficiency here means amplification efficiency in the ΔΔCt model, not reagent overage. For example, 2.0 means product doubles every cycle; 1.9 means lower amplification efficiency.</p>
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top: 14px;">
+              <div>
+                <div class="lt-section-label">ΔΔCt Visualization</div>
+                <div class="viz-shell" id="ddctViz"></div>
+              </div>
+              <div>
+                <div class="lt-section-label">Summary</div>
+                <div class="table-shell" id="ddctSummaryTable"></div>
+              </div>
+            </div>
+
+            <div class="lt-section-label" style="margin-top: 14px;">Result Rows</div>
+            <div class="table-shell" id="ddctTable"></div>
+          </section>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer class="lt-footer">
+    LabTools &middot; Verify setup, exported wells, and ΔΔCt interpretation against your lab protocol.
+  </footer>
+</body>
+</html>
