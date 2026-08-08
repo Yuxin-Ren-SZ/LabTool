@@ -1381,21 +1381,6 @@ body.wb-drawer-open .wb-body-wrapper {
   color: var(--text-dim);
 }
 
-/* ── Overlay (behind drawer) ── */
-.wb-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.18);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.22s ease;
-  z-index: 199;
-}
-.wb-overlay.open {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 /* ── Toast ── */
 .wb-toast {
   position: fixed;

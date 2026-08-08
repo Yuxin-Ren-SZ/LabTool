@@ -457,7 +457,6 @@ function showPicker(items, onSelect, types) {
 let drawerOpen = false;
 let drawerEl   = null;
 let toggleEl   = null;
-let overlayEl  = null;
 let bodyWrapEl = null;
 
 function initDrawer() {
@@ -501,13 +500,8 @@ function initDrawer() {
       '<button class="lt-btn lt-btn-ghost" id="wb-import" style="font-size:0.78rem">Import JSON</button>' +
     '</div>';
 
-  overlayEl = document.createElement('div');
-  overlayEl.className = 'wb-overlay';
-  overlayEl.addEventListener('click', function () { if (drawerOpen) toggleDrawer(); });
-
   container.appendChild(toggleEl);
   container.appendChild(drawerEl);
-  container.appendChild(overlayEl);
   document.body.appendChild(container);
 
   // (3) Wire drawer controls directly — the elements exist now, so there is
@@ -561,7 +555,6 @@ function initDrawer() {
 function toggleDrawer() {
   drawerOpen = !drawerOpen;
   drawerEl.classList.toggle('open', drawerOpen);
-  overlayEl.classList.toggle('open', drawerOpen);
   toggleEl.classList.toggle('open', drawerOpen);
   document.body.classList.toggle('wb-drawer-open', drawerOpen);
   if (drawerOpen) renderDrawer();
