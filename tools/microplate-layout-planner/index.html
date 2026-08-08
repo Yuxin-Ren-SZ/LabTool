@@ -859,6 +859,7 @@
       <button class="btn-reset" type="button" id="reset-btn">Reset Plate</button>
       <button class="btn-reset" type="button" id="wb-save-btn">Save to Workbench</button>
       <button class="btn-reset" type="button" id="wb-load-btn">Load from Workbench</button>
+      <button class="btn-reset" type="button" id="wb-to-qpcr-btn" title="Save this layout and open the qPCR Analyzer with it loaded">Send to qPCR →</button>
     </div>
   </div>
 
@@ -2961,6 +2962,22 @@ document.addEventListener('DOMContentLoaded', function () {
       console.error('Workbench load error:', e);
     });
   });
+
+  // Workflow handoff: save this layout and open the qPCR Analyzer with it loaded.
+  var toQpcrBtn = document.getElementById('wb-to-qpcr-btn');
+  if (toQpcrBtn) toQpcrBtn.addEventListener('click', function () {
+    labtoolsHandoffTo('../qpcr-analysis/index.html', WbTypes.produces, suggestLabel(),
+      serializeForWorkbench(), {
+        plateCount: plates.length,
+        plateFormat: plates.map(function (p) { return p.plateType; }).join(','),
+      }, TOOL_NAME)
+      .catch(function (e) { showToast('✗ ' + e.message); console.error('Handoff:', e); });
+  });
+
+  // Workflow handoff: auto-apply a layout passed from qpcr-plate-planner (?wbLoad).
+  if (typeof labtoolsConsumeHandoff === 'function') {
+    labtoolsConsumeHandoff(applyFromWorkbench);
+  }
 });
 
 labtoolsRegisterToolTypes('microplate-layout-planner', ['plate-layout'], ['plate-layout']);

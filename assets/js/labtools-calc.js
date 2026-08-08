@@ -663,3 +663,182 @@ function genormM(cqByGene) {
   const ranked = Object.keys(M).map(g => ({ gene: g, m: M[g] })).sort((a, b) => a.m - b.m);
   return { M, ranked };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. qPCR plate planning (used by tools/qpcr-plate-planner/)
+// ─────────────────────────────────────────────────────────────────────────────
+// Port of scripts/gen-qpcr-layout.mjs into browser-safe pure functions. The
+// generality the user needs lives in qpcrBuildSamples (any number of factors);
+// qpcrPackPlates keeps the proven gen-script geometry (gene bands across columns,
+// samples 2-per-row × replicate columns, NTC row, spare-band skip).
+
+/**
+ * Cartesian product of ordered factors → sample identities. General over any
+ * number of factors (e.g. Treatment × Timepoint × Gene, or just Sample × Gene).
+ *
+ * @param {Array<{name:string, values:string[]}>} factors  ordered factor lists
+ * @param {Object} [opts]
+ * @param {string} [opts.sep='_']  joiner for the composite id/label
+ * @param {string[]} [opts.skip=[]] sample ids (composite labels) to exclude
+ * @returns {Array<{ id:string, label:string, parts:Object<string,string> }>}
+ *
+ * @example
+ *   qpcrBuildSamples([{name:'T',values:['Ctrl','T1']},{name:'TP',values:['1','2']}])
+ *   // → 4 samples: Ctrl_1, Ctrl_2, T1_1, T1_2
+ */
+function qpcrBuildSamples(factors, opts) {
+  const o = opts || {};
+  const sep = o.sep != null ? o.sep : '_';
+  const skip = new Set(o.skip || []);
+  const lists = (factors || []).filter(f => f && Array.isArray(f.values) && f.values.length);
+  if (!lists.length) return [];
+  let combos = [{}];
+  for (const f of lists) {
+    const next = [];
+    for (const partial of combos) {
+      for (const v of f.values) {
+        next.push(Object.assign({}, partial, { [f.name]: v }));
+      }
+    }
+    combos = next;
+  }
+  return combos
+    .map(parts => {
+      const label = lists.map(f => parts[f.name]).join(sep);
+      return { id: label, label, parts };
+    })
+    .filter(s => !skip.has(s.id));
+}
+
+/**
+ * Pack samples × gene bands into one or more plates. Assignment values are
+ * LITERAL (gene name, sample label, content role, hex color) so the output maps
+ * 1:1 onto the gen-script CSV rows — the serializer converts gene→category later.
+ *
+ * Geometry (per gen-qpcr-layout.mjs): each non-null band occupies
+ * `2 × replicates` columns; samples fill 2 per row down the rows, each sample
+ * spanning `replicates` adjacent columns; the last row holds the NTC duplicate.
+ *
+ * @param {Object} cfg
+ * @param {Array<{name:string, bands:Array<{name:string, role:string}|null>}>} cfg.plates
+ * @param {Array<{label:string}|string>} cfg.samples
+ * @param {number} [cfg.replicates=2]
+ * @param {string} [cfg.plateType='96']
+ * @param {number} [cfg.rows=8]
+ * @param {number} [cfg.cols=12]
+ * @param {boolean} [cfg.ntc=true]           add an NTC duplicate row per band
+ * @param {string[]} [cfg.referenceGenes=[]] anchor genes required on every plate
+ * @param {function} [cfg.colorForGene]      (name, role) → hex; optional
+ * @param {string} [cfg.ntcColor='#9aa0a6']
+ * @returns {{ plates: Array<{name,plateType,cutCorners,assignments}> }}
+ * @throws if a plate omits a required reference gene, or samples overflow a band.
+ */
+function qpcrPackPlates(cfg) {
+  const c = cfg || {};
+  const replicates = c.replicates > 0 ? Math.floor(c.replicates) : 2;
+  const plateType = c.plateType || '96';
+  const rows = c.rows > 0 ? c.rows : 8;
+  const cols = c.cols > 0 ? c.cols : 12;
+  const ntc = c.ntc !== false;
+  const ntcColor = c.ntcColor || '#9aa0a6';
+  const refSet = new Set((c.referenceGenes || []).map(g => (g && g.name) || g).filter(Boolean));
+  const samples = (c.samples || []).map(s => (typeof s === 'string' ? { label: s } : s));
+
+  const bandWidth = 2 * replicates;                 // columns consumed by one band
+  const sampleRows = ntc ? rows - 1 : rows;         // rows available for samples
+  const bandCapacity = sampleRows * 2;              // 2 samples per row
+  if (samples.length > bandCapacity) {
+    throw new Error('qpcrPackPlates: ' + samples.length + ' samples exceed band capacity ' +
+      bandCapacity + ' (' + plateType + ', ' + replicates + '× replicates, ntc=' + ntc + ')');
+  }
+
+  const rowLabel = (r) => String.fromCharCode(65 + r);   // 0 → 'A'
+  const wellId = (r, col) => rowLabel(r) + (col + 1);
+  const ntcRow = rows - 1;
+
+  const out = (c.plates || []).map((plate) => {
+    const bands = plate.bands || [];
+    if (bands.length * bandWidth > cols) {
+      throw new Error('qpcrPackPlates: plate "' + plate.name + '" needs ' +
+        (bands.length * bandWidth) + ' columns but plate has ' + cols);
+    }
+    // Reference-anchor invariant: every plate must carry each required reference.
+    const present = new Set(bands.filter(Boolean).map(b => b.name));
+    for (const ref of refSet) {
+      if (!present.has(ref)) {
+        throw new Error('qpcrPackPlates: plate "' + plate.name +
+          '" is missing required reference gene "' + ref + '"');
+      }
+    }
+
+    const assignments = {};
+    bands.forEach((gene, b) => {
+      if (!gene) return;                            // spare / skipped band
+      const base = b * bandWidth;
+      const color = gene.color || (c.colorForGene ? c.colorForGene(gene.name, gene.role) : '') || '#666666';
+      samples.forEach((sample, s) => {
+        const r = Math.floor(s / 2);
+        const pair = s % 2;                         // 0 → first replicate block, 1 → second
+        const c0 = base + pair * replicates;
+        for (let k = 0; k < replicates; k++) {
+          assignments[wellId(r, c0 + k)] =
+            { gene: gene.name, sample: sample.label, content: gene.role || 'target', color: color };
+        }
+      });
+      if (ntc) {
+        for (let k = 0; k < replicates; k++) {
+          assignments[wellId(ntcRow, base + k)] =
+            { gene: 'NTC', sample: '', content: 'NTC', color: ntcColor };
+        }
+      }
+    });
+
+    return { name: plate.name, plateType: plateType, cutCorners: [], assignments: assignments };
+  });
+
+  return { plates: out };
+}
+
+/**
+ * Convert a qpcrPackPlates result into a workbench `plate-layout` payload shaped
+ * like the Microplate Layout Planner's own export: `gene` becomes a coloured
+ * category field (value = category id; name/color live in categoriesByField),
+ * while `sample` and `content` stay literal text fields. This is exactly the
+ * shape the planner builds when it imports the gen-script CSV.
+ *
+ * @param {{plates:Array}} packed  output of qpcrPackPlates
+ * @returns {{plates:Array, fields:Array, categoriesByField:Object}}
+ */
+function qpcrToPlateLayout(packed) {
+  const fields = [
+    { id: 'sample',  key: 'sample',  name: 'Sample ID', kind: 'text' },
+    { id: 'gene',    key: 'gene',    name: 'Gene',      kind: 'category' },
+    { id: 'content', key: 'content', name: 'Content',   kind: 'text' },
+  ];
+  const geneCats = [];
+  const geneCatByName = new Map();     // gene name → category id
+  let catSeq = 1;
+  const geneCatId = (name, color) => {
+    if (!geneCatByName.has(name)) {
+      const id = 'g' + (catSeq++);
+      geneCats.push({ id: id, name: name, color: color || '#666666' });
+      geneCatByName.set(name, id);
+    }
+    return geneCatByName.get(name);
+  };
+
+  const plates = (packed.plates || []).map((p) => {
+    const assignments = {};
+    Object.keys(p.assignments).forEach((well) => {
+      const a = p.assignments[well];
+      const rec = {};
+      if (a.sample)  rec.sample = a.sample;
+      if (a.gene)    rec.gene = geneCatId(a.gene, a.color);
+      if (a.content) rec.content = a.content;
+      assignments[well] = rec;
+    });
+    return { name: p.name, plateType: p.plateType, cutCorners: p.cutCorners || [], assignments: assignments };
+  });
+
+  return { plates: plates, fields: fields, categoriesByField: { gene: geneCats } };
+}

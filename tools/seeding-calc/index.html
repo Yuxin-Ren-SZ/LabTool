@@ -10,6 +10,7 @@
   <script src="../../assets/js/labtools-calc.js"></script>
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
   <style>
     /* ── Card width (base styles live in labtools.css .card) ── */
     .card { max-width: 600px; }
@@ -1456,6 +1457,11 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     }).catch(function (e) { console.error('WB load:', e); });
   });
+
+  // Workflow handoff: auto-apply data passed from cell-count (?wbLoad=<id>).
+  if (typeof labtoolsConsumeHandoff === 'function') {
+    labtoolsConsumeHandoff(applyFromWorkbench);
+  }
 });
 
 labtoolsRegisterToolTypes('seeding-calc', ['seeding-plan'], ['conc-data', 'sample-list']);

@@ -995,6 +995,14 @@ async function handleFiles(fileList) {
 
   $('results').style.display = 'block';
   renderAll();
+
+  // A layout received via workflow handoff before this file was loaded now has
+  // wells to label — apply it.
+  if (pendingHandoffLayout) {
+    applyFromWorkbench(pendingHandoffLayout.data, pendingHandoffLayout.type);
+    showToast('✓ Applied handed-off layout');
+    pendingHandoffLayout = null;
+  }
 }
 
 function applySampleNames() {
@@ -2719,6 +2727,10 @@ function serializeForWorkbench() {
   };
 }
 
+// A layout handed off via ?wbLoad can arrive before a results file is loaded (no
+// wells to label yet). Stash it here and apply once ingestion builds the wells.
+var pendingHandoffLayout = null;
+
 function applyFromWorkbench(data, type) {
   if (type === 'plate-layout') {
     // Convert plate-layout assignments to sample/gene/group maps
@@ -2726,13 +2738,28 @@ function applyFromWorkbench(data, type) {
     var genes = {};
     var groups = {};
 
+    // Category fields (e.g. gene or group) store a category id as the value; the
+    // human name lives in categoriesByField. Resolve ids → names so labels read
+    // "HPRT1"/"Control" rather than "g1"/"c2". Text fields pass through.
+    var cbf = data.categoriesByField || {};
+    var fieldById = {};
+    (data.fields || []).forEach(function (f) { if (f && f.id) fieldById[f.id] = f; });
+    var resolveVal = function (fieldId, value) {
+      var f = fieldById[fieldId];
+      if (f && f.kind === 'category') {
+        var cats = cbf[fieldId] || [];
+        for (var i = 0; i < cats.length; i++) if (cats[i].id === value) return cats[i].name;
+      }
+      return value;
+    };
+
     (data.plates || []).forEach(function (plate) {
       var assignments = plate.assignments || {};
       Object.keys(assignments).forEach(function (wellId) {
         var a = assignments[wellId];
-        if (a.sample) samples[wellId] = a.sample;
-        if (a.gene) genes[wellId] = a.gene;
-        if (a.group) groups[wellId] = a.group;
+        if (a.sample) samples[wellId] = resolveVal('sample', a.sample);
+        if (a.gene) genes[wellId] = resolveVal('gene', a.gene);
+        if (a.group) groups[wellId] = resolveVal('group', a.group);
       });
     });
 
@@ -2825,6 +2852,19 @@ document.addEventListener('DOMContentLoaded', function () {
       console.error('Workbench load error:', e);
     });
   });
+
+  // Workflow handoff: a plate-layout (or sample-list) passed via ?wbLoad. If a
+  // results file is already loaded, apply now; otherwise stash for after load.
+  if (typeof labtoolsConsumeHandoff === 'function') {
+    labtoolsConsumeHandoff(function (data, type) {
+      if (state.records && state.records.length) {
+        applyFromWorkbench(data, type);
+      } else {
+        pendingHandoffLayout = { data: data, type: type };
+        showToast('Layout received — load your qPCR results file to apply labels.');
+      }
+    });
+  }
 });
 
 labtoolsRegisterToolTypes('qpcr-analysis', ['qpcr-results'], ['plate-layout', 'sample-list']);

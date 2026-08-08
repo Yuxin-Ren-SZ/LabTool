@@ -124,7 +124,7 @@ const DATA_TYPES = {
     icon: '📋',
     color: '#5c8dff',
     description: 'One or more plates with per-well assignments (group, sample, gene, custom fields).',
-    producers: ['microplate-layout-planner'],
+    producers: ['microplate-layout-planner', 'qpcr-plate-planner'],
     consumers: ['qpcr-analysis', 'bca-assay', 'microplate-layout-planner', 'thermal-to-laser'],
     schema: {
       type: 'object',

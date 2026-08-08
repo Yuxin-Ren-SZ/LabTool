@@ -9,6 +9,7 @@
   <script src="../../assets/js/labtools-calc.js"></script>
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
   <style>
     /* ── Card width (base styles live in labtools.css .card) ── */
     .card { max-width: 600px; }
@@ -35,8 +36,9 @@
   <h1 class="lt-tool-title">🔬 Cell Count Calculator</h1>
   <p class="lt-tool-subtitle">Hemocytometer · Neubauer improved chamber</p>
 
-  <div style="display:flex;gap:8px;margin-bottom:6px">
+  <div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">
     <button class="lt-btn lt-btn-ghost" id="wb-save-btn">Save to Workbench</button>
+    <button class="lt-btn lt-btn-ghost" id="wb-continue-seeding-btn" title="Save this count and open the Seeding Calculator with it pre-filled">Save &amp; continue to Seeding →</button>
   </div>
 
   <!-- ── Mode selector ── -->
@@ -483,6 +485,17 @@ document.addEventListener('DOMContentLoaded', function () {
     }).then(function () {
       showToast('✓ Saved "' + label + '"');
     }).catch(function (e) { showToast('✗ ' + e.message); console.error('WB save:', e); });
+  });
+
+  // Workflow handoff: save the sample-list and open seeding-calc pre-filled.
+  const continueBtn = document.getElementById('wb-continue-seeding-btn');
+  if (continueBtn) continueBtn.addEventListener('click', function () {
+    const data = serializeForWorkbench();
+    if (data.samples[0].conc == null) { showToast('Enter counts first.'); return; }
+    const label = 'Cell Count ' + new Date().toISOString().slice(0, 10);
+    labtoolsHandoffTo('../seeding-calc/index.html', WB_PRODUCES_TYPE, label, data,
+      { sampleCount: 1, unit: 'cells/mL' }, WB_TOOL)
+      .catch(function (e) { showToast('✗ ' + e.message); console.error('Handoff:', e); });
   });
 });
 

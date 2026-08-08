@@ -224,9 +224,10 @@
 
       <h1 class="lt-tool-title">Reverse Transcription Calculator</h1>
       <p class="lt-tool-subtitle">NEB LunaScript RT — import Nanodrop CSV, auto-scale reaction volume, calculate reagent batch totals. <span style="color:var(--text-dim);font-size:0.65rem;">v2</span></p>
-      <div style="display:flex;gap:8px;margin-bottom:6px">
+      <div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">
         <button class="lt-btn lt-btn-ghost" id="wb-save-btn">Save to Workbench</button>
         <button class="lt-btn lt-btn-ghost" id="wb-load-btn">Load from Workbench</button>
+        <button class="lt-btn lt-btn-ghost" id="wb-to-qpcr-btn" title="Save these samples and open the qPCR Analyzer with them loaded">Send to qPCR →</button>
       </div>
 
       <!-- Kit preset -->
@@ -1079,6 +1080,20 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     }).catch(function (e) { console.error('WB load:', e); });
   });
+
+  // Workflow handoff: save these samples and open the qPCR Analyzer.
+  var toQpcrBtn = document.getElementById('wb-to-qpcr-btn');
+  if (toQpcrBtn) toQpcrBtn.addEventListener('click', function () {
+    if (!samples.length) { showToast('No samples to send.'); return; }
+    labtoolsHandoffTo('../qpcr-analysis/index.html', WB_PRODUCES_TYPE, suggestWbLabel(),
+      serializeForWorkbench(), { sampleCount: samples.length }, WB_TOOL)
+      .catch(function (e) { showToast('✗ ' + e.message); console.error('Handoff:', e); });
+  });
+
+  // Workflow handoff: auto-apply an incoming sample-list/conc-data (?wbLoad).
+  if (typeof labtoolsConsumeHandoff === 'function') {
+    labtoolsConsumeHandoff(applyFromWorkbench);
+  }
 });
 
 labtoolsRegisterToolTypes('rt-calc', ['sample-list'], ['conc-data', 'sample-list']);

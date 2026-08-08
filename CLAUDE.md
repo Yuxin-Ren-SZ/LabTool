@@ -31,6 +31,7 @@ LabTools/
 │   ├── stain-timer/index.html         # Staining protocol timer
 │   ├── thermal-to-laser/index.html    # Thermal PDF to laser sheet converter
 │   ├── drug-dosage/index.html         # Per-animal dose calculator and log
+│   ├── qpcr-plate-planner/index.html  # Sample-combination → multi-plate qPCR layout generator
 │   └── qpcr-analysis/index.html       # Agilent qPCR analyzer (multi-plate, QC, curves, ΔΔCq, stats, MIQE)
 └── docs/
     ├── counting-modes.html            # Hemocytometer mode reference
@@ -54,6 +55,10 @@ Key exports include:
 - qPCR statistics (used by `tools/qpcr-analysis/`): `parseSampleAnnotation(name)`,
   `tTestTwoSided(a, b, opts)`, `studentTPvalue(t, df)`, `tCritical(df, alpha)`,
   `stdCurveFit(points)`, and `genormM(cqByGene)`
+- qPCR plate planning (used by `tools/qpcr-plate-planner/`): `qpcrBuildSamples(factors, opts)`
+  (cartesian product of factors → samples, with skip-exceptions), `qpcrPackPlates(cfg)`
+  (band-packs samples×genes into plates; enforces the reference-anchor-on-every-plate
+  invariant), and `qpcrToPlateLayout(packed)` (→ workbench `plate-layout` payload)
 
 Quick console checks:
 
@@ -63,6 +68,9 @@ calcDoseFromBodyWeight(5, 'kg', 25, 'g')  // 0.125
 parseSampleAnnotation('Control_2')  // { group: 'Control', bioRep: '2' }
 tTestTwoSided([1,2,3],[4,5,6]).p  // ~0.0213 (two-tailed, on ΔCq)
 stdCurveFit([{quantity:1,cq:30},{quantity:10,cq:26.68}]).E  // ~2.0
+qpcrBuildSamples([{name:'T',values:['Ctrl','T1']},{name:'TP',values:['1','2']}]).length  // 4
+qpcrPackPlates({plates:[{name:'P1',bands:[{name:'HPRT1',role:'reference'},null,null]}],
+  samples:['S1'],referenceGenes:['HPRT1']}).plates.length  // 1
 ```
 
 ## Shared Browser Utilities
@@ -74,8 +82,24 @@ stdCurveFit([{quantity:1,cq:30},{quantity:10,cq:26.68}]).E  // ~2.0
 - `labtoolsReadFileAsArrayBuffer(file)`
 - `labtoolsCopyText(text)`
 - `labtoolsSafeJsonParse(raw, fallback)`
+- `labtoolsHandoffTo(nextUrl, type, label, data, metadata, tool)` — workflow
+  deep-link: `workbench.put(...)` then navigate to `nextUrl?wbLoad=<id>`
+- `labtoolsConsumeHandoff(applyFn)` — on load, if `?wbLoad=<id>` is present, fetch
+  that workbench item, call `applyFn(data, type, item)`, and strip the param
 
 Keep these generic and dependency-free.
+
+## Tool Workflows (deep-link handoffs)
+
+Tools chain into **workflows** without importing each other's code: a producer
+calls `labtoolsHandoffTo(...)` (saves to the workbench, navigates with
+`?wbLoad=<id>`), and the consumer calls `labtoolsConsumeHandoff(applyFromWorkbench)`
+on load to auto-apply it. Both pages must load `labtools-common.js`. Current
+chains: `cell-count → seeding-calc` (sample-list); `qpcr-plate-planner →
+microplate-layout-planner → qpcr-analysis` and `rt-calc → qpcr-analysis`
+(plate-layout / sample-list). qpcr-analysis stashes a handoff until a results
+file is loaded. Its `applyFromWorkbench` resolves category-field values (e.g.
+gene) to names via `categoriesByField`.
 
 ## Data Contract Registry
 
