@@ -92,6 +92,28 @@
       cursor: default;
       pointer-events: none;
     }
+
+    /* ── Search ── */
+    .tool-search {
+      margin-bottom: 28px;
+    }
+    .tool-search .lt-input {
+      width: 100%;
+    }
+    .tool-search-empty {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      padding: 32px 0;
+    }
+
+    /* ── Groups ── */
+    .tool-group { margin-bottom: 40px; }
+    .tool-group:last-of-type { margin-bottom: 0; }
+
+    /* hidden attr must win over the card/group display rules */
+    .tool-card[hidden],
+    .tool-group[hidden] { display: none; }
   </style>
 </head>
 <body>
@@ -107,136 +129,168 @@
 
     <!-- Tools grid -->
     <section class="tools-section">
-      <div class="lt-section-label">Available Tools</div>
-      <div class="tools-grid">
-
-        <a class="tool-card" href="tools/cell-count/index.html">
-          <div class="tool-card-icon">🧮</div>
-          <div class="tool-card-name">Cell Count Calculator</div>
-          <div class="tool-card-desc">
-            Hemocytometer counting with Trypan Blue viability analysis.
-            Supports single or duplicate chamber counts across 4 counting modes.
-          </div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
-
-        <a class="tool-card" href="tools/seeding-calc/index.html">
-          <div class="tool-card-icon">⚗️</div>
-          <div class="tool-card-name">Cell Seeding Calculator</div>
-          <div class="tool-card-desc">
-            Count your cells, then calculate the dilution needed to reach
-            a target seeding density. Guided two-step workflow with C₁V₁ = C₂V₂ solver.
-          </div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
-
-        <a class="tool-card" href="tools/microplate-layout-planner/index.html">
-          <div class="tool-card-icon">🧫</div>
-          <div class="tool-card-name">Microplate Layout Planner</div>
-          <div class="tool-card-desc">
-            Lay out one or more 6- to 1536-well plates, tag wells with a colored group plus
-            custom fields (Sample ID, Gene, …), and import or export CSV or print-ready layouts.
-          </div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
-
-        <a class="tool-card" href="tools/stain-timer/index.html">
-          <div class="tool-card-icon">⏱</div>
-          <div class="tool-card-name">Stain Timer</div>
-          <div class="tool-card-desc">
-            Configurable step-by-step staining protocol timer with alarm.
-            Design your protocol, then run it with countdown and audio cues.
-          </div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
-
-        <a class="tool-card" href="tools/thermal-to-laser/index.html">
-          <div class="tool-card-icon">🏷️</div>
-          <div class="tool-card-name">Thermal To Laser Label Converter</div>
-          <div class="tool-card-desc">
-            Convert a one-label-per-page thermal printer PDF into a mailing-label-sheet PDF for laser printing, with preset detection, sheet preview, and cell-by-cell placement control.
-          </div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
-        <a class="tool-card" href="tools/drug-dosage/index.html">
-          <div class="tool-card-icon">💊</div>
-          <div class="tool-card-name">Drug Dosage Calculator</div>
-          <div class="tool-card-desc">
-            Save named multi-drug protocols and calculate minimum, exact, and maximum per-animal dose amounts from body weight, with browser-local protocol reuse.
-          </div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
-
-        <a class="tool-card" href="tools/label-generator/index.html">
-          <div class="tool-card-icon">🏷️</div>
-          <div class="tool-card-name">Label Generator</div>
-          <div class="tool-card-desc">Generate PDF labels with DataMatrix barcodes from CSV data. Supports thermal-printer labels and laser-sheet grids.</div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
-
-        <a class="tool-card" href="tools/bca-assay/index.html">
-          <div class="tool-card-icon">🧪</div>
-          <div class="tool-card-name">BCA Assay Calculator</div>
-          <div class="tool-card-desc">
-            Fit a linear standard curve from BSA standards, then interpolate protein
-            concentration for unknown samples. Supports replicates, CSV import, and SVG chart export.
-          </div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
-
-        <a class="tool-card" href="tools/rt-calc/index.html">
-          <div class="tool-card-icon">🧬</div>
-          <div class="tool-card-name">RT Calculator</div>
-          <div class="tool-card-desc">
-            Reverse transcription setup from Nanodrop CSV. NEB LunaScript RT — auto-scales
-            reaction volume (1×/1.5×/2×) when RNA exceeds available space. Batch reagent totals.
-          </div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
-
-        <a class="tool-card" href="tools/qpcr-analysis/index.html">
-          <div class="tool-card-icon">📈</div>
-          <div class="tool-card-name">qPCR Analysis</div>
-          <div class="tool-card-desc">
-            Analyze Agilent AriaMx / Stratagene Mx exports — plate heatmap, sortable Cq
-            results, amplification-curve overlays, replicate summaries, and ΔΔCq fold change.
-          </div>
-          <div class="tool-card-footer">
-            <span class="lt-badge lt-badge-green">Live</span>
-            <span class="tool-card-launch">Open →</span>
-          </div>
-        </a>
-
+      <div class="tool-search">
+        <input id="toolSearch" class="lt-input" type="search"
+               placeholder="🔍  Search tools by name or keyword…" autocomplete="off"
+               aria-label="Search tools" />
       </div>
 
-      <div style="margin-top: 48px;">
+      <p id="toolSearchEmpty" class="tool-search-empty" hidden>No tools match “<span></span>”.</p>
+
+      <div class="tool-group" data-group>
+        <div class="lt-section-label">Cell Culture</div>
+        <div class="tools-grid">
+
+          <a class="tool-card" href="tools/cell-count/index.html">
+            <div class="tool-card-icon">🧮</div>
+            <div class="tool-card-name">Cell Count Calculator</div>
+            <div class="tool-card-desc">
+              Hemocytometer counting with Trypan Blue viability analysis.
+              Supports single or duplicate chamber counts across 4 counting modes.
+            </div>
+            <div class="tool-card-footer">
+              <span class="lt-badge lt-badge-green">Live</span>
+              <span class="tool-card-launch">Open →</span>
+            </div>
+          </a>
+
+          <a class="tool-card" href="tools/seeding-calc/index.html">
+            <div class="tool-card-icon">⚗️</div>
+            <div class="tool-card-name">Cell Seeding Calculator</div>
+            <div class="tool-card-desc">
+              Count your cells, then calculate the dilution needed to reach
+              a target seeding density. Guided two-step workflow with C₁V₁ = C₂V₂ solver.
+            </div>
+            <div class="tool-card-footer">
+              <span class="lt-badge lt-badge-green">Live</span>
+              <span class="tool-card-launch">Open →</span>
+            </div>
+          </a>
+
+          <a class="tool-card" href="tools/stain-timer/index.html">
+            <div class="tool-card-icon">⏱</div>
+            <div class="tool-card-name">Stain Timer</div>
+            <div class="tool-card-desc">
+              Configurable step-by-step staining protocol timer with alarm.
+              Design your protocol, then run it with countdown and audio cues.
+            </div>
+            <div class="tool-card-footer">
+              <span class="lt-badge lt-badge-green">Live</span>
+              <span class="tool-card-launch">Open →</span>
+            </div>
+          </a>
+
+        </div>
+      </div>
+
+      <div class="tool-group" data-group>
+        <div class="lt-section-label">Molecular / qPCR</div>
+        <div class="tools-grid">
+
+          <a class="tool-card" href="tools/rt-calc/index.html">
+            <div class="tool-card-icon">🧬</div>
+            <div class="tool-card-name">RT Calculator</div>
+            <div class="tool-card-desc">
+              Reverse transcription setup from Nanodrop CSV. NEB LunaScript RT — auto-scales
+              reaction volume (1×/1.5×/2×) when RNA exceeds available space. Batch reagent totals.
+            </div>
+            <div class="tool-card-footer">
+              <span class="lt-badge lt-badge-green">Live</span>
+              <span class="tool-card-launch">Open →</span>
+            </div>
+          </a>
+
+          <a class="tool-card" href="tools/qpcr-analysis/index.html">
+            <div class="tool-card-icon">📈</div>
+            <div class="tool-card-name">qPCR Analysis</div>
+            <div class="tool-card-desc">
+              Analyze Agilent AriaMx / Stratagene Mx exports — plate heatmap, sortable Cq
+              results, amplification-curve overlays, replicate summaries, and ΔΔCq fold change.
+            </div>
+            <div class="tool-card-footer">
+              <span class="lt-badge lt-badge-green">Live</span>
+              <span class="tool-card-launch">Open →</span>
+            </div>
+          </a>
+
+          <a class="tool-card" href="tools/microplate-layout-planner/index.html">
+            <div class="tool-card-icon">🧫</div>
+            <div class="tool-card-name">Microplate Layout Planner</div>
+            <div class="tool-card-desc">
+              Lay out one or more 6- to 1536-well plates, tag wells with a colored group plus
+              custom fields (Sample ID, Gene, …), and import or export CSV or print-ready layouts.
+            </div>
+            <div class="tool-card-footer">
+              <span class="lt-badge lt-badge-green">Live</span>
+              <span class="tool-card-launch">Open →</span>
+            </div>
+          </a>
+
+        </div>
+      </div>
+
+      <div class="tool-group" data-group>
+        <div class="lt-section-label">Assays &amp; Protein</div>
+        <div class="tools-grid">
+
+          <a class="tool-card" href="tools/bca-assay/index.html">
+            <div class="tool-card-icon">🧪</div>
+            <div class="tool-card-name">BCA Assay Calculator</div>
+            <div class="tool-card-desc">
+              Fit a linear standard curve from BSA standards, then interpolate protein
+              concentration for unknown samples. Supports replicates, CSV import, and SVG chart export.
+            </div>
+            <div class="tool-card-footer">
+              <span class="lt-badge lt-badge-green">Live</span>
+              <span class="tool-card-launch">Open →</span>
+            </div>
+          </a>
+
+        </div>
+      </div>
+
+      <div class="tool-group" data-group>
+        <div class="lt-section-label">Lab Ops</div>
+        <div class="tools-grid">
+
+          <a class="tool-card" href="tools/drug-dosage/index.html">
+            <div class="tool-card-icon">💊</div>
+            <div class="tool-card-name">Drug Dosage Calculator</div>
+            <div class="tool-card-desc">
+              Save named multi-drug protocols and calculate minimum, exact, and maximum per-animal dose amounts from body weight, with browser-local protocol reuse.
+            </div>
+            <div class="tool-card-footer">
+              <span class="lt-badge lt-badge-green">Live</span>
+              <span class="tool-card-launch">Open →</span>
+            </div>
+          </a>
+
+          <a class="tool-card" href="tools/thermal-to-laser/index.html">
+            <div class="tool-card-icon">🏷️</div>
+            <div class="tool-card-name">Thermal To Laser Label Converter</div>
+            <div class="tool-card-desc">
+              Convert a one-label-per-page thermal printer PDF into a mailing-label-sheet PDF for laser printing, with preset detection, sheet preview, and cell-by-cell placement control.
+            </div>
+            <div class="tool-card-footer">
+              <span class="lt-badge lt-badge-green">Live</span>
+              <span class="tool-card-launch">Open →</span>
+            </div>
+          </a>
+
+          <a class="tool-card" href="tools/label-generator/index.html">
+            <div class="tool-card-icon">🏷️</div>
+            <div class="tool-card-name">Label Generator</div>
+            <div class="tool-card-desc">Generate PDF labels with DataMatrix barcodes from CSV data. Supports thermal-printer labels and laser-sheet grids.</div>
+            <div class="tool-card-footer">
+              <span class="lt-badge lt-badge-green">Live</span>
+              <span class="tool-card-launch">Open →</span>
+            </div>
+          </a>
+
+        </div>
+      </div>
+
+      <div class="tool-group" data-group style="margin-top: 48px;">
         <div class="lt-section-label">Coming Soon</div>
         <div class="tools-grid">
 
@@ -311,6 +365,52 @@
   <footer class="lt-footer">
     LabTools &middot; Open source lab utilities
   </footer>
+
+  <script>
+    (function () {
+      var search = document.getElementById('toolSearch');
+      var empty = document.getElementById('toolSearchEmpty');
+      var groups = Array.prototype.slice.call(document.querySelectorAll('[data-group]'));
+      var cards = Array.prototype.slice.call(document.querySelectorAll('.tool-card'));
+
+      // Precompute each card's searchable text once.
+      cards.forEach(function (card) {
+        var name = card.querySelector('.tool-card-name');
+        var desc = card.querySelector('.tool-card-desc');
+        card._searchText = ((name ? name.textContent : '') + ' ' +
+                            (desc ? desc.textContent : '')).toLowerCase();
+      });
+
+      function filter() {
+        var q = search.value.trim().toLowerCase();
+
+        if (!q) {
+          cards.forEach(function (c) { c.hidden = false; });
+          groups.forEach(function (g) { g.hidden = false; });
+          empty.hidden = true;
+          return;
+        }
+
+        var anyMatch = false;
+        cards.forEach(function (c) {
+          var hit = c._searchText.indexOf(q) !== -1;
+          c.hidden = !hit;
+          if (hit) anyMatch = true;
+        });
+
+        // Hide a group when all of its cards are hidden.
+        groups.forEach(function (g) {
+          var visible = g.querySelector('.tool-card:not([hidden])');
+          g.hidden = !visible;
+        });
+
+        empty.querySelector('span').textContent = search.value.trim();
+        empty.hidden = anyMatch;
+      }
+
+      search.addEventListener('input', filter);
+    })();
+  </script>
 
 </body>
 </html>
