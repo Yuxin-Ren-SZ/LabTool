@@ -243,6 +243,7 @@ const RT = 'rt-calc';
 const RT_PARAMS = {
   mode: 'master',
   primerName: 'Oligo-d(T)',
+  cfgPreset: 'e3010',
   collapsed: true,
   samples: [
     { name: 'S1', conc: 120.5, a260_280: 1.9, a260_230: 2.1, scale: -1 },

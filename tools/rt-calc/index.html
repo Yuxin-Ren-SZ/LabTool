@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>RT Calculator · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
-  <script src="../../assets/js/labtools-common.js"></script>
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
   <script src="../../assets/js/labtools-artifact.js"></script>
   <script src="../../assets/js/labtools-artifact-ui.js"></script>
+  <script src="../../assets/js/labtools-runtime.js"></script>
+  <script src="manifest.js"></script>
   <style>
     .card { max-width: 1100px; }
 
@@ -427,42 +429,10 @@ const $btnReset = document.getElementById('btnReset');
 
 // ── Persistence (DISABLED for now) ─────────────────────────────────────
 // localStorage memory is temporarily turned off. saveState()/loadState() are
-// stubbed so call sites stay valid; the original implementation is preserved
-// in comments below for easy re-enabling.
+// stubbed so call sites stay valid. The `rt-calc-state` key is cleared on
+// init() so stale data from older versions never leaks in.
 function saveState() { /* persistence disabled */ }
 function loadState() { return null; }
-
-/*
-function saveState() {
-  if (samples.length === 0) { localStorage.removeItem(LS_KEY); return; }
-  const clean = samples.map(s => { const { _result, ...r } = s; return r; });
-  localStorage.setItem(LS_KEY, JSON.stringify({
-    v: LS_VERSION,
-    mode, samples: clean, collapsed,
-    targetRNA: parseFloat($cfgTargetRNA.value) || 1000,
-    maxRNAVol: parseFloat(document.getElementById('cfgMaxRNAVol').value) || 19,
-    reactions: parseInt($cfgReactions.value) || 1,
-    superMix: parseFloat(document.getElementById('cfgSuperMix').value) || 4,
-    masterMix: parseFloat(document.getElementById('cfgMasterMix').value) || 4,
-    randomPrimer: parseFloat(document.getElementById('cfgRandomPrimer').value) || 2,
-    baseVol: parseFloat(document.getElementById('cfgBaseVol').value) || 20,
-    savedAt: Date.now()
-  }));
-}
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (data.v !== LS_VERSION) { localStorage.removeItem(LS_KEY); return null; }
-    if (Date.now() - data.savedAt > 7 * 24 * 3600 * 1000) {
-      localStorage.removeItem(LS_KEY); return null;
-    }
-    return data;
-  } catch (e) { return null; }
-}
-*/
 
 // ── Reagents ───────────────────────────────────────────────────────────
 function getBaseReagents() {
@@ -836,26 +806,13 @@ $fileInput.addEventListener('change', function() {
   $fileInfo.textContent = file.name;
   $fileInfo.classList.add('visible');
 
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const bytes = new Uint8Array(e.target.result);
-    let text;
-    // Detect UTF-16 by BOM (FF FE = LE, FE FF = BE)
-    if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
-      text = new TextDecoder('utf-16le').decode(bytes);
-    } else if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
-      text = new TextDecoder('utf-16be').decode(bytes);
-    } else {
-      // Try UTF-8 first; if we see null bytes, fall back to UTF-16LE
-      text = new TextDecoder('utf-8').decode(bytes);
-      if (text.indexOf('\0') !== -1) {
-        text = new TextDecoder('utf-16le').decode(bytes);
-      }
-    }
+  labtoolsReadFileAsArrayBuffer(file).then(function(buf) {
+    const text = labtoolsDecodeBuffer(buf);
     $csvTextarea.value = text;
     $btnParse.disabled = false;
-  };
-  reader.readAsArrayBuffer(file);
+  }).catch(function() {
+    $fileInfo.textContent = 'Unable to read file.';
+  });
 });
 
 $csvTextarea.addEventListener('input', function() {
@@ -903,15 +860,18 @@ document.getElementById('cfgBaseVol').addEventListener('input', onConfigChange);
 function buildExportCSV() {
   const targetRNA = parseFloat($cfgTargetRNA.value) || 1000;
   const maxRNAVol = parseFloat(document.getElementById('cfgMaxRNAVol').value) || 19;
-  const header = 'Sample,Conc (ng/µL),A260/A280,A260/A230,Scale,RNA Vol (µL),Water (µL),RNA Used (ng),cDNA Conc (ng/µL),Status';
+  const header = ['Sample', 'Conc (ng/µL)', 'A260/A280', 'A260/A230', 'Scale',
+    'RNA Vol (µL)', 'Water (µL)', 'RNA Used (ng)', 'cDNA Conc (ng/µL)', 'Status'];
   const rows = samples.map(s => {
     const res = calcSample(s.conc, s.scale, targetRNA, maxRNAVol);
     const scaleLabel = res.scale === 1 ? '1×' : res.scale === 1.5 ? '1.5×' : '2×';
     const cdnaConc = +(res.rnaUsed / totalVol(res.scale)).toFixed(1);
     const status = res.status === 'ok' ? `OK ${scaleLabel}` : `Capped (${res.cappedBy || 'volume'})`;
-    return `${s.name},${s.conc.toFixed(1)},${s.a260_280 != null ? s.a260_280.toFixed(2) : ''},${s.a260_230 != null ? s.a260_230.toFixed(2) : ''},${scaleLabel},${res.rnaVol.toFixed(1)},${res.water.toFixed(1)},${res.rnaUsed},${cdnaConc},${status}`;
+    return [s.name, s.conc.toFixed(1), s.a260_280 != null ? s.a260_280.toFixed(2) : '',
+      s.a260_230 != null ? s.a260_230.toFixed(2) : '', scaleLabel,
+      res.rnaVol.toFixed(1), res.water.toFixed(1), res.rnaUsed, cdnaConc, status];
   });
-  return header + '\n' + rows.join('\n');
+  return labtoolsRowsToCsv([header].concat(rows));
 }
 
 document.getElementById('btnCopyCSV').addEventListener('click', function() {
@@ -931,13 +891,7 @@ document.getElementById('btnCopyCSV').addEventListener('click', function() {
 
 document.getElementById('btnDownloadCSV').addEventListener('click', function() {
   const csv = buildExportCSV();
-  const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-  const a = document.createElement('a');
-  a.href = dataUri;
-  a.download = 'rt-calc-results.csv';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  labtoolsDownloadText('rt-calc-results.csv', csv, 'text/csv;charset=utf-8');
 });
 
 // ── Reset ───────────────────────────────────────────────────────────────
@@ -1044,6 +998,22 @@ function applyFromWorkbench(data, type) {
   }
 }
 
+/**
+ * Artifact-handoff consumer: map field-port wired inputs into the tool.
+ * `concentration` and `sample-list` ride the same shapes applyFromWorkbench
+ * understands; `cell-density` is declared for future consumers and currently
+ * ignored here.
+ */
+function applyInputs(resolved) {
+  if (!resolved) return;
+  if (resolved['concentration'] != null) {
+    applyFromWorkbench(resolved['concentration'], 'conc-data');
+  }
+  if (resolved['sample-list'] != null) {
+    applyFromWorkbench(resolved['sample-list'], 'sample-list');
+  }
+}
+
 function suggestWbLabel() {
   var n = samples.length;
   return 'RT Samples (' + n + ' sample' + (n !== 1 ? 's' : '') + ') ' + new Date().toISOString().slice(0, 10);
@@ -1094,6 +1064,12 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // Workflow handoff: auto-apply an incoming sample-list/conc-data (?wbLoad).
+  // Dual channel: artifact envelopes wire through applyInputs (field-port
+  // matching); legacy typed payloads keep the applyFromWorkbench path. The
+  // artifact consumer runs first — it only strips ?wbLoad for artifact items.
+  if (typeof labtoolsConsumeArtifactHandoff === 'function') {
+    labtoolsConsumeArtifactHandoff(rtTool, applyInputs);
+  }
   if (typeof labtoolsConsumeHandoff === 'function') {
     labtoolsConsumeHandoff(applyFromWorkbench);
   }
@@ -1124,6 +1100,7 @@ function readParams() {
   return {
     mode: mode,
     primerName: primerName,
+    cfgPreset: g('cfgPreset') ? g('cfgPreset').value : '',
     collapsed: !!collapsed,
     samples: samples.map(function (s) {
       return {
@@ -1157,6 +1134,14 @@ function applyParams(p) {
   setv('cfgMasterMix', cfg.masterMix);   setv('cfgRandomPrimer', cfg.randomPrimer);
   setv('cfgBaseVol', cfg.baseVol);
   if (p.primerName != null) primerName = p.primerName;
+  const lblPrimer = document.getElementById('lblPrimer');
+  if (lblPrimer) lblPrimer.textContent = primerName;
+  if (p.cfgPreset != null) {
+    const presetSel = document.getElementById('cfgPreset');
+    if (presetSel && presetSel.querySelector('option[value="' + p.cfgPreset + '"]')) {
+      presetSel.value = p.cfgPreset;
+    }
+  }
   samples = (p.samples || []).map(function (s) {
     return {
       name: s.name || '', conc: s.conc, a260_280: s.a260_280,
@@ -1206,6 +1191,13 @@ labtoolsRegisterTestHooks('rt-calc', {
     return { sampleCount: samples.length, names: samples.map(function (s) { return s.name; }) };
   },
 });
+
+// ─── Shared-layer runtime boot (manifest + load self-check; idempotent) ──────
+if (typeof labtools !== 'undefined' && labtools.runtime && labtools.runtime.boot) {
+  labtools.runtime.boot({ manifest: Object.assign({}, window.labtoolsToolManifest, {
+    readParams: readParams, applyParams: applyParams, readOutputs: readOutputs,
+  })});
+}
 
 init();
 </script>
