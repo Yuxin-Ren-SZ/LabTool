@@ -8,11 +8,14 @@
   <!-- Shared pure-function utilities: avgTwo, fmt, fmtSig, calcCellDensity, calcTotalCells,
        calcViabilityPct, bestVolumeDisplay, autoBestConcUnit, restrictToNumeric, makeDiagram, MODES -->
   <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-counting.js"></script>
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
   <script src="../../assets/js/labtools-common.js"></script>
   <script src="../../assets/js/labtools-artifact.js"></script>
   <script src="../../assets/js/labtools-artifact-ui.js"></script>
+  <script src="../../assets/js/labtools-runtime.js"></script>
+  <script src="manifest.js"></script>
   <style>
     /* ── Card width (base styles live in labtools.css .card) ── */
     .card { max-width: 600px; }
@@ -453,70 +456,35 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════════
-// ⟳ SYNC SECTION — adapted from tools/cell-count/index.html
+// Step 1 — counting UI & logic
 //
-//   This section (up to "END SYNC") contains a lightly adapted copy
-//   of the standalone Cell Count Calculator's logic.
-//
-//   If you fix a bug or add a feature to tools/cell-count/index.html,
-//   search this file for "⟳ SYNC" to find and apply the same changes.
-//
-//   Differences from standalone:
-//     • The calculate function is named calcStep1() instead of calculate()
-//     • calcStep1() writes step1FinalDensity for Step 2 to consume
-//     • calcStep1() also updates btn-next disabled state
-//     • Bypass mode (skip counting) is added before the main counting logic
+// The counting mode selector, count-all toggle, calculation core and
+// result rendering live in the shared module assets/js/labtools-counting.js
+// (single source of truth with tools/cell-count). This page keeps only:
+//   • page-side effects (step1FinalDensity / step1TotalVolML / btn-next)
+//   • the bypass (known-concentration) branch, which is seeding-specific
 // ═══════════════════════════════════════════════════════════════════
 
 // ─────────────────────────────────────────────────────────────
 // State
-// (avgTwo, fmt, fmtSig, calcCellDensity, calcTotalCells, calcViabilityPct,
-//  bestVolumeDisplay, autoBestConcUnit, restrictToNumeric, makeDiagram, MODES
-//  are all from labtools-calc.js)
 // ─────────────────────────────────────────────────────────────
 
-/** Currently selected counting mode ID (1–4, matching MODES[].id). */
-let currentModeId     = 1;
 /** Final concentration (cells/mL) from Step 1, passed to the Step 2 dilution solver. */
 let step1FinalDensity = NaN;
 /** Resuspension volume (mL) from Step 1, used for stock-volume warnings in Step 2. */
 let step1TotalVolML   = NaN;
 
 // ─────────────────────────────────────────────────────────────
-// Mode selector UI  [⟳ SYNC with cell-count/index.html]
+// Mode selector wrappers (shared module does the work)
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Render the 4-option counting mode selector from the MODES array.
- * Identical to cell-count's buildModeSelector(); called once at init.
- */
-function buildModeSelector() {
-  const container = document.getElementById('mode-selector');
-  container.innerHTML = '';
-  MODES.forEach(m => {
-    const div = document.createElement('div');
-    div.className = 'mode-option' + (m.id === currentModeId ? ' active' : '');
-    div.innerHTML = `${makeDiagram(m.largeHL, m.smallHL)}<span class="mode-tag">${m.tag.replace('\n', '<br>')}</span>`;
-    div.onclick = () => selectMode(m.id);
-    container.appendChild(div);
-  });
-}
-
-/**
- * Activate a counting mode by ID and trigger a Step 1 recalculation.
- * Identical to cell-count's selectMode(); [⟳ SYNC]
- *
- * @param {number} id  Mode ID from MODES[].id (1–4)
+ * Page-level wrappers kept for the inline HTML attributes; the shared
+ * labtools-counting module implements the behaviour (same source as
+ * tools/cell-count — the former ⟳ SYNC copy is gone).
  */
 function selectMode(id) {
-  currentModeId = id;
-  document.querySelectorAll('.mode-option').forEach((el, i) =>
-    el.classList.toggle('active', MODES[i].id === id));
-  const m = MODES.find(x => x.id === id);
-  document.getElementById('mode-desc').innerHTML =
-    `<span class="formula-inline">${m.formulaNote}</span>${m.desc}`;
-  document.getElementById('live-hint').textContent = m.hint;
-  calcStep1();
+  labtools.counting.selectMode(id, calcStep1);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -598,32 +566,24 @@ function onBypassToggle() {
 }
 
 /**
- * Handle the "Count all cells" checkbox in Step 1.
+ * Handle the "Count all cells" checkbox in Step 1 (shared module).
  * Disables the dead-cell block (greys it, clears inputs) when checked.
- * [⟳ SYNC with cell-count/index.html]
  */
 function onCountAllToggle() {
-  const isAll = document.getElementById('count-all-toggle').checked;
-  const deadBlock = document.getElementById('dead-block');
-  deadBlock.classList.toggle('disabled', isAll);
-  if (isAll) {
-    document.getElementById('dead1').value = '';
-    document.getElementById('dead2').value = '';
-  }
-  calcStep1();
+  labtools.counting.onCountAllToggle(calcStep1);
 }
 
 // ─────────────────────────────────────────────────────────────
 // Bypass concentration unit
-// (defined independently from Step 2's CONC_UNITS so Step 1
-//  bypass works even before Step 2 is initialised)
+// (shared table with Step 2's CONC_UNITS — single definition)
 // ─────────────────────────────────────────────────────────────
-const BYPASS_CONC_UNITS = {
+const CONC_UNITS = {
   cells: { label: 'cells/mL', baseVal: 1   },
   K:     { label: 'K/mL',     baseVal: 1e3 },
   M:     { label: 'M/mL',     baseVal: 1e6 },
   B:     { label: 'B/mL',     baseVal: 1e9 },
 };
+const BYPASS_CONC_UNITS = CONC_UNITS;
 let bypassConcUnitKey = 'M';
 
 /**
@@ -651,7 +611,8 @@ function setBypassUnit(unitKey) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Step 1 calculate  [⟳ SYNC with cell-count/index.html — calcStep1 ≈ calculate]
+// Step 1 calculate  (counting core from labtools.counting;
+//                    page side effects: step1FinalDensity/btn-next)
 // ─────────────────────────────────────────────────────────────
 function calcStep1() {
   // ── Bypass mode: user enters known concentration directly ──
@@ -677,91 +638,27 @@ function calcStep1() {
     return;
   }
 
-  const mode  = MODES.find(m => m.id === currentModeId);
-  const isAll = document.getElementById('count-all-toggle').checked;
-  const df    = parseFloat(document.getElementById('df').value);
-  const vol   = parseFloat(document.getElementById('vol').value);
-  step1TotalVolML = (!isNaN(vol) && vol > 0) ? vol : NaN;
+  const counts = labtools.counting.readCounts();
+  const r = labtools.counting.core(counts);
+  step1TotalVolML = (!isNaN(counts.vol) && counts.vol > 0) ? counts.vol : NaN;
 
-  const live1 = parseFloat(document.getElementById('live1').value);
-  const live2 = parseFloat(document.getElementById('live2').value);
-  const dead1 = parseFloat(document.getElementById('dead1').value);
-  const dead2 = parseFloat(document.getElementById('dead2').value);
-
-  // Guard: negative counts are physically impossible  [⟳ SYNC fix]
-  if ((!isNaN(live1) && live1 < 0) || (!isNaN(live2) && live2 < 0) ||
-      (!isNaN(dead1) && dead1 < 0) || (!isNaN(dead2) && dead2 < 0)) {
+  if (r.error === 'negative') {
     step1FinalDensity = NaN;
-    document.getElementById('res-avg').textContent      = '—';
-    document.getElementById('res-density').textContent  = '—';
-    document.getElementById('res-total').textContent    = '—';
-    document.getElementById('via-note').textContent     = '⚠ Counts cannot be negative.';
-    document.getElementById('via-note').className       = 'via-note';
+    labtools.counting.renderNegativeError();
     document.getElementById('btn-next').disabled = true;
     return;
   }
 
-  const liveAvg = avgTwo(live1, live2);
-  const deadAvg = avgTwo(dead1, dead2);
-  const avgLive = liveAvg.val;
-  const avgDead = deadAvg.val;
+  labtools.counting.renderResults(r, counts.vol);
 
-  // Core calculations via shared utilities
-  const finalDensity = calcCellDensity(avgLive, mode.multiplier, df);
-  const totalCells   = calcTotalCells(finalDensity, vol);
-
-  step1FinalDensity = finalDensity; // pass to Step 2
-
-  // Viability — only when dead counts are entered (not in count-all mode)
-  const hasDeadAny = !isAll && deadAvg.n > 0;
-  const viability  = hasDeadAny ? calcViabilityPct(avgLive, avgDead) : NaN;
-
-  // avg count
-  document.getElementById('res-avg').textContent =
-    !isNaN(avgLive) ? avgLive.toFixed(1) : '—';
-  document.getElementById('res-avg-note').textContent =
-    !isNaN(avgLive) ? (liveAvg.n === 2 ? 'avg of 2 counts' : 'single count') : 'from counts';
-
-  // viability
-  if (isAll) {
-    document.getElementById('res-via').textContent      = 'N/A';
-    document.getElementById('res-via-note').textContent = 'count-all mode';
-    document.getElementById('via-note').textContent     = 'Dead cell counting disabled — all cells counted as live.';
-    document.getElementById('via-note').className       = 'via-note';
-  } else if (!isNaN(viability)) {
-    document.getElementById('res-via').textContent      = viability.toFixed(1) + '%';
-    document.getElementById('res-via-note').textContent = deadAvg.n === 2 ? 'avg of 2 dead counts' : 'from dead count';
-    document.getElementById('via-note').textContent     = `✓ Viability: ${viability.toFixed(1)}%`;
-    document.getElementById('via-note').className       = 'via-note computed';
-  } else if (hasDeadAny) {
-    document.getElementById('res-via').textContent      = '—';
-    document.getElementById('res-via-note').textContent = 'waiting for live count';
-    document.getElementById('via-note').textContent     = 'Waiting for live count to compute viability.';
-    document.getElementById('via-note').className       = 'via-note';
-  } else {
-    document.getElementById('res-via').textContent      = '—';
-    document.getElementById('res-via-note').textContent = 'enter dead counts above';
-    document.getElementById('via-note').textContent     = 'Enter dead counts above to auto-calculate viability.';
-    document.getElementById('via-note').className       = 'via-note';
-  }
-
-  // total label
-  document.getElementById('res-total-label').textContent = isAll ? 'Total Cells' : 'Total Live Cells';
-
-  // density + total
-  document.getElementById('res-density').textContent      = fmt(finalDensity);
-  document.getElementById('res-density-note').textContent = 'cells/mL';
-  document.getElementById('res-total').textContent        = fmt(totalCells);
-  document.getElementById('res-total-note').textContent   =
-    !isNaN(finalDensity) && !isNaN(vol) && vol > 0 ? `conc. × ${vol} mL`
-    : !isNaN(finalDensity) ? 'enter resuspension vol' : '—';
+  step1FinalDensity = r.density; // pass to Step 2 (NaN when not yet computable)
 
   // enable Next button only when we have a valid density
-  document.getElementById('btn-next').disabled = isNaN(finalDensity);
+  document.getElementById('btn-next').disabled = isNaN(r.density);
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// ⟳ END SYNC (tools/cell-count/index.html)
+// END Step-1 counting section
 // ═══════════════════════════════════════════════════════════════════
 
 
@@ -796,6 +693,14 @@ function goToStep2() {
   document.getElementById('media-note').classList.add('hidden');
   document.getElementById('stock-warning').className = 'lt-alert hidden';
 
+  showStep2Nav();
+}
+
+/**
+ * Nav-only panel switch to Step 2 (no C1 pre-fill) — used by applyParams so
+ * restored dilution fields stay authoritative.
+ */
+function showStep2Nav() {
   document.getElementById('step1').classList.remove('active');
   const s2 = document.getElementById('step2');
   s2.classList.add('active');
@@ -814,6 +719,11 @@ function goToStep2() {
  * resets the step-bar pip states to reflect Step 1 being active.
  */
 function goToStep1() {
+  showStep1Nav();
+}
+
+/** Nav-only panel switch back to Step 1 (used by applyParams). */
+function showStep1Nav() {
   document.getElementById('step2').classList.remove('active');
   const s1 = document.getElementById('step1');
   s1.classList.remove('slide-back'); // reset so animation re-triggers
@@ -833,13 +743,9 @@ function goToStep1() {
 // Base units: concentration in cells/mL, volume in µL.
 // Formula: C1_base × V1_base = C2_base × V2_base
 // (mixed units cancel identically on both sides)
+// (CONC_UNITS is defined once in the Step-1 section; Step 1's bypass table
+//  and Step 2's FIELD_UNITS share it.)
 // ─────────────────────────────────────────────────────────────
-const CONC_UNITS = {
-  cells: { label: 'cells/mL', baseVal: 1   },
-  K:     { label: 'K/mL',     baseVal: 1e3 },
-  M:     { label: 'M/mL',     baseVal: 1e6 },
-  B:     { label: 'B/mL',     baseVal: 1e9 },
-};
 const VOL_UNITS = {
   uL: { label: 'µL', baseVal: 1    },
   mL: { label: 'mL', baseVal: 1e3  },
@@ -1340,8 +1246,7 @@ function fallbackCopyText(text) {
 // ─────────────────────────────────────────────────────────────
 // Init
 // ─────────────────────────────────────────────────────────────
-buildModeSelector();
-selectMode(currentModeId);
+labtools.counting.init(calcStep1);
 document.getElementById('c1-note').style.display = 'none';
 setupCommaInput('bypass-conc');
 // c1 is readonly (inherited from Step 1) — no comma input setup needed
@@ -1432,7 +1337,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (saveBtn) saveBtn.addEventListener('click', function () {
     const density = wbCurrentDensityCellsPerML();
     if (isNaN(density)) { showToast('Enter a cell concentration first.'); return; }
-    const label = prompt('Name this item:', suggestWbLabel());
+    let label = prompt('Name this item:', suggestWbLabel());
     if (!label || !label.trim()) return;
     label = label.trim();
 
@@ -1462,6 +1367,12 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // Workflow handoff: auto-apply data passed from cell-count (?wbLoad=<id>).
+  // Workflow handoff: auto-apply an incoming payload (?wbLoad). Dual channel:
+  // artifact envelopes wire through applyInputs (field-port matching) and
+  // strip the param; legacy typed payloads keep the applyFromWorkbench path.
+  if (typeof labtoolsConsumeArtifactHandoff === 'function') {
+    labtoolsConsumeArtifactHandoff(seedTool, applyInputs);
+  }
   if (typeof labtoolsConsumeHandoff === 'function') {
     labtoolsConsumeHandoff(applyFromWorkbench);
   }
@@ -1481,7 +1392,8 @@ function readParams() {
     dil[f] = { v: g(f) ? g(f).value : '', unit: dilState[f].unitKey, from: dilState[f].from };
   });
   return {
-    modeId:      currentModeId,
+    step:        document.getElementById('step2').classList.contains('active') ? 'step2' : 'step1',
+    modeId:      labtools.counting.getCurrentModeId(),
     countAll:    !!(g('count-all-toggle') && g('count-all-toggle').checked),
     df:    g('df')    ? g('df').value    : '',
     vol:   g('vol')   ? g('vol').value   : '',
@@ -1522,7 +1434,7 @@ function applyParams(p) {
   setv('dead1', p.dead1); setv('dead2', p.dead2);   // after toggle (which clears in count-all)
 
   // 4) Mode → recomputes Step 1.
-  selectMode(p.modeId || currentModeId);
+  selectMode(p.modeId || labtools.counting.getCurrentModeId());
 
   // 5) Dilution fields + their unit pills.
   const dil = p.dil || {};
@@ -1535,7 +1447,19 @@ function applyParams(p) {
     if (typeof renderDilFieldState === 'function') renderDilFieldState(f);
   });
   if (typeof calcStep1 === 'function') calcStep1();
-  if (typeof calcDilution === 'function') calcDilution();
+  // Only re-solve when the restored state is solvable — the solver shows an
+  // error banner ("All fields are filled…") when all four fields are inputs,
+  // which a faithful restore must not trigger (defect #25).
+  const allFilled = ['c1', 'c2', 'v1', 'v2'].every((f) => {
+    const el = g(f);
+    return el && el.value.trim() !== '' && dilState[f].from !== 'calculated';
+  });
+  if (typeof calcDilution === 'function' && !allFilled) calcDilution();
+
+  // Step navigation last — a nav-only switch that does NOT re-derive C1
+  // (restored dilution fields must stay authoritative).
+  if (p.step === 'step2' && !g('step2').classList.contains('active')) showStep2Nav();
+  else if (p.step !== 'step2' && g('step2').classList.contains('active')) showStep1Nav();
 }
 
 /** Declared final outputs: the seeding plan (stock conc + dilution). */
@@ -1609,6 +1533,13 @@ labtoolsRegisterTestHooks('seeding-calc', {
     };
   },
 });
+
+// ─── Shared-layer runtime boot (manifest + load self-check; idempotent) ──────
+if (typeof labtools !== 'undefined' && labtools.runtime && labtools.runtime.boot) {
+  labtools.runtime.boot({ manifest: Object.assign({}, window.labtoolsToolManifest, {
+    readParams: readParams, applyParams: applyParams, readOutputs: readOutputs,
+  })});
+}
 </script>
 </body>
 </html>
