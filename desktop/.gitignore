@@ -1,0 +1,7 @@
+node_modules/
+.npm-cache/
+.electron-cache/
+.test-user-data/
+dist/
+out/
+*.log
