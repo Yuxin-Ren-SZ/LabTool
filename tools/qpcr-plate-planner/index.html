@@ -10,6 +10,8 @@
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
   <script src="../../assets/js/labtools-common.js"></script>
+  <script src="../../assets/js/labtools-artifact.js"></script>
+  <script src="../../assets/js/labtools-artifact-ui.js"></script>
   <style>
     .card { max-width: 760px; }
     .planner-section { margin: 18px 0; }
@@ -94,6 +96,7 @@
   <!-- ── Actions ── -->
   <div class="action-row">
     <button class="lt-btn lt-btn-ghost" id="wb-save-btn">Save to Workbench</button>
+    <span id="lt-artifact-controls" style="display:inline-flex;gap:8px;flex-wrap:wrap"></span>
     <button class="lt-btn lt-btn-primary" id="to-planner-btn">Open in Layout Planner →</button>
     <button class="lt-btn lt-btn-ghost" id="to-qpcr-btn">Send to qPCR →</button>
   </div>
@@ -417,11 +420,72 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 
+// ─── Artifact model (full-state recovery + wireable outputs) ────────────────
+// Pure-function view: the entire `state` object (factors, genes, replicates,
+// bands, NTC, plate type, skip exceptions) is the param set; compute() derives
+// the plate-layout output. Restoring state + renderAll() reproduces the tool.
+
+/** Capture ALL control state (a deep copy of `state`). */
+function readParams() {
+  return {
+    factors: state.factors.map(function (f) { return { name: f.name, valuesRaw: f.valuesRaw }; }),
+    genes: state.genes.map(function (g) { return { name: g.name, role: g.role }; }),
+    replicates: state.replicates,
+    bandsPerPlate: state.bandsPerPlate,
+    ntc: state.ntc,
+    plateType: state.plateType,
+    skip: Object.assign({}, state.skip),
+  };
+}
+
+/** Restore control state, then re-render. */
+function applyParams(p) {
+  p = p || {};
+  if (p.factors) state.factors = p.factors.map(function (f) { return { name: f.name, valuesRaw: f.valuesRaw }; });
+  if (p.genes) state.genes = p.genes.map(function (g) { return { name: g.name, role: g.role }; });
+  if (p.replicates != null) state.replicates = p.replicates;
+  if (p.bandsPerPlate != null) state.bandsPerPlate = p.bandsPerPlate;
+  if (typeof p.ntc === 'boolean') state.ntc = p.ntc;
+  if (p.plateType) state.plateType = p.plateType;
+  state.skip = p.skip || {};
+  renderAll();
+}
+
+/** Declared final output: the packed multi-plate layout (or null if invalid). */
+function readOutputs() {
+  try { return { 'plate-layout': compute().layout }; }
+  catch (e) { return { 'plate-layout': null }; }
+}
+
+// Bridge: registers workbench types and provides artifact build/save/restore/CSV.
+var qppTool = labtoolsDefineTool({
+  id: 'qpcr-plate-planner',
+  produces: ['plate-layout'],
+  consumes: ['sample-list'],
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  outputFields: [{ id: 'plate-layout', label: 'qPCR plate layout' }],
+  inputPorts: [{ field: 'sample-list' }],
+});
+
+// Explicit legacy declaration (kept for the static registry test; the bridge
+// above registers the same types at runtime — idempotent).
 labtoolsRegisterToolTypes('qpcr-plate-planner', ['plate-layout'], ['sample-list']);
+
+if (typeof labtoolsMountArtifactControls === 'function') {
+  labtoolsMountArtifactControls(qppTool, { container: '#lt-artifact-controls', fileBase: 'qpcr-plate-planner' });
+}
 
 if (typeof labtoolsRegisterTestHooks === 'function') {
   labtoolsRegisterTestHooks('qpcr-plate-planner', {
     serialize: function () { return compute().layout; },
+    readParams: readParams,
+    applyParams: applyParams,
+    readOutputs: readOutputs,
+    buildArtifact: function () { return qppTool.build(); },
+    toCsv: function () { return qppTool.toCsv(); },
+    fromCsv: function (text) { return qppTool.fromCsv(text); },
     state: function () {
       var r = compute();
       return { samples: r.samples.length, genes: r.genes.length, plates: r.packed.plates.length };

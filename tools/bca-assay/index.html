@@ -8,6 +8,8 @@
   <script src="../../assets/js/labtools-common.js"></script>
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
+  <script src="../../assets/js/labtools-artifact.js"></script>
+  <script src="../../assets/js/labtools-artifact-ui.js"></script>
   <style>
     /* ── Layout ── */
     .card { max-width: 1240px; }
@@ -778,6 +780,7 @@
               <span class="calc-status" id="calc-status">Waiting for data…</span>
               <button class="lt-btn lt-btn-ghost" id="wb-save-btn" style="padding:3px 10px;font-size:0.72rem;margin-left:auto">Save to Workbench</button>
               <button class="lt-btn lt-btn-ghost" id="wb-load-btn" style="padding:3px 10px;font-size:0.72rem">Load</button>
+              <span id="lt-artifact-controls" style="display:inline-flex;gap:8px;flex-wrap:wrap"></span>
             </div>
 
             <div class="results-empty" id="results-empty">
@@ -2506,11 +2509,123 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 
+// ─── Artifact model (full-state recovery + wireable outputs) ────────────────
+// Pure-function view: every control is a `param` (mode, standard/sample rows,
+// preset, reps, fit model, QC threshold, excluded points, well volume, unit, and
+// the plate-mode grid/assignments/template). Row cells normalize to strings — the
+// canonical UI form — so they survive JSON/CSV round-trips (numbers from seedManual
+// or NaN blanks would not). Restoring params + re-render reproduces the tool.
+
+/** Sync preset button + column headers WITHOUT setPreset's data-loss confirm(). */
+function syncPresetUI(pid) {
+  ['pierce', 'basic', 'custom'].forEach(function (id) {
+    var b = document.getElementById('preset-' + id);
+    if (b) b.classList.toggle('active', id === pid);
+  });
+  var unit = (PRESETS[pid] || {}).unit;
+  if (unit) {
+    ['std-conc-hdr', 'smp-conc-hdr', 'res-conc-header'].forEach(function (hid) {
+      var h = document.getElementById(hid);
+      if (h) h.textContent = 'Conc (' + unit + ')';
+    });
+  }
+  if (typeof updateWellVolVisibility === 'function') updateWellVolVisibility();
+}
+
+/** Capture ALL control state. Row cells are coerced to strings (canonical form). */
+function readParams() {
+  var cell = function (v) { return (v == null || (typeof v === 'number' && isNaN(v))) ? '' : String(v); };
+  var ta = document.getElementById('plate-textarea');
+  return {
+    currentMode: currentMode,
+    // manual mode
+    stdRows: stdRows.map(function (r) { return { conc: cell(r.conc), od1: cell(r.od1), od2: cell(r.od2), od3: cell(r.od3) }; }),
+    smpRows: smpRows.map(function (r) { return { name: r.name || '', od1: cell(r.od1), od2: cell(r.od2), od3: cell(r.od3), df: cell(r.df) }; }),
+    currentPreset: currentPreset,
+    numReps: numReps,
+    fitModel: fitModel,
+    qcCvThr: qcCvThr,
+    exclConcs: [].concat([...exclConcs]),
+    wellVolume: wellVolume,
+    concUnit: concUnit,
+    // plate mode
+    plateMatrix: plateMatrix,
+    wellAssigns: wellAssigns,
+    plateTplId: plateTplId,
+    plateTplActive: Array.isArray(plateTplActive) ? plateTplActive.slice() : [],
+    plateTextarea: ta ? ta.value : '',
+  };
+}
+
+/** Restore control state, then re-render both modes and recompute. */
+function applyParams(p) {
+  p = p || {};
+  var g = function (id) { return document.getElementById(id); };
+  stdRows = (p.stdRows || []).map(function (r) { return Object.assign({}, r); });
+  smpRows = (p.smpRows || []).map(function (r) { return Object.assign({}, r); });
+  currentPreset = p.currentPreset || 'pierce';
+  numReps = p.numReps || 1;
+  fitModel = p.fitModel || 'linear';
+  qcCvThr = (p.qcCvThr != null) ? p.qcCvThr : 15;
+  exclConcs = new Set(p.exclConcs || []);
+  if (p.concUnit) concUnit = p.concUnit;
+  if (p.wellVolume != null) wellVolume = p.wellVolume;
+  plateMatrix = p.plateMatrix || null;
+  wellAssigns = p.wellAssigns || {};
+  plateTplId = p.plateTplId || 'basic';
+  plateTplActive = Array.isArray(p.plateTplActive) ? p.plateTplActive.slice() : [];
+  plateTplStep = -1; selWells = new Set();
+  var ta = g('plate-textarea'); if (ta) ta.value = p.plateTextarea || '';
+  var cv = g('qcCvInput');      if (cv) cv.value = qcCvThr;
+  var wv = g('wellVolInput');   if (wv) wv.value = Math.round(wellVolume * 1000);
+
+  syncPresetUI(currentPreset);
+  renderStdTable(); renderSmpTable();
+  setReps(numReps); setFitModel(fitModel);
+  switchMode(p.currentMode || 'manual');
+  if (plateMatrix) {
+    if (typeof renderPlate === 'function') renderPlate();
+    if (typeof initPlateTemplate === 'function') initPlateTemplate();
+    if (typeof updateAssignSummary === 'function') updateAssignSummary();
+    if (typeof schedulePlateCalc === 'function') schedulePlateCalc();
+  }
+  scheduleCalc();
+}
+
+/** Declared final output: computed concentrations (conc-data payload). */
+function readOutputs() {
+  return { 'concentration': serializeForWorkbench() || null };
+}
+
+// Bridge: registers workbench types and provides artifact build/save/restore/CSV.
+const bcaTool = labtoolsDefineTool({
+  id: 'bca-assay',
+  produces: ['conc-data'],
+  consumes: ['plate-layout'],
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  outputFields: [{ id: 'concentration', label: 'BCA concentrations' }],
+  inputPorts: [{ field: 'plate-layout' }],
+});
+
+// Explicit legacy declaration (kept for the static registry test; the bridge
+// above registers the same types at runtime — idempotent).
 labtoolsRegisterToolTypes('bca-assay', ['conc-data'], ['plate-layout']);
+
+if (typeof labtoolsMountArtifactControls === 'function') {
+  labtoolsMountArtifactControls(bcaTool, { container: '#lt-artifact-controls', fileBase: 'bca-assay' });
+}
 
 labtoolsRegisterTestHooks('bca-assay', {
   serialize: serializeForWorkbench,
   apply: applyFromWorkbench,
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  buildArtifact: function () { return bcaTool.build(); },
+  toCsv: function () { return bcaTool.toCsv(); },
+  fromCsv: function (text) { return bcaTool.fromCsv(text); },
   state: function () {
     return {
       mode: currentMode,

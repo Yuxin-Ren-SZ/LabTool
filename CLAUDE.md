@@ -23,7 +23,8 @@ LabTools/
 │       ├── labtools-calc.js           # Shared pure-function utilities
 │       ├── labtools-common.js         # Shared browser utilities
 │       ├── labtools-types.js          # Data-contract registry (workbench payload schemas)
-│       └── labtools-workbench.js      # Workbench: IndexedDB store + drawer UI
+│       ├── labtools-workbench.js      # Workbench: IndexedDB store + drawer UI
+│       └── labtools-artifact.js       # Artifact model: params↔CSV/JSON codec + tool bridge
 ├── tools/
 │   ├── cell-count/index.html          # Hemocytometer calculator
 │   ├── seeding-calc/index.html        # Count-to-dilution workflow
@@ -122,6 +123,51 @@ labtoolsRegisterToolTypes('qpcr-analysis', ['qpcr-results'], ['plate-layout', 's
 Load `labtools-types.js` BEFORE `labtools-workbench.js` in every page that
 uses the workbench. Unit tests (`tests/unit/types.test.mjs`) enforce that every
 declared type exists in the registry and that fixtures validate.
+
+## Artifact Model (full-state recovery + output wiring)
+
+`assets/js/labtools-artifact.js` treats each tool as a pure function
+`outputs = f(inputs, params)`, where **every control (button, selection, toggle,
+field) is a `param`**. One canonical envelope —
+`{ schemaVersion, tool, params, inputs, outputs }` — is saved/exported, and JSON
+and CSV are two encodings of the *same* information, so either fully recovers the
+tool. `params` are canonical; `outputs` are a derived projection kept for CSV
+readability and for field-port wiring. Output field-ids are cataloged in
+`docs/output-fields.md` (wiring matches by id string).
+
+Exposes: `labtoolsFlatten`/`labtoolsUnflatten` (lossless nesting↔flat, type- and
+empty-container-preserving), `labtoolsRowsToCsv`/`labtoolsCsvToRows` (RFC-4180),
+`labtoolsArtifactToCsv`/`labtoolsCsvToArtifact`, `labtoolsBuildArtifact`/
+`labtoolsValidateArtifact`, `labtoolsMatchWiring(outputs, ports)` →
+`{ resolved, missing, ignored }`, and the **`labtoolsDefineTool(spec)`** bridge
+(registers types + provides `build`/`toCsv`/`fromCsv`/`restore`/`exportCsv`/`save`).
+
+A migrated tool declares `readParams`/`applyParams`/`readOutputs` (explicit,
+per-tool — capture ALL control state, restore it, let the existing reactive render
+recompute) plus `outputFields`/`inputPorts`, then instantiates the bridge. The
+`artifact` workbench type validates the envelope. **Migrated** (with e2e
+`params→CSV→params` identity in `tests/e2e/artifact.test.mjs`): cell-count,
+seeding-calc, rt-calc, bca-assay, qpcr-analysis, microplate-layout-planner,
+qpcr-plate-planner, stain-timer. Legacy `serializeForWorkbench`/`applyFromWorkbench`
+paths are kept alongside (coexistence), and each tool keeps an explicit
+`labtoolsRegisterToolTypes(...)` line (the static `types.test` scans for it; the
+bridge also registers at runtime — idempotent). **Intentionally NOT migrated:**
+`thermal-to-laser` and `label-generator` — PDF/label generators whose output is not
+wireable data and whose config has its own localStorage persistence.
+
+Load order per page: `labtools-types.js` → `labtools-workbench.js` →
+`labtools-common.js` → `labtools-artifact.js`.
+
+**Integration status (important):** the artifact model is a *tested library plus
+per-tool `readParams`/`applyParams`/`readOutputs`*. It is **not yet wired to the
+UI** — every tool's Save/Export/handoff buttons still use the legacy
+`serializeForWorkbench`/`downloadCsv`/`labtoolsHandoffTo` paths. `.save()`,
+`.exportCsv()`, `.fromCsv()`, and `matchWiring` are currently exercised only via
+`__labtoolsTestHooks` and tests. Not yet built: artifact Save/Export/Load buttons,
+handoff over the artifact envelope, and the **manual-fill UI** for unmatched input
+ports. Also: bca-assay's plate/raw mode `applyParams` is implemented but only
+manual-mode is e2e-verified; the CSV is information-complete `section,key,value`
+(not the human-tabular per-well form).
 
 ## Shared Design System
 

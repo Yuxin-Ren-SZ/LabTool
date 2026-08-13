@@ -9,6 +9,8 @@
   <script src="../../assets/js/labtools-calc.js"></script>
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
+  <script src="../../assets/js/labtools-artifact.js"></script>
+  <script src="../../assets/js/labtools-artifact-ui.js"></script>
   <style>
     .card { max-width: 1180px; }
 
@@ -268,6 +270,7 @@
               <button class="lt-btn lt-btn-ghost" id="btnResetAll">Clear &amp; start over</button>
               <button class="lt-btn lt-btn-ghost" id="wb-save-btn">Save to Workbench</button>
               <button class="lt-btn lt-btn-ghost" id="wb-load-btn">Load from Workbench</button>
+              <span id="lt-artifact-controls" style="display:inline-flex;gap:8px;flex-wrap:wrap"></span>
             </div>
           </div>
           <div class="summary-grid" id="summaryGrid"></div>
@@ -2867,11 +2870,121 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 
+// ─── Artifact model (full-state recovery + wireable outputs) ────────────────
+// Pure-function view: the ingested records PLUS every label/analysis setting are
+// `params`. Derived structures (byKey Map, wellsPresent Set) rebuild from records;
+// transient selection (selWells, lastRowIdx) resets. Restoring params + rebuild +
+// renderAll() reproduces the tool without re-uploading the results file. Sets are
+// stored as arrays for JSON/CSV.
+
+/** Capture ALL reproducible state (records + labels + analysis settings). */
+function readParams() {
+  var s = state;
+  return {
+    expName: s.expName, notes: s.notes, thermal: s.thermal,
+    files: s.files, plates: s.plates, plateGeoms: s.plateGeoms,
+    records: s.records,
+    dyes: s.dyes, targets: s.targets, plateDye: s.plateDye, plateMode: s.plateMode,
+    fltDye: s.fltDye, fltCall: s.fltCall, ampScale: s.ampScale, foldScale: s.foldScale,
+    assignField: s.assignField, sort: { col: s.sort.col, dir: s.sort.dir },
+    chartGroupBy: s.chartGroupBy, chartLayout: s.chartLayout,
+    sumFilter: s.sumFilter, sumSearch: s.sumSearch, qcSdThr: s.qcSdThr, lodCutoff: s.lodCutoff,
+    sampleByWell: s.sampleByWell, targetByKey: s.targetByKey, userGroup: s.userGroup,
+    userNamed: [...s.userNamed], ddRefs: [...s.ddRefs],
+    thresholds: s.thresholds, customThr: s.customThr,
+    ddRefsInit: s.ddRefsInit, ddControlGroup: s.ddControlGroup, ddControlInit: s.ddControlInit,
+    ddEffCorr: s.ddEffCorr, pairedDesign: s.pairedDesign,
+    interPlateCal: s.interPlateCal, interPlateInit: s.interPlateInit,
+    labelsDirty: s.labelsDirty,
+  };
+}
+
+/** Restore state, rebuild derived structures, and re-render. */
+function applyParams(p) {
+  p = p || {};
+  var s = state;
+  s.expName = p.expName || ''; s.notes = p.notes || ''; s.thermal = p.thermal || null;
+  s.files = p.files || []; s.plates = p.plates || []; s.plateGeoms = p.plateGeoms || {};
+  s.records = p.records || [];
+  s.dyes = p.dyes || []; s.targets = p.targets || []; s.plateDye = p.plateDye || ''; s.plateMode = p.plateMode || 'call';
+  s.fltDye = p.fltDye || ''; s.fltCall = p.fltCall || ''; s.ampScale = p.ampScale || 'linear'; s.foldScale = p.foldScale || 'linear';
+  s.assignField = p.assignField || 'sample';
+  s.sort = p.sort ? { col: p.sort.col, dir: p.sort.dir } : { col: 'well', dir: 1 };
+  s.chartGroupBy = p.chartGroupBy || 'sample'; s.chartLayout = p.chartLayout || 'together';
+  s.sumFilter = p.sumFilter || 'withcq'; s.sumSearch = p.sumSearch || '';
+  s.qcSdThr = (p.qcSdThr != null) ? p.qcSdThr : 0.5; s.lodCutoff = (p.lodCutoff != null) ? p.lodCutoff : 38;
+  s.sampleByWell = p.sampleByWell || {}; s.targetByKey = p.targetByKey || {}; s.userGroup = p.userGroup || {};
+  s.userNamed = new Set(p.userNamed || []); s.ddRefs = new Set(p.ddRefs || []);
+  s.thresholds = p.thresholds || {}; s.customThr = p.customThr || {};
+  s.ddRefsInit = !!p.ddRefsInit; s.ddControlGroup = p.ddControlGroup || ''; s.ddControlInit = !!p.ddControlInit;
+  s.ddEffCorr = !!p.ddEffCorr; s.pairedDesign = !!p.pairedDesign;
+  s.interPlateCal = p.interPlateCal || ''; s.interPlateInit = !!p.interPlateInit;
+  s.labelsDirty = !!p.labelsDirty;
+
+  // Rebuild derived structures from records; reset transient selection.
+  s.byKey = new Map();
+  s.records.forEach(function (r) { s.byKey.set(r.well + '|' + r.dye, r); });
+  s.wellsPresent = new Set(s.records.map(function (r) { return r.well; }));
+  s.selWells = new Set(); s.lastRowIdx = null;
+
+  if (s.records.length) { var el = document.getElementById('results'); if (el) el.style.display = 'block'; }
+  if (typeof recomputeTargets === 'function') recomputeTargets();
+  if (typeof renderAll === 'function') renderAll();
+}
+
+/** Declared final outputs: the run summary, per-well Cq, and ΔΔCq expression. */
+function readOutputs() {
+  // Per-well Cq keyed by "WELL|DYE" (only wells with a called Cq).
+  var cq = {};
+  state.records.forEach(function (r) { if (r.cq != null) cq[r.well + '|' + r.dye] = r.cq; });
+  // ΔΔCq relative expression (null if no valid control group / insufficient data).
+  var ddcq = null;
+  try {
+    if (typeof ddCompute === 'function') {
+      var d = ddCompute();
+      ddcq = { control: d.control, rows: d.rows };
+    }
+  } catch (e) { ddcq = null; }
+  return {
+    'qpcr-results': serializeForWorkbench(),
+    'cq': cq,
+    'ddcq': ddcq,
+  };
+}
+
+// Bridge: registers workbench types and provides artifact build/save/restore/CSV.
+const qpcrTool = labtoolsDefineTool({
+  id: 'qpcr-analysis',
+  produces: ['qpcr-results'],
+  consumes: ['plate-layout', 'sample-list'],
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  outputFields: [
+    { id: 'qpcr-results', label: 'Analyzed qPCR run' },
+    { id: 'cq', label: 'Per-well Cq' },
+    { id: 'ddcq', label: 'ΔΔCq relative expression' },
+  ],
+  inputPorts: [{ field: 'plate-layout' }, { field: 'sample-list' }],
+});
+
+// Explicit legacy declaration (kept for the static registry test; the bridge
+// above registers the same types at runtime — idempotent).
 labtoolsRegisterToolTypes('qpcr-analysis', ['qpcr-results'], ['plate-layout', 'sample-list']);
+
+if (typeof labtoolsMountArtifactControls === 'function') {
+  labtoolsMountArtifactControls(qpcrTool, { container: '#lt-artifact-controls', fileBase: 'qpcr-analysis' });
+}
 
 labtoolsRegisterTestHooks('qpcr-analysis', {
   serialize: serializeForWorkbench,
   apply: applyFromWorkbench,
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  buildArtifact: function () { return qpcrTool.build(); },
+  toCsv: function () { return qpcrTool.toCsv(); },
+  fromCsv: function (text) { return qpcrTool.fromCsv(text); },
   state: function () {
     return {
       expName: state.expName,

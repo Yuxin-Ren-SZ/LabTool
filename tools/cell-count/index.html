@@ -10,6 +10,8 @@
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
   <script src="../../assets/js/labtools-common.js"></script>
+  <script src="../../assets/js/labtools-artifact.js"></script>
+  <script src="../../assets/js/labtools-artifact-ui.js"></script>
   <style>
     /* ── Card width (base styles live in labtools.css .card) ── */
     .card { max-width: 600px; }
@@ -40,6 +42,9 @@
     <button class="lt-btn lt-btn-ghost" id="wb-save-btn">Save to Workbench</button>
     <button class="lt-btn lt-btn-ghost" id="wb-continue-seeding-btn" title="Save this count and open the Seeding Calculator with it pre-filled">Save &amp; continue to Seeding →</button>
   </div>
+
+  <!-- Full-state artifact controls (save/export/import/load the whole tool) -->
+  <div id="lt-artifact-controls" style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap"></div>
 
   <!-- ── Mode selector ── -->
   <div class="lt-section-label lt-section-label--tight">Counting Mode</div>
@@ -499,10 +504,81 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 
+// ─── Artifact model (full-state recovery + wireable outputs) ────────────────
+// The tool is treated as a pure function: every control the user touches is a
+// `param`; `outputs` are derived. Restoring params + recomputing reproduces the
+// tool exactly. See docs/output-fields.md for the output field-ids.
+
+/** Capture ALL control state. */
+function readParams() {
+  return {
+    modeId:   currentModeId,
+    countAll: document.getElementById('count-all-toggle').checked,
+    df:       document.getElementById('df').value,
+    vol:      document.getElementById('vol').value,
+    live1:    document.getElementById('live1').value,
+    live2:    document.getElementById('live2').value,
+    dead1:    document.getElementById('dead1').value,
+    dead2:    document.getElementById('dead2').value,
+  };
+}
+
+/** Restore control state, then let the existing reactive render recompute. */
+function applyParams(p) {
+  p = p || {};
+  const setv = (k) => { const el = document.getElementById(k); if (el) el.value = (p[k] != null ? p[k] : ''); };
+  ['df', 'vol', 'live1', 'live2'].forEach(setv);
+  const toggle = document.getElementById('count-all-toggle');
+  if (toggle) { toggle.checked = !!p.countAll; onCountAllToggle(); }
+  // Set dead counts AFTER the toggle handler (which clears them in count-all mode).
+  setv('dead1'); setv('dead2');
+  selectMode(p.modeId || currentModeId);   // triggers calculate()
+}
+
+/** Declared final outputs, projected from the current DOM results. */
+function readOutputs() {
+  const densInt = parseInt(document.getElementById('res-density').textContent.replace(/[^0-9]/g, ''), 10);
+  const totInt  = parseInt(document.getElementById('res-total').textContent.replace(/[^0-9]/g, ''), 10);
+  const via     = parseFloat(document.getElementById('res-via').textContent);
+  return {
+    'cell-density': isNaN(densInt) ? null : densInt,   // cells/mL
+    'total-cells':  isNaN(totInt)  ? null : totInt,
+    'viability':    isNaN(via)     ? null : via,        // %
+  };
+}
+
+// Bridge: registers workbench types and provides artifact build/save/restore/CSV.
+const cellTool = labtoolsDefineTool({
+  id: 'cell-count',
+  produces: ['sample-list'],
+  consumes: [],
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  outputFields: [
+    { id: 'cell-density', label: 'Cell density (cells/mL)' },
+    { id: 'total-cells',  label: 'Total live cells' },
+    { id: 'viability',    label: 'Viability (%)' },
+  ],
+});
+
+// Explicit legacy declaration (kept for the static registry test; the bridge
+// above registers the same types at runtime — idempotent).
 labtoolsRegisterToolTypes('cell-count', ['sample-list'], []);
 
+// Mount the full-state artifact controls (Save / Export / Import / Load).
+if (typeof labtoolsMountArtifactControls === 'function') {
+  labtoolsMountArtifactControls(cellTool, { container: '#lt-artifact-controls', fileBase: 'cell-count' });
+}
+
 labtoolsRegisterTestHooks('cell-count', {
-  serialize: serializeForWorkbench,
+  serialize: serializeForWorkbench,        // legacy sample-list payload (kept)
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  buildArtifact: function () { return cellTool.build(); },
+  toCsv: function () { return cellTool.toCsv(); },
+  fromCsv: function (text) { return cellTool.fromCsv(text); },
   state: function () {
     return {
       density: document.getElementById('res-density').textContent,

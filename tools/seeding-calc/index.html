@@ -11,6 +11,8 @@
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
   <script src="../../assets/js/labtools-common.js"></script>
+  <script src="../../assets/js/labtools-artifact.js"></script>
+  <script src="../../assets/js/labtools-artifact-ui.js"></script>
   <style>
     /* ── Card width (base styles live in labtools.css .card) ── */
     .card { max-width: 600px; }
@@ -181,6 +183,7 @@
     <div style="display:flex;gap:8px;margin-bottom:6px">
       <button class="lt-btn lt-btn-ghost" id="wb-save-btn">Save to Workbench</button>
       <button class="lt-btn lt-btn-ghost" id="wb-load-btn">Load from Workbench</button>
+      <span id="lt-artifact-controls" style="display:inline-flex;gap:8px;flex-wrap:wrap"></span>
     </div>
 
     <!-- Bypass toggle -->
@@ -1464,11 +1467,141 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 
+// ─── Artifact model (full-state recovery + wireable outputs) ────────────────
+// Pure-function view: every control is a `param`. Restoring params + recomputing
+// reproduces the tool. Unit pills are restored by driving the existing setters on
+// an EMPTY field first (they only convert a non-empty value), avoiding double
+// conversion. See docs/output-fields.md for output field-ids.
+
+/** Capture ALL control state (count UI, bypass, C1V1=C2V2 fields + unit pills). */
+function readParams() {
+  const g = (id) => document.getElementById(id);
+  const dil = {};
+  ['c1', 'c2', 'v1', 'v2'].forEach((f) => {
+    dil[f] = { v: g(f) ? g(f).value : '', unit: dilState[f].unitKey, from: dilState[f].from };
+  });
+  return {
+    modeId:      currentModeId,
+    countAll:    !!(g('count-all-toggle') && g('count-all-toggle').checked),
+    df:    g('df')    ? g('df').value    : '',
+    vol:   g('vol')   ? g('vol').value   : '',
+    live1: g('live1') ? g('live1').value : '',
+    live2: g('live2') ? g('live2').value : '',
+    dead1: g('dead1') ? g('dead1').value : '',
+    dead2: g('dead2') ? g('dead2').value : '',
+    bypassOn:   !!(g('bypass-toggle') && g('bypass-toggle').checked),
+    bypassConc: g('bypass-conc') ? g('bypass-conc').value : '',
+    bypassUnit: bypassConcUnitKey,
+    dil: dil,
+  };
+}
+
+/** Restore control state, then let the existing reactive render recompute. */
+function applyParams(p) {
+  p = p || {};
+  const g = (id) => document.getElementById(id);
+  const setv = (id, val) => { const el = g(id); if (el) el.value = (val != null ? val : ''); };
+
+  // 1) Bypass unit — restore on an empty field so no value conversion fires.
+  if (g('bypass-conc')) g('bypass-conc').value = '';
+  if (typeof setBypassUnit === 'function' && p.bypassUnit) setBypassUnit(p.bypassUnit);
+
+  // 2) Bypass toggle (its handler clears the counting or bypass side).
+  if (g('bypass-toggle')) {
+    g('bypass-toggle').checked = !!p.bypassOn;
+    if (typeof onBypassToggle === 'function') onBypassToggle();
+  }
+  if (p.bypassOn) setv('bypass-conc', p.bypassConc);
+
+  // 3) Count UI (empty in bypass mode; harmless to set '').
+  ['df', 'vol', 'live1', 'live2'].forEach((k) => setv(k, p[k]));
+  if (g('count-all-toggle')) {
+    g('count-all-toggle').checked = !!p.countAll;
+    if (typeof onCountAllToggle === 'function') onCountAllToggle();
+  }
+  setv('dead1', p.dead1); setv('dead2', p.dead2);   // after toggle (which clears in count-all)
+
+  // 4) Mode → recomputes Step 1.
+  selectMode(p.modeId || currentModeId);
+
+  // 5) Dilution fields + their unit pills.
+  const dil = p.dil || {};
+  ['c1', 'c2', 'v1', 'v2'].forEach((f) => {
+    const d = dil[f] || {}; const el = g(f); if (!el) return;
+    el.value = '';
+    if (typeof setUnit === 'function' && d.unit) setUnit(f, d.unit);   // no convert (field empty)
+    if (d.from) dilState[f].from = d.from;
+    el.value = (d.v != null ? d.v : '');
+    if (typeof renderDilFieldState === 'function') renderDilFieldState(f);
+  });
+  if (typeof calcStep1 === 'function') calcStep1();
+  if (typeof calcDilution === 'function') calcDilution();
+}
+
+/** Declared final outputs: the seeding plan (stock conc + dilution). */
+function readOutputs() {
+  return { 'seeding-plan': serializeForWorkbench() };
+}
+
+/**
+ * Field-port inputs → controls. Any upstream stock density/concentration feeds
+ * the bypass field; the target seeding density (which no upstream tool provides,
+ * so it is manual-filled) feeds C2. Values may be numbers (wired) or strings
+ * (hand-typed).
+ */
+function applyInputs(resolved) {
+  resolved = resolved || {};
+  var g = function (id) { return document.getElementById(id); };
+  var stock = resolved['cell-density'] != null ? resolved['cell-density']
+    : resolved['concentration'] != null ? resolved['concentration'] : null;
+  if (stock == null && resolved['sample-list'] && resolved['sample-list'].samples && resolved['sample-list'].samples[0]) {
+    stock = resolved['sample-list'].samples[0].conc;
+  }
+  if (stock != null) {
+    var bypassEl = g('bypass-conc'), toggle = g('bypass-toggle');
+    if (bypassEl && toggle) {
+      toggle.checked = true; onBypassToggle();
+      bypassEl.value = String(stock);
+      if (typeof calcStep1 === 'function') calcStep1();
+    }
+  }
+  if (resolved['target-density'] != null) {
+    var c2 = g('c2');
+    if (c2) { c2.value = String(resolved['target-density']); if (typeof calcDilution === 'function') calcDilution(); }
+  }
+}
+
+// Bridge: registers workbench types and provides artifact build/save/restore/CSV.
+const seedTool = labtoolsDefineTool({
+  id: 'seeding-calc',
+  produces: ['seeding-plan'],
+  consumes: ['conc-data', 'sample-list'],
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  outputFields: [{ id: 'seeding-plan', label: 'Seeding plan (stock + dilution)' }],
+  inputPorts: [
+    { field: 'cell-density' }, { field: 'concentration' }, { field: 'sample-list' },
+  ],
+});
+
+// Explicit legacy declaration (kept for the static registry test; the bridge
+// above registers the same types at runtime — idempotent).
 labtoolsRegisterToolTypes('seeding-calc', ['seeding-plan'], ['conc-data', 'sample-list']);
 
+if (typeof labtoolsMountArtifactControls === 'function') {
+  labtoolsMountArtifactControls(seedTool, { container: '#lt-artifact-controls', fileBase: 'seeding-calc' });
+}
+
 labtoolsRegisterTestHooks('seeding-calc', {
-  serialize: serializeForWorkbench,
-  apply: applyFromWorkbench,
+  serialize: serializeForWorkbench,       // legacy seeding-plan payload (kept)
+  apply: applyFromWorkbench,              // legacy consumer path (kept)
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  buildArtifact: function () { return seedTool.build(); },
+  toCsv: function () { return seedTool.toCsv(); },
+  fromCsv: function (text) { return seedTool.fromCsv(text); },
   state: function () {
     return {
       density: wbCurrentDensityCellsPerML(),

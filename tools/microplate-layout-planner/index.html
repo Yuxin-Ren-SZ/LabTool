@@ -8,6 +8,8 @@
   <script src="../../assets/js/labtools-common.js"></script>
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
+  <script src="../../assets/js/labtools-artifact.js"></script>
+  <script src="../../assets/js/labtools-artifact-ui.js"></script>
   <style>
     .card {
       width: fit-content;
@@ -859,6 +861,7 @@
       <button class="btn-reset" type="button" id="reset-btn">Reset Plate</button>
       <button class="btn-reset" type="button" id="wb-save-btn">Save to Workbench</button>
       <button class="btn-reset" type="button" id="wb-load-btn">Load from Workbench</button>
+      <span id="lt-artifact-controls" style="display:inline-flex;gap:8px;flex-wrap:wrap"></span>
       <button class="btn-reset" type="button" id="wb-to-qpcr-btn" title="Save this layout and open the qPCR Analyzer with it loaded">Send to qPCR →</button>
     </div>
   </div>
@@ -2980,11 +2983,103 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 
+// ─── Artifact model (full-state recovery + wireable outputs) ────────────────
+// Pure-function view: the plates (geometry + assignments), field definitions,
+// categories, AND the UI selectors (color/label/active field, active plate,
+// overview) are all `params`. Transient selection/clipboard resets. This extends
+// the plate-layout serialize with the view state so restore reproduces the tool
+// exactly (not just the data). cutCorners Set ↔ array for JSON/CSV.
+
+/** Capture ALL control state (plates + fields + categories + view selectors). */
+function readParams() {
+  return {
+    plates: plates.map(function (p) {
+      return {
+        id: p.id, name: p.name, plateType: p.plateType,
+        cutCorners: Array.from(p.cutCorners), assignments: p.assignments,
+      };
+    }),
+    fields: fields.map(function (f) { return { id: f.id, key: f.key, name: f.name, kind: f.kind }; }),
+    categoriesByField: categoriesByField,
+    activeCatByField: activeCatByField,
+    colorFieldId: colorFieldId,
+    labelFieldId: labelFieldId,
+    activeFieldId: activeFieldId,
+    activePlateId: activePlateId,
+    overviewMode: overviewMode,
+  };
+}
+
+/** Restore control state (preserving plate ids + view selectors), then re-render. */
+function applyParams(p) {
+  p = p || {};
+  plates = (p.plates || []).map(function (pl) {
+    return {
+      id: pl.id || uid('p'), name: pl.name, plateType: pl.plateType,
+      cutCorners: new Set(pl.cutCorners || []), assignments: pl.assignments || {},
+    };
+  });
+  if (plates.length === 0) plates = [makePlate('96', 'Plate 1')];
+
+  fields = (p.fields || []).map(function (f) { return { id: f.id, key: f.key, name: f.name, kind: f.kind }; });
+  if (fields.length === 0) seedDefaults();
+
+  categoriesByField = p.categoriesByField || {};
+  activeCatByField = p.activeCatByField || {};
+  Object.keys(categoriesByField).forEach(function (fid) {
+    if (activeCatByField[fid] == null) {
+      var cats = categoriesByField[fid];
+      if (cats && cats.length) activeCatByField[fid] = cats[0].id;
+    }
+  });
+
+  var catFields = categoryFields();
+  var firstCat = (catFields[0] || {}).id || 'group';
+  colorFieldId = p.colorFieldId || firstCat;
+  labelFieldId = p.labelFieldId || colorFieldId;
+  activeFieldId = p.activeFieldId || colorFieldId;
+  activePlateId = (p.activePlateId && plates.some(function (pl) { return pl.id === p.activePlateId; }))
+    ? p.activePlateId : plates[0].id;
+  overviewMode = !!p.overviewMode;
+
+  selectedWells = new Set(); selectionAnchor = null; clipboard = null;
+  renderAll();
+}
+
+/** Declared final output: the microplate layout. */
+function readOutputs() {
+  return { 'plate-layout': serializeForWorkbench() };
+}
+
+// Bridge: registers workbench types and provides artifact build/save/restore/CSV.
+const mplTool = labtoolsDefineTool({
+  id: 'microplate-layout-planner',
+  produces: ['plate-layout'],
+  consumes: ['plate-layout'],
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  outputFields: [{ id: 'plate-layout', label: 'Microplate layout' }],
+  inputPorts: [{ field: 'plate-layout' }],
+});
+
+// Explicit legacy declaration (kept for the static registry test; the bridge
+// above registers the same types at runtime — idempotent).
 labtoolsRegisterToolTypes('microplate-layout-planner', ['plate-layout'], ['plate-layout']);
+
+if (typeof labtoolsMountArtifactControls === 'function') {
+  labtoolsMountArtifactControls(mplTool, { container: '#lt-artifact-controls', fileBase: 'microplate-layout-planner' });
+}
 
 labtoolsRegisterTestHooks('microplate-layout-planner', {
   serialize: serializeForWorkbench,
   apply: applyFromWorkbench,
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  buildArtifact: function () { return mplTool.build(); },
+  toCsv: function () { return mplTool.toCsv(); },
+  fromCsv: function (text) { return mplTool.fromCsv(text); },
   state: function () {
     return {
       plates: plates.map(function (p) {

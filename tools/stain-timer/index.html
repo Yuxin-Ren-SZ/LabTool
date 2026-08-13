@@ -8,6 +8,8 @@
   <script src="../../assets/js/labtools-calc.js"></script>
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
+  <script src="../../assets/js/labtools-artifact.js"></script>
+  <script src="../../assets/js/labtools-artifact-ui.js"></script>
   <style>
     /* ── Card width (base styles live in labtools.css .card) ── */
     .card { max-width: 660px; }
@@ -379,6 +381,7 @@
   <div style="display:flex;gap:8px;margin-bottom:6px">
     <button class="lt-btn lt-btn-ghost" id="wb-save-btn">Save to Workbench</button>
     <button class="lt-btn lt-btn-ghost" id="wb-load-btn">Load from Workbench</button>
+    <span id="lt-artifact-controls" style="display:inline-flex;gap:8px;flex-wrap:wrap"></span>
   </div>
 
   <!-- Step bar -->
@@ -1619,11 +1622,74 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 
+// ─── Artifact model (full-state recovery + wireable output) ─────────────────
+// The protocol (ordered steps) is the design/param set and is genuinely wireable.
+// The live timer runtime (currentStep, timerState, stepEndTime, tickInterval, …)
+// is transient and deliberately NOT captured — restore is a design-time action.
+
+/** Capture the protocol design (steps). */
+function readParams() {
+  return {
+    protocol: protocol.map(function (s) {
+      return {
+        solution: s.solution || '',
+        durationMin: (s.durationMin == null || s.durationMin === '') ? 0 : Number(s.durationMin),
+        durationSec: (s.durationSec == null || s.durationSec === '') ? 0 : Number(s.durationSec),
+        slot: s.slot || '',
+      };
+    }),
+  };
+}
+
+/** Restore the protocol, then re-render the editor table. */
+function applyParams(p) {
+  p = p || {};
+  var steps = p.protocol || [];
+  protocol = steps.map(function (s, i) {
+    return {
+      solution: s.solution || '',
+      durationMin: (s.durationMin == null ? 0 : s.durationMin),
+      durationSec: (s.durationSec == null ? 0 : s.durationSec),
+      slot: (s.slot == null ? String(i + 1) : s.slot),
+    };
+  });
+  if (typeof renderProtoTable === 'function') renderProtoTable();
+}
+
+/** Declared final output: the staining protocol. */
+function readOutputs() {
+  return { 'protocol': serializeForWorkbench() };
+}
+
+// Bridge: registers workbench types and provides artifact build/save/restore/CSV.
+var stainTool = labtoolsDefineTool({
+  id: 'stain-timer',
+  produces: ['protocol'],
+  consumes: ['protocol'],
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  outputFields: [{ id: 'protocol', label: 'Staining protocol' }],
+  inputPorts: [{ field: 'protocol' }],
+});
+
+// Explicit legacy declaration (kept for the static registry test; the bridge
+// above registers the same types at runtime — idempotent).
 labtoolsRegisterToolTypes('stain-timer', ['protocol'], ['protocol']);
+
+if (typeof labtoolsMountArtifactControls === 'function') {
+  labtoolsMountArtifactControls(stainTool, { container: '#lt-artifact-controls', fileBase: 'stain-timer' });
+}
 
 labtoolsRegisterTestHooks('stain-timer', {
   serialize: serializeForWorkbench,
   apply: applyFromWorkbench,
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  buildArtifact: function () { return stainTool.build(); },
+  toCsv: function () { return stainTool.toCsv(); },
+  fromCsv: function (text) { return stainTool.fromCsv(text); },
   state: function () {
     return { stepCount: protocol.length, solutions: protocol.map(function (s) { return s.solution; }) };
   },

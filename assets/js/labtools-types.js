@@ -285,6 +285,30 @@ const DATA_TYPES = {
     },
   },
 
+  // ── Universal tool artifact (params + declared outputs) ───────────────────
+  // The canonical envelope every migrated tool stores/exports. `params` is the
+  // full control state (recovers the tool); `outputs` carries wireable field
+  // values (see docs/output-fields.md). Wiring/discovery is by output field-id,
+  // not by this type — this type only pins the envelope's storage shape.
+  artifact: {
+    name: 'Artifact',
+    icon: '🧷',
+    color: '#6b7280',
+    description: 'Canonical tool artifact: full params for recovery + declared output fields.',
+    producers: [],
+    consumers: [],
+    schema: {
+      type: 'object',
+      props: {
+        schemaVersion: { type: 'integer', required: true },
+        tool:          { type: 'string', required: true },
+        params:        { type: 'object', required: true },
+        inputs:        { type: 'object' },
+        outputs:       { type: 'object' },
+      },
+    },
+  },
+
   // ── Catch-all for ad-hoc data ──────────────────────────────────────────────
   generic: {
     name: 'Generic',
