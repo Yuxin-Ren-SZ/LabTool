@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Stain Timer · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
-  <script src="../../assets/js/labtools-calc.js"></script>
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
   <script src="../../assets/js/labtools-artifact.js"></script>
   <script src="../../assets/js/labtools-artifact-ui.js"></script>
+  <script src="../../assets/js/labtools-runtime.js"></script>
+  <script src="manifest.js"></script>
   <style>
     /* ── Card width (base styles live in labtools.css .card) ── */
     .card { max-width: 660px; }
@@ -636,7 +638,7 @@ function renderProtoTable() {
       <td class="col-drag"><span class="drag-handle" title="Drag to reorder">⠿</span></td>
       <td class="col-num">${i + 1}</td>
       <td class="col-sol">
-        <input type="text" placeholder="Solution name" value="${escHtml(step.solution)}"
+        <input type="text" placeholder="Solution name" value="${labtoolsEscapeHtml(step.solution)}"
           oninput="updateStep(${i},'solution',this.value)" />
       </td>
       <td class="col-dur">
@@ -1171,7 +1173,7 @@ function renderNextStrip() {
   const next = protocol[currentStep + 1];
   const nextSlot = parseSlotNumber(next.slot);
   const slotPart = nextSlot !== null ? ` · Slot ${nextSlot}` : ' · No slot assigned';
-  strip.innerHTML = `<strong>Next:</strong> Step ${currentStep + 2}${slotPart} · ${escHtml(next.solution)} · ${formatStepDurationText(next)}`;
+  strip.innerHTML = `<strong>Next:</strong> Step ${currentStep + 2}${slotPart} · ${labtoolsEscapeHtml(next.solution)} · ${formatStepDurationText(next)}`;
 }
 
 /**
@@ -1198,7 +1200,7 @@ function renderStepsList() {
     div.innerHTML = `
       <span class="sl-icon">${icon}</span>
       <span class="sl-num">${i + 1}</span>
-      <span class="sl-sol">${escHtml(step.solution)}</span>
+      <span class="sl-sol">${labtoolsEscapeHtml(step.solution)}</span>
       <span class="sl-dur">${durStr}</span>
       <span class="sl-slot">${slotStr}</span>`;
     list.appendChild(div);
@@ -1341,11 +1343,9 @@ function playAlarm() {
 function exportProtocol() {
   syncProtocolFromDOM();
 
-  const header = 'Step,Solution,Duration Min,Duration Sec,Slot';
-  const lines = protocol.map((s, i) =>
-    [i + 1, csvCell(s.solution), s.durationMin, s.durationSec, s.slot].join(',')
-  );
-  downloadCsv([header, ...lines].join('\n'), 'stain-protocol.csv');
+  const header = ['Step', 'Solution', 'Duration Min', 'Duration Sec', 'Slot'];
+  const rows = protocol.map((s, i) => [i + 1, s.solution, s.durationMin, s.durationSec, s.slot]);
+  labtoolsDownloadText('stain-protocol.csv', labtoolsRowsToCsv([header, ...rows]), 'text/csv;charset=utf-8');
 }
 
 /**
@@ -1383,11 +1383,11 @@ function importProtocol(evt) {
  * @returns {{ steps: Object[] } | { error: string }}
  */
 function parseProtocolCsv(text) {
-  const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) return { error: 'CSV must have a header row and at least one step.' };
+  const rows = labtoolsCsvToRows(text.trim());
+  if (rows.length < 2) return { error: 'CSV must have a header row and at least one step.' };
   const steps = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = splitCsvLine(lines[i]);
+  for (let i = 1; i < rows.length; i++) {
+    const cols = rows[i];
     if (cols.length < 4) return { error: `Row ${i + 1}: expected at least 4 columns.` };
     const solution = cols[1] ? cols[1].trim() : '';
     const durationMin = parseFloat(cols[2]);
@@ -1411,73 +1411,17 @@ function parseProtocolCsv(text) {
  *          Started At, Actual Duration (min).
  */
 function exportResults() {
-  const header = 'Step,Solution,Duration Min,Duration Sec,Slot,Started At,Actual Duration (min)';
-  const lines = stepResults.map((r, i) => {
+  const header = ['Step', 'Solution', 'Duration Min', 'Duration Sec', 'Slot', 'Started At', 'Actual Duration (min)'];
+  const rows = stepResults.map((r, i) => {
     const actual = r.actualMs !== null ? (r.actualMs / 60000).toFixed(2) : '';
-    return [i + 1, csvCell(r.solution), r.durationMin, r.durationSec, r.slot, r.startedAt || '', actual].join(',');
+    return [i + 1, r.solution, r.durationMin, r.durationSec, r.slot, r.startedAt || '', actual];
   });
-  downloadCsv([header, ...lines].join('\n'), 'stain-results.csv');
+  labtoolsDownloadText('stain-results.csv', labtoolsRowsToCsv([header, ...rows]), 'text/csv;charset=utf-8');
 }
 
 // ─────────────────────────────────────────────────────────────
 // Utilities
 // ─────────────────────────────────────────────────────────────
-
-/** Escape a string for safe insertion into HTML (prevents XSS in innerHTML). */
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-/** Wrap a value in an RFC-4180 double-quoted CSV cell, escaping any internal double-quotes. */
-function csvCell(val) {
-  const s = String(val).replace(/"/g, '""');
-  return `"${s}"`;
-}
-
-/**
- * Parse one RFC-4180 CSV line into an array of field strings.
- * Handles quoted fields, escaped quotes (""), and unquoted fields.
- *
- * @param {string} line  A single CSV line (no trailing newline)
- * @returns {string[]}
- */
-function splitCsvLine(line) {
-  const result = [];
-  let cur = '', inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
-      else inQ = !inQ;
-    } else if (ch === ',' && !inQ) {
-      result.push(cur); cur = '';
-    } else {
-      cur += ch;
-    }
-  }
-  result.push(cur);
-  return result;
-}
-
-/**
- * Create a CSV Blob and trigger a browser file download.
- *
- * @param {string} content   CSV string content
- * @param {string} filename  Suggested download filename
- */
-function downloadCsv(content, filename) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
 
 /** Format a Unix timestamp (ms) as an HH:MM:SS wall-clock string. */
 function formatWallClock(ts) {
@@ -1568,12 +1512,12 @@ function serializeForWorkbench() {
 
 function applyFromWorkbench(data, type) {
   if (type === 'protocol' && data.steps && data.steps.length) {
-    protocol = data.steps.map(function (s) {
+    protocol = data.steps.map(function (s, i) {
       return {
         solution: s.solution || '',
         durationMin: s.durationMin == null ? 0 : s.durationMin,
         durationSec: s.durationSec == null ? 0 : s.durationSec,
-        slot: s.slot == null ? String(protocol.length + 1) : s.slot,
+        slot: s.slot == null ? String(i + 1) : s.slot,
       };
     });
     // importProtocol(evt) expects a file-input event; the protocol variable
@@ -1694,6 +1638,13 @@ labtoolsRegisterTestHooks('stain-timer', {
     return { stepCount: protocol.length, solutions: protocol.map(function (s) { return s.solution; }) };
   },
 });
+
+// ─── Shared-layer runtime boot (manifest + hooks; idempotent) ────────────────
+if (typeof labtools !== 'undefined' && labtools.runtime && labtools.runtime.boot) {
+  labtools.runtime.boot({ manifest: Object.assign({}, window.labtoolsToolManifest, {
+    readParams: readParams, applyParams: applyParams, readOutputs: readOutputs,
+  })});
+}
 </script>
 </body>
 </html>
