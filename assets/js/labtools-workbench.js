@@ -5,6 +5,9 @@
  * the same origin share the same database; BroadcastChannel keeps
  * multiple tabs in sync.
  *
+ * Drawer / picker / toast markup uses the canonical lt- prefixed classes
+ * (lt-workbench-*, lt-picker-*, lt-toast) defined in assets/css/labtools.css.
+ *
  * Storage layer (v2, phase 1): storage delegates FIRST to the shared
  * storage core assets/js/labtools-store.js when it is loaded (page load
  * order types → [store] → workbench). The store is created via
@@ -631,14 +634,16 @@ let toastEl = null;
 function showToast(message) {
   if (!toastEl) {
     toastEl = document.createElement('div');
-    toastEl.className = 'wb-toast';
+    toastEl.className = 'lt-toast';
+    toastEl.setAttribute('role', 'status');
+    toastEl.setAttribute('aria-live', 'polite');
     document.body.appendChild(toastEl);
   }
   toastEl.textContent = message;
-  toastEl.classList.add('wb-toast--visible');
+  toastEl.classList.add('lt-toast--visible');
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(function () {
-    toastEl.classList.remove('wb-toast--visible');
+    toastEl.classList.remove('lt-toast--visible');
   }, 2200);
 }
 
@@ -647,57 +652,79 @@ function showToast(message) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * @param {Array}    items    items to choose from
- * @param {function} onSelect called with the chosen item
- * @param {string[]} [types]  optional type list (used in the title)
+ * Build the picker modal HTML (pure string builder — no DOM access). Item
+ * display metadata comes from a per-id map so the builder stays side-effect
+ * free.
+ * @param {Array}  items     items to render as rows
+ * @param {object} metaById  item.id → { icon, label, ... } display metadata
  */
-function showPicker(items, onSelect, types) {
-  const existing = document.querySelector('.wb-picker-overlay');
-  if (existing) existing.remove();
-
-  const overlay = document.createElement('div');
-  overlay.className = 'wb-picker-overlay';
-
-  let html = '<div class="wb-picker-modal">';
-  html += '<div class="wb-picker-header">';
+function buildPickerModal(items, metaById) {
+  let html = '<div class="lt-picker-modal">';
+  html += '<div class="lt-picker-header">';
   html += '<span>Select item from Workbench</span>';
-  html += '<button class="wb-picker-close" title="Cancel">&times;</button>';
+  html += '<button class="lt-picker-close" aria-label="Close" title="Cancel">&times;</button>';
   html += '</div>';
-  html += '<div class="wb-picker-body">';
+  html += '<div class="lt-picker-body">';
 
   if (!items.length) {
-    html += '<div class="wb-empty">No matching items in Workbench.</div>';
+    html += '<div class="lt-workbench-empty">No matching items in Workbench.</div>';
   } else {
     items.forEach(function (item) {
-      const meta = typeMeta(item.type);
-      html += '<div class="wb-picker-item" data-id="' + escapeHtml(item.id) + '">';
-      html += '<span class="wb-picker-item-icon">' + meta.icon + '</span>';
-      html += '<div class="wb-picker-item-info">';
-      html += '<span class="wb-picker-item-label">' + escapeHtml(item.label) + '</span>';
-      html += '<span class="wb-picker-item-meta">' +
+      const meta = metaById[item.id];
+      html += '<div class="lt-picker-item" data-id="' + escapeHtml(item.id) + '" tabindex="0">';
+      html += '<span class="lt-picker-item-icon">' + meta.icon + '</span>';
+      html += '<div class="lt-picker-item-info">';
+      html += '<span class="lt-picker-item-label">' + escapeHtml(item.label) + '</span>';
+      html += '<span class="lt-picker-item-meta">' +
         escapeHtml(item.tool || '') + ' &middot; ' + relativeTime(item.timestamp) + '</span>';
       html += '</div>';
-      html += '<span class="lt-badge lt-badge-default" style="margin-left:auto">' + escapeHtml(item.type) + '</span>';
+      html += '<span class="lt-badge lt-badge-default">' + escapeHtml(item.type) + '</span>';
       html += '</div>';
     });
   }
 
   html += '</div></div>';
-  overlay.innerHTML = html;
+  return html;
+}
+
+/**
+ * @param {Array}    items    items to choose from
+ * @param {function} onSelect called with the chosen item
+ * @param {string[]} [types]  optional type list (used in the title)
+ */
+function showPicker(items, onSelect, types) {
+  const existing = document.querySelector('.lt-picker-overlay');
+  if (existing) existing.remove();
+
+  const metaById = {};
+  items.forEach(function (item) { metaById[item.id] = typeMeta(item.type); });
+
+  const overlay = document.createElement('div');
+  overlay.className = 'lt-picker-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Select item from Workbench');
+  overlay.innerHTML = buildPickerModal(items, metaById);
   document.body.appendChild(overlay);
 
-  overlay.querySelectorAll('.wb-picker-item').forEach(function (el) {
-    el.addEventListener('click', function () {
-      const id = el.getAttribute('data-id');
-      const item = items.find(function (it) { return it.id === id; });
-      if (item) { overlay.remove(); onSelect(item); }
+  // Shared select path — click and Enter/Space keyboard activation both call it.
+  function choose(el) {
+    const id = el.getAttribute('data-id');
+    const item = items.find(function (it) { return it.id === id; });
+    if (item) { overlay.remove(); onSelect(item); }
+  }
+
+  overlay.querySelectorAll('.lt-picker-item').forEach(function (el) {
+    el.addEventListener('click', function () { choose(el); });
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(el); }
     });
   });
 
   overlay.addEventListener('click', function (e) {
     if (e.target === overlay) overlay.remove();
   });
-  overlay.querySelector('.wb-picker-close').addEventListener('click', function () {
+  overlay.querySelector('.lt-picker-close').addEventListener('click', function () {
     overlay.remove();
   });
 
@@ -705,6 +732,10 @@ function showPicker(items, onSelect, types) {
     if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onKey); }
   }
   document.addEventListener('keydown', onKey);
+
+  // Keyboard users land on the first row.
+  const firstItem = overlay.querySelector('.lt-picker-item');
+  if (firstItem) firstItem.focus();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -716,6 +747,21 @@ let drawerEl   = null;
 let toggleEl   = null;
 let bodyWrapEl = null;
 
+function buildDrawerShell() {
+  return '<div class="lt-workbench-drawer-header">' +
+    '<span class="lt-workbench-drawer-title">Workbench</span>' +
+    '<button class="lt-workbench-drawer-close" aria-label="Close workbench" title="Close">&times;</button>' +
+    '</div>' +
+    '<div class="lt-workbench-drawer-body" id="lt-workbench-drawer-body">' +
+    '<div class="lt-workbench-empty">No items in Workbench.</div>' +
+    '</div>' +
+    '<div class="lt-workbench-drawer-footer">' +
+    '<button class="lt-btn lt-btn-ghost lt-btn-compact" id="lt-workbench-clear-all">Clear All</button>' +
+    '<button class="lt-btn lt-btn-ghost lt-btn-compact" id="lt-workbench-export">Export JSON</button>' +
+    '<button class="lt-btn lt-btn-ghost lt-btn-compact" id="lt-workbench-import">Import JSON</button>' +
+    '</div>';
+}
+
 function initDrawer() {
   if (drawerEl) return; // already initialized
 
@@ -724,7 +770,7 @@ function initDrawer() {
   //     the drawer container so the container is NOT swept into the wrapper
   //     (that ordering bug shifted the drawer along with the page content).
   bodyWrapEl = document.createElement('div');
-  bodyWrapEl.className = 'wb-body-wrapper';
+  bodyWrapEl.className = 'lt-workbench-body';
   while (document.body.firstChild) {
     bodyWrapEl.appendChild(document.body.firstChild);
   }
@@ -733,29 +779,23 @@ function initDrawer() {
   // (2) Build the fixed drawer container as a direct child of <body>,
   //     a sibling of the wrapper (so it stays put while content shifts).
   const container = document.createElement('div');
-  container.className = 'wb-drawer-container';
+  container.className = 'lt-workbench-container';
 
   toggleEl = document.createElement('button');
-  toggleEl.className = 'wb-toggle';
+  toggleEl.className = 'lt-workbench-toggle';
   toggleEl.title = 'Workbench';
-  toggleEl.innerHTML = '<span class="wb-toggle-icon">📋</span>';
+  toggleEl.setAttribute('aria-expanded', 'false');
+  toggleEl.setAttribute('aria-controls', 'lt-workbench-drawer');
+  toggleEl.innerHTML = '<span class="lt-workbench-toggle-icon">📋</span>';
   toggleEl.addEventListener('click', toggleDrawer);
 
   drawerEl = document.createElement('div');
-  drawerEl.className = 'wb-drawer';
-  drawerEl.innerHTML =
-    '<div class="wb-drawer-header">' +
-      '<span class="wb-drawer-title">Workbench</span>' +
-      '<button class="wb-drawer-close" title="Close">&times;</button>' +
-    '</div>' +
-    '<div class="wb-drawer-body" id="wb-drawer-body">' +
-      '<div class="wb-empty">No items in Workbench.</div>' +
-    '</div>' +
-    '<div class="wb-drawer-footer">' +
-      '<button class="lt-btn lt-btn-ghost" id="wb-clear-all" style="font-size:0.78rem">Clear All</button>' +
-      '<button class="lt-btn lt-btn-ghost" id="wb-export" style="font-size:0.78rem">Export JSON</button>' +
-      '<button class="lt-btn lt-btn-ghost" id="wb-import" style="font-size:0.78rem">Import JSON</button>' +
-    '</div>';
+  drawerEl.className = 'lt-workbench-drawer';
+  drawerEl.id = 'lt-workbench-drawer';
+  drawerEl.setAttribute('role', 'dialog');
+  drawerEl.setAttribute('aria-label', 'Workbench');
+  drawerEl.setAttribute('aria-modal', 'false');
+  drawerEl.innerHTML = buildDrawerShell();
 
   container.appendChild(toggleEl);
   container.appendChild(drawerEl);
@@ -763,17 +803,17 @@ function initDrawer() {
 
   // (3) Wire drawer controls directly — the elements exist now, so there is
   //     no need for the old setTimeout(…, 0) deferral.
-  drawerEl.querySelector('.wb-drawer-close').addEventListener('click', function () {
+  drawerEl.querySelector('.lt-workbench-drawer-close').addEventListener('click', function () {
     if (drawerOpen) toggleDrawer();
   });
 
-  drawerEl.querySelector('#wb-clear-all').addEventListener('click', function () {
+  drawerEl.querySelector('#lt-workbench-clear-all').addEventListener('click', function () {
     if (confirm('Delete all items from Workbench? This cannot be undone.')) {
       workbench.clear();
     }
   });
 
-  drawerEl.querySelector('#wb-export').addEventListener('click', function () {
+  drawerEl.querySelector('#lt-workbench-export').addEventListener('click', function () {
     workbench.exportJSON().then(function (json) {
       const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
       const url  = URL.createObjectURL(blob);
@@ -787,7 +827,7 @@ function initDrawer() {
     }).catch(function (e) { showToast('Export failed: ' + e.message); });
   });
 
-  drawerEl.querySelector('#wb-import').addEventListener('click', function () {
+  drawerEl.querySelector('#lt-workbench-import').addEventListener('click', function () {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json,application/json';
@@ -813,17 +853,44 @@ function toggleDrawer() {
   drawerOpen = !drawerOpen;
   drawerEl.classList.toggle('open', drawerOpen);
   toggleEl.classList.toggle('open', drawerOpen);
-  document.body.classList.toggle('wb-drawer-open', drawerOpen);
+  toggleEl.setAttribute('aria-expanded', String(drawerOpen));
+  document.body.classList.toggle('lt-workbench-open', drawerOpen);
   if (drawerOpen) renderDrawer();
 }
 
+function buildDrawerGroupsHtml(groups) {
+  let html = '';
+  Object.keys(groups).forEach(function (type) {
+    const meta = typeMeta(type);
+    const groupItems = groups[type];
+    html += '<div class="lt-workbench-group">';
+    html += '<div class="lt-workbench-group-header">';
+    html += '<span class="lt-workbench-group-icon">' + meta.icon + '</span>';
+    html += '<span class="lt-workbench-group-label">' + escapeHtml(meta.label) + '</span>';
+    html += '<span class="lt-badge lt-badge-default">' + groupItems.length + '</span>';
+    html += '</div>';
+    groupItems.forEach(function (item) {
+      html += '<div class="lt-workbench-card" data-id="' + escapeHtml(item.id) + '">';
+      html += '<div class="lt-workbench-card-top">';
+      html += '<span class="lt-workbench-card-label" title="Double-click to rename">' + escapeHtml(item.label) + '</span>';
+      html += '<button class="lt-workbench-card-delete" title="Delete">&times;</button>';
+      html += '</div>';
+      html += '<div class="lt-workbench-card-meta">' +
+        escapeHtml(item.tool || '') + ' &middot; ' + relativeTime(item.timestamp) + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  return html;
+}
+
 function renderDrawer() {
-  const body = document.getElementById('wb-drawer-body');
+  const body = document.getElementById('lt-workbench-drawer-body');
   if (!body) return;
 
   workbench.getAll().then(function (items) {
     if (!items.length) {
-      body.innerHTML = '<div class="wb-empty">No items in Workbench.<br>' +
+      body.innerHTML = '<div class="lt-workbench-empty">No items in Workbench.<br>' +
         '<small>Use &ldquo;Save to Workbench&rdquo; in any tool to add data.</small></div>';
       return;
     }
@@ -835,44 +902,21 @@ function renderDrawer() {
       (groups[t] || (groups[t] = [])).push(item);
     });
 
-    let html = '';
-    Object.keys(groups).forEach(function (type) {
-      const meta = typeMeta(type);
-      const groupItems = groups[type];
-      html += '<div class="wb-group">';
-      html += '<div class="wb-group-header">';
-      html += '<span class="wb-group-icon">' + meta.icon + '</span>';
-      html += '<span class="wb-group-label">' + escapeHtml(meta.label) + '</span>';
-      html += '<span class="lt-badge lt-badge-default">' + groupItems.length + '</span>';
-      html += '</div>';
-      groupItems.forEach(function (item) {
-        html += '<div class="wb-card" data-id="' + escapeHtml(item.id) + '">';
-        html += '<div class="wb-card-top">';
-        html += '<span class="wb-card-label" title="Double-click to rename">' + escapeHtml(item.label) + '</span>';
-        html += '<button class="wb-card-delete" title="Delete">&times;</button>';
-        html += '</div>';
-        html += '<div class="wb-card-meta">' +
-          escapeHtml(item.tool || '') + ' &middot; ' + relativeTime(item.timestamp) + '</div>';
-        html += '</div>';
-      });
-      html += '</div>';
-    });
-
-    body.innerHTML = html;
+    body.innerHTML = buildDrawerGroupsHtml(groups);
 
     // Delete
-    body.querySelectorAll('.wb-card-delete').forEach(function (btn) {
+    body.querySelectorAll('.lt-workbench-card-delete').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
-        const card = btn.closest('.wb-card');
+        const card = btn.closest('.lt-workbench-card');
         workbench.remove(card.getAttribute('data-id'));
       });
     });
 
     // Double-click to rename
-    body.querySelectorAll('.wb-card-label').forEach(function (label) {
+    body.querySelectorAll('.lt-workbench-card-label').forEach(function (label) {
       label.addEventListener('dblclick', function () {
-        const card = label.closest('.wb-card');
+        const card = label.closest('.lt-workbench-card');
         const id = card.getAttribute('data-id');
         const current = label.textContent;
         const input = document.createElement('input');

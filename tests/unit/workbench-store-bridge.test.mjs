@@ -312,3 +312,25 @@ test('copyLegacyToRecords does not change the legacy workbench API surface', asy
     assert.ok(deepEqualJson(Object.keys(item).sort(), LEGACY_KEYS));
   });
 });
+
+// ── ⑩ static: workbench UI migrated from wb- to canonical lt- classes ─────────
+
+test('workbench.js source contains no wb- UI class literals (drawer/picker/toast use lt-)', () => {
+  const src = readFileSync(join(ROOT, 'assets/js/labtools-workbench.js'), 'utf8');
+  // Legitimate 'labtools-workbench' strings (load-order marker, DB name, export
+  // filename) contain 'workbench', never 'wb-'; the legacy data keys (_wb_sync,
+  // wbTypes) are not dash-prefixed wb- literals — so the word-boundary regex only
+  // matches the migrated UI prefixes (drawer / picker / toast / group / card /
+  // empty), which must all be gone now.
+  assert.equal(
+    (src.match(/\bwb-(body-wrapper|drawer|toggle|toast|picker|group|card|empty)\b/g) || []).length,
+    0,
+    'no wb- UI class literals remain in labtools-workbench.js',
+  );
+  // …and no other stray wb- prefixed identifiers either.
+  assert.equal(
+    (src.match(/\bwb-[a-z-]+\b/g) || []).length,
+    0,
+    'no other wb- prefixed identifiers remain in labtools-workbench.js',
+  );
+});
