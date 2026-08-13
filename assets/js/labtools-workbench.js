@@ -16,11 +16,23 @@
  * legacyDbExec / legacyCollectDescending, kept until phase 5). The public
  * API and record shape are unchanged either way.
  *
+ * Storage layer (v2, phase 2): the database is version 2 and carries a
+ * second object store `records` (V2_STORE_NAME) holding v2 record
+ * envelopes {id, kind, tool, contract, label, schemaVersion, payload,
+ * meta, createdAt, updatedAt}. Both storage paths build the same schema
+ * through the shared upgradeV2() function (schema only — no data copy
+ * inside the upgrade transaction, since store methods open their own
+ * transactions). Legacy `items` are copied into `records` lazily at
+ * runtime as kind:'legacy' records via
+ * window.__labtoolsV2Records.copyLegacyToRecords() — idempotent, and the
+ * official entry point for phase 3+ (also used by unit tests).
+ *
  * Test injection point (unit tests only, never set by production pages):
  *   window.__labtoolsWorkbenchBackend — when set before the first store
  *   operation it is passed as opts.backend to createStore (tests inject
  *   labtools.store.createMemoryBackend(); default undefined → the store's
- *   own browser IndexedDB adapter).
+ *   own browser IndexedDB adapter). Both getStore() and getRecordsStore()
+ *   read the same injection point, so items and records share one backend.
  *
  * Loaded via <script src="../../assets/js/labtools-workbench.js">
  * (AFTER labtools-types.js). Exposes the global `workbench` API and
@@ -44,8 +56,9 @@ if (typeof window !== 'undefined') { (window.__labtoolsLoadOrder = window.__labt
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DB_NAME      = 'labtools-workbench';
-const DB_VERSION   = 1;
+const DB_VERSION   = 2;   // v2: adds the `records` store (see upgradeV2)
 const STORE_NAME   = 'items';
+const V2_STORE_NAME = 'records';
 const CHANNEL_NAME = 'labtools-workbench';
 const EXPORT_VERSION = 1;
 
@@ -92,6 +105,57 @@ function typeMeta(type) {
 // 3. Storage layer — shared-store bridge + inline IndexedDB fallback
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Map a legacy workbench item (the v1 `items` shape) to a v2 record
+ * envelope, preserving every field losslessly:
+ *   {id,type,label,tool,timestamp,data,metadata}
+ *   → {id, kind:'legacy', tool, contract:type, label, schemaVersion:2,
+ *      payload:data, meta:metadata, createdAt, updatedAt}
+ * Pure function — no store access. Globally exposed for unit tests and
+ * the phase 3+ migration (labtoolsLegacyToV2Record).
+ */
+function labtoolsLegacyToV2Record(item) {
+  const ts = item.timestamp || Date.now();
+  return {
+    id: item.id,
+    kind: 'legacy',
+    tool: item.tool || '',
+    contract: item.type,
+    label: item.label,
+    schemaVersion: 2,
+    payload: item.data,
+    meta: item.metadata || null,
+    createdAt: ts,
+    updatedAt: ts,
+  };
+}
+
+/**
+ * v2 schema upgrade — shared by BOTH storage paths (the shared-store
+ * bridge via the migrations mechanism, and the inline IndexedDB fallback
+ * via a raw upgrade handle) so both build byte-identical databases.
+ * Only creates schema (stores + indexes). Data migration (items → records)
+ * happens lazily at runtime through copyLegacyToRecords() — never inside
+ * the versionchange upgrade, because store methods open their own
+ * transactions and cannot run inside the upgrade transaction.
+ *
+ * @param {{storeExists: function(string): boolean,
+ *          createObjectStore: function(object): object}} dbHandle
+ */
+function upgradeV2(dbHandle) {
+  if (!dbHandle.storeExists(STORE_NAME)) {
+    dbHandle.createObjectStore({ name: STORE_NAME, keyPath: 'id',
+      indexes: [{ name: 'type', keyPath: 'type' }, { name: 'label', keyPath: 'label' },
+                { name: 'timestamp', keyPath: 'timestamp' }] });
+  }
+  if (!dbHandle.storeExists(V2_STORE_NAME)) {
+    dbHandle.createObjectStore({ name: V2_STORE_NAME, keyPath: 'id',
+      indexes: [{ name: 'kind', keyPath: 'kind' }, { name: 'tool', keyPath: 'tool' },
+                { name: 'contract', keyPath: 'contract' }, { name: 'label', keyPath: 'label' },
+                { name: 'updatedAt', keyPath: 'updatedAt' }] });
+  }
+}
+
 let storeHandle = null;
 
 /**
@@ -118,6 +182,7 @@ function getStore() {
       const opts = { dbName: DB_NAME, version: DB_VERSION, storeName: STORE_NAME,
         indexes: [{ name: 'type', keyPath: 'type' }, { name: 'label', keyPath: 'label' },
                   { name: 'timestamp', keyPath: 'timestamp' }],
+        migrations: { 2: upgradeV2 },   // v2 schema: adds the `records` store
         timestamps: false };   // legacy 记录 {id,type,label,tool,timestamp,data,metadata} 字节兼容
       if (window.__labtoolsWorkbenchBackend) opts.backend = window.__labtoolsWorkbenchBackend;  // 测试注入点
       storeHandle = window.labtools.store.createStore(opts);
@@ -125,6 +190,75 @@ function getStore() {
     return storeHandle;
   }
   return null;   // 未加载 labtools-store.js → 回退内联路径
+}
+
+let recordsHandle = null;
+
+/**
+ * v2 records store — second object store (`records`) of the same
+ * database, holding v2 record envelopes with automatic
+ * createdAt/updatedAt timestamps (timestamps:true). Same backend
+ * injection point as getStore(), so items and records share one database
+ * (and one test backend). Only available when labtools-store.js is
+ * loaded; returns null otherwise — pages on the inline fallback never
+ * need the v2 envelope until phase 3+.
+ *
+ * @returns {object|null} the shared records store handle, or null when
+ *   labtools-store.js is not loaded.
+ */
+function getRecordsStore() {
+  if (typeof window !== 'undefined' && window.labtools && window.labtools.store &&
+      typeof window.labtools.store.createStore === 'function') {
+    if (!recordsHandle) {
+      const opts = { dbName: DB_NAME, version: DB_VERSION, storeName: V2_STORE_NAME,
+        indexes: [{ name: 'kind', keyPath: 'kind' }, { name: 'tool', keyPath: 'tool' },
+                  { name: 'contract', keyPath: 'contract' }, { name: 'label', keyPath: 'label' },
+                  { name: 'updatedAt', keyPath: 'updatedAt' }],
+        migrations: { 2: upgradeV2 },
+        timestamps: true };   // v2 记录默认时间戳语义
+      if (window.__labtoolsWorkbenchBackend) opts.backend = window.__labtoolsWorkbenchBackend;  // 测试注入点
+      recordsHandle = window.labtools.store.createStore(opts);
+    }
+    return recordsHandle;
+  }
+  return null;
+}
+
+/**
+ * Idempotent, lossless copy of legacy `items` into v2 `records` as
+ * kind:'legacy' records (via labtoolsLegacyToV2Record). Runs lazily at
+ * runtime — never inside the upgrade transaction, because store methods
+ * open their own transactions and cannot run inside a versionchange
+ * upgrade. Record ids already present in `records` are skipped, so
+ * repeated calls are no-ops.
+ *
+ * Rejects with an explicit error when the shared store is not loaded
+ * (getStore()/getRecordsStore() return null on the inline fallback path).
+ *
+ * @returns {Promise<{copied:number, existing:number}>}
+ */
+function copyLegacyToRecords() {
+  const recs = getRecordsStore();
+  const items = getStore();
+  if (!recs || !items) {
+    return Promise.reject(new Error(
+      'labtools-store.js not loaded — cannot copy legacy items into v2 records'));
+  }
+  // {index:null} → primary-key order; the records store has no 'timestamp'
+  // index (it uses updatedAt), so the default 'timestamp' index would throw.
+  return recs.getAll({ index: null }).then(function (existing) {
+    const ids = {};
+    existing.forEach(function (r) { ids[r.id] = true; });
+    return items.getAll({ index: 'timestamp', direction: 'prev' }).then(function (list) {
+      const todo = list.filter(function (it) { return !ids[it.id]; });
+      if (!todo.length) return { copied: 0, existing: existing.length };
+      return todo.reduce(function (chain, it) {
+        return chain.then(function () { return recs.put(labtoolsLegacyToV2Record(it)); });
+      }, Promise.resolve()).then(function () {
+        return { copied: todo.length, existing: existing.length };
+      });
+    });
+  });
 }
 
 // ── Inline IndexedDB fallback — kept until phase 5 ────────────────────────────
@@ -136,12 +270,20 @@ function legacyOpenDB() {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = function (e) {
       const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-        store.createIndex('type', 'type', { unique: false });
-        store.createIndex('label', 'label', { unique: false });
-        store.createIndex('timestamp', 'timestamp', { unique: false });
-      }
+      // Raw upgrade handle mirroring the store adapter's
+      // createObjectStore (indexes unique:false by default) so upgradeV2()
+      // builds exactly the same schema as the shared-store path.
+      const handle = {
+        storeExists: function (name) { return db.objectStoreNames.contains(name); },
+        createObjectStore: function (cfg) {
+          const store = db.createObjectStore(cfg.name, { keyPath: cfg.keyPath || 'id' });
+          (cfg.indexes || []).forEach(function (idx) {
+            store.createIndex(idx.name, idx.keyPath, { unique: !!idx.unique });
+          });
+          return store;
+        },
+      };
+      upgradeV2(handle);
     };
     req.onsuccess = function (e) { resolve(e.target.result); };
     req.onerror   = function (e) { reject(e.target.error); };
@@ -776,6 +918,10 @@ window.workbench  = workbench;
 window.showPicker = showPicker;
 window.showToast  = showToast;
 window.wbTypes    = (window.DATA_TYPES || {});
+// v2 record mapping (pure function) + v2 records copy entry point
+// (tests + the phase 3+ official migration path).
+window.labtoolsLegacyToV2Record = labtoolsLegacyToV2Record;
+window.__labtoolsV2Records = { copyLegacyToRecords: copyLegacyToRecords };
 
 /**
  * Register stable test hooks for a tool so the integration harness

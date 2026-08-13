@@ -212,3 +212,103 @@ test('remove deletes the item and getAll returns empty', async () => {
   assert.equal((await workbench.getAll()).length, 0);
   assert.equal(await workbench.getItem(id), null);
 });
+
+// ── ⑦ v2 record envelope: labtoolsLegacyToV2Record pure mapping ───────────────
+
+test('labtoolsLegacyToV2Record maps a legacy item to the v2 record envelope', () => {
+  const map = ctx.window.labtoolsLegacyToV2Record;
+  assert.equal(typeof map, 'function');
+
+  const item = {
+    id: 'rec-1', type: 'plate-layout', label: 'Layout A',
+    tool: 'microplate-layout-planner', timestamp: 123456,
+    data: { wells: ['A1'] }, metadata: { wellCount: 96 },
+  };
+  const rec = map(item);
+  assert.equal(rec.id, 'rec-1');
+  assert.equal(rec.kind, 'legacy');
+  assert.equal(rec.tool, 'microplate-layout-planner');
+  assert.equal(rec.contract, 'plate-layout');   // contract = type
+  assert.equal(rec.label, 'Layout A');
+  assert.equal(rec.schemaVersion, 2);
+  assert.ok(deepEqualJson(rec.payload, { wells: ['A1'] }));  // payload = data
+  assert.ok(deepEqualJson(rec.meta, { wellCount: 96 }));     // meta = metadata
+  assert.equal(rec.createdAt, 123456);          // createdAt = timestamp
+  assert.equal(rec.updatedAt, 123456);          // updatedAt = timestamp
+
+  // fallbacks: missing tool / metadata / timestamp
+  const before = Date.now();
+  const bare = map({ id: 'rec-2', type: 'sample-list', label: 'S', data: 42 });
+  assert.equal(bare.tool, '');
+  assert.equal(bare.contract, 'sample-list');
+  assert.equal(bare.meta, null);
+  assert.equal(bare.payload, 42);
+  assert.ok(bare.createdAt >= before && bare.createdAt <= Date.now());
+  assert.equal(bare.updatedAt, bare.createdAt);
+});
+
+// ── ⑧ v2 upgrade creates the records store; copyLegacyToRecords copies
+//      legacy items losslessly and is idempotent ───────────────────────────────
+
+test('records store created by upgrade; copyLegacyToRecords copies 2 legacy items losslessly and idempotently', async () => {
+  await workbench.clear();
+  const id1 = await workbench.put('protocol', 'P1', VALID_PROTOCOL, { wellCount: 4 }, 'stain-timer');
+  const id2 = await workbench.put('sample-list', 'S1', VALID_SAMPLE_LIST, { unit: 'ng/µL' }, 'seeding-calc');
+
+  const v2 = ctx.window.__labtoolsV2Records;
+  assert.ok(v2 && typeof v2.copyLegacyToRecords === 'function');
+
+  const first = await v2.copyLegacyToRecords();
+  assert.equal(first.copied, 2);
+  assert.equal(first.existing, 0);
+
+  // idempotent: second call copies nothing
+  const second = await v2.copyLegacyToRecords();
+  assert.equal(second.copied, 0);
+  assert.equal(second.existing, 2);
+
+  // records store exists and is writable — reopen it on the same backend
+  const records = ctx.window.labtools.store.createStore({
+    dbName: 'labtools-workbench', version: 2, storeName: 'records',
+    backend: ctx.window.__labtoolsWorkbenchBackend,
+  });
+  const all = await records.getAll({ index: null });
+  assert.equal(all.length, 2);
+  const rec1 = all.find((r) => r.id === id1);
+  const rec2 = all.find((r) => r.id === id2);
+  assert.ok(rec1, 'record for id1 exists');
+  assert.ok(rec2, 'record for id2 exists');
+  assert.equal(rec1.kind, 'legacy');
+  assert.equal(rec1.contract, 'protocol');
+  assert.equal(rec1.tool, 'stain-timer');
+  assert.equal(rec1.label, 'P1');
+  assert.equal(rec1.schemaVersion, 2);
+  assert.equal(rec1.meta.wellCount, 4);
+  assert.ok(deepEqualJson(rec1.payload, VALID_PROTOCOL));
+  assert.equal(rec2.kind, 'legacy');
+  assert.ok(deepEqualJson(rec2.payload, VALID_SAMPLE_LIST));
+
+  // lossless: payload === legacy data; timestamps === legacy timestamp
+  const item1 = await workbench.getItem(id1);
+  assert.ok(deepEqualJson(rec1.payload, item1.data));
+  assert.equal(rec1.createdAt, item1.timestamp);
+  assert.equal(rec1.updatedAt, item1.timestamp);
+});
+
+// ── ⑨ legacy workbench API unaffected by the v2 records copy ──────────────────
+
+test('copyLegacyToRecords does not change the legacy workbench API surface', async () => {
+  await workbench.clear();
+  await workbench.put('protocol', 'P3', VALID_PROTOCOL, {}, 'stain-timer');
+  await workbench.put('sample-list', 'S3', VALID_SAMPLE_LIST, {}, 'seeding-calc');
+  await ctx.window.__labtoolsV2Records.copyLegacyToRecords();
+
+  const all = await workbench.getAll();
+  assert.equal(all.length, 2);
+  all.forEach((item) => {
+    // legacy shape only — no v2 createdAt/updatedAt injected on items
+    assert.equal(JSON.stringify(item).includes('createdAt'), false);
+    assert.equal(JSON.stringify(item).includes('updatedAt'), false);
+    assert.ok(deepEqualJson(Object.keys(item).sort(), LEGACY_KEYS));
+  });
+});
