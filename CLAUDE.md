@@ -21,10 +21,15 @@ LabTools/
 │   ├── css/labtools.css               # Shared design system
 │   └── js/
 │       ├── labtools-calc.js           # Shared pure-function utilities
-│       ├── labtools-common.js         # Shared browser utilities
+│       ├── labtools-common.js         # Shared browser utilities (download/clipboard/escape/decode/fit)
 │       ├── labtools-types.js          # Data-contract registry (workbench payload schemas)
-│       ├── labtools-workbench.js      # Workbench: IndexedDB store + drawer UI
-│       └── labtools-artifact.js       # Artifact model: params↔CSV/JSON codec + tool bridge
+│       ├── labtools-contracts.js      # v2 contract registry + legacy type mapping
+│       ├── labtools-store.js          # Pluggable IndexedDB storage core (memory backend for tests)
+│       ├── labtools-workflow.js       # Chain graph + session records + handoff wiring
+│       ├── labtools-runtime.js        # Load-order self-check + manifest validation
+│       ├── labtools-workbench.js      # Workbench: store-backed drawer UI (inline fallback)
+│       ├── labtools-artifact.js       # Artifact model: params↔CSV/JSON codec + tool bridge
+│       └── labtools-artifact-ui.js    # Artifact control cluster + field-port wiring UI
 ├── tools/
 │   ├── cell-count/index.html          # Hemocytometer calculator
 │   ├── seeding-calc/index.html        # Count-to-dilution workflow
@@ -123,6 +128,38 @@ labtoolsRegisterToolTypes('qpcr-analysis', ['qpcr-results'], ['plate-layout', 's
 Load `labtools-types.js` BEFORE `labtools-workbench.js` in every page that
 uses the workbench. Unit tests (`tests/unit/types.test.mjs`) enforce that every
 declared type exists in the registry and that fixtures validate.
+
+## Shared Layer v2 (stage 1 — side-by-side, nothing wired to tools yet)
+
+Five new zero-dependency modules under the `window.labtools.*` namespace, each
+registering itself in `window.__labtoolsLoadOrder` (the load-order self-check
+reads it). All are additive; existing tool pages are unchanged.
+
+- `labtools-contracts.js` — v2 contract registry (`labtools.contracts`): schema
+  v2 mini-language (enum/pattern/min/max/anyOf/oneOf/custom validate), flat
+  field-map validation, `syncLegacy()` maps every `DATA_TYPES` type to a
+  contract. See `docs/architecture-v2-plan.md` §3.3.
+- `labtools-store.js` — storage core (`labtools.store`): `createStore(opts)`
+  with pluggable backend (lazy browser IndexedDB adapter), migration functions,
+  record validator, and `timestamps:false` mode that stores records
+  byte-identically (used to keep legacy workbench records unchanged).
+  `createMemoryBackend()` makes migrations/CRUD unit-testable in Node.
+- `labtools-workflow.js` — chain graph (`defineChain`/`nextFor`/`path`),
+  session records (`newSession`/`appendStep`), and artifact-envelope handoff
+  wiring (`buildHandoffEnvelope`/`applyHandoff`). Pure logic.
+- `labtools-runtime.js` — `SCRIPT_ORDER` + `checkRuntime`/`checkLoadOrder`
+  self-checks, `validateManifest`, and `boot()` (registers types/test hooks,
+  injects a visible alert banner when required scripts are missing).
+- `labtools-workbench.js` — storage now delegates to `labtools.store` when
+  `labtools-store.js` is loaded (load order `types → [store] → workbench`);
+  otherwise it falls back to the built-in inline IndexedDB path
+  (`legacyOpenDB`/`legacyDbExec`/`legacyCollectDescending`, kept until the
+  phase-5 cleanup). Public API and record shape are unchanged either way.
+  `window.__labtoolsWorkbenchBackend` is the unit-test injection point.
+
+`labtools-common.js` also gained `labtoolsEscapeHtml`, `labtoolsDecodeBuffer`
+(UTF-8/UTF-16 BOM), and `labtoolsFitLinear`/`labtoolsFitQuadratic` (least
+squares, ported from bca-assay).
 
 ## Artifact Model (full-state recovery + output wiring)
 
