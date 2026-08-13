@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>BCA Assay Calculator · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
-  <script src="../../assets/js/labtools-common.js"></script>
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
   <script src="../../assets/js/labtools-artifact.js"></script>
   <script src="../../assets/js/labtools-artifact-ui.js"></script>
+  <script src="../../assets/js/labtools-runtime.js"></script>
+  <script src="manifest.js"></script>
   <style>
     /* ── Layout ── */
     .card { max-width: 1240px; }
@@ -780,6 +782,7 @@
               <span class="calc-status" id="calc-status">Waiting for data…</span>
               <button class="lt-btn lt-btn-ghost" id="wb-save-btn" style="padding:3px 10px;font-size:0.72rem;margin-left:auto">Save to Workbench</button>
               <button class="lt-btn lt-btn-ghost" id="wb-load-btn" style="padding:3px 10px;font-size:0.72rem">Load</button>
+              <button class="lt-btn lt-btn-ghost" id="wb-to-rt-btn" style="padding:3px 10px;font-size:0.72rem">→ RT Calculator</button>
               <span id="lt-artifact-controls" style="display:inline-flex;gap:8px;flex-wrap:wrap"></span>
             </div>
 
@@ -1178,7 +1181,7 @@ function renderStdTable() {
 function renderSmpTable() {
   document.getElementById('smp-tbody').innerHTML = smpRows.map((r, i) => `
     <tr id="smp-tr-${i}">
-      <td class="col-name"><input class="ci ci-l" type="text" value="${esc(r.name)}" placeholder="Sample name"
+      <td class="col-name"><input class="ci ci-l" type="text" value="${labtoolsEscapeHtml(r.name)}" placeholder="Sample name"
           data-tbl="smp" data-row="${i}" data-col="name"
           oninput="onSmpIn(${i},'name',this.value)" onkeydown="cellKey(event,'smp',${i},'name')"></td>
       <td class="col-od"><input class="ci ci-r" type="number" min="0" step="0.001" value="${r.od1}" placeholder="0.000"
@@ -1309,7 +1312,8 @@ function runCalc(optRows) {
   const localSmp = optRows ? optRows.smpRows : smpRows;
 
   if (currentMode === 'manual') manualDirty = true;
-  const presetUnit = PRESETS[currentPreset]?.unit || 'µg/mL';
+  const presetUnit = (optRows && optRows.presetId && PRESETS[optRows.presetId]?.unit)
+    || PRESETS[currentPreset]?.unit || 'µg/mL';
   const allPts = localStd.map(r => ({ x: normStdConc(parseFloat(r.conc), presetUnit), y: avgOD(r) }))
     .filter(p => !isNaN(p.x) && !isNaN(p.y))
     .map(p => ({ ...p, excl: exclConcs.has(String(p.x)) }));
@@ -1359,15 +1363,17 @@ function schedulePlateCalc() {
   plateCalcTimer = setTimeout(runPlateCalc, 280);
 }
 
-function runPlateCalc() {
-  if (!plateMatrix) return;
-
-  // Group wells by assignment (same logic as buildFromPlate)
+/**
+ * Single source of well→group aggregation for plate mode (audit: the same
+ * std/sample Map-building loop was copy-pasted in three places).
+ * Returns { stdM: Map<conc, od[]>, smpM: Map<"name||df", {name,df,ods}> }.
+ */
+function collectPlateGroups() {
   const stdM = new Map(), smpM = new Map();
   for (let r = 0; r < N_R; r++) for (let c = 0; c < N_C; c++) {
     const k = PL_ROWS[r] + (c + 1), a = wellAssigns[k];
     if (!a) continue;
-    const od = plateMatrix[r][c];
+    const od = plateMatrix ? plateMatrix[r][c] : 0;
     if (a.type === 'std') {
       if (!stdM.has(a.conc)) stdM.set(a.conc, []);
       stdM.get(a.conc).push(od);
@@ -1377,6 +1383,13 @@ function runPlateCalc() {
       smpM.get(kk).ods.push(od);
     }
   }
+  return { stdM, smpM };
+}
+
+function runPlateCalc() {
+  if (!plateMatrix) return;
+
+  const { stdM, smpM } = collectPlateGroups();
 
   if (stdM.size < 2) {
     currentFit = null;
@@ -1401,18 +1414,16 @@ function runPlateCalc() {
     df: String(g.df),
   }));
 
-  // Temporarily switch preset unit to match plate template
+  // Pass the plate template's preset id through runCalc instead of mutating
+  // global currentPreset (the header/unit come from the template, but the
+  // user's manual-mode preset selection must stay untouched).
   const tpl = PLATE_TPLS.find(t => t.id === plateTplId);
-  const savedPreset = currentPreset;
+  const tplPresetId = tpl ? (tpl.id === 'basic' ? 'basic' : 'pierce') : null;
   if (tpl) {
-    currentPreset = tpl.id === 'basic' ? 'basic' : 'pierce';
     document.getElementById('res-conc-header').textContent = `Conc (${tpl.unit})`;
   }
 
-  runCalc({ stdRows: plateStdRows, smpRows: plateSmpRows });
-
-  // Restore preset state (results/header already reflect the plate template)
-  currentPreset = savedPreset;
+  runCalc({ stdRows: plateStdRows, smpRows: plateSmpRows, presetId: tplPresetId });
 }
 
 function updateSmpConcs() {
@@ -1518,7 +1529,7 @@ function showSampleResults(results, unit) {
       ? `<span class="${r.cv > qcCvThr * 2 ? 'cv-bad' : r.cv > qcCvThr ? 'cv-warn' : ''}">${r.cv.toFixed(1)}%</span>`
       : '—';
     return `<tr>
-      <td><input class="result-name-input" type="text" value="${esc(r.name)}" data-orig="${esc(r.name)}"
+      <td><input class="result-name-input" type="text" value="${labtoolsEscapeHtml(r.name)}" data-orig="${labtoolsEscapeHtml(r.name)}"
           onchange="onResultNameEdit(this)" placeholder="Sample name"></td>
       <td>${odStr}</td>
       <td>${r.df}×</td>
@@ -1989,13 +2000,11 @@ function unassignSelected(){
   schedulePlateCalc();
 }
 function updateAssignSummary(){
-  const stdG=new Map(),smpG=new Map(); let ua=0;
-  for(let r=0;r<N_R;r++) for(let c=0;c<N_C;c++){
-    const k=PL_ROWS[r]+(c+1),a=wellAssigns[k];
-    if(!a){ua++;continue;}
-    const od=plateMatrix?plateMatrix[r][c]:0;
-    if(a.type==='std'){if(!stdG.has(a.conc))stdG.set(a.conc,[]);stdG.get(a.conc).push(od);}
-    else{const kk=a.name+'||'+a.df;if(!smpG.has(kk))smpG.set(kk,{name:a.name,df:a.df,ods:[]});smpG.get(kk).ods.push(od);}
+  const { stdM: stdG, smpM: smpG } = collectPlateGroups();
+  let ua = 0;
+  for (let r = 0; r < N_R; r++) for (let c = 0; c < N_C; c++) {
+    const k = PL_ROWS[r] + (c + 1);
+    if (!wellAssigns[k]) ua++;
   }
   const sw=[...stdG.values()].reduce((s,a)=>s+a.length,0);
   const smw=[...smpG.values()].reduce((s,g)=>s+g.ods.length,0);
@@ -2006,13 +2015,7 @@ function updateAssignSummary(){
   document.getElementById('sum-unassigned').textContent=`${ua} well${ua!==1?'s':''}`;
 }
 function buildFromPlate(){
-  const stdM=new Map(),smpM=new Map();
-  for(let r=0;r<N_R;r++) for(let c=0;c<N_C;c++){
-    const k=PL_ROWS[r]+(c+1),a=wellAssigns[k]; if(!a)continue;
-    const od=plateMatrix[r][c];
-    if(a.type==='std'){if(!stdM.has(a.conc))stdM.set(a.conc,[]);stdM.get(a.conc).push(od);}
-    else{const kk=a.name+'||'+a.df;if(!smpM.has(kk))smpM.set(kk,{name:a.name,df:a.df,ods:[]});smpM.get(kk).ods.push(od);}
-  }
+  const { stdM, smpM } = collectPlateGroups();
   if(stdM.size<2){alert('Need at least 2 standard groups.');return;}
   if(smpM.size===0){alert('No sample wells assigned.');return;}
 
@@ -2182,7 +2185,7 @@ function renderLoadingCalc() {
             const sv = r.sampleVol, dv = r.diluentVol;
             const ok = r.ok;
             return `<tr>
-              <td>${esc(r.name)}</td>
+              <td>${labtoolsEscapeHtml(r.name)}</td>
               <td>${isNaN(r.conc) ? '—' : r.conc.toFixed(1)}</td>
               <td${!ok && sv != null ? ' style="color:var(--red);font-weight:600;" title="Sample too dilute — exceeds total volume"' : ''}>
                 ${sv != null ? sv.toFixed(1) : '—'}</td>
@@ -2250,36 +2253,18 @@ function outlierODIdx(row){
   for(let i=0;i<3;i++){const d=Math.abs(vs[i]-m);if(d>dev){dev=d;worst=i;}}
   return worst;
 }
+// Least-squares fits come from the shared library (labtools-common.js);
+// thin wrappers keep the page's `type` tag, which predictOD/interpolate
+// dispatch on.
 function linearRegression(pts){
-  const n=pts.length,sx=pts.reduce((s,p)=>s+p.x,0),sy=pts.reduce((s,p)=>s+p.y,0);
-  const sxy=pts.reduce((s,p)=>s+p.x*p.y,0),sx2=pts.reduce((s,p)=>s+p.x*p.x,0);
-  const den=n*sx2-sx*sx; if(den===0)return null;
-  const slope=(n*sxy-sx*sy)/den,intercept=(sy-slope*sx)/n;
-  const ym=sy/n,sst=pts.reduce((s,p)=>s+(p.y-ym)**2,0),ssr=pts.reduce((s,p)=>s+(p.y-(slope*p.x+intercept))**2,0);
-  return {type:'linear',slope,intercept,r2:sst===0?1:1-ssr/sst};
+  const m = labtoolsFitLinear(pts);
+  return m ? Object.assign({ type: 'linear' }, m) : null;
 }
 
 /* Quadratic least-squares (y = a·x² + b·x + c) via 3×3 normal equations */
 function quadraticFit(pts){
-  const n=pts.length; if(n<3)return null;
-  let Sx=0,Sx2=0,Sx3=0,Sx4=0,Sy=0,Sxy=0,Sx2y=0;
-  for(const p of pts){const x=p.x,y=p.y,x2=x*x;Sx+=x;Sx2+=x2;Sx3+=x2*x;Sx4+=x2*x2;Sy+=y;Sxy+=x*y;Sx2y+=x2*y;}
-  const sol=solve3([[Sx4,Sx3,Sx2],[Sx3,Sx2,Sx],[Sx2,Sx,n]],[Sx2y,Sxy,Sy]);
-  if(!sol)return null;
-  const [a,b,c]=sol;
-  const ym=Sy/n; let sst=0,ssr=0;
-  for(const p of pts){const pred=a*p.x*p.x+b*p.x+c;ssr+=(p.y-pred)**2;sst+=(p.y-ym)**2;}
-  return {type:'quadratic',a,b,c,r2:sst===0?1:1-ssr/sst};
-}
-function det3(m){
-  return m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])
-        -m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])
-        +m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
-}
-function solve3(M,V){
-  const det=det3(M); if(Math.abs(det)<1e-15)return null;
-  const col=j=>M.map((r,i)=>r.map((v,k)=>k===j?V[i]:v));
-  return [det3(col(0))/det,det3(col(1))/det,det3(col(2))/det];
+  const m = labtoolsFitQuadratic(pts);
+  return m ? Object.assign({ type: 'quadratic' }, m) : null;
 }
 
 /* OD predicted by the fit at concentration x */
@@ -2321,7 +2306,6 @@ function niceTicks(mn,mx,n){
 function niceNum(x,round){const e=Math.floor(Math.log10(x)),f=x/Math.pow(10,e);const nf=round?(f<1.5?1:f<3?2:f<7?5:10):(f<=1?1:f<=2?2:f<=5?5:10);return nf*Math.pow(10,e);}
 function fmtTk(v){return v===0?'0':v>=1000?(v/1000)+'k':v%1===0?String(v):v.toFixed(1);}
 function fmtA(v){return isNaN(v)?'—':v.toFixed(3);}
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 /* ═══════════════════════════════════════════════════════
    INIT
@@ -2444,7 +2428,7 @@ function applyFromWorkbench(data, type) {
       if (smpRows.length === 0 && names.length) {
         smpRows = names.map(function (n) { return { name: n, od1: NaN, od2: NaN, od3: NaN, df: 1 }; });
       }
-      renderSmpRows();
+      renderSmpTable();
     } else {
       // Plate mode: assign sample names to wells
       Object.keys(sampleNames).forEach(function (wellId) {
@@ -2454,7 +2438,7 @@ function applyFromWorkbench(data, type) {
           wellAssigns[wellId] = { type: 'smp', name: sampleNames[wellId], df: 1 };
         }
       });
-      renderPlateGrid();
+      renderPlate();
       schedulePlateCalc();
     }
   }
@@ -2507,7 +2491,37 @@ document.addEventListener('DOMContentLoaded', function () {
       console.error('Workbench load error:', e);
     });
   });
+
+  // Workflow handoff: send computed concentrations to the RT Calculator via the
+  // artifact envelope (field-id wiring: `concentration` → rt-calc input port).
+  var toRtBtn = document.getElementById('wb-to-rt-btn');
+  if (toRtBtn) toRtBtn.addEventListener('click', function () {
+    if (!serializeForWorkbench()) { showToast('No results to send. Enter data first.'); return; }
+    labtoolsHandoffArtifact(bcaTool, '../rt-calc/index.html', suggestLabel())
+      .catch(function (e) { showToast('✗ ' + e.message); console.error('Handoff:', e); });
+  });
+
+  // Workflow handoff: auto-apply an incoming plate-layout (?wbLoad). Dual
+  // channel: artifact envelopes wire through applyInputs (field ports) and
+  // strip the param; legacy typed payloads keep the applyFromWorkbench path.
+  if (typeof labtoolsConsumeArtifactHandoff === 'function') {
+    labtoolsConsumeArtifactHandoff(bcaTool, applyInputs);
+  }
+  if (typeof labtoolsConsumeHandoff === 'function') {
+    labtoolsConsumeHandoff(applyFromWorkbench);
+  }
 });
+
+/**
+ * Artifact-handoff consumer: the wired `plate-layout` field rides the same
+ * shape applyFromWorkbench understands.
+ */
+function applyInputs(resolved) {
+  if (!resolved) return;
+  if (resolved['plate-layout'] != null) {
+    applyFromWorkbench(resolved['plate-layout'], 'plate-layout');
+  }
+}
 
 // ─── Artifact model (full-state recovery + wireable outputs) ────────────────
 // Pure-function view: every control is a `param` (mode, standard/sample rows,
@@ -2653,6 +2667,13 @@ labtoolsRegisterTestHooks('bca-assay', {
     scheduleCalc();
   },
 });
+
+// ─── Shared-layer runtime boot (manifest + load self-check; idempotent) ──────
+if (typeof labtools !== 'undefined' && labtools.runtime && labtools.runtime.boot) {
+  labtools.runtime.boot({ manifest: Object.assign({}, window.labtoolsToolManifest, {
+    readParams: readParams, applyParams: applyParams, readOutputs: readOutputs,
+  })});
+}
 </script>
 </body>
 </html>
