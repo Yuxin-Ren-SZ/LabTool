@@ -12,6 +12,8 @@
   <script src="../../assets/js/labtools-common.js"></script>
   <script src="../../assets/js/labtools-artifact.js"></script>
   <script src="../../assets/js/labtools-artifact-ui.js"></script>
+  <script src="../../assets/js/labtools-runtime.js"></script>
+  <script src="manifest.js"></script>
   <style>
     .card { max-width: 760px; }
     .planner-section { margin: 18px 0; }
@@ -26,6 +28,7 @@
       border: 1px solid var(--border, #33384a); user-select: none; }
     .combo-chip.included { background: var(--accent-dim, #1f2b45); color: var(--text, #e8ecf4); }
     .combo-chip.excluded { text-decoration: line-through; opacity: 0.5; }
+    .combo-chip:focus { outline: 2px solid var(--blue, #5c8dff); outline-offset: 1px; }
     .preview-stat { font-size: 0.85rem; color: var(--text-dim, #9aa3b2); }
     .plate-summary { font-size: 0.82rem; margin: 4px 0; }
     .plate-summary b { color: var(--text, #e8ecf4); }
@@ -131,8 +134,6 @@ var PLATE_DIMS = { '96': { rows: 8, cols: 12 } };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function $(id) { return document.getElementById(id); }
-function esc(s) { return String(s).replace(/[&<>"]/g, function (c) {
-  return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
 function parseValues(raw) {
   return String(raw || '').split(/[,\n]/).map(function (v) { return v.trim(); }).filter(Boolean);
@@ -161,6 +162,14 @@ function geneColorMap(genes) {
 
 // Auto-plan gene bands: anchor (first reference) on band 0 of every plate; the
 // remaining genes fill the other bands sequentially; trailing bands stay empty.
+//
+// Anchor semantics — single source of truth: this function only decides the
+// band LAYOUT (which reference sits on band 0 of every plate). The invariant
+// that every plate actually CARRIES the required reference is enforced by
+// qpcrPackPlates in assets/js/labtools-calc.js via cfg.referenceGenes (the
+// "reference-anchor invariant", throws when a plate omits one). Keep the two in
+// sync: compute() must pass the same anchor this function places on band 0 as
+// referenceGenes[0] — see qpcrPackPlates referenceGenes validation in calc.js.
 function planBands(genes, bandsPerPlate) {
   var refs = genes.filter(function (g) { return g.role === 'reference'; });
   if (!refs.length) throw new Error('Add at least one reference gene (the plate anchor).');
@@ -211,8 +220,8 @@ function renderFactors() {
     var row = document.createElement('div');
     row.className = 'row';
     row.innerHTML =
-      '<input class="lt-input" type="text" data-fi="' + i + '" data-k="name" placeholder="Factor name" value="' + esc(f.name) + '" style="flex:0 1 150px">' +
-      '<input class="lt-input factor-values" type="text" data-fi="' + i + '" data-k="valuesRaw" placeholder="value1, value2, …" value="' + esc(f.valuesRaw) + '">' +
+      '<input class="lt-input" type="text" data-fi="' + i + '" data-k="name" placeholder="Factor name" value="' + labtoolsEscapeHtml(f.name) + '" style="flex:0 1 150px">' +
+      '<input class="lt-input factor-values" type="text" data-fi="' + i + '" data-k="valuesRaw" placeholder="value1, value2, …" value="' + labtoolsEscapeHtml(f.valuesRaw) + '">' +
       '<button class="lt-btn lt-btn-ghost mini-btn" data-rmf="' + i + '">✕</button>';
     host.appendChild(row);
   });
@@ -227,7 +236,7 @@ function renderGenes() {
     row.className = 'row';
     row.innerHTML =
       '<span class="swatch" style="background:' + (colors[g.name.trim()] || '#666') + '"></span>' +
-      '<input class="lt-input" type="text" data-gi="' + i + '" data-k="name" placeholder="Gene" value="' + esc(g.name) + '" style="flex:0 1 160px">' +
+      '<input class="lt-input" type="text" data-gi="' + i + '" data-k="name" placeholder="Gene" value="' + labtoolsEscapeHtml(g.name) + '" style="flex:0 1 160px">' +
       '<select data-gi="' + i + '" data-k="role">' +
         '<option value="target"' + (g.role === 'target' ? ' selected' : '') + '>target</option>' +
         '<option value="reference"' + (g.role === 'reference' ? ' selected' : '') + '>reference</option>' +
@@ -237,55 +246,105 @@ function renderGenes() {
   });
 }
 
-function renderCombos() {
+// Combination chips + plate preview, rendered from ONE compute() result (the
+// old separate renderCombos/renderPreview each recomputed the sample product —
+// every keystroke ran compute() twice; see scheduleRefresh below).
+function renderCombosAndPreview() {
+  var r;
+  try { r = compute(); }
+  catch (e) {
+    r = null;
+    $('preview').innerHTML = '';
+    $('preview-err').textContent = '⚠ ' + e.message;
+    $('preview-err').style.display = 'block';
+  }
+  // Chips depend only on the factors, so they render even when compute() throws
+  // (e.g. no genes yet) — same fallback as the old renderCombos.
   var host = $('combos');
   host.innerHTML = '';
-  var all = qpcrBuildSamples(activeFactors());
+  var all = r ? r.allSamples : qpcrBuildSamples(activeFactors());
   var included = all.filter(function (s) { return !state.skip[s.id]; }).length;
   $('combo-count').textContent = included + ' of ' + all.length + ' included';
   all.forEach(function (s) {
-    var chip = document.createElement('span');
     var excluded = !!state.skip[s.id];
+    var chip = document.createElement('span');
     chip.className = 'combo-chip ' + (excluded ? 'excluded' : 'included');
     chip.textContent = s.label;
     chip.setAttribute('data-skip', s.id);
+    // Keyboard-accessible button: Enter/Space are handled by the delegated
+    // keydown listener in wire() via the same toggleSkip path as click.
+    chip.setAttribute('tabindex', '0');
+    chip.setAttribute('role', 'button');
+    chip.setAttribute('aria-pressed', excluded ? 'true' : 'false');
     host.appendChild(chip);
   });
-}
-
-function renderPreview() {
-  var host = $('preview');
-  var errEl = $('preview-err');
-  try {
-    var r = compute();
-    errEl.style.display = 'none';
-    var wells = r.packed.plates.reduce(function (n, p) { return n + Object.keys(p.assignments).length; }, 0);
-    var html = '<div class="preview-stat">' + r.samples.length + ' samples × ' + r.genes.length +
-      ' genes × ' + state.replicates + ' replicates → <b>' + r.packed.plates.length +
-      ' plate(s)</b>, ' + wells + ' wells used</div>';
-    r.packed.plates.forEach(function (p) {
-      var genesOnPlate = [];
-      var seen = {};
-      Object.keys(p.assignments).forEach(function (w) {
-        var gname = p.assignments[w].gene;
-        if (gname && gname !== 'NTC' && !seen[gname]) { seen[gname] = 1; genesOnPlate.push(gname); }
-      });
-      html += '<div class="plate-summary"><b>' + esc(p.name) + '</b> · ' +
-        Object.keys(p.assignments).length + ' wells · ' + esc(genesOnPlate.join(', ')) + '</div>';
+  if (!r) return;
+  var wells = r.packed.plates.reduce(function (n, p) { return n + Object.keys(p.assignments).length; }, 0);
+  var html = '<div class="preview-stat">' + r.samples.length + ' samples × ' + r.genes.length +
+    ' genes × ' + state.replicates + ' replicates → <b>' + r.packed.plates.length +
+    ' plate(s)</b>, ' + wells + ' wells used</div>';
+  r.packed.plates.forEach(function (p) {
+    var genesOnPlate = [];
+    var seen = {};
+    Object.keys(p.assignments).forEach(function (w) {
+      var gname = p.assignments[w].gene;
+      if (gname && gname !== 'NTC' && !seen[gname]) { seen[gname] = 1; genesOnPlate.push(gname); }
     });
-    host.innerHTML = html;
-  } catch (e) {
-    host.innerHTML = '';
-    errEl.textContent = '⚠ ' + e.message;
-    errEl.style.display = 'block';
-  }
+    html += '<div class="plate-summary"><b>' + labtoolsEscapeHtml(p.name) + '</b> · ' +
+      Object.keys(p.assignments).length + ' wells · ' + labtoolsEscapeHtml(genesOnPlate.join(', ')) + '</div>';
+  });
+  $('preview').innerHTML = html;
+  $('preview-err').style.display = 'none';
 }
 
 function renderAll() {
+  cancelRefresh();          // a pending debounce would only re-render the same state
   renderFactors();
   renderGenes();
-  renderCombos();
-  renderPreview();
+  renderCombosAndPreview();
+}
+
+// ── Debounced refresh (single recompute per change) ──────────────────────────
+// Typing in a factor/gene field used to fire renderCombos()+renderPreview() on
+// every key — two renders, each recomputing the sample product. Keystrokes now
+// only schedule a ~50ms-debounced re-render that recomputes once and redraws
+// combos + preview together. The factor/gene input rows are intentionally NOT
+// rebuilt, so focus/caret survives typing.
+var refreshTimer = null;
+
+function cancelRefresh() {
+  if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+}
+
+function scheduleRefresh() {
+  cancelRefresh();
+  refreshTimer = setTimeout(function () {
+    refreshTimer = null;
+    pruneSkip();              // the edit may have orphaned combo ids
+    renderCombosAndPreview(); // one compute() → chips + preview
+  }, 50);
+}
+
+// Drop state.skip entries whose combo id no longer exists in the current factor
+// product (a factor renamed/removed/emptied). Called uniformly on every
+// factors/genes change path; ids the user skipped on purpose are kept as long
+// as their combo still exists. Uses the same id space as the chips
+// (qpcrBuildSamples' default '_' separator), so a restored artifact's skip map
+// — which may legitimately reference combos from an older design — is pruned
+// only once those combos actually disappear.
+function pruneSkip() {
+  var valid = {};
+  qpcrBuildSamples(activeFactors()).forEach(function (s) { valid[s.id] = true; });
+  Object.keys(state.skip).forEach(function (id) {
+    if (!valid[id]) delete state.skip[id];
+  });
+}
+
+// Shared skip toggle: the chip click handler and the chip Enter/Space keydown
+// handler both route here, so keyboard and pointer behave identically.
+function toggleSkip(id) {
+  if (state.skip[id]) delete state.skip[id]; else state.skip[id] = true;
+  renderCombosAndPreview();
 }
 
 // ── Events ───────────────────────────────────────────────────────────────────
@@ -294,53 +353,68 @@ function wire() {
     var t = e.target, fi = t.getAttribute('data-fi');
     if (fi == null) return;
     state.factors[+fi][t.getAttribute('data-k')] = t.value;
-    renderCombos(); renderPreview();
+    scheduleRefresh();   // debounced single recompute (see renderCombosAndPreview)
   });
   $('factors').addEventListener('click', function (e) {
     var rm = e.target.getAttribute('data-rmf');
     if (rm == null) return;
     state.factors.splice(+rm, 1);
     if (!state.factors.length) state.factors.push({ name: 'Factor', valuesRaw: '' });
+    pruneSkip();         // removed factor may orphan combo ids
     renderAll();
   });
   $('add-factor-btn').addEventListener('click', function () {
     state.factors.push({ name: 'Factor ' + (state.factors.length + 1), valuesRaw: '' });
-    renderFactors(); renderCombos(); renderPreview();
+    pruneSkip();
+    renderAll();
   });
 
   $('genes').addEventListener('input', function (e) {
     var t = e.target, gi = t.getAttribute('data-gi');
     if (gi == null) return;
     state.genes[+gi][t.getAttribute('data-k')] = t.value;
-    renderGenes(); renderPreview();
+    scheduleRefresh();   // debounced single recompute; row is NOT rebuilt, so
+                         // focus/caret survives typing in the gene name field
   });
   $('genes').addEventListener('change', function (e) {
     var t = e.target, gi = t.getAttribute('data-gi');
     if (gi != null && t.getAttribute('data-k') === 'role') {
-      state.genes[+gi].role = t.value; renderGenes(); renderPreview();
+      state.genes[+gi].role = t.value;
+      pruneSkip();
+      renderAll();       // full rebuild so swatch palettes re-apply
     }
   });
   $('genes').addEventListener('click', function (e) {
     var rm = e.target.getAttribute('data-rmg');
     if (rm == null) return;
     state.genes.splice(+rm, 1);
-    renderGenes(); renderPreview();
+    pruneSkip();
+    renderAll();
   });
   $('add-gene-btn').addEventListener('click', function () {
     state.genes.push({ name: '', role: 'target' });
-    renderGenes(); renderPreview();
+    pruneSkip();
+    renderAll();
   });
 
+  // Chips are spans with role="button": pointer and keyboard (Enter/Space) both
+  // route through the shared toggleSkip so the behaviour can never diverge.
   $('combos').addEventListener('click', function (e) {
     var id = e.target.getAttribute('data-skip');
     if (id == null) return;
-    if (state.skip[id]) delete state.skip[id]; else state.skip[id] = true;
-    renderCombos(); renderPreview();
+    toggleSkip(id);
+  });
+  $('combos').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var id = e.target.getAttribute('data-skip');
+    if (id == null) return;
+    e.preventDefault();  // keep Space from scrolling the page
+    toggleSkip(id);
   });
 
-  $('opt-replicates').addEventListener('input', function (e) { state.replicates = Math.max(1, +e.target.value || 1); renderPreview(); });
-  $('opt-bands').addEventListener('input', function (e) { state.bandsPerPlate = Math.max(1, +e.target.value || 1); renderPreview(); });
-  $('opt-ntc').addEventListener('change', function (e) { state.ntc = e.target.checked; renderPreview(); });
+  $('opt-replicates').addEventListener('input', function (e) { state.replicates = Math.max(1, +e.target.value || 1); renderCombosAndPreview(); });
+  $('opt-bands').addEventListener('input', function (e) { state.bandsPerPlate = Math.max(1, +e.target.value || 1); renderCombosAndPreview(); });
+  $('opt-ntc').addEventListener('change', function (e) { state.ntc = e.target.checked; renderCombosAndPreview(); });
 
   $('wb-save-btn').addEventListener('click', onSave);
   $('to-planner-btn').addEventListener('click', function () { handoff('../microplate-layout-planner/index.html'); });
@@ -397,6 +471,7 @@ function seedFromSampleList(data) {
   var names = (data.samples || []).map(function (s) { return s.name; }).filter(Boolean);
   if (!names.length) { showToast('That item has no sample names.'); return; }
   state.factors = [{ name: 'Sample', valuesRaw: names.join(', ') }];
+  pruneSkip();   // the whole factor set was replaced — old combo ids are stale
   renderAll();
   showToast('✓ Loaded ' + names.length + ' sample name(s)');
 }
@@ -491,6 +566,16 @@ if (typeof labtoolsRegisterTestHooks === 'function') {
       return { samples: r.samples.length, genes: r.genes.length, plates: r.packed.plates.length };
     },
   });
+}
+
+// ─── Shared-layer runtime boot (manifest + load self-check; idempotent) ──────
+// Merges the static manifest (tools/qpcr-plate-planner/manifest.js) with the
+// live per-tool readParams/applyParams/readOutputs, validates it, and registers
+// types/test hooks when the registries are present.
+if (typeof labtools !== 'undefined' && labtools.runtime && labtools.runtime.boot) {
+  labtools.runtime.boot({ manifest: Object.assign({}, window.labtoolsToolManifest, {
+    readParams: readParams, applyParams: applyParams, readOutputs: readOutputs,
+  })});
 }
 </script>
 </body>
