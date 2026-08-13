@@ -14,11 +14,14 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// From source: desktop/src → repo root. Packaged builds (phase 3) set this via
-// the build staging layout; LABTOOLS_WEB_ROOT overrides for unusual layouts.
+// From source: desktop/src → repo root. Packaged (phase 3): the staging layout
+// keeps the web files at the app root (app.getAppPath()). LABTOOLS_WEB_ROOT
+// overrides for unusual layouts.
 const WEB_ROOT = process.env.LABTOOLS_WEB_ROOT
   ? path.resolve(process.env.LABTOOLS_WEB_ROOT)
-  : path.resolve(__dirname, '..', '..');
+  : app.isPackaged
+    ? app.getAppPath()
+    : path.resolve(__dirname, '..', '..');
 
 const SCHEME = 'app';
 const HOST = 'bundle';
@@ -79,11 +82,33 @@ async function serveWebRoot(request) {
   }
 }
 
+/** Native "Export Page as PDF…" — uses the page's own print stylesheet. */
+async function exportPageAsPdf() {
+  const win = BrowserWindow.getFocusedWindow() ?? mainWindow;
+  if (!win) return;
+  const base = (win.getTitle() || 'labtools').replace(/[^\w\s.-]+/g, '').trim();
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Export page as PDF',
+    defaultPath: path.join(app.getPath('documents'), `${base}.pdf`),
+    filters: [{ name: 'PDF', extensions: ['pdf'] }],
+  });
+  if (canceled || !filePath) return;
+  const pdf = await win.webContents.printToPDF({ printBackground: true });
+  await fs.writeFile(filePath, pdf);
+}
+
 function buildMenu() {
   const isMac = process.platform === 'darwin';
   const template = [
     ...(isMac ? [{ role: 'appMenu' }] : []),
-    { role: 'fileMenu' },
+    {
+      label: 'File',
+      submenu: [
+        { label: 'Export Page as PDF…', accelerator: 'CmdOrCtrl+Shift+P', click: exportPageAsPdf },
+        { type: 'separator' },
+        isMac ? { role: 'close' } : { role: 'quit' },
+      ],
+    },
     { role: 'editMenu' },
     { role: 'viewMenu' },
     { role: 'windowMenu' },
@@ -158,6 +183,19 @@ if (!gotLock) {
     protocol.handle(SCHEME, serveWebRoot);
     session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
       callback(['clipboard-sanitized-write', 'clipboard-read', 'fullscreen'].includes(permission));
+    });
+
+    // Native save dialog for every renderer download (CSV/JSON exports, blob
+    // downloads from the tools' existing labtoolsDownload* helpers).
+    session.defaultSession.on('will-download', (event, item, webContents) => {
+      const owner = BrowserWindow.fromWebContents(webContents) ?? mainWindow;
+      const suggested = item.getFilename() || 'export.txt';
+      const choice = dialog.showSaveDialogSync(owner, {
+        title: 'Save exported file',
+        defaultPath: path.join(app.getPath('downloads'), suggested),
+      });
+      if (!choice.canceled && choice.filePath) item.setSavePath(choice.filePath);
+      else item.cancel();
     });
 
     // Phase 1 IPC surface: app/engine versions for the preload bridge.
