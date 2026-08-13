@@ -462,7 +462,10 @@ function onSave() {
 
 function handoff(nextUrl) {
   var r = computeOrToast(); if (!r) return;
-  labtoolsHandoffTo(nextUrl, PRODUCES, suggestLabel(r), r.layout, metaFor(r), TOOL)
+  // Artifact envelope handoff: consumers wire the plate-layout field through
+  // their input ports (microplate-layout-planner / qpcr-analysis both consume
+  // it via labtoolsConsumeArtifactHandoff).
+  labtoolsHandoffArtifact(qppTool, nextUrl, suggestLabel(r))
     .catch(function (e) { showToast('✗ ' + e.message); console.error('Handoff:', e); });
 }
 

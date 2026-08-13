@@ -2938,13 +2938,11 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // Workflow handoff: save this layout and open the qPCR Analyzer with it loaded.
+  // Artifact envelope handoff — qpcr-analysis wires the plate-layout field via
+  // its input ports (labtoolsConsumeArtifactHandoff).
   var toQpcrBtn = document.getElementById('wb-to-qpcr-btn');
   if (toQpcrBtn) toQpcrBtn.addEventListener('click', function () {
-    labtoolsHandoffTo('../qpcr-analysis/index.html', WbTypes.produces, suggestLabel(),
-      serializeForWorkbench(), {
-        plateCount: plates.length,
-        plateFormat: plates.map(function (p) { return p.plateType; }).join(','),
-      }, TOOL_NAME)
+    labtoolsHandoffArtifact(mplTool, '../qpcr-analysis/index.html', suggestLabel())
       .catch(function (e) { showToast('✗ ' + e.message); console.error('Handoff:', e); });
   });
 
