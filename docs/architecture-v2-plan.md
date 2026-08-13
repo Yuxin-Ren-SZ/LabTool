@@ -339,4 +339,17 @@ workbench 只存一种记录：
 
 ---
 
+## 实施进展（2026-08，分支 feat/shared-layer-v2）
+
+| 阶段 | 状态 | 落地内容 |
+|---|---|---|
+| 0 基线收口 | ✅ 6b6ceb8 | artifact 内核 + 8 工具迁移 + 本方案文档入基线 |
+| 1 共享层 v2 并排 | ✅ 5 提交 | contracts（schema v2+legacy 映射）、store（可注入后端+内存 fake）、common 扩展（escHtml/decodeBuffer/fitLinear/fitQuadratic）、workflow（链图/会话/接线）、runtime（加载自检+manifest 校验）、workbench 存储委派 store + 内联回退（公共 API 不变）；unit 156 + e2e 51 绿 |
+| 2 存储迁移 + UI | ✅ 3 提交 | DB v2（records 存储，upgradeV2 双路径共享 schema）+ legacy 无损复制（`__labtoolsV2Records.copyLegacyToRecords`）；wb- 全部并入 lt-（抽屉/picker/toast 组件化 + aria 增强）；unit 160 + e2e 51 绿 |
+| 3 工具逐批迁移 | ⏳ 下一步 | 批次 A（cell-count、stain-timer）起，按批次表执行 |
+| 4 workflow 会话 + hub | ⏳ | 待阶段 3 |
+| 5 legacy 清理 | ⏳ | 待全部工具迁移 |
+
+---
+
 *附：本文档基于 2026-08 全仓审计（共享层 7 文件精读 + 11 工具分组审计 + 测试体系通读）生成，状态为 v1 定稿；工具行号引用以审计时的工作区状态为准，迁移实施时以实际代码为准。*

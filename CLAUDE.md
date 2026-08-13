@@ -150,12 +150,18 @@ reads it). All are additive; existing tool pages are unchanged.
 - `labtools-runtime.js` — `SCRIPT_ORDER` + `checkRuntime`/`checkLoadOrder`
   self-checks, `validateManifest`, and `boot()` (registers types/test hooks,
   injects a visible alert banner when required scripts are missing).
-- `labtools-workbench.js` — storage now delegates to `labtools.store` when
+- `labtools-workbench.js` — storage delegates to `labtools.store` when
   `labtools-store.js` is loaded (load order `types → [store] → workbench`);
   otherwise it falls back to the built-in inline IndexedDB path
   (`legacyOpenDB`/`legacyDbExec`/`legacyCollectDescending`, kept until the
   phase-5 cleanup). Public API and record shape are unchanged either way.
   `window.__labtoolsWorkbenchBackend` is the unit-test injection point.
+  **Phase 2:** the database is version 2 with a second object store
+  `records` (v2 envelopes, `upgradeV2` shared by both storage paths);
+  `window.__labtoolsV2Records.copyLegacyToRecords()` lazily copies legacy
+  `items` into `records` as `kind:'legacy'` (idempotent). Drawer/picker/
+  toast UI uses canonical `lt-` classes (`lt-workbench-*`/`lt-toast`/
+  `lt-picker-*`) — the old `wb-` classes are gone.
 
 `labtools-common.js` also gained `labtoolsEscapeHtml`, `labtoolsDecodeBuffer`
 (UTF-8/UTF-16 BOM), and `labtoolsFitLinear`/`labtoolsFitQuadratic` (least
