@@ -10,7 +10,7 @@ LabTools is a collection of zero-dependency, static HTML tools for cell biology 
 
 ## Development And Deployment
 
-Hosted on GitHub Pages from the `dev` branch. Open any `index.html` directly in a browser for development. An optional `python3 -m http.server` can be used when testing browser navigation or secure-context behavior is not required.
+Hosted on GitHub Pages from the `release` branch (dev is merged into release to publish). Open any `index.html` directly in a browser for development. An optional `python3 -m http.server` can be used when testing browser navigation or secure-context behavior is not required.
 
 ## Architecture
 
