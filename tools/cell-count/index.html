@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <!-- Shared pure-function utilities (avgTwo, fmt, calcCellDensity, makeDiagram, MODES …) -->
   <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-counting.js"></script>
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
   <script src="../../assets/js/labtools-common.js"></script>
@@ -149,11 +150,9 @@
 // ─────────────────────────────────────────────────────────────
 // State
 // (makeDiagram, MODES, avgTwo, fmt, calcCellDensity, calcTotalCells,
-//  calcViabilityPct are loaded from assets/js/labtools-calc.js)
+//  calcViabilityPct are loaded from assets/js/labtools-calc.js; the counting
+//  mode state + selector UI live in assets/js/labtools-counting.js)
 // ─────────────────────────────────────────────────────────────
-
-/** Currently selected counting mode ID (1–4, matching MODES[].id). */
-let currentModeId = 1;
 
 /**
  * Latest calculation results as plain numbers (or null when a value has no
@@ -163,45 +162,20 @@ let currentModeId = 1;
 let lastResult = { density: null, totalCells: null, viability: null };
 
 // ─────────────────────────────────────────────────────────────
-// Mode selector UI
+// Mode selector UI — shared with seeding-calc via labtools.counting
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Render the 4-option mode selector grid from the MODES array.
- * Each option shows an SVG diagram and a short label.
- * Called once on init; selectMode() handles subsequent updates.
- */
-function buildModeSelector() {
-  const container = document.getElementById('mode-selector');
-  container.innerHTML = '';
-  MODES.forEach(m => {
-    const div = document.createElement('div');
-    div.className = 'mode-option' + (m.id === currentModeId ? ' active' : '');
-    const tagHtml = m.tag.replace('\n', '<br>');
-    div.innerHTML = `${makeDiagram(m.largeHL, m.smallHL)}<span class="mode-tag">${tagHtml}</span>`;
-    div.onclick = () => selectMode(m.id);
-    container.appendChild(div);
-  });
-}
-
-/**
- * Activate a counting mode by ID:
- * - Marks the clicked option as .active, clears others.
- * - Updates the mode description strip (formula + text).
- * - Propagates the change by triggering calculate().
- *
- * @param {number} id  Mode ID from MODES[].id (1–4)
+ * Page-level wrappers kept for the inline HTML attributes and e2e hooks
+ * (`window.selectMode(3)`); the implementation lives in the shared
+ * labtools-counting module so cell-count and seeding-calc can never drift.
  */
 function selectMode(id) {
-  currentModeId = id;
-  document.querySelectorAll('.mode-option').forEach((el, i) => {
-    el.classList.toggle('active', MODES[i].id === id);
-  });
-  const m = MODES.find(x => x.id === id);
-  document.getElementById('mode-desc').innerHTML =
-    `<span class="formula-inline">${m.formulaNote}</span>${m.desc}`;
-  document.getElementById('live-hint').textContent = m.hint;
-  calculate();
+  labtools.counting.selectMode(id, calculate);
+}
+
+function onCountAllToggle() {
+  labtools.counting.onCountAllToggle(calculate);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -209,134 +183,29 @@ function selectMode(id) {
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Read all inputs, run shared calculation functions, and write
- * every result field to the DOM. Called on any input change.
- *
- * Calculation chain (using labtools-calc.js utilities):
- *   avgTwo()          → average live/dead counts (handles 1 or 2 chambers)
- *   calcCellDensity() → Final Concentration in cells/mL
- *   calcTotalCells()  → Total cells = density × resuspension volume
- *   calcViabilityPct() → Trypan Blue % viability (optional, requires dead counts)
+ * Read all inputs, run the shared Step-1 core (labtools.counting), write the
+ * result fields, and refresh lastResult for serialization. Called on any
+ * input change. Page-specific side effect: lastResult.
  */
 function calculate() {
-  const mode  = MODES.find(m => m.id === currentModeId);
-  const isAll = document.getElementById('count-all-toggle').checked;
-  const df    = parseFloat(document.getElementById('df').value);
-  const vol   = parseFloat(document.getElementById('vol').value);
-
-  const live1 = parseFloat(document.getElementById('live1').value);
-  const live2 = parseFloat(document.getElementById('live2').value);
-  const dead1 = parseFloat(document.getElementById('dead1').value);
-  const dead2 = parseFloat(document.getElementById('dead2').value);
-
-  const liveAvg = avgTwo(live1, live2);
-  const deadAvg = avgTwo(dead1, dead2);
-  const avgLive = liveAvg.val;
-  const avgDead = deadAvg.val;
-
-  // Guard: negative counts are physically impossible on a hemocytometer
-  if ((!isNaN(live1) && live1 < 0) || (!isNaN(live2) && live2 < 0) ||
-      (!isNaN(dead1) && dead1 < 0) || (!isNaN(dead2) && dead2 < 0)) {
-    document.getElementById('res-avg').textContent     = '—';
-    document.getElementById('res-density').textContent = '—';
-    document.getElementById('res-total').textContent   = '—';
-    document.getElementById('via-note').textContent    = '⚠ Counts cannot be negative.';
-    document.getElementById('via-note').className      = 'via-note';
+  const counts = labtools.counting.readCounts();
+  const r = labtools.counting.core(counts);
+  if (r.error === 'negative') {
+    labtools.counting.renderNegativeError();
     lastResult = { density: null, totalCells: null, viability: null };
     return;
   }
-
-  // Core calculations via shared utilities
-  const finalDensity = calcCellDensity(avgLive, mode.multiplier, df);
-  const totalCells   = calcTotalCells(finalDensity, vol);
-
-  // Viability — only when dead counts are entered (not in count-all mode)
-  const hasDeadAny = !isAll && deadAvg.n > 0;
-  const viability  = hasDeadAny ? calcViabilityPct(avgLive, avgDead) : NaN;
-
-  // Derived results as plain numbers (null when no valid value) — the single
-  // source for serializeForWorkbench()/readOutputs() (audit defect #10: never
-  // fall back to raw counts or parse formatted display text).
+  labtools.counting.renderResults(r, counts.vol);
   lastResult = {
-    density:    isNaN(finalDensity) ? null : finalDensity,
-    totalCells: isNaN(totalCells)   ? null : totalCells,
-    viability:  isNaN(viability)    ? null : viability,
+    density:    isNaN(r.density)    ? null : r.density,
+    totalCells: isNaN(r.totalCells) ? null : r.totalCells,
+    viability:  isNaN(r.viability)  ? null : r.viability,
   };
-
-  // ── Avg count display ──
-  if (!isNaN(avgLive)) {
-    document.getElementById('res-avg').textContent      = avgLive.toFixed(1);
-    document.getElementById('res-avg-note').textContent =
-      liveAvg.n === 2 ? 'avg of 2 counts' : 'single count';
-  } else {
-    document.getElementById('res-avg').textContent      = '—';
-    document.getElementById('res-avg-note').textContent = 'from counts';
-  }
-
-  // ── Viability display — four mutually exclusive branches ──
-  if (isAll) {
-    // Count-all mode: viability is meaningless (no Trypan Blue stain used)
-    document.getElementById('res-via').textContent      = 'N/A';
-    document.getElementById('res-via-note').textContent = 'count-all mode';
-    document.getElementById('via-note').textContent     = 'Dead cell counting disabled — all cells counted as live.';
-    document.getElementById('via-note').className       = 'via-note';
-  } else if (!isNaN(viability)) {
-    // Valid viability: both live and dead counts are present
-    document.getElementById('res-via').textContent      = viability.toFixed(1) + '%';
-    document.getElementById('res-via-note').textContent =
-      deadAvg.n === 2 ? 'avg of 2 dead counts' : 'from dead count';
-    document.getElementById('via-note').textContent     = `✓ Viability: ${viability.toFixed(1)}%`;
-    document.getElementById('via-note').className       = 'via-note computed';
-  } else if (hasDeadAny) {
-    // Dead counts entered but live count missing → cannot compute yet
-    document.getElementById('res-via').textContent      = '—';
-    document.getElementById('res-via-note').textContent = 'waiting for live count';
-    document.getElementById('via-note').textContent     = 'Waiting for live count to compute viability.';
-    document.getElementById('via-note').className       = 'via-note';
-  } else {
-    // No dead counts at all — prompt the user
-    document.getElementById('res-via').textContent      = '—';
-    document.getElementById('res-via-note').textContent = 'enter dead counts above';
-    document.getElementById('via-note').textContent     = 'Enter dead counts above to auto-calculate viability.';
-    document.getElementById('via-note').className       = 'via-note';
-  }
-
-  // ── Total label changes when counting all cells (no viability distinction) ──
-  document.getElementById('res-total-label').textContent =
-    isAll ? 'Total Cells' : 'Total Live Cells';
-
-  // ── Final Concentration ──
-  document.getElementById('res-density').textContent      = fmt(finalDensity);
-  document.getElementById('res-density-note').textContent = 'cells/mL';
-
-  // ── Total cells in tube ──
-  document.getElementById('res-total').textContent      = fmt(totalCells);
-  document.getElementById('res-total-note').textContent =
-    !isNaN(finalDensity) && !isNaN(vol) && vol > 0
-      ? 'conc. × ' + vol + ' mL'
-      : !isNaN(finalDensity) ? 'enter resuspension vol' : '—';
 }
 
 // ─────────────────────────────────────────────────────────────
 // Count-all toggle
 // ─────────────────────────────────────────────────────────────
-
-/**
- * Handle the "Count all cells" checkbox toggle.
- * When enabled: disables the dead-cell block (greys it out) and
- * clears any previously entered dead counts.
- * When disabled: re-enables the dead-cell block.
- */
-function onCountAllToggle() {
-  const isAll = document.getElementById('count-all-toggle').checked;
-  const deadBlock = document.getElementById('dead-block');
-  deadBlock.classList.toggle('disabled', isAll);
-  if (isAll) {
-    document.getElementById('dead1').value = '';
-    document.getElementById('dead2').value = '';
-  }
-  calculate();
-}
 
 // ─────────────────────────────────────────────────────────────
 // Reset
@@ -368,7 +237,7 @@ function resetAll() {
  * @returns {Array<[string, string]>} Rows including a header row.
  */
 function getExportRows() {
-  const mode  = MODES.find(m => m.id === currentModeId);
+  const mode  = MODES.find(m => m.id === labtools.counting.getCurrentModeId());
   const isAll = document.getElementById('count-all-toggle').checked;
   return [
     ['Field', 'Value'],
@@ -416,8 +285,7 @@ function copyResults() {
 // ─────────────────────────────────────────────────────────────
 // Init
 // ─────────────────────────────────────────────────────────────
-buildModeSelector();
-selectMode(currentModeId);
+labtools.counting.init(calculate);
 
 // Restrict all numeric inputs to digits, decimal point, and +/- signs
 document.querySelectorAll('input[type="number"]')
@@ -464,14 +332,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }).catch(function (e) { showToast('✗ ' + e.message); console.error('WB save:', e); });
   });
 
-  // Workflow handoff: save the sample-list and open seeding-calc pre-filled.
+  // Workflow handoff: save the artifact envelope (declared outputs) and open
+  // seeding-calc, which wires them into its input ports (field-id matching).
+  // The legacy typed sample-list payload is still saved via the Save button.
   const continueBtn = document.getElementById('wb-continue-seeding-btn');
   if (continueBtn) continueBtn.addEventListener('click', function () {
     const data = serializeForWorkbench();
     if (data.samples[0].conc == null) { showToast('Enter counts first.'); return; }
     const label = 'Cell Count ' + new Date().toISOString().slice(0, 10);
-    labtoolsHandoffTo('../seeding-calc/index.html', WB_PRODUCES_TYPE, label, data,
-      { sampleCount: 1, unit: 'cells/mL' }, WB_TOOL)
+    labtoolsHandoffArtifact(cellTool, '../seeding-calc/index.html', label)
       .catch(function (e) { showToast('✗ ' + e.message); console.error('Handoff:', e); });
   });
 });
@@ -484,7 +353,7 @@ document.addEventListener('DOMContentLoaded', function () {
 /** Capture ALL control state. */
 function readParams() {
   return {
-    modeId:   currentModeId,
+    modeId:   labtools.counting.getCurrentModeId(),
     countAll: document.getElementById('count-all-toggle').checked,
     df:       document.getElementById('df').value,
     vol:      document.getElementById('vol').value,
@@ -504,7 +373,7 @@ function applyParams(p) {
   if (toggle) { toggle.checked = !!p.countAll; onCountAllToggle(); }
   // Set dead counts AFTER the toggle handler (which clears them in count-all mode).
   setv('dead1'); setv('dead2');
-  selectMode(p.modeId || currentModeId);   // triggers calculate()
+  selectMode(p.modeId || labtools.counting.getCurrentModeId());   // triggers calculate()
 }
 
 /** Declared final outputs, projected from the latest calculation results. */

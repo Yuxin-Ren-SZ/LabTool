@@ -36,6 +36,22 @@
   /** Currently selected counting mode ID (1–4, matching MODES[].id). */
   let currentModeId = 1;
 
+  /** Page recompute callback registered by init() (calculate/calcStep1). */
+  let onChangedCb = null;
+
+  /**
+   * Initialise the counting UI: remember the page's recompute callback,
+   * build the mode selector, then activate the current mode (which triggers
+   * the callback once). Pages call this in place of buildModeSelector() +
+   * selectMode(currentModeId).
+   * @param {function} [onChanged]  page recompute callback
+   */
+  function init(onChanged) {
+    onChangedCb = onChanged || null;
+    buildModeSelector();
+    selectMode(currentModeId);
+  }
+
   /**
    * Pure Step-1 core: average counts, guard negatives, and compute density,
    * total cells, and viability with the exact same semantics as
@@ -106,16 +122,18 @@
       div.className = 'mode-option' + (m.id === currentModeId ? ' active' : '');
       const tagHtml = m.tag.replace('\n', '<br>');
       div.innerHTML = `${makeDiagram(m.largeHL, m.smallHL)}<span class="mode-tag">${tagHtml}</span>`;
-      div.onclick = () => selectMode(m.id, null);
+      div.onclick = () => selectMode(m.id);
       container.appendChild(div);
     });
   }
 
   /**
    * Activate a counting mode by ID: mark the option active, update the
-   * description strip, then notify the page (onChanged) so it recomputes.
+   * description strip, then notify the page so it recomputes. The callback
+   * argument wins when provided; otherwise the callback stored by init()
+   * is used.
    * @param {number} id  Mode ID from MODES[].id (1–4)
-   * @param {function} [onChanged]  page recompute callback (calculate/calcStep1)
+   * @param {function} [onChanged]  page recompute callback (optional)
    */
   function selectMode(id, onChanged) {
     currentModeId = id;
@@ -126,7 +144,8 @@
     document.getElementById('mode-desc').innerHTML =
       `<span class="formula-inline">${m.formulaNote}</span>${m.desc}`;
     document.getElementById('live-hint').textContent = m.hint;
-    if (onChanged) onChanged();
+    const cb = onChanged !== undefined ? onChanged : onChangedCb;
+    if (cb) cb();
   }
 
   /**
@@ -220,6 +239,7 @@
   lt.counting = {
     core: core,
     readCounts: readCounts,
+    init: init,
     getCurrentModeId: function () { return currentModeId; },
     buildModeSelector: buildModeSelector,
     selectMode: selectMode,
