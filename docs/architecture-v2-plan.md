@@ -346,7 +346,7 @@ workbench 只存一种记录：
 | 0 基线收口 | ✅ 6b6ceb8 | artifact 内核 + 8 工具迁移 + 本方案文档入基线 |
 | 1 共享层 v2 并排 | ✅ 5 提交 | contracts（schema v2+legacy 映射）、store（可注入后端+内存 fake）、common 扩展（escHtml/decodeBuffer/fitLinear/fitQuadratic）、workflow（链图/会话/接线）、runtime（加载自检+manifest 校验）、workbench 存储委派 store + 内联回退（公共 API 不变）；unit 156 + e2e 51 绿 |
 | 2 存储迁移 + UI | ✅ 3 提交 | DB v2（records 存储，upgradeV2 双路径共享 schema）+ legacy 无损复制（`__labtoolsV2Records.copyLegacyToRecords`）；wb- 全部并入 lt-（抽屉/picker/toast 组件化 + aria 增强）；unit 160 + e2e 51 绿 |
-| 3 工具逐批迁移 | ⏳ 下一步 | 批次 A（cell-count、stain-timer）起，按批次表执行 |
+| 3 工具逐批迁移 | 🔄 进行中 | **批次 A 完成**：cell-count（feadb07：修 const Save bug + lastResult 序列化语义 + 共享导出/复制 API + manifest/runtime boot）、stain-timer（083841d：补 common.js/删 calc 死引用 + slot 双轨对齐 + 共享 CSV/转义 API + manifest/boot）；unit 160 + e2e 51 绿。**批次 A 遗留**：stain-timer 计时 visibilitychange/beforeunload 健壮性与 renderProtoTable 事件委托（单独提交）；producer 端 artifact 手递切换随批次 B 与 seeding-calc 消费端同批。批次 B–E 待办 |
 | 4 workflow 会话 + hub | ⏳ | 待阶段 3 |
 | 5 legacy 清理 | ⏳ | 待全部工具迁移 |
 
