@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>qPCR Analysis · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
-  <script src="../../assets/js/labtools-common.js"></script>
   <script src="../../assets/js/labtools-calc.js"></script>
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
   <script src="../../assets/js/labtools-artifact.js"></script>
   <script src="../../assets/js/labtools-artifact-ui.js"></script>
+  <script src="../../assets/js/labtools-runtime.js"></script>
+  <script src="manifest.js"></script>
   <style>
     .card { max-width: 1180px; }
 
@@ -866,15 +868,7 @@ function stripSuffix(name) {
   return name.replace(/\.[^.]+$/, '').replace(/\s*-\s*(tabular results|amplification plots|plate setup|thermal profile|experiment notes).*$/i, '').trim();
 }
 
-// ── File reading (UTF-16 BOM detection, mirrors rt-calc) ──────────────────
-function decodeBuffer(buf) {
-  const bytes = new Uint8Array(buf);
-  if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) return new TextDecoder('utf-16le').decode(bytes);
-  if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) return new TextDecoder('utf-16be').decode(bytes);
-  let text = new TextDecoder('utf-8').decode(bytes);
-  if (text.indexOf('\0') !== -1) text = new TextDecoder('utf-16le').decode(bytes);
-  return text;
-}
+// ── File reading (UTF-16 BOM detection — shared via labtools-common.js) ────
 
 async function handleFiles(fileList) {
   showError('');
@@ -885,7 +879,7 @@ async function handleFiles(fileList) {
   const seen = [];
   for (const f of files) {
     let text;
-    try { text = decodeBuffer(await labtoolsReadFileAsArrayBuffer(f)); }
+    try { text = labtoolsDecodeBuffer(await labtoolsReadFileAsArrayBuffer(f)); }
     catch (e) { seen.push({ name: f.name, type: 'unknown' }); continue; }
     const type = detectType(text);
     seen.push({ name: f.name, type });
@@ -1595,14 +1589,13 @@ function buildGroups() {
     const cqs = g.recs.filter(r => r.cq != null).map(r => r.cq);
     g.n = g.recs.length;
     g.nPos = g.recs.filter(r => r.call === '+').length;
-    g.meanCq = cqs.length ? mean(cqs) : null;
-    g.sdCq = cqs.length > 1 ? sd(cqs) : null;
+    g.meanCq = cqs.length ? statMean(cqs) : null;
+    g.sdCq = cqs.length > 1 ? statSD(cqs) : null;
   }
   return groups;
 }
-function mean(a) { return a.reduce((s, v) => s + v, 0) / a.length; }
-function sd(a) { const m = mean(a); return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / (a.length - 1)); }
 function median(a) { const s = a.slice().sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+// mean/sd come from labtools-calc.js (statMean/statSD — identical sample-SD semantics).
 // Replicate QC: in groups whose Cq SD exceeds the threshold, the well deviating most from the
 // group median is flagged. Needs ≥3 replicates so a single outlier is distinguishable. Keyed "WELL|DYE".
 function outlierKeys() {
@@ -1874,16 +1867,16 @@ function cqsFor(sample, target, plate) {
 }
 function meanCqFor(sample, target, plate) {
   const cqs = cqsFor(sample, target, plate);
-  return cqs.length ? mean(cqs) : null;
+  return cqs.length ? statMean(cqs) : null;
 }
 // Mean amplification efficiency E (=1+eff%/100) for one or more genes. Prefers a fitted
 // standard-curve E when available (Tier 3 / valid Pfaffl), else the per-well Agilent
 // efficiency, else falls back to 2.0 (100%).
 function effForGenes(genes) {
   const fitted = genes.map(g => (stdCurveByGene()[g] || {}).E).filter(v => v != null && isFinite(v));
-  if (fitted.length) return mean(fitted);
+  if (fitted.length) return statMean(fitted);
   const effs = state.records.filter(r => genes.includes(r.target) && r.eff != null).map(r => r.eff);
-  return effs.length ? 1 + mean(effs) / 100 : 2.0;
+  return effs.length ? 1 + statMean(effs) / 100 : 2.0;
 }
 // Combined reference Cq for a sample = mean Cq across the selected reference genes
 // (the arithmetic mean of Cq equals the geometric mean of quantities — geNorm-style).
@@ -1891,7 +1884,7 @@ function refCqFor(sample, refs, plate) {
   if (!refs.length) return null;
   const vals = refs.map(t => meanCqFor(sample, t, plate));
   if (vals.some(v => v == null)) return null;       // require every reference for the sample
-  return mean(vals);
+  return statMean(vals);
 }
 // Which plate a biological-replicate sample lives on (its first record's plate).
 function plateOfSample(sample) {
@@ -1987,7 +1980,7 @@ function interPlateOffsets(t, refs) {
   }
   const ps = Object.keys(per);
   if (ps.length < 2) return null;                  // need the calibrator on ≥2 plates
-  const gm = mean(ps.map(p => per[p]));
+  const gm = statMean(ps.map(p => per[p]));
   const off = {};
   for (const p of ps) off[p] = per[p] - gm;
   return off;
@@ -2025,9 +2018,9 @@ function ddCompute() {
     }
     const ctrl = repByGroup.get(control) || [];
     const ctrlDeltas = ctrl.map(r => r.dCq);
-    const ctrlMeanDCq = ctrlDeltas.length ? mean(ctrlDeltas) : null;
-    const calTgt = ctrl.length ? mean(ctrl.map(r => r.tgtCq)) : null;
-    const calRef = ctrl.length ? mean(ctrl.map(r => r.refCq)) : null;
+    const ctrlMeanDCq = ctrlDeltas.length ? statMean(ctrlDeltas) : null;
+    const calTgt = ctrl.length ? statMean(ctrl.map(r => r.tgtCq)) : null;
+    const calRef = ctrl.length ? statMean(ctrl.map(r => r.refCq)) : null;
     for (const g of groupNames) {
       const reps = repByGroup.get(g);
       if (!reps.length) continue;
@@ -2045,8 +2038,8 @@ function ddCompute() {
       });
       const dCqs = detail.map(r => r.dCq);
       const nB = dCqs.length;
-      const meanDCq = mean(dCqs);
-      const sdDCq = nB > 1 ? sd(dCqs) : null;
+      const meanDCq = statMean(dCqs);
+      const sdDCq = nB > 1 ? statSD(dCqs) : null;
       const ddCq = (paired && isCtrl) ? 0 : (ctrlMeanDCq != null ? meanDCq - ctrlMeanDCq : null);
       const meanFold = ddCq != null ? Math.pow(base, -ddCq) : null;
       // 95% CI in ΔCq space (t-based) mapped to fold; control keeps its own error (§5.6.3)
@@ -2440,6 +2433,10 @@ function niceTicks(lo, hi, n) {
 }
 
 // ── Export ──────────────────────────────────────────────────────────────────
+/** TSV cell sanitizer: tabs/newlines inside a value would break the column/row grid. */
+function tsvCell(v) {
+  return String(v == null ? '' : v).replace(/[\t\r\n]+/g, ' ');
+}
 function resultsTSV() {
   const multi = state.plates.length > 1;
   const cols = [...(multi ? ['Plate'] : []), 'Well', 'Sample', 'Target', 'Dye', 'Cq', 'Call', 'Threshold', 'Baseline Start', 'Baseline End', 'Efficiency (%)', 'Quantity'];
@@ -2450,7 +2447,7 @@ function resultsTSV() {
       r.threshold != null ? r.threshold.toFixed(3) : '',
       r.blStart ?? '', r.blEnd ?? '',
       r.eff != null ? r.eff.toFixed(2) : '',
-      r.quantity != null ? r.quantity : ''].join('\t'));
+      r.quantity != null ? r.quantity : ''].map(tsvCell).join('\t'));
   }
   return lines.join('\n');
 }
@@ -2712,7 +2709,10 @@ function serializeForWorkbench() {
   var wells = {};
   state.wellsPresent.forEach(function (w) {
     var sample = state.sampleByWell[w] || '';
-    var gene = state.targetByKey[w] || '';
+    // targetByKey is keyed "WELL|DYE" (written at ingest/apply time) — the
+    // bare-well lookup previously here always missed, so gene labels were
+    // silently dropped from saves/handoffs (audit defect #3).
+    var gene = state.targetByKey[w + '|' + (state.plateDye || '')] || '';
     var group = state.userGroup[w] || '';
     if (sample || gene || group) {
       wells[w] = { sample: sample, gene: gene, group: group };
@@ -2857,16 +2857,37 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // Workflow handoff: a plate-layout (or sample-list) passed via ?wbLoad. If a
-  // results file is already loaded, apply now; otherwise stash for after load.
+  // results file is already loaded, apply now; otherwise stash for after load
+  // (pendingHandoffLayout, consumed by ingestion). Dual channel: artifact
+  // envelopes wire through applyInputs (field ports), typed payloads keep the
+  // legacy path.
+  function stashOrApply(data, type) {
+    if (state.records && state.records.length) {
+      applyFromWorkbench(data, type);
+    } else {
+      pendingHandoffLayout = { data: data, type: type };
+      showToast('Layout received — load your qPCR results file to apply labels.');
+    }
+  }
+  function stashOrApplyWired(resolved) {
+    resolved = resolved || {};
+    const layout = resolved['plate-layout'];
+    const samples = resolved['sample-list'];
+    if (state.records && state.records.length) {
+      if (layout != null) applyFromWorkbench(layout, 'plate-layout');
+      if (samples != null) applyFromWorkbench(samples, 'sample-list');
+    } else if (layout != null || samples != null) {
+      pendingHandoffLayout = layout != null
+        ? { data: layout, type: 'plate-layout' }
+        : { data: samples, type: 'sample-list' };
+      showToast('Layout received — load your qPCR results file to apply labels.');
+    }
+  }
+  if (typeof labtoolsConsumeArtifactHandoff === 'function') {
+    labtoolsConsumeArtifactHandoff(qpcrTool, stashOrApplyWired);
+  }
   if (typeof labtoolsConsumeHandoff === 'function') {
-    labtoolsConsumeHandoff(function (data, type) {
-      if (state.records && state.records.length) {
-        applyFromWorkbench(data, type);
-      } else {
-        pendingHandoffLayout = { data: data, type: type };
-        showToast('Layout received — load your qPCR results file to apply labels.');
-      }
-    });
+    labtoolsConsumeHandoff(stashOrApply);
   }
 });
 
@@ -2994,6 +3015,13 @@ labtoolsRegisterTestHooks('qpcr-analysis', {
     };
   },
 });
+
+// ─── Shared-layer runtime boot (manifest + load self-check; idempotent) ──────
+if (typeof labtools !== 'undefined' && labtools.runtime && labtools.runtime.boot) {
+  labtools.runtime.boot({ manifest: Object.assign({}, window.labtoolsToolManifest, {
+    readParams: readParams, applyParams: applyParams, readOutputs: readOutputs,
+  })});
+}
 
 init();
 </script>
