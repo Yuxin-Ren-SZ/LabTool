@@ -366,3 +366,4 @@ function labtoolsRegisterToolTypes(toolName, produces, consumes) {
 window.DATA_TYPES = DATA_TYPES;
 window.labtoolsRegisterToolTypes = labtoolsRegisterToolTypes;
 window.validateWorkbenchType = validateWorkbenchType;
+(window.__labtoolsLoadOrder = window.__labtoolsLoadOrder || []).push('labtools-types');
