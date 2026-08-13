@@ -1,9 +1,26 @@
 /**
  * LabTools Workbench — Shared Data Clipboard & Cross-Tool Transport
  * ==================================================================
- * IndexedDB-backed persistent data store + left-side slide-out drawer UI.
- * All tools on the same origin share the same database.
- * BroadcastChannel keeps multiple tabs in sync.
+ * Persistent data store + left-side slide-out drawer UI. All tools on
+ * the same origin share the same database; BroadcastChannel keeps
+ * multiple tabs in sync.
+ *
+ * Storage layer (v2, phase 1): storage delegates FIRST to the shared
+ * storage core assets/js/labtools-store.js when it is loaded (page load
+ * order types → [store] → workbench). The store is created via
+ * window.labtools.store.createStore({...}) with timestamps:false so the
+ * legacy record shape {id,type,label,tool,timestamp,data,metadata} is
+ * stored byte-identically (no createdAt/updatedAt injection). When
+ * labtools-store.js is NOT loaded — every existing tool page — workbench
+ * falls back to its built-in inline IndexedDB path (legacyOpenDB /
+ * legacyDbExec / legacyCollectDescending, kept until phase 5). The public
+ * API and record shape are unchanged either way.
+ *
+ * Test injection point (unit tests only, never set by production pages):
+ *   window.__labtoolsWorkbenchBackend — when set before the first store
+ *   operation it is passed as opts.backend to createStore (tests inject
+ *   labtools.store.createMemoryBackend(); default undefined → the store's
+ *   own browser IndexedDB adapter).
  *
  * Loaded via <script src="../../assets/js/labtools-workbench.js">
  * (AFTER labtools-types.js). Exposes the global `workbench` API and
@@ -72,10 +89,49 @@ function typeMeta(type) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. IndexedDB helpers
+// 3. Storage layer — shared-store bridge + inline IndexedDB fallback
 // ─────────────────────────────────────────────────────────────────────────────
 
-function openDB() {
+let storeHandle = null;
+
+/**
+ * Shared-storage bridge. When labtools-store.js is loaded
+ * (window.labtools.store.createStore present) this lazily creates — once —
+ * a store handle over the SAME legacy shape the inline path used:
+ * identical dbName/version/storeName, indexes type/label/timestamp, and
+ * timestamps:false so records are stored byte-for-byte with no
+ * createdAt/updatedAt injection.
+ *
+ * Test injection point: window.__labtoolsWorkbenchBackend — when set before
+ * the first store operation it is passed as opts.backend (unit tests inject
+ * labtools.store.createMemoryBackend()). It is undefined in production, so
+ * the store's default browser IndexedDB adapter is used.
+ *
+ * @returns {object|null} the shared store handle, or null when
+ *   labtools-store.js is not loaded — callers then use the inline legacy
+ *   fallback below.
+ */
+function getStore() {
+  if (typeof window !== 'undefined' && window.labtools && window.labtools.store &&
+      typeof window.labtools.store.createStore === 'function') {
+    if (!storeHandle) {
+      const opts = { dbName: DB_NAME, version: DB_VERSION, storeName: STORE_NAME,
+        indexes: [{ name: 'type', keyPath: 'type' }, { name: 'label', keyPath: 'label' },
+                  { name: 'timestamp', keyPath: 'timestamp' }],
+        timestamps: false };   // legacy 记录 {id,type,label,tool,timestamp,data,metadata} 字节兼容
+      if (window.__labtoolsWorkbenchBackend) opts.backend = window.__labtoolsWorkbenchBackend;  // 测试注入点
+      storeHandle = window.labtools.store.createStore(opts);
+    }
+    return storeHandle;
+  }
+  return null;   // 未加载 labtools-store.js → 回退内联路径
+}
+
+// ── Inline IndexedDB fallback — kept until phase 5 ────────────────────────────
+// Pages that do NOT load labtools-store.js depend on this path; the shared
+// store is only consulted when labtools-store.js is loaded first.
+
+function legacyOpenDB() {
   return new Promise(function (resolve, reject) {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = function (e) {
@@ -94,8 +150,8 @@ function openDB() {
 
 // Run `fn(store, tx)` inside a transaction. Resolves with fn's return value
 // once the transaction completes (so writes are durable before resolving).
-function dbExec(mode, fn) {
-  return openDB().then(function (db) {
+function legacyDbExec(mode, fn) {
+  return legacyOpenDB().then(function (db) {
     return new Promise(function (resolve, reject) {
       const tx = db.transaction(STORE_NAME, mode);
       const store = tx.objectStore(STORE_NAME);
@@ -110,8 +166,8 @@ function dbExec(mode, fn) {
 }
 
 // Collect all rows from a cursor over the given index, newest first.
-function collectDescending(indexName) {
-  return dbExec('readonly', function (store) {
+function legacyCollectDescending(indexName) {
+  return legacyDbExec('readonly', function (store) {
     return new Promise(function (resolve) {
       const items = [];
       store.index(indexName).openCursor(null, 'prev').onsuccess = function (e) {
@@ -214,10 +270,20 @@ const workbench = {
       data: data,
       metadata: metadata || null,
     };
-    return dbExec('readwrite', function (store) {
-      store.put(item);
-      return item.id;
-    }).then(function (id) {
+
+    // Shared store when labtools-store.js is loaded; inline IndexedDB otherwise.
+    const storeApi = getStore();
+    const write = storeApi
+      ? storeApi.put(item).then(function () {
+          // Local listeners see the same event shape as the cross-tab path.
+          notify('put', item);
+          return item.id;
+        })
+      : legacyDbExec('readwrite', function (store) {
+          store.put(item);
+          return item.id;
+        });
+    return write.then(function (id) {
       broadcast('put', id);
       renderDrawer();
       return id;
@@ -226,12 +292,23 @@ const workbench = {
 
   /** All items, newest first. @returns {Promise<Array>} */
   getAll: function () {
-    return collectDescending('timestamp');
+    const storeApi = getStore();
+    if (storeApi) return storeApi.getAll({ index: 'timestamp', direction: 'prev' });
+    return legacyCollectDescending('timestamp');
   },
 
   /** Items of one type, newest first. @returns {Promise<Array>} */
   getByType: function (type) {
-    return dbExec('readonly', function (store) {
+    const storeApi = getStore();
+    if (storeApi) {
+      // getByIndex is unordered — sort by timestamp descending (newest first).
+      return storeApi.getByIndex('type', type).then(function (items) {
+        return items.slice().sort(function (a, b) {
+          return (b.timestamp || 0) - (a.timestamp || 0);
+        });
+      });
+    }
+    return legacyDbExec('readonly', function (store) {
       return new Promise(function (resolve) {
         const items = [];
         store.index('type').openCursor(IDBKeyRange.only(type), 'prev').onsuccess = function (e) {
@@ -245,7 +322,9 @@ const workbench = {
 
   /** Single item by id, or null. @returns {Promise<object|null>} */
   getItem: function (id) {
-    return dbExec('readonly', function (store) {
+    const storeApi = getStore();
+    if (storeApi) return storeApi.get(id);
+    return legacyDbExec('readonly', function (store) {
       return new Promise(function (resolve) {
         const req = store.get(id);
         req.onsuccess = function () { resolve(req.result || null); };
@@ -256,7 +335,13 @@ const workbench = {
 
   /** First item with an exact label match, or null. @returns {Promise<object|null>} */
   findByName: function (label) {
-    return dbExec('readonly', function (store) {
+    const storeApi = getStore();
+    if (storeApi) {
+      return storeApi.getByIndex('label', label).then(function (matches) {
+        return matches && matches.length > 0 ? matches[0] : null;
+      });
+    }
+    return legacyDbExec('readonly', function (store) {
       return new Promise(function (resolve) {
         const req = store.index('label').get(label);
         req.onsuccess = function () { resolve(req.result || null); };
@@ -267,9 +352,13 @@ const workbench = {
 
   /** Remove an item by id. @returns {Promise<void>} */
   remove: function (id) {
-    return dbExec('readwrite', function (store) {
-      store.delete(id);
-    }).then(function () {
+    const storeApi = getStore();
+    const op = storeApi
+      ? storeApi.remove(id).then(function () { notify('remove', { id: id }); })
+      : legacyDbExec('readwrite', function (store) {
+          store.delete(id);
+        });
+    return op.then(function () {
       broadcast('remove', id);
       renderDrawer();
     });
@@ -277,9 +366,13 @@ const workbench = {
 
   /** Remove every item. @returns {Promise<void>} */
   clear: function () {
-    return dbExec('readwrite', function (store) {
-      store.clear();
-    }).then(function () {
+    const storeApi = getStore();
+    const op = storeApi
+      ? storeApi.clear().then(function () { notify('clear', null); })
+      : legacyDbExec('readwrite', function (store) {
+          store.clear();
+        });
+    return op.then(function () {
       broadcast('clear', null);
       renderDrawer();
     });
@@ -287,7 +380,21 @@ const workbench = {
 
   /** Rename an item. @returns {Promise<void>} */
   updateLabel: function (id, newLabel) {
-    return dbExec('readwrite', function (store) {
+    const storeApi = getStore();
+    if (storeApi) {
+      return storeApi.get(id).then(function (item) {
+        if (!item) throw new Error('Item not found');
+        item.label = newLabel;
+        item.timestamp = Date.now();
+        return storeApi.put(item);
+      }).then(function (item) {
+        // Local listeners see the same event shape as the cross-tab path.
+        notify('update', item);
+        broadcast('update', id);
+        renderDrawer();
+      });
+    }
+    return legacyDbExec('readwrite', function (store) {
       return new Promise(function (resolve, reject) {
         const req = store.get(id);
         req.onsuccess = function () {
@@ -341,9 +448,15 @@ const workbench = {
       const skipped  = data.items.length - toImport.length;
       if (toImport.length === 0) return { imported: 0, skipped: skipped };
 
-      return dbExec('readwrite', function (store) {
-        toImport.forEach(function (item) { store.put(item); });
-      }).then(function () {
+      const storeApi = getStore();
+      const write = storeApi
+        ? toImport.reduce(function (chain, item) {
+            return chain.then(function () { return storeApi.put(item); });
+          }, Promise.resolve())
+        : legacyDbExec('readwrite', function (store) {
+            toImport.forEach(function (item) { store.put(item); });
+          });
+      return write.then(function () {
         broadcast('put', null);
         renderDrawer();
         return { imported: toImport.length, skipped: skipped };
