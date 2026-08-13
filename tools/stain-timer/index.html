@@ -639,30 +639,30 @@ function renderProtoTable() {
       <td class="col-num">${i + 1}</td>
       <td class="col-sol">
         <input type="text" placeholder="Solution name" value="${labtoolsEscapeHtml(step.solution)}"
-          oninput="updateStep(${i},'solution',this.value)" />
+          data-field="solution" />
       </td>
       <td class="col-dur">
         <div class="dur-wrap">
           <input type="number" min="0" step="1" placeholder="min"
             value="${step.durationMin !== '' ? step.durationMin : ''}"
-            oninput="updateStep(${i},'durationMin',this.value)" />
+            data-field="durationMin" />
           <span>min</span>
           <input type="number" min="0" max="59.999" step="0.1" placeholder="sec"
             value="${step.durationSec !== '' ? step.durationSec : ''}"
-            oninput="updateStep(${i},'durationSec',this.value)" />
+            data-field="durationSec" />
           <span>sec</span>
         </div>
       </td>
       <td class="col-slot">
         <input type="number" min="1" step="1" placeholder="—"
           value="${step.slot !== '' ? step.slot : ''}"
-          oninput="updateStep(${i},'slot',this.value)" />
+          data-field="slot" />
       </td>
       <td class="col-acts">
         <div class="acts-cell">
-          <button class="act-btn" title="Move up"   onclick="moveStep(${i},-1)" ${i === 0 ? 'disabled' : ''}>↑</button>
-          <button class="act-btn" title="Move down"  onclick="moveStep(${i},+1)" ${i === protocol.length-1 ? 'disabled' : ''}>↓</button>
-          <button class="act-btn del" title="Delete" onclick="deleteStep(${i})">🗑</button>
+          <button class="act-btn" title="Move up"   data-action="move-up" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button class="act-btn" title="Move down"  data-action="move-down" ${i === protocol.length-1 ? 'disabled' : ''}>↓</button>
+          <button class="act-btn del" title="Delete" data-action="delete">🗑</button>
         </div>
       </td>`;
     tbody.appendChild(tr);
@@ -671,6 +671,32 @@ function renderProtoTable() {
       tr.querySelector('.col-sol input').classList.add('warning');
     if (validationWarnings.slot.has(i))
       tr.querySelector('.col-slot input').classList.add('warning');
+  });
+}
+
+/**
+ * Delegate row actions and field edits on the persistent <tbody> — the rows
+ * themselves are rebuilt on every structural change, but the tbody listener
+ * survives. Row index comes from tr.dataset.index (set by renderProtoTable).
+ */
+const protoBodyEl = document.getElementById('proto-body');
+if (protoBodyEl) {
+  protoBodyEl.addEventListener('click', function (e) {
+    const btn = e.target.closest('.act-btn');
+    if (!btn || !btn.dataset.action) return;
+    const tr = btn.closest('tr');
+    if (!tr) return;
+    const i = parseInt(tr.dataset.index, 10);
+    if (btn.dataset.action === 'move-up') moveStep(i, -1);
+    else if (btn.dataset.action === 'move-down') moveStep(i, +1);
+    else if (btn.dataset.action === 'delete') deleteStep(i);
+  });
+  protoBodyEl.addEventListener('input', function (e) {
+    const inp = e.target;
+    if (!inp || !inp.dataset || !inp.dataset.field) return;
+    const tr = inp.closest('tr');
+    if (!tr) return;
+    updateStep(parseInt(tr.dataset.index, 10), inp.dataset.field, inp.value);
   });
 }
 
