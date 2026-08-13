@@ -20,6 +20,8 @@
 
 'use strict';
 
+if (typeof window !== 'undefined') { (window.__labtoolsLoadOrder = window.__labtoolsLoadOrder || []).push('labtools-workbench'); }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Constants
 // ─────────────────────────────────────────────────────────────────────────────

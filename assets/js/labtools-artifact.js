@@ -379,6 +379,8 @@ function labtoolsDefineTool(spec) {
 // Exports
 // ─────────────────────────────────────────────────────────────────────────────
 
+if (typeof window !== 'undefined') { (window.__labtoolsLoadOrder = window.__labtoolsLoadOrder || []).push('labtools-artifact'); }
+
 if (typeof window !== 'undefined') {
   window.labtoolsDefineTool = labtoolsDefineTool;
   window.labtoolsFlatten = labtoolsFlatten;

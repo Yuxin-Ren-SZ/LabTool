@@ -216,6 +216,8 @@ function labtoolsConsumeArtifactHandoff(tool, applyInputs) {
 
 // ─── exports ─────────────────────────────────────────────────────────────────
 
+if (typeof window !== 'undefined') { (window.__labtoolsLoadOrder = window.__labtoolsLoadOrder || []).push('labtools-artifact-ui'); }
+
 if (typeof window !== 'undefined') {
   window.labtoolsMountArtifactControls = labtoolsMountArtifactControls;
   window.labtoolsResolveInputs = labtoolsResolveInputs;

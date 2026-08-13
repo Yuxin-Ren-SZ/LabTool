@@ -30,6 +30,8 @@
 
 'use strict';
 
+if (typeof window !== 'undefined') { (window.__labtoolsLoadOrder = window.__labtoolsLoadOrder || []).push('labtools-calc'); }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Number formatting helpers
 // ─────────────────────────────────────────────────────────────────────────────
