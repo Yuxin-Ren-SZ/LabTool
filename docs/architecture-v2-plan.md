@@ -346,7 +346,7 @@ workbench 只存一种记录：
 | 0 基线收口 | ✅ 6b6ceb8 | artifact 内核 + 8 工具迁移 + 本方案文档入基线 |
 | 1 共享层 v2 并排 | ✅ 5 提交 | contracts（schema v2+legacy 映射）、store（可注入后端+内存 fake）、common 扩展（escHtml/decodeBuffer/fitLinear/fitQuadratic）、workflow（链图/会话/接线）、runtime（加载自检+manifest 校验）、workbench 存储委派 store + 内联回退（公共 API 不变）；unit 156 + e2e 51 绿 |
 | 2 存储迁移 + UI | ✅ 3 提交 | DB v2（records 存储，upgradeV2 双路径共享 schema）+ legacy 无损复制（`__labtoolsV2Records.copyLegacyToRecords`）；wb- 全部并入 lt-（抽屉/picker/toast 组件化 + aria 增强）；unit 160 + e2e 51 绿 |
-| 3 工具逐批迁移 | 🔄 进行中 | **批次 A 完成**（cell-count feadb07、stain-timer 083841d）+ **A 遗留**：计时 visibilitychange/beforeunload（adc14e3）；renderProtoTable 事件委托待办。**批次 B 完成**：B0 计数 Step-1 共享模块 labtools-counting.js（b448095，⟳SYNC 310 行复制区已删除）；B1 cell-count 接入共享模块 + 生产端切 artifact 手递（6a29722）；B2 seeding-calc 共享模块 + manifest + Save const bug + 单位表合并 + step 导航入 params + applyParams 修复 + 双通道消费（c153bb3）；B3 rt-calc manifest + CSV 转义/共享 API + applyParams 恢复 + 兼容消费（462502b）。unit 167 + e2e 51 绿（workflow-handoff 实测 artifact 链）。批次 C–E 待办 |
+| 3 工具逐批迁移 | 🔄 进行中 | **批次 A 完成**（cell-count feadb07、stain-timer 083841d + 计时健壮性 adc14e3 + 事件委托 af56e91）。**批次 B 完成**（B0 labtools-counting.js b448095、B1 cell-count 6a29722、B2 seeding-calc c153bb3、B3 rt-calc 462502b）。**批次 C 完成**：C3 qpcr-analysis 修复（gene 键 bug ef301a9 + applyParams DOM 同步 f4df806）、C1 qpcr-plate-planner（键盘 chip/节流/skip 清理/manifest 64ce59c）、C2 microplate（共享 helper/网格方向键/改名同步/manifest 17277d4）、plate-layout 枢纽链全线切 artifact 手递（0234791）。unit 167 + e2e 51 绿。批次 D（bca-assay）、E（PDF/配置类+drug-dosage 解禁）待办 |
 | 4 workflow 会话 + hub | ⏳ | 待阶段 3 |
 | 5 legacy 清理 | ⏳ | 待全部工具迁移 |
 
