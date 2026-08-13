@@ -268,3 +268,52 @@ test('applyHandoff equals labtoolsMatchWiring for the same outputs/ports', () =>
   assert.ok(deepEqualJson(viaWorkflow.missing, ['d']));
   assert.ok(deepEqualJson(viaWorkflow.ignored, ['b']));
 });
+
+// ── Session persistence (localStorage stub injected into the VM ctx) ─────────
+
+test('session storage: upsert/find/load/recordStep round-trip', () => {
+  // In-memory localStorage stub inside the VM context (workflow.js reads the
+  // `localStorage` global lazily, so post-load injection works).
+  const mem = new Map();
+  ctx.localStorage = {
+    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+    setItem: (k, v) => mem.set(k, String(v)),
+    removeItem: (k) => mem.delete(k),
+  };
+
+  const s = workflow.newSession({ id: 'sess-1', tool: 'cell-count', label: 'Run A' });
+  workflow.upsertSession(s);
+  assert.equal(workflow.findSession('sess-1').label, 'Run A');
+
+  workflow.recordStep('sess-1', { tool: 'cell-count', recordId: 'r1' });
+  workflow.recordStep('sess-1', { tool: 'seeding-calc', recordId: 'r2', contract: 'seeding-plan' });
+  const after = workflow.findSession('sess-1');
+  assert.equal(after.steps.length, 2);
+  assert.equal(after.steps[1].tool, 'seeding-calc');
+  assert.equal(after.steps[1].recordId, 'r2');
+
+  const list = workflow.loadSessions();
+  assert.equal(list.length, 1);
+  assert.equal(list[0].id, 'sess-1');
+
+  // recordStep with an unknown id creates a fresh session
+  workflow.recordStep('sess-new', { tool: 'rt-calc', recordId: 'r3' });
+  assert.equal(workflow.loadSessions().length, 2);
+  assert.equal(workflow.findSession('sess-new').steps[0].tool, 'rt-calc');
+
+  // invalid session id on upsert throws TypeError
+  assert.throws(() => workflow.upsertSession({ id: '' }), { name: 'TypeError' });
+});
+
+test('session storage: corrupt/absent storage degrades gracefully', () => {
+  ctx.localStorage = {
+    getItem: () => '{not json',
+    setItem: () => {},
+    removeItem: () => {},
+  };
+  assert.ok(deepEqualJson(workflow.loadSessions(), []));
+  assert.equal(workflow.findSession('x'), null);
+  // recordStep against corrupt storage still returns a usable in-memory session
+  const s = workflow.recordStep('corrupt-1', { tool: 'a', recordId: 'b' });
+  assert.equal(s.steps.length, 1);
+});

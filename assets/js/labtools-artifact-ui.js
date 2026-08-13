@@ -176,13 +176,31 @@ function labtoolsResolveInputs(tool, upstreamOutputs) {
 
 /**
  * Producer side: hand off THIS tool's declared outputs to the next tool as an
- * artifact envelope (so the consumer can field-port wire them).
+ * artifact envelope (so the consumer can field-port wire them). Also opens a
+ * workflow session when labtools-workflow.js is loaded and carries its id as
+ * ?wbSession, so the consumer can append its step — the basis for hub
+ * "recent sessions / continue" (断点续跑).
  * @returns {Promise<string>} the saved id (then navigates)
  */
 function labtoolsHandoffArtifact(tool, nextUrl, label) {
   if (typeof labtoolsHandoffTo !== 'function') return Promise.reject(new Error('labtools-common.js required'));
+  if (typeof workbench === 'undefined' || !workbench || !workbench.put) {
+    return Promise.reject(new Error('Workbench unavailable — cannot hand off.'));
+  }
   var env = labtoolsBuildArtifact({ tool: tool.id, outputs: tool.readOutputs ? tool.readOutputs() : (tool.build().outputs) });
-  return labtoolsHandoffTo(nextUrl, 'artifact', label, env, { tool: tool.id }, tool.id);
+  return workbench.put('artifact', label, env, { tool: tool.id }, tool.id).then(function (id) {
+    var wf = (typeof labtools !== 'undefined' && labtools.workflow) ? labtools.workflow : null;
+    var sid = null;
+    if (wf && wf.newSession && wf.recordStep) {
+      sid = wf.newSession({ tool: tool.id, label: label }).id;
+      wf.recordStep(sid, { tool: tool.id, recordId: id, contract: 'artifact' });
+    }
+    var u = new URL(nextUrl, window.location.href);
+    u.searchParams.set('wbLoad', id);
+    if (sid) u.searchParams.set('wbSession', sid);
+    window.location.href = u.href;
+    return id;
+  });
 }
 
 /**
@@ -190,7 +208,9 @@ function labtoolsHandoffArtifact(tool, nextUrl, label) {
  * artifact envelope, field-port wire its outputs into this tool — auto-matching
  * inputPorts, manual-filling missing required ports, ignoring extras — then call
  * applyInputs(resolved). Typed (non-artifact) handoffs are left to the legacy
- * `labtoolsConsumeHandoff` path. Strips the param so refresh is clean.
+ * `labtoolsConsumeHandoff` path. Strips the params so refresh is clean, and —
+ * when labtools-workflow.js is loaded and ?wbSession is present — appends this
+ * tool's step to the session (断点续跑 record).
  *
  * @param {Object} tool
  * @param {function(Object):void} applyInputs  maps resolved fieldId->value into the tool
@@ -201,13 +221,18 @@ function labtoolsConsumeArtifactHandoff(tool, applyInputs) {
   var params = new URLSearchParams(window.location.search);
   var id = params.get('wbLoad');
   if (!id) return Promise.resolve(false);
+  var sid = params.get('wbSession');
   return workbench.getItem(id).then(function (item) {
     if (!item || item.type !== 'artifact' || !item.data || !item.data.outputs) return false;
     params.delete('wbLoad');
+    params.delete('wbSession');
     var clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
     window.history.replaceState(null, '', clean);
     return labtoolsResolveInputs(tool, item.data.outputs).then(function (resolved) {
       applyInputs(resolved);
+      if (sid && typeof labtools !== 'undefined' && labtools.workflow && labtools.workflow.recordStep) {
+        labtools.workflow.recordStep(sid, { tool: tool.id, recordId: id, contract: 'artifact' });
+      }
       ltaToast('✓ Wired inputs from ' + (item.tool || 'previous step'));
       return true;
     });

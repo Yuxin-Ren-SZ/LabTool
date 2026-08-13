@@ -186,6 +186,79 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Session persistence (localStorage-backed, guarded)
+  // ─────────────────────────────────────────────────────────────────────────
+  // Sessions are UI/continuation state (not scientific data), so they live in
+  // localStorage under one key. The same origin shares them across all tools
+  // and the hub. Guards make these helpers Node-testable (no localStorage →
+  // in-memory fallback per call, so tests can also inject their own storage).
+
+  const SESSION_STORAGE_KEY = 'labtools:sessions:v1';
+
+  function sessionStorage() {
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage) return localStorage;
+    } catch (_) {}
+    return null;
+  }
+
+  /** Load every stored session, newest first. */
+  function loadSessions() {
+    const store = sessionStorage();
+    if (!store) return [];
+    let raw = null;
+    try { raw = store.getItem(SESSION_STORAGE_KEY); } catch (_) {}
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(s => s && typeof s.id === 'string');
+    } catch (_) { return []; }
+  }
+
+  /** Find one session by id, or null. */
+  function findSession(id) {
+    const list = loadSessions();
+    for (let i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
+
+  /**
+   * Upsert a session (create or replace by id) and persist. `session` must be
+   * an object with a non-empty string id. Returns the persisted session.
+   */
+  function upsertSession(session) {
+    if (!session || typeof session.id !== 'string' || !session.id) {
+      throw new TypeError('labtools-workflow: upsertSession: session.id must be a non-empty string');
+    }
+    const store = sessionStorage();
+    const list = loadSessions().filter(s => s.id !== session.id);
+    list.unshift(session);            // newest first
+    if (store) {
+      try { store.setItem(SESSION_STORAGE_KEY, JSON.stringify(list)); } catch (_) {}
+    }
+    return session;
+  }
+
+  /**
+   * Append a step to a stored session (create it when missing) and persist.
+   * @param {string} sessionId
+   * @param {{tool:string, recordId:string, contract?:string, resolvedInputs?:Object, missing?:Array}} step
+   * @returns {Object|null} the updated session, or null when the step is invalid
+   */
+  function recordStep(sessionId, step) {
+    let session = findSession(sessionId);
+    if (!session) {
+      session = newSession({ id: sessionId });
+    }
+    try {
+      appendStep(session, step);
+    } catch (_) { return null; }
+    upsertSession(session);
+    return session;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Handoff envelope + wiring (reuses the artifact layer; guarded).
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -229,6 +302,11 @@
     path: path,
     newSession: newSession,
     appendStep: appendStep,
+    loadSessions: loadSessions,
+    findSession: findSession,
+    upsertSession: upsertSession,
+    recordStep: recordStep,
+    SESSION_STORAGE_KEY: SESSION_STORAGE_KEY,
     buildHandoffEnvelope: buildHandoffEnvelope,
     applyHandoff: applyHandoff,
   };
