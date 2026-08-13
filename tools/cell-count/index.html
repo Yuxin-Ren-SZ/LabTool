@@ -12,6 +12,8 @@
   <script src="../../assets/js/labtools-common.js"></script>
   <script src="../../assets/js/labtools-artifact.js"></script>
   <script src="../../assets/js/labtools-artifact-ui.js"></script>
+  <script src="../../assets/js/labtools-runtime.js"></script>
+  <script src="manifest.js"></script>
   <style>
     /* ── Card width (base styles live in labtools.css .card) ── */
     .card { max-width: 600px; }
@@ -153,6 +155,13 @@
 /** Currently selected counting mode ID (1–4, matching MODES[].id). */
 let currentModeId = 1;
 
+/**
+ * Latest calculation results as plain numbers (or null when a value has no
+ * valid result). Maintained by calculate() — the single recompute entry point —
+ * so serialization reads real numbers instead of parsing formatted DOM text.
+ */
+let lastResult = { density: null, totalCells: null, viability: null };
+
 // ─────────────────────────────────────────────────────────────
 // Mode selector UI
 // ─────────────────────────────────────────────────────────────
@@ -233,6 +242,7 @@ function calculate() {
     document.getElementById('res-total').textContent   = '—';
     document.getElementById('via-note').textContent    = '⚠ Counts cannot be negative.';
     document.getElementById('via-note').className      = 'via-note';
+    lastResult = { density: null, totalCells: null, viability: null };
     return;
   }
 
@@ -243,6 +253,15 @@ function calculate() {
   // Viability — only when dead counts are entered (not in count-all mode)
   const hasDeadAny = !isAll && deadAvg.n > 0;
   const viability  = hasDeadAny ? calcViabilityPct(avgLive, avgDead) : NaN;
+
+  // Derived results as plain numbers (null when no valid value) — the single
+  // source for serializeForWorkbench()/readOutputs() (audit defect #10: never
+  // fall back to raw counts or parse formatted display text).
+  lastResult = {
+    density:    isNaN(finalDensity) ? null : finalDensity,
+    totalCells: isNaN(totalCells)   ? null : totalCells,
+    viability:  isNaN(viability)    ? null : viability,
+  };
 
   // ── Avg count display ──
   if (!isNaN(avgLive)) {
@@ -344,7 +363,7 @@ function resetAll() {
 
 /**
  * Collect current input and result values as a [field, value] row array.
- * Used by both makeCsv() and copyResults() to share formatting logic.
+ * Used by both downloadCsv() and copyResults() to share formatting logic.
  *
  * @returns {Array<[string, string]>} Rows including a header row.
  */
@@ -370,77 +389,28 @@ function getExportRows() {
 }
 
 /**
- * Convert a rows array into an RFC-4180 CSV string.
- * All fields are double-quoted; embedded quotes are escaped by doubling.
- *
- * @param {Array<string[]>} rows
- * @returns {string} CSV content
- */
-function makeCsv(rows) {
-  return rows.map(r => r.map(cell => {
-    const text = String(cell).replace(/"/g, '""');
-    return `"${text}"`;
-  }).join(',')).join('\n');
-}
-
-/**
- * Build a CSV Blob and trigger a browser download via a temporary <a> element.
- * The object URL is revoked immediately after the click to free memory.
+ * Build the results CSV with the shared RFC-4180 encoder and trigger a download
+ * via the shared labtoolsDownloadText helper. Column structure is defined by
+ * getExportRows() above.
  */
 function downloadCsv() {
-  const csv  = makeCsv(getExportRows());
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = 'cell-count-results.csv';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const csv = labtoolsRowsToCsv(getExportRows());
+  labtoolsDownloadText('cell-count-results.csv', csv, 'text/csv;charset=utf-8');
   document.getElementById('export-note').textContent = 'CSV file generated for download.';
 }
 
 /**
- * Copy a plain-text summary of all results to the clipboard.
- * Uses the Clipboard API when available; falls back to execCommand otherwise.
+ * Copy a plain-text summary of all results to the clipboard via the shared
+ * labtoolsCopyText helper (Clipboard API with a built-in legacy fallback).
  */
 function copyResults() {
   const text = ['Cell Count Calculator Results', '',
     ...getExportRows().map(r => `${r[0]}: ${r[1]}`)].join('\n');
-
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text)
-      .then(() => {
-        document.getElementById('export-note').textContent = 'Results copied to clipboard.';
-      })
-      .catch(() => fallbackCopyText(text));
-  } else {
-    fallbackCopyText(text);
-  }
-}
-
-/**
- * Legacy clipboard copy for browsers without navigator.clipboard.
- * Creates an off-screen textarea, selects it, and calls execCommand('copy').
- *
- * @param {string} text  Plain text to copy
- */
-function fallbackCopyText(text) {
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.setAttribute('readonly', '');
-  ta.style.position = 'absolute';
-  ta.style.left = '-9999px';
-  document.body.appendChild(ta);
-  ta.select();
-  try {
-    document.execCommand('copy');
+  labtoolsCopyText(text).then(function () {
     document.getElementById('export-note').textContent = 'Results copied to clipboard.';
-  } catch {
+  }).catch(function () {
     document.getElementById('export-note').textContent = 'Unable to copy — use Export CSV instead.';
-  }
-  document.body.removeChild(ta);
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -458,13 +428,15 @@ const WB_TOOL = 'cell-count';
 const WB_PRODUCES_TYPE = 'sample-list';
 
 function serializeForWorkbench() {
-  const densityText = document.getElementById('res-density').textContent;
-  const density = parseInt(densityText.replace(/[^0-9]/g, ''), 10);
-  const live = parseFloat(document.getElementById('live1').value);
+  // Refresh derived results from the current inputs first, so the payload
+  // reflects live DOM state even when the last calculate() predates an input
+  // change (e.g. a direct programmatic value set).
+  calculate();
+  const density = lastResult ? lastResult.density : null;
   return {
     samples: [{
       name: 'Cell Suspension',
-      conc: isNaN(density) ? (isNaN(live) ? null : live) : density,
+      conc: density,   // cells/mL, or null when no valid density (never a raw count)
       unit: 'cells/mL',
     }],
   };
@@ -475,7 +447,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (saveBtn) saveBtn.addEventListener('click', function () {
     const data = serializeForWorkbench();
     if (data.samples[0].conc == null) { showToast('Enter counts first.'); return; }
-    const label = prompt('Name this item:', 'Cell Count ' + new Date().toISOString().slice(0, 10));
+    let label = prompt('Name this item:', 'Cell Count ' + new Date().toISOString().slice(0, 10));
     if (!label || !label.trim()) return;
     label = label.trim();
 
@@ -535,15 +507,12 @@ function applyParams(p) {
   selectMode(p.modeId || currentModeId);   // triggers calculate()
 }
 
-/** Declared final outputs, projected from the current DOM results. */
+/** Declared final outputs, projected from the latest calculation results. */
 function readOutputs() {
-  const densInt = parseInt(document.getElementById('res-density').textContent.replace(/[^0-9]/g, ''), 10);
-  const totInt  = parseInt(document.getElementById('res-total').textContent.replace(/[^0-9]/g, ''), 10);
-  const via     = parseFloat(document.getElementById('res-via').textContent);
   return {
-    'cell-density': isNaN(densInt) ? null : densInt,   // cells/mL
-    'total-cells':  isNaN(totInt)  ? null : totInt,
-    'viability':    isNaN(via)     ? null : via,        // %
+    'cell-density': lastResult ? lastResult.density    : null,   // cells/mL
+    'total-cells':  lastResult ? lastResult.totalCells : null,
+    'viability':    lastResult ? lastResult.viability  : null,   // %
   };
 }
 
@@ -586,6 +555,15 @@ labtoolsRegisterTestHooks('cell-count', {
     };
   },
 });
+
+// ─── Runtime boot (manifest validation + load self-check) ─────────────────────
+// Registers types from the manifest (idempotent with the explicit declaration
+// above) and surfaces missing/mis-ordered shared scripts as a visible banner.
+if (typeof labtools !== 'undefined' && labtools.runtime && labtools.runtime.boot) {
+  labtools.runtime.boot({ manifest: Object.assign({}, window.labtoolsToolManifest, {
+    readParams: readParams, applyParams: applyParams, readOutputs: readOutputs,
+  })});
+}
 </script>
 </body>
 </html>
