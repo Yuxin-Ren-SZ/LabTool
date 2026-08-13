@@ -346,7 +346,7 @@ workbench 只存一种记录：
 | 0 基线收口 | ✅ 6b6ceb8 | artifact 内核 + 8 工具迁移 + 本方案文档入基线 |
 | 1 共享层 v2 并排 | ✅ 5 提交 | contracts（schema v2+legacy 映射）、store（可注入后端+内存 fake）、common 扩展（escHtml/decodeBuffer/fitLinear/fitQuadratic）、workflow（链图/会话/接线）、runtime（加载自检+manifest 校验）、workbench 存储委派 store + 内联回退（公共 API 不变）；unit 156 + e2e 51 绿 |
 | 2 存储迁移 + UI | ✅ 3 提交 | DB v2（records 存储，upgradeV2 双路径共享 schema）+ legacy 无损复制（`__labtoolsV2Records.copyLegacyToRecords`）；wb- 全部并入 lt-（抽屉/picker/toast 组件化 + aria 增强）；unit 160 + e2e 51 绿 |
-| 3 工具逐批迁移 | 🔄 进行中 | **批次 A 完成**（cell-count feadb07、stain-timer 083841d + 计时健壮性 adc14e3 + 事件委托 af56e91）。**批次 B 完成**（B0 labtools-counting.js b448095、B1 cell-count 6a29722、B2 seeding-calc c153bb3、B3 rt-calc 462502b）。**批次 C 完成**：C3 qpcr-analysis 修复（gene 键 bug ef301a9 + applyParams DOM 同步 f4df806）、C1 qpcr-plate-planner（键盘 chip/节流/skip 清理/manifest 64ce59c）、C2 microplate（共享 helper/网格方向键/改名同步/manifest 17277d4）、plate-layout 枢纽链全线切 artifact 手递（0234791）。unit 167 + e2e 51 绿。批次 D（bca-assay）、E（PDF/配置类+drug-dosage 解禁）待办 |
+| 3 工具逐批迁移 | ✅ 完成 | **A**（cell-count feadb07、stain-timer 083841d、计时 adc14e3、事件委托 af56e91）；**B**（labtools-counting.js b448095、cell-count 6a29722、seeding-calc c153bb3、rt-calc 462502b）；**C**（qpcr-analysis ef301a9/f4df806、qpcr-plate-planner 64ce59c、microplate 17277d4、plate 枢纽链切 artifact 手递 0234791）；**D**（bca-assay 996ec2a：坏路径修复/共享拟合/聚合三合一/preset 副作用/manifest/深链）；**E**（thermal-to-laser b4e83c6、drug-dosage 解禁 7214908：max-dose 安全上限+CSV 注入防护、label-generator 解耦 3b2d630：共享 laser-presets 模块）。全部 11 工具 manifest 化。unit 167 + e2e 51 全绿。遗留：bca 双轨结果渲染（showResults/showInlineResults）按风险预案未合并（进展记录在案）；阶段 5 前 legacy 保存/Load 路径保持共存 |
 | 4 workflow 会话 + hub | ⏳ | 待阶段 3 |
 | 5 legacy 清理 | ⏳ | 待全部工具迁移 |
 
