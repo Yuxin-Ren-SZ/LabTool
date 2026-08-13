@@ -1,0 +1,35 @@
+# electron-builder config. Invoked as: electron-builder --project build-stage
+# (see scripts/stage.mjs + package.json "dist" scripts).
+appId: io.github.yuxin-ren-sz.labtools
+productName: LabTools
+copyright: Copyright © 2026 Yuxin Ren
+directories:
+  output: ../dist # relative to projectDir (build-stage) → desktop/dist/
+files:
+  - '**/*'
+asar: true
+compression: normal
+npmRebuild: false # no native deps; also avoids spawning npm during builds
+mac:
+  category: public.app-category.education
+  identity: null # unsigned for now; code signing is a documented follow-up
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+linux:
+  category: Utility
+  maintainer: Yuxin Ren <yxren@ucdavis.edu>
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]

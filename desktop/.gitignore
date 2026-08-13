@@ -1,7 +1,10 @@
 node_modules/
 .npm-cache/
 .electron-cache/
+.electron-builder-cache/
+.home/
 .test-user-data/
+build-stage/
 dist/
 out/
 *.log

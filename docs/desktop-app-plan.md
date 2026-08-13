@@ -2,7 +2,7 @@
 
 - **Branch:** `feat/desktop-app` (created from `feat/shared-layer-v2` @ `aaa337e`)
 - **Worktree:** `.worktrees/desktop` (hidden from the main tree via `.git/info/exclude`)
-- **Status:** PROPOSED — stack pending confirmation; implementation not started.
+- **Status:** phases 1–2 implemented; phase 3 packaging in progress.
 
 ## 1. Goal
 
@@ -48,13 +48,14 @@ Windows (10/11 x64), macOS (Apple Silicon + Intel), and Linux (x64), while:
 ```
 desktop/                      # NEW — the only new product code dir
 ├── package.json              # electron + electron-builder + playwright (devDeps)
-├── electron-builder.yml      # NSIS / DMG / AppImage+deb targets
-├── src/main.js               # window, app:// protocol, menus
-├── src/preload.js            # contextBridge: app version, dialog/export helpers
+├── electron-builder.yml      # NSIS / DMG+zip / AppImage+deb targets
+├── scripts/stage.mjs         # assembles build-stage/ (app + web root) for packaging
+├── src/main.js               # window, app:// protocol, menus, downloads, IPC
+├── src/preload.cjs           # contextBridge: platform + versions (CJS for sandbox)
 ├── tests/smoke.test.mjs      # Playwright Electron smoke suite
 └── README.md                 # run / package instructions per OS
 docs/desktop-app-plan.md      # this file
-.github/workflows/desktop.yml # CI packaging matrix (phase 3)
+.github/workflows/desktop.yml # CI: xvfb smoke test + 3-OS packaging matrix
 ```
 
 **Hard rules for this branch:** no changes under `tools/`, `assets/`, root
@@ -73,16 +74,19 @@ running against the web tree exactly as before.
   step.
 - **Packaged:** electron-builder packages the same web root plus `desktop/src/`.
 
-## 5. Native capabilities (incremental, phase 2)
+## 5. Native capabilities (phase 2 — implemented)
 
-- Native Save/Open dialogs wired to the existing download/upload helpers
-  (`labtoolsDownloadBlob`, `labtoolsReadFileAsArrayBuffer`) via a narrow
-  contextBridge API — web behavior unchanged in a browser.
-- Recent files, print-to-PDF (thermal-to-laser / label-generator sheets).
+- **Native save dialog on every download** — `session.on('will-download')`
+  prompts a save location for every CSV/JSON/blob export from the tools'
+  existing `labtoolsDownload*` helpers; no web-file changes.
+- **File → "Export Page as PDF…"** — `printToPDF` with the page's own print
+  stylesheet (useful for thermal-to-laser / label sheets).
 - `localStorage`/IndexedDB persist in the per-user Chromium profile — no storage
   schema changes; workbench data stays local on the machine.
 
-Not planned initially: code signing and auto-update (documented follow-ups).
+Deferred (needs per-tool file-input wiring against the in-flight artifact UI):
+open-dialog integration and recent files. Code signing and auto-update are
+documented follow-ups.
 
 ## 6. Testing & parity
 
@@ -94,11 +98,13 @@ Not planned initially: code signing and auto-update (documented follow-ups).
 
 ## 7. Phases
 
-1. **Shell** — window + `app://` protocol + menus; hub and all 11 tools run
+1. **Shell** — ✅ window + `app://` protocol + menus; hub and all 11 tools run
    inside Electron; smoke suite green.
-2. **Native integrations** — save/open dialogs, recent files, print-to-PDF.
-3. **Packaging + CI** — electron-builder config, GitHub Actions matrix producing
-   Windows/macOS/Linux artifacts.
+2. **Native integrations** — ✅ save dialog on downloads + print-to-PDF;
+   (open-dialog/recent files deferred, see §5).
+3. **Packaging + CI** — 🚧 electron-builder config + staging script + GitHub
+   Actions matrix producing Windows/macOS/Linux artifacts; local unpacked-build
+   validation; installers produced and verified by CI.
 4. **(Follow-up)** — code signing, auto-update, installer polish.
 
 ## 8. Risks & mitigations
