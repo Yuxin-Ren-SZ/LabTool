@@ -1,7 +1,7 @@
 # LabTools
 
 A zero-dependency collection of interactive browser tools for cell biology bench work.
-Open any tool directly in a browser or use the GitHub Pages site; there is no install, build, package manager, or dev server requirement.
+Open any tool directly in a browser or use the GitHub Pages site; there is no install, build, package manager, or dev server requirement. (The shipped tools stay dependency-free; only the dev/test tooling uses npm — see [CONTRIBUTING.md](CONTRIBUTING.md).)
 
 ## Tools
 
@@ -11,8 +11,13 @@ Open any tool directly in a browser or use the GitHub Pages site; there is no in
 | [Cell Seeding Calculator](tools/seeding-calc/) | Two-step cell count and C1V1 = C2V2 dilution workflow, with optional direct stock concentration entry and unit scaling. |
 | [Microplate Layout Planner](tools/microplate-layout-planner/) | Lay out one or more 6-, 12-, 24-, 48-, 96-, 384-, or 1536-well plates, tagging wells with a colored group plus custom fields (Sample ID, Gene, …). Exports a CSV that round-trips and feeds the qPCR tool. |
 | [Stain Timer](tools/stain-timer/) | Configurable multi-step staining protocol timer with countdown, slot tracking, CSV import/export, result logging, and audio alarms. |
+| [RT Calculator](tools/rt-calc/) | Reverse transcription setup from Nanodrop CSV (NEB LunaScript RT) with auto-scaling reaction volume and batch reagent totals. |
+| [qPCR Plate Planner](tools/qpcr-plate-planner/) | Multi-plate qPCR layout from sample combinations (any factors), skip exceptions, reference anchor and NTC controls. |
+| [qPCR Analysis](tools/qpcr-analysis/) | Agilent AriaMx / Stratagene Mx analysis: heatmap, Cq results, amplification curves, replicate summaries, and ΔΔCq fold change. |
+| [BCA Assay Calculator](tools/bca-assay/) | Linear standard curve from BSA standards, replicate support, CSV import, and SVG chart export. |
+| [Drug Dosage Calculator](tools/drug-dosage/) | Save named multi-drug dosing protocols and calculate min, exact, and max per-animal dose amounts from body weight, with a max-dose safety cap. |
 | [Thermal To Laser Label Converter](tools/thermal-to-laser/) | Convert one-label-per-page thermal-printer PDFs into laser-printer mailing-label sheet PDFs with preset management and sheet preview. |
-| [Drug Dosage Calculator](tools/drug-dosage/) | Save named multi-drug dosing protocols and calculate min, exact, and max per-animal dose amounts from body weight. |
+| [Label Generator](tools/label-generator/) | Generate PDF labels with DataMatrix barcodes from CSV data, for thermal-printer labels and laser-sheet grids. |
 
 ## Structure
 
@@ -27,7 +32,9 @@ LabTools/
 │   ├── css/labtools.css               # Shared design system
 │   └── js/
 │       ├── labtools-calc.js           # Shared pure calculation helpers
-│       └── labtools-common.js         # Shared browser utilities
+│       ├── labtools-common.js         # Shared browser utilities
+│       ├── labtools-types.js          # Data-contract registry (workbench payload schemas)
+│       └── labtools-workbench.js      # Workbench: IndexedDB store + drawer UI
 ├── tools/
 │   ├── cell-count/
 │   ├── seeding-calc/
@@ -75,6 +82,6 @@ The site is hosted on GitHub Pages from the `dev` branch. PRs should target `dev
 
 ## Design And Data
 
-Shared UI tokens and `lt-` component classes live in `assets/css/labtools.css`. Shared bench-math helpers live in `assets/js/labtools-calc.js` as plain global functions with no DOM dependencies. Shared browser utilities for download, clipboard, file reading, and safe JSON parsing live in `assets/js/labtools-common.js`.
+Shared UI tokens and `lt-` component classes live in `assets/css/labtools.css`. Shared bench-math helpers live in `assets/js/labtools-calc.js` as plain global functions with no DOM dependencies. Shared browser utilities for download, clipboard, file reading, and safe JSON parsing live in `assets/js/labtools-common.js`. The workbench data-contract registry (payload schemas for cross-tool data exchange, strict-validated on save) lives in `assets/js/labtools-types.js`; the workbench store and drawer UI live in `assets/js/labtools-workbench.js`.
 
 Browser-saved presets, protocols, and logs use `localStorage`; they stay in the current browser and do not rewrite checked-in config files. Tools that expose config export or copy actions generate snippets/files for manual review before committing.

@@ -1,0 +1,446 @@
+{
+  "version": 1,
+  "exportedAt": "2026-07-31T12:00:00.000Z",
+  "items": [
+    {
+      "id": "f1b1a1a1-0000-4000-8000-000000000001",
+      "type": "plate-layout",
+      "label": "96-well Neuronal Panel",
+      "tool": "microplate-layout-planner",
+      "timestamp": 1785495600000,
+      "data": {
+        "plates": [
+          {
+            "name": "Plate 1",
+            "plateType": "96",
+            "cutCorners": [
+              "top-left"
+            ],
+            "assignments": {
+              "A1": {
+                "group": "c1",
+                "sample": "Control_1",
+                "gene": "HPRT1"
+              },
+              "A5": {
+                "group": "c1",
+                "sample": "Control_2",
+                "gene": "MAP2"
+              },
+              "A6": {
+                "group": "c1",
+                "sample": "Control_3",
+                "gene": "GFAP"
+              },
+              "A7": {
+                "group": "c1",
+                "sample": "Control_1",
+                "gene": "HPRT1"
+              },
+              "A8": {
+                "group": "c1",
+                "sample": "Control_2",
+                "gene": "MAP2"
+              },
+              "A10": {
+                "group": "c1",
+                "sample": "Control_1",
+                "gene": "HPRT1"
+              },
+              "A11": {
+                "group": "c1",
+                "sample": "Control_2",
+                "gene": "MAP2"
+              },
+              "A12": {
+                "group": "c1",
+                "sample": "Control_3",
+                "gene": "GFAP"
+              },
+              "B2": {
+                "group": "c1",
+                "sample": "Control_2",
+                "gene": "MAP2"
+              },
+              "B3": {
+                "group": "c1",
+                "sample": "Control_3",
+                "gene": "GFAP"
+              },
+              "B4": {
+                "group": "c1",
+                "sample": "Control_1",
+                "gene": "HPRT1"
+              },
+              "B5": {
+                "group": "c1",
+                "sample": "Control_2",
+                "gene": "MAP2"
+              },
+              "B7": {
+                "group": "c1",
+                "sample": "Control_1",
+                "gene": "HPRT1"
+              },
+              "B8": {
+                "group": "c1",
+                "sample": "Control_2",
+                "gene": "MAP2"
+              },
+              "B9": {
+                "group": "c1",
+                "sample": "Control_3",
+                "gene": "GFAP"
+              },
+              "B11": {
+                "group": "c1",
+                "sample": "Control_2",
+                "gene": "MAP2"
+              },
+              "B12": {
+                "group": "c1",
+                "sample": "Control_3",
+                "gene": "GFAP"
+              },
+              "C2": {
+                "group": "c1",
+                "sample": "Control_2",
+                "gene": "MAP2"
+              },
+              "C4": {
+                "group": "c1",
+                "sample": "Control_1",
+                "gene": "HPRT1"
+              },
+              "C5": {
+                "group": "c1",
+                "sample": "Control_2",
+                "gene": "MAP2"
+              },
+              "C7": {
+                "group": "c1",
+                "sample": "Control_1",
+                "gene": "HPRT1"
+              },
+              "C8": {
+                "group": "c1",
+                "sample": "Control_2",
+                "gene": "MAP2"
+              },
+              "C9": {
+                "group": "c1",
+                "sample": "Control_3",
+                "gene": "GFAP"
+              },
+              "C12": {
+                "group": "c1",
+                "sample": "Control_3",
+                "gene": "GFAP"
+              },
+              "D2": {
+                "group": "c3",
+                "sample": "TreatmentB_2",
+                "gene": "MAP2"
+              },
+              "D4": {
+                "group": "c3",
+                "sample": "TreatmentB_1",
+                "gene": "HPRT1"
+              },
+              "D5": {
+                "group": "c3",
+                "sample": "TreatmentB_2",
+                "gene": "MAP2"
+              },
+              "D6": {
+                "group": "c3",
+                "sample": "TreatmentB_3",
+                "gene": "GFAP"
+              },
+              "D7": {
+                "group": "c3",
+                "sample": "TreatmentB_1",
+                "gene": "HPRT1"
+              },
+              "D8": {
+                "group": "c3",
+                "sample": "TreatmentB_2",
+                "gene": "MAP2"
+              },
+              "D9": {
+                "group": "c3",
+                "sample": "TreatmentB_3",
+                "gene": "GFAP"
+              },
+              "D10": {
+                "group": "c3",
+                "sample": "TreatmentB_1",
+                "gene": "HPRT1"
+              },
+              "E3": {
+                "group": "c2",
+                "sample": "TreatmentA_3",
+                "gene": "GFAP"
+              },
+              "E4": {
+                "group": "c2",
+                "sample": "TreatmentA_1",
+                "gene": "HPRT1"
+              },
+              "E6": {
+                "group": "c2",
+                "sample": "TreatmentA_3",
+                "gene": "GFAP"
+              },
+              "E7": {
+                "group": "c2",
+                "sample": "TreatmentA_1",
+                "gene": "HPRT1"
+              },
+              "E8": {
+                "group": "c2",
+                "sample": "TreatmentA_2",
+                "gene": "MAP2"
+              },
+              "E9": {
+                "group": "c2",
+                "sample": "TreatmentA_3",
+                "gene": "GFAP"
+              },
+              "E10": {
+                "group": "c2",
+                "sample": "TreatmentA_1",
+                "gene": "HPRT1"
+              },
+              "E11": {
+                "group": "c2",
+                "sample": "TreatmentA_2",
+                "gene": "MAP2"
+              },
+              "F1": {
+                "group": "c3",
+                "sample": "TreatmentB_1",
+                "gene": "HPRT1"
+              },
+              "F3": {
+                "group": "c3",
+                "sample": "TreatmentB_3",
+                "gene": "GFAP"
+              },
+              "F4": {
+                "group": "c3",
+                "sample": "TreatmentB_1",
+                "gene": "HPRT1"
+              },
+              "F5": {
+                "group": "c3",
+                "sample": "TreatmentB_2",
+                "gene": "MAP2"
+              },
+              "F6": {
+                "group": "c3",
+                "sample": "TreatmentB_3",
+                "gene": "GFAP"
+              },
+              "F7": {
+                "group": "c3",
+                "sample": "TreatmentB_1",
+                "gene": "HPRT1"
+              },
+              "F8": {
+                "group": "c3",
+                "sample": "TreatmentB_2",
+                "gene": "MAP2"
+              },
+              "F12": {
+                "group": "c3",
+                "sample": "TreatmentB_3",
+                "gene": "GFAP"
+              },
+              "G1": {
+                "group": "c2",
+                "sample": "TreatmentA_1",
+                "gene": "HPRT1"
+              },
+              "G2": {
+                "group": "c2",
+                "sample": "TreatmentA_2",
+                "gene": "MAP2"
+              },
+              "G3": {
+                "group": "c2",
+                "sample": "TreatmentA_3",
+                "gene": "GFAP"
+              },
+              "G4": {
+                "group": "c2",
+                "sample": "TreatmentA_1",
+                "gene": "HPRT1"
+              },
+              "G5": {
+                "group": "c2",
+                "sample": "TreatmentA_2",
+                "gene": "MAP2"
+              },
+              "G7": {
+                "group": "c2",
+                "sample": "TreatmentA_1",
+                "gene": "HPRT1"
+              },
+              "G10": {
+                "group": "c2",
+                "sample": "TreatmentA_1",
+                "gene": "HPRT1"
+              },
+              "H2": {
+                "group": "c3",
+                "sample": "TreatmentB_2",
+                "gene": "MAP2"
+              },
+              "H3": {
+                "group": "c3",
+                "sample": "TreatmentB_3",
+                "gene": "GFAP"
+              },
+              "H6": {
+                "group": "c3",
+                "sample": "TreatmentB_3",
+                "gene": "GFAP"
+              },
+              "H7": {
+                "group": "c3",
+                "sample": "TreatmentB_1",
+                "gene": "HPRT1"
+              },
+              "H8": {
+                "group": "c3",
+                "sample": "TreatmentB_2",
+                "gene": "MAP2"
+              },
+              "H9": {
+                "group": "c3",
+                "sample": "TreatmentB_3",
+                "gene": "GFAP"
+              },
+              "H11": {
+                "group": "c3",
+                "sample": "TreatmentB_2",
+                "gene": "MAP2"
+              },
+              "H12": {
+                "group": "c3",
+                "sample": "TreatmentB_3",
+                "gene": "GFAP"
+              }
+            }
+          }
+        ],
+        "fields": [
+          {
+            "id": "group",
+            "key": "group",
+            "name": "Group",
+            "kind": "category"
+          },
+          {
+            "id": "sample",
+            "key": "sample",
+            "name": "Sample ID",
+            "kind": "text"
+          },
+          {
+            "id": "gene",
+            "key": "gene",
+            "name": "Gene",
+            "kind": "text"
+          }
+        ],
+        "categoriesByField": {
+          "group": [
+            {
+              "id": "c1",
+              "name": "Control",
+              "color": "#5c8dff"
+            },
+            {
+              "id": "c2",
+              "name": "Treatment A",
+              "color": "#e07832"
+            },
+            {
+              "id": "c3",
+              "name": "Treatment B",
+              "color": "#57a85a"
+            }
+          ]
+        }
+      },
+      "metadata": {
+        "wellCount": 58,
+        "plateCount": 1,
+        "plateFormat": "96"
+      }
+    },
+    {
+      "id": "f1b1a1a1-0000-4000-8000-000000000002",
+      "type": "conc-data",
+      "label": "BCA Run 2026-07-31",
+      "tool": "bca-assay",
+      "timestamp": 1785496200000,
+      "data": {
+        "results": [
+          {
+            "sample": "CSF_01",
+            "conc": 362.5,
+            "unit": "µg/mL",
+            "flag": "",
+            "cv": 2.5
+          },
+          {
+            "sample": "CSF_02",
+            "conc": 575,
+            "unit": "µg/mL",
+            "flag": "",
+            "cv": 1.4
+          },
+          {
+            "sample": "CSF_03",
+            "conc": 900,
+            "unit": "µg/mL",
+            "flag": "",
+            "cv": 3.7
+          },
+          {
+            "sample": "CSF_04",
+            "conc": 1225,
+            "unit": "µg/mL",
+            "flag": "",
+            "cv": 1.4
+          },
+          {
+            "sample": "CSF_05",
+            "conc": 687.5,
+            "unit": "µg/mL",
+            "flag": "",
+            "cv": 3.6
+          },
+          {
+            "sample": "CSF_06",
+            "conc": 1037.5,
+            "unit": "µg/mL",
+            "flag": "",
+            "cv": 1.2
+          }
+        ],
+        "unit": "µg/mL",
+        "model": "linear",
+        "fitModel": "linear",
+        "timestamp": 1785495600000
+      },
+      "metadata": {
+        "sampleCount": 6,
+        "unit": "µg/mL"
+      }
+    }
+  ]
+}

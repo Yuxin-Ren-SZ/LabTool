@@ -5,7 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Microplate Layout Planner - LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <script src="../../assets/js/labtools-types.js"></script>
+  <script src="../../assets/js/labtools-store.js"></script>
+  <script src="../../assets/js/labtools-workbench.js"></script>
   <script src="../../assets/js/labtools-common.js"></script>
+  <script src="../../assets/js/labtools-artifact.js"></script>
+  <script src="../../assets/js/labtools-artifact-ui.js"></script>
+  <script src="../../assets/js/labtools-workflow.js"></script>
+  <script src="../../assets/js/labtools-runtime.js"></script>
+  <script src="manifest.js"></script>
   <style>
     .card {
       width: fit-content;
@@ -855,6 +863,10 @@
       <button class="btn-reset" type="button" id="view-all-btn">View All</button>
       <button class="btn-reset" type="button" id="print-btn">Print Layout</button>
       <button class="btn-reset" type="button" id="reset-btn">Reset Plate</button>
+      <button class="btn-reset" type="button" id="wb-save-btn">Save to Workbench</button>
+      <button class="btn-reset" type="button" id="wb-load-btn">Load from Workbench</button>
+      <span id="lt-artifact-controls" style="display:inline-flex;gap:8px;flex-wrap:wrap"></span>
+      <button class="btn-reset" type="button" id="wb-to-qpcr-btn" title="Save this layout and open the qPCR Analyzer with it loaded">Send to qPCR →</button>
     </div>
   </div>
 
@@ -1229,10 +1241,30 @@ function syncPlateRender() {
   renderPlate();
 }
 
+/**
+ * Arrow-key navigation across well buttons (roving focus on the grid).
+ * Moves focus to the adjacent well when present; coordinates come from the
+ * button's data-row/data-col attributes set by createWellButton.
+ */
+function onPlateGridKeydown(event) {
+  const btn = event.target.closest('.well');
+  if (!btn) return;
+  let nr = parseInt(btn.dataset.row, 10);
+  let nc = parseInt(btn.dataset.col, 10);
+  if (event.key === 'ArrowUp') nr--;
+  else if (event.key === 'ArrowDown') nr++;
+  else if (event.key === 'ArrowLeft') nc--;
+  else if (event.key === 'ArrowRight') nc++;
+  else return;
+  const next = els.plateGrid.querySelector(`.well[data-row="${nr}"][data-col="${nc}"]`);
+  if (next) { event.preventDefault(); next.focus(); }
+}
+
 function wireEvents() {
   els.plateType.addEventListener('change', onPlateTypeChange);
   els.plateGrid.addEventListener('pointerdown', onPlatePointerDown);
   els.plateGrid.addEventListener('pointerover', onPlatePointerOver);
+  els.plateGrid.addEventListener('keydown', onPlateGridKeydown);
   document.addEventListener('pointerup', endDragSelection);
   document.addEventListener('keydown', onDocumentKeyDown);
 
@@ -1302,7 +1334,7 @@ function renderPlateTabs() {
     tab.type = 'button';
     tab.className = `plate-tab${plate.id === activePlateId ? ' active' : ''}`;
     tab.title = 'Click to edit · double-click to rename';
-    tab.innerHTML = `<span>${escHtml(plate.name)}</span><span class="plate-tab-size">${plate.plateType}w</span>` +
+    tab.innerHTML = `<span>${labtoolsEscapeHtml(plate.name)}</span><span class="plate-tab-size">${plate.plateType}w</span>` +
       (plates.length > 1 ? '<span class="plate-tab-remove" title="Remove plate">&times;</span>' : '');
     tab.addEventListener('click', (event) => {
       if (event.target.classList.contains('plate-tab-remove')) { removePlate(plate.id); return; }
@@ -1402,15 +1434,14 @@ function createWellButton(plate, metrics, row, col) {
   button.dataset.row = String(row);
   button.dataset.col = String(col);
   button.dataset.shape = plate.shape || 'round';
-  button.setAttribute('role', 'gridcell');
   button.setAttribute('aria-label', labelText ? `${wellId}, ${labelText}` : `${wellId}, unassigned`);
   button.style.setProperty('--well-size', px(metrics.wellDiameterPx));
   button.style.setProperty('--well-x', px(getWellCenterXPx(plate, metrics, col)));
   button.style.setProperty('--well-y', px(getWellCenterYPx(plate, metrics, row)));
   button.innerHTML = `
     <span class="well-id">${wellId}</span>
-    <span class="well-label">${escHtml(labelText)}</span>
-    <span class="well-initials">${escHtml(groupInitials(labelText))}</span>
+    <span class="well-label">${labtoolsEscapeHtml(labelText)}</span>
+    <span class="well-initials">${labtoolsEscapeHtml(groupInitials(labelText))}</span>
   `;
 
   if (color) {
@@ -1479,9 +1510,9 @@ function buildPlateFramePoints(width, height, cutSize, cutCorners) {
 // ── Field manager + value editor ─────────────────────────────────────────────
 function renderFields() {
   els.colorBy.innerHTML = categoryFields().map((f) =>
-    `<option value="${f.id}"${f.id === colorFieldId ? ' selected' : ''}>${escHtml(f.name)}</option>`).join('');
+    `<option value="${f.id}"${f.id === colorFieldId ? ' selected' : ''}>${labtoolsEscapeHtml(f.name)}</option>`).join('');
   els.labelBy.innerHTML = fields.map((f) =>
-    `<option value="${f.id}"${f.id === labelFieldId ? ' selected' : ''}>${escHtml(f.name)}</option>`).join('');
+    `<option value="${f.id}"${f.id === labelFieldId ? ' selected' : ''}>${labtoolsEscapeHtml(f.name)}</option>`).join('');
 
   els.fieldList.innerHTML = '';
   fields.forEach((field) => {
@@ -1491,7 +1522,7 @@ function renderFields() {
     const lastCategory = field.kind === 'category' && categoryFields().length === 1;
     row.innerHTML = `
       <span class="field-kind" title="${field.kind === 'category' ? 'Category (colored values)' : 'Free text'}">${field.kind === 'category' ? 'Cat' : 'Txt'}</span>
-      <input class="field-name" type="text" maxlength="32" value="${escAttr(field.name)}" aria-label="Field name" />
+      <input class="field-name" type="text" maxlength="32" value="${labtoolsEscapeHtml(field.name)}" aria-label="Field name" />
       <button class="group-delete" type="button" title="Delete field" ${lastCategory ? 'disabled' : ''}>&times;</button>
     `;
     row.addEventListener('click', (event) => {
@@ -1502,6 +1533,13 @@ function renderFields() {
     nameInput.addEventListener('focus', () => setActiveField(field.id));
     nameInput.addEventListener('input', (event) => {
       field.name = event.target.value.trim() || 'Field';
+      // Keep the color/label selectors and the value-editor title in sync with
+      // the renamed field (plate/legend/print were the only views refreshed).
+      const cOpt = els.colorBy.querySelector(`option[value="${field.id}"]`);
+      if (cOpt) cOpt.textContent = field.name;
+      const lOpt = els.labelBy.querySelector(`option[value="${field.id}"]`);
+      if (lOpt) lOpt.textContent = field.name;
+      if (activeFieldId === field.id) renderValueEditor();
       renderPlate(); renderLegend(); renderPrintSummary();
     });
     if (!lastCategory) row.querySelector('.group-delete').addEventListener('click', () => deleteField(field.id));
@@ -1523,7 +1561,7 @@ function renderValueEditor() {
   if (field.kind === 'category') {
     const create = document.createElement('div');
     create.className = 'group-create';
-    create.innerHTML = `<input class="lt-input" id="new-cat-name" type="text" maxlength="32" placeholder="${escAttr(field.name)} value" /><button class="btn-reset" type="button" id="add-cat-btn">Add</button>`;
+    create.innerHTML = `<input class="lt-input" id="new-cat-name" type="text" maxlength="32" placeholder="${labtoolsEscapeHtml(field.name)} value" /><button class="btn-reset" type="button" id="add-cat-btn">Add</button>`;
     els.valueEditor.appendChild(create);
 
     const list = document.createElement('div');
@@ -1534,7 +1572,7 @@ function renderValueEditor() {
       row.dataset.catId = cat.id;
       row.innerHTML = `
         <button class="group-swatch" type="button" title="Set active value"></button>
-        <input class="group-name" type="text" maxlength="32" value="${escAttr(cat.name)}" aria-label="Value name" />
+        <input class="group-name" type="text" maxlength="32" value="${labtoolsEscapeHtml(cat.name)}" aria-label="Value name" />
         <button class="group-delete" type="button" title="Delete value">&times;</button>`;
       row.querySelector('.group-swatch').style.background = cat.color;
       row.addEventListener('click', (event) => {
@@ -1557,7 +1595,7 @@ function renderValueEditor() {
   } else {
     const row = document.createElement('div');
     row.className = 'value-text-row';
-    row.innerHTML = `<input class="lt-input" id="text-value" type="text" maxlength="60" placeholder="${escAttr(field.name)} for selected wells" /><button class="lt-btn lt-btn-primary" type="button" id="apply-text-btn">Apply</button>`;
+    row.innerHTML = `<input class="lt-input" id="text-value" type="text" maxlength="60" placeholder="${labtoolsEscapeHtml(field.name)} for selected wells" /><button class="lt-btn lt-btn-primary" type="button" id="apply-text-btn">Apply</button>`;
     els.valueEditor.appendChild(row);
     row.querySelector('#apply-text-btn').addEventListener('click', applyActiveFieldToSelection);
     row.querySelector('#text-value').addEventListener('keydown', (event) => {
@@ -1570,18 +1608,18 @@ function renderLegend() {
   const field = getField(colorFieldId);
   const infos = assignedCategoryInfo(colorFieldId, [AP()]);
   if (infos.length === 0) {
-    els.legendList.innerHTML = `<div class="lt-alert lt-alert-info">No assigned ${escHtml(field ? field.name : 'values')}.</div>`;
+    els.legendList.innerHTML = `<div class="lt-alert lt-alert-info">No assigned ${labtoolsEscapeHtml(field ? field.name : 'values')}.</div>`;
     return;
   }
   els.legendList.innerHTML = '';
   infos.forEach((info) => {
     const abbreviation = info.abbreviationUsed
-      ? `<span class="legend-abbrev">${escHtml(info.abbreviation)}</span>`
+      ? `<span class="legend-abbrev">${labtoolsEscapeHtml(info.abbreviation)}</span>`
       : '';
     const row = document.createElement('div');
     row.className = 'legend-row';
     row.innerHTML = `
-      <span><span class="group-swatch" style="background:${info.color}"></span> ${escHtml(info.name)}${abbreviation}</span>
+      <span><span class="group-swatch" style="background:${info.color}"></span> ${labtoolsEscapeHtml(info.name)}${abbreviation}</span>
       <span class="legend-count">${info.count}</span>
     `;
     els.legendList.appendChild(row);
@@ -1619,7 +1657,7 @@ function renderPrintSummary() {
     const ref = PLATE_REFERENCE_MM[plate.plateType];
     const corners = Array.from(plate.cutCorners).map(cornerLabel).join(', ') || 'none';
     const used = Object.keys(plate.assignments).length;
-    return `<strong>${escHtml(plate.name)}</strong> — ${ref.label}, ${ref.rows} x ${ref.cols}; ${used} labelled wells; corner marks: ${escHtml(corners)}.`;
+    return `<strong>${labtoolsEscapeHtml(plate.name)}</strong> — ${ref.label}, ${ref.rows} x ${ref.cols}; ${used} labelled wells; corner marks: ${labtoolsEscapeHtml(corners)}.`;
   }).join('<br>');
   els.printSummary.innerHTML = lines;
   renderPrintLegend();
@@ -1635,19 +1673,19 @@ function renderPrintLegend() {
 
   const rows = infos.map((info) => {
     const abbreviation = info.abbreviationUsed
-      ? `<span class="print-legend-abbrev">${escHtml(info.abbreviation)} =</span>`
+      ? `<span class="print-legend-abbrev">${labtoolsEscapeHtml(info.abbreviation)} =</span>`
       : '';
     return `
       <div class="print-legend-item">
         <span class="print-legend-swatch" style="background:${info.color}"></span>
         ${abbreviation}
-        <span class="print-legend-name">${escHtml(info.name)}</span>
+        <span class="print-legend-name">${labtoolsEscapeHtml(info.name)}</span>
         <span class="print-legend-count">(${info.count})</span>
       </div>`;
   }).join('');
 
   els.printLegend.innerHTML = `
-    <div class="print-legend-title">${escHtml(field ? field.name : 'Legend')} Legend</div>
+    <div class="print-legend-title">${labtoolsEscapeHtml(field ? field.name : 'Legend')} Legend</div>
     <div class="print-legend-grid">${rows}</div>
   `;
 }
@@ -2152,7 +2190,7 @@ function buildPlateSvg(plate, ref, targetWidthPx) {
       if (labelText && labelMode !== 'color') {
         const txt = labelMode === 'compact' ? groupInitials(labelText) : labelText;
         const fs = clamp(wellD * (labelMode === 'compact' ? 0.4 : 0.26), 5, 13);
-        cells += `<text x="${roundPx(cx)}" y="${roundPx(cy)}" font-size="${roundPx(fs)}" font-family="Arial, sans-serif" font-weight="700" fill="${contrastText(color || '#ffffff')}" text-anchor="middle" dominant-baseline="central">${escHtml(txt)}</text>`;
+        cells += `<text x="${roundPx(cx)}" y="${roundPx(cy)}" font-size="${roundPx(fs)}" font-family="Arial, sans-serif" font-weight="700" fill="${contrastText(color || '#ffffff')}" text-anchor="middle" dominant-baseline="central">${labtoolsEscapeHtml(txt)}</text>`;
       }
     }
   }
@@ -2182,7 +2220,7 @@ function exportPng() {
     if (typeof labtoolsDownloadBlob === 'function') {
       labtoolsDownloadBlob(filename, blob);
     } else {
-      fallbackDownloadBlob(filename, blob);
+      labtoolsDownloadBlob(filename, blob);
     }
     setStatus(`Exported ${filename}.`, 'success');
   }, 'image/png');
@@ -2363,17 +2401,13 @@ function drawPngLegend(ctx, bounds, groupsForLegend, field) {
     return;
   }
 
-  const columnCount = 1;
   const rowHeight = 38;
-  const columnWidth = bounds.width / columnCount;
   const startY = bounds.y + 66;
 
   groupsForLegend.forEach((group, index) => {
-    const column = index % columnCount;
-    const row = Math.floor(index / columnCount);
-    const x = bounds.x + column * columnWidth;
-    const y = startY + row * rowHeight;
-    const maxNameWidth = columnWidth - 118;
+    const x = bounds.x;
+    const y = startY + index * rowHeight;
+    const maxNameWidth = bounds.width - 118;
 
     ctx.fillStyle = group.color;
     ctx.strokeStyle = 'rgba(0, 0, 0, 0.28)';
@@ -2514,15 +2548,11 @@ function exportCsv() {
     }
   });
 
-  const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n');
+  const csv = labtoolsRowsToCsv(rows);
   const filename = multi
     ? `microplate-layout-planner-${plates.length}-plates.csv`
     : `microplate-layout-planner-${AP().plateType}-well.csv`;
-  if (typeof labtoolsDownloadText === 'function') {
-    labtoolsDownloadText(filename, csv, 'text/csv;charset=utf-8');
-  } else {
-    fallbackDownloadText(filename, csv);
-  }
+  labtoolsDownloadText(filename, csv, 'text/csv;charset=utf-8');
   setStatus(`Exported ${filename}.`, 'success');
 }
 
@@ -2552,12 +2582,12 @@ function onImportCsvFile(event) {
 // field — category when a matching `<key>_color` column exists (or the legacy `group`),
 // else text. Rows are grouped into plates by the optional `plate` column.
 function importCsv(text) {
-  const lines = text.split(/\r\n|\r|\n/).filter((line) => line.trim().length);
-  if (lines.length < 2) {
+  const rows = labtoolsCsvToRows(text).filter((row) => row.length && row.some((cell) => cell.trim().length));
+  if (rows.length < 2) {
     setStatus('CSV has no data rows.', 'danger');
     return;
   }
-  const header = parseCsvLine(lines[0]).map((cell) => cell.trim().toLowerCase());
+  const header = rows[0].map((cell) => cell.trim().toLowerCase());
   const idx = {};
   header.forEach((h, i) => { if (!(h in idx)) idx[h] = i; });
   const iWell = idx.well;
@@ -2599,8 +2629,8 @@ function importCsv(text) {
     return p;
   };
 
-  for (let i = 1; i < lines.length; i++) {
-    const cells = parseCsvLine(lines[i]);
+  for (let i = 1; i < rows.length; i++) {
+    const cells = rows[i];
     const well = (cells[iWell] || '').trim().toUpperCase();
     if (!/^[A-Z]+\d+$/.test(well)) continue;
     const ptype = idx.plate_type !== undefined ? (cells[idx.plate_type] || '').trim() : '';
@@ -2652,32 +2682,6 @@ function importCsv(text) {
 
   const labelled = builtPlates.reduce((n, p) => n + Object.keys(p.assignments).length, 0);
   setStatus(`Imported ${builtPlates.length} plate(s), ${labelled} labelled wells across ${newFields.length} fields.`, 'success');
-}
-
-// Minimal CSV line parser with quoted-field ("") handling — matches the export writer.
-function parseCsvLine(line) {
-  const out = [];
-  let cur = '';
-  let quoted = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (quoted) {
-      if (ch === '"') {
-        if (line[i + 1] === '"') { cur += '"'; i++; } else quoted = false;
-      } else {
-        cur += ch;
-      }
-    } else if (ch === '"') {
-      quoted = true;
-    } else if (ch === ',') {
-      out.push(cur);
-      cur = '';
-    } else {
-      cur += ch;
-    }
-  }
-  out.push(cur);
-  return out;
 }
 
 function isValidHexColor(value) {
@@ -2794,10 +2798,6 @@ function contrastText(hex) {
   return luminance > 0.58 ? '#37352f' : '#ffffff';
 }
 
-function csvCell(value) {
-  return `"${String(value).replace(/"/g, '""')}"`;
-}
-
 function mmToPx(mm, scale) {
   return roundPx(mm * scale);
 }
@@ -2814,33 +2814,264 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function fallbackDownloadText(filename, content) {
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-  fallbackDownloadBlob(filename, blob);
+// ─── Workbench integration ──────────────────────────────────────────────────
+const TOOL_NAME = 'microplate-layout-planner';
+const WbTypes = { produces: 'plate-layout', consumes: ['plate-layout'] };
+
+function serializeForWorkbench() {
+  return {
+    plates: plates.map(function (p) {
+      return {
+        name: p.name,
+        plateType: p.plateType,
+        cutCorners: Array.from(p.cutCorners),
+        assignments: p.assignments,
+      };
+    }),
+    fields: fields.map(function (f) {
+      return { id: f.id, key: f.key, name: f.name, kind: f.kind };
+    }),
+    categoriesByField: categoriesByField,
+  };
 }
 
-function fallbackDownloadBlob(filename, blob) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
+function applyFromWorkbench(data, type) {
+  // Rebuild plates
+  plates = (data.plates || []).map(function (p) {
+    return {
+      id: uid('p'),
+      name: p.name,
+      plateType: p.plateType,
+      cutCorners: new Set(p.cutCorners || []),
+      assignments: p.assignments || {},
+    };
+  });
+  if (plates.length === 0) plates = [makePlate('96', 'Plate 1')];
+  activePlateId = plates[0].id;
+  // Rebuild fields
+  fields = (data.fields || []).map(function (f) {
+    return { id: f.id, key: f.key, name: f.name, kind: f.kind };
+  });
+  if (fields.length === 0) seedDefaults();
+
+  // Rebuild categories
+  categoriesByField = data.categoriesByField || {};
+  activeCatByField = {};
+  Object.keys(categoriesByField).forEach(function (fid) {
+    var cats = categoriesByField[fid];
+    if (cats && cats.length) activeCatByField[fid] = cats[0].id;
+  });
+
+  // Reset color/label field pointers
+  var catFields = categoryFields();
+  colorFieldId = (catFields[0] || {}).id || 'group';
+  labelFieldId = colorFieldId;
+  activeFieldId = colorFieldId;
+
+  // Reset selection
+  selectedWells = new Set();
+  selectionAnchor = null;
+  clipboard = null;
+
+  // Auto-set plate-type dropdowns and re-render
+  renderAll();
 }
 
-function escHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+/**
+ * Artifact-handoff consumer: the wired `plate-layout` field rides the same
+ * shape applyFromWorkbench understands.
+ */
+function applyInputs(resolved) {
+  if (!resolved) return;
+  if (resolved['plate-layout'] != null) {
+    applyFromWorkbench(resolved['plate-layout'], 'plate-layout');
+  }
 }
 
-function escAttr(value) {
-  return escHtml(value);
+function suggestLabel() {
+  var plateNames = plates.map(function (p) { return p.name; }).filter(Boolean);
+  var prefix = plateNames.length ? plateNames.join(', ') : 'Plate Layout';
+  var date = new Date().toISOString().slice(0, 10);
+  return prefix + ' ' + date;
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  var saveBtn = document.getElementById('wb-save-btn');
+  var loadBtn = document.getElementById('wb-load-btn');
+
+  if (saveBtn) saveBtn.addEventListener('click', function () {
+    var label = prompt('Name this item:', suggestLabel());
+    if (!label || !label.trim()) return;
+    label = label.trim();
+
+    workbench.findByName(label).then(function (existing) {
+      if (existing) {
+        if (!confirm('"' + label + '" already exists. Overwrite?')) return;
+        return workbench.remove(existing.id);
+      }
+    }).then(function () {
+      var meta = {
+        wellCount: plates.reduce(function (sum, p) { return sum + Object.keys(p.assignments).length; }, 0),
+        plateCount: plates.length,
+        plateFormat: plates.map(function (p) { return p.plateType; }).join(','),
+      };
+      return workbench.put(WbTypes.produces, label, serializeForWorkbench(), meta, TOOL_NAME);
+    }).then(function () {
+      showToast('✓ Saved "' + label + '"');
+    }).catch(function (e) {
+      showToast('✗ ' + e.message);
+      console.error('Workbench save error:', e);
+    });
+  });
+
+  if (loadBtn) loadBtn.addEventListener('click', function () {
+    workbench.getByType('plate-layout').then(function (items) {
+      if (items.length === 0) {
+        showToast('No plate layouts in Workbench');
+        return;
+      }
+      showPicker(items, function (item) {
+        applyFromWorkbench(item.data, item.type);
+        showToast('✓ Applied "' + item.label + '"');
+      });
+    }).catch(function (e) {
+      console.error('Workbench load error:', e);
+    });
+  });
+
+  // Workflow handoff: save this layout and open the qPCR Analyzer with it loaded.
+  // Artifact envelope handoff — qpcr-analysis wires the plate-layout field via
+  // its input ports (labtoolsConsumeArtifactHandoff).
+  var toQpcrBtn = document.getElementById('wb-to-qpcr-btn');
+  if (toQpcrBtn) toQpcrBtn.addEventListener('click', function () {
+    labtoolsHandoffArtifact(mplTool, '../qpcr-analysis/index.html', suggestLabel())
+      .catch(function (e) { showToast('✗ ' + e.message); console.error('Handoff:', e); });
+  });
+
+  // Workflow handoff: auto-apply a layout passed from qpcr-plate-planner (?wbLoad).
+  // Workflow handoff: auto-apply an incoming plate-layout (?wbLoad). Dual
+  // channel: artifact envelopes wire through applyInputs (field ports) and
+  // strip the param; legacy typed payloads keep the applyFromWorkbench path.
+  if (typeof labtoolsConsumeArtifactHandoff === 'function') {
+    labtoolsConsumeArtifactHandoff(mplTool, applyInputs);
+  }
+  if (typeof labtoolsConsumeHandoff === 'function') {
+    labtoolsConsumeHandoff(applyFromWorkbench);
+  }
+});
+
+// ─── Artifact model (full-state recovery + wireable outputs) ────────────────
+// Pure-function view: the plates (geometry + assignments), field definitions,
+// categories, AND the UI selectors (color/label/active field, active plate,
+// overview) are all `params`. Transient selection/clipboard resets. This extends
+// the plate-layout serialize with the view state so restore reproduces the tool
+// exactly (not just the data). cutCorners Set ↔ array for JSON/CSV.
+
+/** Capture ALL control state (plates + fields + categories + view selectors). */
+function readParams() {
+  return {
+    plates: plates.map(function (p) {
+      return {
+        id: p.id, name: p.name, plateType: p.plateType,
+        cutCorners: Array.from(p.cutCorners), assignments: p.assignments,
+      };
+    }),
+    fields: fields.map(function (f) { return { id: f.id, key: f.key, name: f.name, kind: f.kind }; }),
+    categoriesByField: categoriesByField,
+    activeCatByField: activeCatByField,
+    colorFieldId: colorFieldId,
+    labelFieldId: labelFieldId,
+    activeFieldId: activeFieldId,
+    activePlateId: activePlateId,
+    overviewMode: overviewMode,
+  };
+}
+
+/** Restore control state (preserving plate ids + view selectors), then re-render. */
+function applyParams(p) {
+  p = p || {};
+  plates = (p.plates || []).map(function (pl) {
+    return {
+      id: pl.id || uid('p'), name: pl.name, plateType: pl.plateType,
+      cutCorners: new Set(pl.cutCorners || []), assignments: pl.assignments || {},
+    };
+  });
+  if (plates.length === 0) plates = [makePlate('96', 'Plate 1')];
+
+  fields = (p.fields || []).map(function (f) { return { id: f.id, key: f.key, name: f.name, kind: f.kind }; });
+  if (fields.length === 0) seedDefaults();
+
+  categoriesByField = p.categoriesByField || {};
+  activeCatByField = p.activeCatByField || {};
+  Object.keys(categoriesByField).forEach(function (fid) {
+    if (activeCatByField[fid] == null) {
+      var cats = categoriesByField[fid];
+      if (cats && cats.length) activeCatByField[fid] = cats[0].id;
+    }
+  });
+
+  var catFields = categoryFields();
+  var firstCat = (catFields[0] || {}).id || 'group';
+  colorFieldId = p.colorFieldId || firstCat;
+  labelFieldId = p.labelFieldId || colorFieldId;
+  activeFieldId = p.activeFieldId || colorFieldId;
+  activePlateId = (p.activePlateId && plates.some(function (pl) { return pl.id === p.activePlateId; }))
+    ? p.activePlateId : plates[0].id;
+  overviewMode = !!p.overviewMode;
+
+  selectedWells = new Set(); selectionAnchor = null; clipboard = null;
+  renderAll();
+}
+
+/** Declared final output: the microplate layout. */
+function readOutputs() {
+  return { 'plate-layout': serializeForWorkbench() };
+}
+
+// Bridge: registers workbench types and provides artifact build/save/restore/CSV.
+const mplTool = labtoolsDefineTool({
+  id: 'microplate-layout-planner',
+  produces: ['plate-layout'],
+  consumes: ['plate-layout'],
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  outputFields: [{ id: 'plate-layout', label: 'Microplate layout' }],
+  inputPorts: [{ field: 'plate-layout' }],
+});
+
+// Explicit legacy declaration (kept for the static registry test; the bridge
+// above registers the same types at runtime — idempotent).
+labtoolsRegisterToolTypes('microplate-layout-planner', ['plate-layout'], ['plate-layout']);
+
+if (typeof labtoolsMountArtifactControls === 'function') {
+  labtoolsMountArtifactControls(mplTool, { container: '#lt-artifact-controls', fileBase: 'microplate-layout-planner' });
+}
+
+labtoolsRegisterTestHooks('microplate-layout-planner', {
+  serialize: serializeForWorkbench,
+  apply: applyFromWorkbench,
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  buildArtifact: function () { return mplTool.build(); },
+  toCsv: function () { return mplTool.toCsv(); },
+  fromCsv: function (text) { return mplTool.fromCsv(text); },
+  state: function () {
+    return {
+      plates: plates.map(function (p) {
+        return { name: p.name, plateType: p.plateType, wells: Object.keys(p.assignments || {}).length };
+      }),
+      fields: fields.map(function (f) { return f.name; }),
+    };
+  },
+});
+
+// ─── Shared-layer runtime boot (manifest + load self-check; idempotent) ──────
+if (typeof labtools !== 'undefined' && labtools.runtime && labtools.runtime.boot) {
+  labtools.runtime.boot({ manifest: Object.assign({}, window.labtoolsToolManifest, {
+    readParams: readParams, applyParams: applyParams, readOutputs: readOutputs,
+  })});
 }
 </script>
 

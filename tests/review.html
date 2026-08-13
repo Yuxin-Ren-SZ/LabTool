@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LabTools — Human Visual-QA Review</title>
+  <link rel="stylesheet" href="../assets/css/labtools.css"/>
+  <style>
+    body { font-family: var(--font); background: var(--bg); color: var(--text); padding: 24px; max-width: 820px; margin: 0 auto; }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; }
+    .sub { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 18px; }
+    #checklist, #report { margin-top: 20px; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 20px; }
+    h2 { font-size: 1rem; margin-bottom: 10px; }
+    .check-item { display: flex; align-items: flex-start; gap: 8px; padding: 5px 0; font-size: 0.85rem; }
+    .check-item input { margin-top: 3px; }
+    .report-row { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; font-size: 0.82rem; }
+    .report-row input, .report-row textarea { flex: 1; padding: 6px 10px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 0.82rem; font-family: inherit; }
+    .toolbar { margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <h1>🔬 LabTools — Human Visual-QA Review</h1>
+  <p class="sub">
+    Automated behaviour is covered by the headless suite (<code>npm test</code>).
+    This page is for the things a machine can't judge — drawer animation, layout,
+    cross-tab visuals. Serve the repo (<code>python3 -m http.server 8000</code>),
+    walk each item in a real browser, tick it, and download the signed report.
+  </p>
+
+  <div id="checklist">
+    <h2>✅ Checklist</h2>
+    <div id="checklistItems"></div>
+  </div>
+
+  <div id="report">
+    <h2>📋 Report</h2>
+    <div class="report-row">
+      <label for="reviewerName" style="white-space:nowrap">Reviewer:</label>
+      <input type="text" id="reviewerName" placeholder="Your name" />
+    </div>
+    <div class="report-row" style="align-items:flex-start">
+      <label for="reviewNotes" style="white-space:nowrap">Notes:</label>
+      <textarea id="reviewNotes" rows="2"></textarea>
+    </div>
+    <div class="toolbar">
+      <button class="lt-btn lt-btn-primary" id="downloadBtn">⬇ Download Review</button>
+    </div>
+  </div>
+
+<script>
+'use strict';
+const CHECKLIST = [
+  'Drawer opens from the left tab on the root page; items grouped by type',
+  'Drawer opens on a tool page; item cards show label / tool / time',
+  'Rename (double-click) and delete work from the drawer',
+  'Export JSON downloads; Import JSON re-imports in the same browser',
+  'qpcr: plate heatmap shows groups/genes after plate-layout import',
+  'rt-calc: sample table shows concentrations after conc-data import',
+  'stain-timer: protocol table shows imported steps',
+  'Duplicate-label save prompts "Overwrite?" and replaces the item',
+  "Two browser tabs: saving in tab A appears in tab B's drawer (BroadcastChannel)",
+  'No console errors on any tool page during these flows',
+];
+
+const $ = (id) => document.getElementById(id);
+
+function renderChecklist() {
+  const wrap = $('checklistItems');
+  CHECKLIST.forEach((item, i) => {
+    const label = document.createElement('label');
+    label.className = 'check-item';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.dataset.idx = String(i);
+    const span = document.createElement('span');
+    span.textContent = item;
+    label.append(cb, span);
+    wrap.appendChild(label);
+  });
+}
+
+function download(filename, content) {
+  const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function buildReport() {
+  const checks = Array.from(document.querySelectorAll('#checklistItems input')).map((el, i) => ({
+    item: CHECKLIST[i], checked: el.checked,
+  }));
+  return {
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    reviewer: $('reviewerName').value || '',
+    notes: $('reviewNotes').value || '',
+    checklist: checks,
+  };
+}
+
+$('downloadBtn').addEventListener('click', () => {
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  download(`labtools-visual-review-${stamp}.json`, JSON.stringify(buildReport(), null, 2));
+});
+
+renderChecklist();
+</script>
+</body>
+</html>

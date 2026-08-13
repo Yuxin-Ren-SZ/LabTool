@@ -7,6 +7,16 @@
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
   <!-- Shared pure-function utilities (avgTwo, fmt, calcCellDensity, makeDiagram, MODES …) -->
   <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-counting.js"></script>
+  <script src="../../assets/js/labtools-types.js"></script>
+  <script src="../../assets/js/labtools-store.js"></script>
+  <script src="../../assets/js/labtools-workbench.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
+  <script src="../../assets/js/labtools-artifact.js"></script>
+  <script src="../../assets/js/labtools-artifact-ui.js"></script>
+  <script src="../../assets/js/labtools-workflow.js"></script>
+  <script src="../../assets/js/labtools-runtime.js"></script>
+  <script src="manifest.js"></script>
   <style>
     /* ── Card width (base styles live in labtools.css .card) ── */
     .card { max-width: 600px; }
@@ -32,6 +42,14 @@
 
   <h1 class="lt-tool-title">🔬 Cell Count Calculator</h1>
   <p class="lt-tool-subtitle">Hemocytometer · Neubauer improved chamber</p>
+
+  <div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+    <button class="lt-btn lt-btn-ghost" id="wb-save-btn">Save to Workbench</button>
+    <button class="lt-btn lt-btn-ghost" id="wb-continue-seeding-btn" title="Save this count and open the Seeding Calculator with it pre-filled">Save &amp; continue to Seeding →</button>
+  </div>
+
+  <!-- Full-state artifact controls (save/export/import/load the whole tool) -->
+  <div id="lt-artifact-controls" style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap"></div>
 
   <!-- ── Mode selector ── -->
   <div class="lt-section-label lt-section-label--tight">Counting Mode</div>
@@ -134,52 +152,32 @@
 // ─────────────────────────────────────────────────────────────
 // State
 // (makeDiagram, MODES, avgTwo, fmt, calcCellDensity, calcTotalCells,
-//  calcViabilityPct are loaded from assets/js/labtools-calc.js)
-// ─────────────────────────────────────────────────────────────
-
-/** Currently selected counting mode ID (1–4, matching MODES[].id). */
-let currentModeId = 1;
-
-// ─────────────────────────────────────────────────────────────
-// Mode selector UI
+//  calcViabilityPct are loaded from assets/js/labtools-calc.js; the counting
+//  mode state + selector UI live in assets/js/labtools-counting.js)
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Render the 4-option mode selector grid from the MODES array.
- * Each option shows an SVG diagram and a short label.
- * Called once on init; selectMode() handles subsequent updates.
+ * Latest calculation results as plain numbers (or null when a value has no
+ * valid result). Maintained by calculate() — the single recompute entry point —
+ * so serialization reads real numbers instead of parsing formatted DOM text.
  */
-function buildModeSelector() {
-  const container = document.getElementById('mode-selector');
-  container.innerHTML = '';
-  MODES.forEach(m => {
-    const div = document.createElement('div');
-    div.className = 'mode-option' + (m.id === currentModeId ? ' active' : '');
-    const tagHtml = m.tag.replace('\n', '<br>');
-    div.innerHTML = `${makeDiagram(m.largeHL, m.smallHL)}<span class="mode-tag">${tagHtml}</span>`;
-    div.onclick = () => selectMode(m.id);
-    container.appendChild(div);
-  });
-}
+let lastResult = { density: null, totalCells: null, viability: null };
+
+// ─────────────────────────────────────────────────────────────
+// Mode selector UI — shared with seeding-calc via labtools.counting
+// ─────────────────────────────────────────────────────────────
 
 /**
- * Activate a counting mode by ID:
- * - Marks the clicked option as .active, clears others.
- * - Updates the mode description strip (formula + text).
- * - Propagates the change by triggering calculate().
- *
- * @param {number} id  Mode ID from MODES[].id (1–4)
+ * Page-level wrappers kept for the inline HTML attributes and e2e hooks
+ * (`window.selectMode(3)`); the implementation lives in the shared
+ * labtools-counting module so cell-count and seeding-calc can never drift.
  */
 function selectMode(id) {
-  currentModeId = id;
-  document.querySelectorAll('.mode-option').forEach((el, i) => {
-    el.classList.toggle('active', MODES[i].id === id);
-  });
-  const m = MODES.find(x => x.id === id);
-  document.getElementById('mode-desc').innerHTML =
-    `<span class="formula-inline">${m.formulaNote}</span>${m.desc}`;
-  document.getElementById('live-hint').textContent = m.hint;
-  calculate();
+  labtools.counting.selectMode(id, calculate);
+}
+
+function onCountAllToggle() {
+  labtools.counting.onCountAllToggle(calculate);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -187,124 +185,29 @@ function selectMode(id) {
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Read all inputs, run shared calculation functions, and write
- * every result field to the DOM. Called on any input change.
- *
- * Calculation chain (using labtools-calc.js utilities):
- *   avgTwo()          → average live/dead counts (handles 1 or 2 chambers)
- *   calcCellDensity() → Final Concentration in cells/mL
- *   calcTotalCells()  → Total cells = density × resuspension volume
- *   calcViabilityPct() → Trypan Blue % viability (optional, requires dead counts)
+ * Read all inputs, run the shared Step-1 core (labtools.counting), write the
+ * result fields, and refresh lastResult for serialization. Called on any
+ * input change. Page-specific side effect: lastResult.
  */
 function calculate() {
-  const mode  = MODES.find(m => m.id === currentModeId);
-  const isAll = document.getElementById('count-all-toggle').checked;
-  const df    = parseFloat(document.getElementById('df').value);
-  const vol   = parseFloat(document.getElementById('vol').value);
-
-  const live1 = parseFloat(document.getElementById('live1').value);
-  const live2 = parseFloat(document.getElementById('live2').value);
-  const dead1 = parseFloat(document.getElementById('dead1').value);
-  const dead2 = parseFloat(document.getElementById('dead2').value);
-
-  const liveAvg = avgTwo(live1, live2);
-  const deadAvg = avgTwo(dead1, dead2);
-  const avgLive = liveAvg.val;
-  const avgDead = deadAvg.val;
-
-  // Guard: negative counts are physically impossible on a hemocytometer
-  if ((!isNaN(live1) && live1 < 0) || (!isNaN(live2) && live2 < 0) ||
-      (!isNaN(dead1) && dead1 < 0) || (!isNaN(dead2) && dead2 < 0)) {
-    document.getElementById('res-avg').textContent     = '—';
-    document.getElementById('res-density').textContent = '—';
-    document.getElementById('res-total').textContent   = '—';
-    document.getElementById('via-note').textContent    = '⚠ Counts cannot be negative.';
-    document.getElementById('via-note').className      = 'via-note';
+  const counts = labtools.counting.readCounts();
+  const r = labtools.counting.core(counts);
+  if (r.error === 'negative') {
+    labtools.counting.renderNegativeError();
+    lastResult = { density: null, totalCells: null, viability: null };
     return;
   }
-
-  // Core calculations via shared utilities
-  const finalDensity = calcCellDensity(avgLive, mode.multiplier, df);
-  const totalCells   = calcTotalCells(finalDensity, vol);
-
-  // Viability — only when dead counts are entered (not in count-all mode)
-  const hasDeadAny = !isAll && deadAvg.n > 0;
-  const viability  = hasDeadAny ? calcViabilityPct(avgLive, avgDead) : NaN;
-
-  // ── Avg count display ──
-  if (!isNaN(avgLive)) {
-    document.getElementById('res-avg').textContent      = avgLive.toFixed(1);
-    document.getElementById('res-avg-note').textContent =
-      liveAvg.n === 2 ? 'avg of 2 counts' : 'single count';
-  } else {
-    document.getElementById('res-avg').textContent      = '—';
-    document.getElementById('res-avg-note').textContent = 'from counts';
-  }
-
-  // ── Viability display — four mutually exclusive branches ──
-  if (isAll) {
-    // Count-all mode: viability is meaningless (no Trypan Blue stain used)
-    document.getElementById('res-via').textContent      = 'N/A';
-    document.getElementById('res-via-note').textContent = 'count-all mode';
-    document.getElementById('via-note').textContent     = 'Dead cell counting disabled — all cells counted as live.';
-    document.getElementById('via-note').className       = 'via-note';
-  } else if (!isNaN(viability)) {
-    // Valid viability: both live and dead counts are present
-    document.getElementById('res-via').textContent      = viability.toFixed(1) + '%';
-    document.getElementById('res-via-note').textContent =
-      deadAvg.n === 2 ? 'avg of 2 dead counts' : 'from dead count';
-    document.getElementById('via-note').textContent     = `✓ Viability: ${viability.toFixed(1)}%`;
-    document.getElementById('via-note').className       = 'via-note computed';
-  } else if (hasDeadAny) {
-    // Dead counts entered but live count missing → cannot compute yet
-    document.getElementById('res-via').textContent      = '—';
-    document.getElementById('res-via-note').textContent = 'waiting for live count';
-    document.getElementById('via-note').textContent     = 'Waiting for live count to compute viability.';
-    document.getElementById('via-note').className       = 'via-note';
-  } else {
-    // No dead counts at all — prompt the user
-    document.getElementById('res-via').textContent      = '—';
-    document.getElementById('res-via-note').textContent = 'enter dead counts above';
-    document.getElementById('via-note').textContent     = 'Enter dead counts above to auto-calculate viability.';
-    document.getElementById('via-note').className       = 'via-note';
-  }
-
-  // ── Total label changes when counting all cells (no viability distinction) ──
-  document.getElementById('res-total-label').textContent =
-    isAll ? 'Total Cells' : 'Total Live Cells';
-
-  // ── Final Concentration ──
-  document.getElementById('res-density').textContent      = fmt(finalDensity);
-  document.getElementById('res-density-note').textContent = 'cells/mL';
-
-  // ── Total cells in tube ──
-  document.getElementById('res-total').textContent      = fmt(totalCells);
-  document.getElementById('res-total-note').textContent =
-    !isNaN(finalDensity) && !isNaN(vol) && vol > 0
-      ? 'conc. × ' + vol + ' mL'
-      : !isNaN(finalDensity) ? 'enter resuspension vol' : '—';
+  labtools.counting.renderResults(r, counts.vol);
+  lastResult = {
+    density:    isNaN(r.density)    ? null : r.density,
+    totalCells: isNaN(r.totalCells) ? null : r.totalCells,
+    viability:  isNaN(r.viability)  ? null : r.viability,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────
 // Count-all toggle
 // ─────────────────────────────────────────────────────────────
-
-/**
- * Handle the "Count all cells" checkbox toggle.
- * When enabled: disables the dead-cell block (greys it out) and
- * clears any previously entered dead counts.
- * When disabled: re-enables the dead-cell block.
- */
-function onCountAllToggle() {
-  const isAll = document.getElementById('count-all-toggle').checked;
-  const deadBlock = document.getElementById('dead-block');
-  deadBlock.classList.toggle('disabled', isAll);
-  if (isAll) {
-    document.getElementById('dead1').value = '';
-    document.getElementById('dead2').value = '';
-  }
-  calculate();
-}
 
 // ─────────────────────────────────────────────────────────────
 // Reset
@@ -331,12 +234,12 @@ function resetAll() {
 
 /**
  * Collect current input and result values as a [field, value] row array.
- * Used by both makeCsv() and copyResults() to share formatting logic.
+ * Used by both downloadCsv() and copyResults() to share formatting logic.
  *
  * @returns {Array<[string, string]>} Rows including a header row.
  */
 function getExportRows() {
-  const mode  = MODES.find(m => m.id === currentModeId);
+  const mode  = MODES.find(m => m.id === labtools.counting.getCurrentModeId());
   const isAll = document.getElementById('count-all-toggle').checked;
   return [
     ['Field', 'Value'],
@@ -357,88 +260,181 @@ function getExportRows() {
 }
 
 /**
- * Convert a rows array into an RFC-4180 CSV string.
- * All fields are double-quoted; embedded quotes are escaped by doubling.
- *
- * @param {Array<string[]>} rows
- * @returns {string} CSV content
- */
-function makeCsv(rows) {
-  return rows.map(r => r.map(cell => {
-    const text = String(cell).replace(/"/g, '""');
-    return `"${text}"`;
-  }).join(',')).join('\n');
-}
-
-/**
- * Build a CSV Blob and trigger a browser download via a temporary <a> element.
- * The object URL is revoked immediately after the click to free memory.
+ * Build the results CSV with the shared RFC-4180 encoder and trigger a download
+ * via the shared labtoolsDownloadText helper. Column structure is defined by
+ * getExportRows() above.
  */
 function downloadCsv() {
-  const csv  = makeCsv(getExportRows());
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = 'cell-count-results.csv';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const csv = labtoolsRowsToCsv(getExportRows());
+  labtoolsDownloadText('cell-count-results.csv', csv, 'text/csv;charset=utf-8');
   document.getElementById('export-note').textContent = 'CSV file generated for download.';
 }
 
 /**
- * Copy a plain-text summary of all results to the clipboard.
- * Uses the Clipboard API when available; falls back to execCommand otherwise.
+ * Copy a plain-text summary of all results to the clipboard via the shared
+ * labtoolsCopyText helper (Clipboard API with a built-in legacy fallback).
  */
 function copyResults() {
   const text = ['Cell Count Calculator Results', '',
     ...getExportRows().map(r => `${r[0]}: ${r[1]}`)].join('\n');
-
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text)
-      .then(() => {
-        document.getElementById('export-note').textContent = 'Results copied to clipboard.';
-      })
-      .catch(() => fallbackCopyText(text));
-  } else {
-    fallbackCopyText(text);
-  }
-}
-
-/**
- * Legacy clipboard copy for browsers without navigator.clipboard.
- * Creates an off-screen textarea, selects it, and calls execCommand('copy').
- *
- * @param {string} text  Plain text to copy
- */
-function fallbackCopyText(text) {
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.setAttribute('readonly', '');
-  ta.style.position = 'absolute';
-  ta.style.left = '-9999px';
-  document.body.appendChild(ta);
-  ta.select();
-  try {
-    document.execCommand('copy');
+  labtoolsCopyText(text).then(function () {
     document.getElementById('export-note').textContent = 'Results copied to clipboard.';
-  } catch {
+  }).catch(function () {
     document.getElementById('export-note').textContent = 'Unable to copy — use Export CSV instead.';
-  }
-  document.body.removeChild(ta);
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
 // Init
 // ─────────────────────────────────────────────────────────────
-buildModeSelector();
-selectMode(currentModeId);
+labtools.counting.init(calculate);
 
 // Restrict all numeric inputs to digits, decimal point, and +/- signs
 document.querySelectorAll('input[type="number"]')
   .forEach(el => el.addEventListener('keydown', restrictToNumeric));
+
+// ─── Workbench integration ──────────────────────────────────────────────────
+const WB_TOOL = 'cell-count';
+const WB_PRODUCES_TYPE = 'sample-list';
+
+function serializeForWorkbench() {
+  // Refresh derived results from the current inputs first, so the payload
+  // reflects live DOM state even when the last calculate() predates an input
+  // change (e.g. a direct programmatic value set).
+  calculate();
+  const density = lastResult ? lastResult.density : null;
+  return {
+    samples: [{
+      name: 'Cell Suspension',
+      conc: density,   // cells/mL, or null when no valid density (never a raw count)
+      unit: 'cells/mL',
+    }],
+  };
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const saveBtn = document.getElementById('wb-save-btn');
+  if (saveBtn) saveBtn.addEventListener('click', function () {
+    const data = serializeForWorkbench();
+    if (data.samples[0].conc == null) { showToast('Enter counts first.'); return; }
+    let label = prompt('Name this item:', 'Cell Count ' + new Date().toISOString().slice(0, 10));
+    if (!label || !label.trim()) return;
+    label = label.trim();
+
+    workbench.findByName(label).then(function (existing) {
+      if (existing) {
+        if (!confirm('"' + label + '" already exists. Overwrite?')) return;
+        return workbench.remove(existing.id);
+      }
+    }).then(function () {
+      return workbench.put(WB_PRODUCES_TYPE, label, data,
+        { sampleCount: 1, unit: 'cells/mL' }, WB_TOOL);
+    }).then(function () {
+      showToast('✓ Saved "' + label + '"');
+    }).catch(function (e) { showToast('✗ ' + e.message); console.error('WB save:', e); });
+  });
+
+  // Workflow handoff: save the artifact envelope (declared outputs) and open
+  // seeding-calc, which wires them into its input ports (field-id matching).
+  // The legacy typed sample-list payload is still saved via the Save button.
+  const continueBtn = document.getElementById('wb-continue-seeding-btn');
+  if (continueBtn) continueBtn.addEventListener('click', function () {
+    const data = serializeForWorkbench();
+    if (data.samples[0].conc == null) { showToast('Enter counts first.'); return; }
+    const label = 'Cell Count ' + new Date().toISOString().slice(0, 10);
+    labtoolsHandoffArtifact(cellTool, '../seeding-calc/index.html', label)
+      .catch(function (e) { showToast('✗ ' + e.message); console.error('Handoff:', e); });
+  });
+});
+
+// ─── Artifact model (full-state recovery + wireable outputs) ────────────────
+// The tool is treated as a pure function: every control the user touches is a
+// `param`; `outputs` are derived. Restoring params + recomputing reproduces the
+// tool exactly. See docs/output-fields.md for the output field-ids.
+
+/** Capture ALL control state. */
+function readParams() {
+  return {
+    modeId:   labtools.counting.getCurrentModeId(),
+    countAll: document.getElementById('count-all-toggle').checked,
+    df:       document.getElementById('df').value,
+    vol:      document.getElementById('vol').value,
+    live1:    document.getElementById('live1').value,
+    live2:    document.getElementById('live2').value,
+    dead1:    document.getElementById('dead1').value,
+    dead2:    document.getElementById('dead2').value,
+  };
+}
+
+/** Restore control state, then let the existing reactive render recompute. */
+function applyParams(p) {
+  p = p || {};
+  const setv = (k) => { const el = document.getElementById(k); if (el) el.value = (p[k] != null ? p[k] : ''); };
+  ['df', 'vol', 'live1', 'live2'].forEach(setv);
+  const toggle = document.getElementById('count-all-toggle');
+  if (toggle) { toggle.checked = !!p.countAll; onCountAllToggle(); }
+  // Set dead counts AFTER the toggle handler (which clears them in count-all mode).
+  setv('dead1'); setv('dead2');
+  selectMode(p.modeId || labtools.counting.getCurrentModeId());   // triggers calculate()
+}
+
+/** Declared final outputs, projected from the latest calculation results. */
+function readOutputs() {
+  return {
+    'cell-density': lastResult ? lastResult.density    : null,   // cells/mL
+    'total-cells':  lastResult ? lastResult.totalCells : null,
+    'viability':    lastResult ? lastResult.viability  : null,   // %
+  };
+}
+
+// Bridge: registers workbench types and provides artifact build/save/restore/CSV.
+const cellTool = labtoolsDefineTool({
+  id: 'cell-count',
+  produces: ['sample-list'],
+  consumes: [],
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  outputFields: [
+    { id: 'cell-density', label: 'Cell density (cells/mL)' },
+    { id: 'total-cells',  label: 'Total live cells' },
+    { id: 'viability',    label: 'Viability (%)' },
+  ],
+});
+
+// Explicit legacy declaration (kept for the static registry test; the bridge
+// above registers the same types at runtime — idempotent).
+labtoolsRegisterToolTypes('cell-count', ['sample-list'], []);
+
+// Mount the full-state artifact controls (Save / Export / Import / Load).
+if (typeof labtoolsMountArtifactControls === 'function') {
+  labtoolsMountArtifactControls(cellTool, { container: '#lt-artifact-controls', fileBase: 'cell-count' });
+}
+
+labtoolsRegisterTestHooks('cell-count', {
+  serialize: serializeForWorkbench,        // legacy sample-list payload (kept)
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  buildArtifact: function () { return cellTool.build(); },
+  toCsv: function () { return cellTool.toCsv(); },
+  fromCsv: function (text) { return cellTool.fromCsv(text); },
+  state: function () {
+    return {
+      density: document.getElementById('res-density').textContent,
+      live1: document.getElementById('live1').value,
+    };
+  },
+});
+
+// ─── Runtime boot (manifest validation + load self-check) ─────────────────────
+// Registers types from the manifest (idempotent with the explicit declaration
+// above) and surfaces missing/mis-ordered shared scripts as a visible banner.
+if (typeof labtools !== 'undefined' && labtools.runtime && labtools.runtime.boot) {
+  labtools.runtime.boot({ manifest: Object.assign({}, window.labtoolsToolManifest, {
+    readParams: readParams, applyParams: applyParams, readOutputs: readOutputs,
+  })});
+}
 </script>
 </body>
 </html>

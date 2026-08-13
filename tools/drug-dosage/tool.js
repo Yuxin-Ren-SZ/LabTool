@@ -751,6 +751,7 @@ function buildResultCard(row, hasActualError) {
           <span class="lt-badge lt-badge-blue">${escapeHtml(row.drug.amountUnit)}/${row.drug.weightUnit}</span>
           ${row.drug.administrationRoute ? `<span class="lt-badge lt-badge-default">${escapeHtml(row.drug.administrationRoute)}</span>` : ''}
           ${row.drug.controlledSubstance ? '<span class="lt-badge lt-badge-red">Controlled</span>' : ''}
+          ${row.safetyFlag === 'exact-exceeds-max' ? '<span class="lt-badge lt-badge-red">⚠ Exact exceeds max dose</span>' : ''}
         </div>
       </div>
       <div class="result-source-line">
@@ -1016,6 +1017,22 @@ function evaluateOperation() {
   }
 
   resultRows.forEach((row) => {
+    // Safety cap: the dosing window's own invariant is min ≤ exact ≤ max.
+    // A computed exact amount ABOVE the computed max amount is a dosing
+    // error — block the save and surface it (max-dose safety cap, the
+    // re-enable gate from TODO). Checked for every result row, before the
+    // actual-amount entry handling below.
+    if (
+      Number.isFinite(row.exactAmount) && Number.isFinite(row.maxAmount) &&
+      row.exactAmount > row.maxAmount
+    ) {
+      row.safetyFlag = 'exact-exceeds-max';
+      saveIssues.push(
+        `"${row.drug.name || 'Unnamed drug'}" calculated exact amount (${formatDoseAmount(row.exactAmount)} ${row.drug.amountUnit}) exceeds the protocol max (${formatDoseAmount(row.maxAmount)} ${row.drug.amountUnit}) — reduce the exact dose or widen the max dose.`
+      );
+      return;
+    }
+
     const actualValue = state.operation.actualAmounts[row.rowKey];
     if (actualValue === '') return;
 
@@ -2067,8 +2084,11 @@ function makeCsv(rows) {
 
 function csvCell(value) {
   const text = value == null ? '' : String(value);
-  if (!/[",\n]/.test(text)) return text;
-  return `"${text.replace(/"/g, '""')}"`;
+  // CSV/formula injection guard: neutralise cells that start with = + - @
+  // (and tab/CR variants) so spreadsheet apps treat them as text.
+  const guarded = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  if (!/[",\n]/.test(guarded)) return guarded;
+  return `"${guarded.replace(/"/g, '""')}"`;
 }
 
 function makeStorageHash(text) {
@@ -2185,4 +2205,9 @@ function escapeHtml(value) {
 
 function escapeAttribute(value) {
   return escapeHtml(value);
+}
+
+// ─── Shared-layer runtime boot (manifest + load self-check; idempotent) ──────
+if (typeof labtools !== 'undefined' && labtools.runtime && labtools.runtime.boot) {
+  labtools.runtime.boot({ manifest: window.labtoolsToolManifest || null });
 }
