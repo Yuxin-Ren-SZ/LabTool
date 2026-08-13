@@ -347,8 +347,8 @@ workbench 只存一种记录：
 | 1 共享层 v2 并排 | ✅ 5 提交 | contracts（schema v2+legacy 映射）、store（可注入后端+内存 fake）、common 扩展（escHtml/decodeBuffer/fitLinear/fitQuadratic）、workflow（链图/会话/接线）、runtime（加载自检+manifest 校验）、workbench 存储委派 store + 内联回退（公共 API 不变）；unit 156 + e2e 51 绿 |
 | 2 存储迁移 + UI | ✅ 3 提交 | DB v2（records 存储，upgradeV2 双路径共享 schema）+ legacy 无损复制（`__labtoolsV2Records.copyLegacyToRecords`）；wb- 全部并入 lt-（抽屉/picker/toast 组件化 + aria 增强）；unit 160 + e2e 51 绿 |
 | 3 工具逐批迁移 | ✅ 完成 | **A**（cell-count feadb07、stain-timer 083841d、计时 adc14e3、事件委托 af56e91）；**B**（labtools-counting.js b448095、cell-count 6a29722、seeding-calc c153bb3、rt-calc 462502b）；**C**（qpcr-analysis ef301a9/f4df806、qpcr-plate-planner 64ce59c、microplate 17277d4、plate 枢纽链切 artifact 手递 0234791）；**D**（bca-assay 996ec2a：坏路径修复/共享拟合/聚合三合一/preset 副作用/manifest/深链）；**E**（thermal-to-laser b4e83c6、drug-dosage 解禁 7214908：max-dose 安全上限+CSV 注入防护、label-generator 解耦 3b2d630：共享 laser-presets 模块）。全部 11 工具 manifest 化。unit 167 + e2e 51 全绿。遗留：bca 双轨结果渲染（showResults/showInlineResults）按风险预案未合并（进展记录在案）；阶段 5 前 legacy 保存/Load 路径保持共存 |
-| 4 workflow 会话 + hub | ⏳ | 待阶段 3 |
-| 5 legacy 清理 | ⏳ | 待全部工具迁移 |
+| 4 workflow 会话 + hub | ✅ 完成 | 会话持久化（workflow 模块 loadSessions/upsertSession/recordStep，localStorage 守卫）+ 手递层会话集成（f3b2c1d：?wbSession 携参、消费后记录步骤）；hub manifest 化（292c4c4：hub-config 注册表 + hub.js 渲染 + 工作流链区 + 最近会话"继续"区 + hub e2e 3 项）。unit 169 + e2e 54 绿 |
+| 5 legacy 清理 | ⏳ | 待执行：删除 legacy serializeForWorkbench/typed handoff 路径、DATA_TYPES 业务 type 注册、旧测试钩子约定、内联回退路径；README/AGENTS/CLAUDE/CONTRIBUTING 与 issue 模板工具清单收尾 |
 
 ---
 
