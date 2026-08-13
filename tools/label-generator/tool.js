@@ -103,9 +103,6 @@ function bindEvents() {
   document.getElementById('save-template-btn').addEventListener('click', saveTemplateToStorage);
 
   // CSV file input
-  document.getElementById('csv-upload-btn') && document.getElementById('csv-upload-btn').addEventListener('click', function () {
-    document.getElementById('csv-file-input').click();
-  });
   document.getElementById('csv-file-input').addEventListener('change', onCsvFileUpload);
 
   // CSV drop zone (delegated — element is rendered by renderCsvSection)
@@ -262,8 +259,10 @@ function sanitizePresetList(rawPresets) {
 }
 
 function buildSharedLaserPresets() {
-  var shipped = (window.THERMAL_TO_LASER_PRESET_CONFIG && window.THERMAL_TO_LASER_PRESET_CONFIG.presets) || [];
-  var user = readThermalToLaserUserPresets();
+  var shipped = (window.LABTOOLS_LASER_PRESETS && window.LABTOOLS_LASER_PRESETS.presets) || [];
+  var user = (typeof window.labtoolsReadLaserUserPresets === 'function')
+    ? window.labtoolsReadLaserUserPresets()
+    : readThermalToLaserUserPresets();
   var seenIds = new Set();
   return shipped.map(function (preset, index) {
     return Object.assign({}, preset, { _origin: 'builtin', _sourceIndex: index });
@@ -1213,13 +1212,6 @@ function showExportStatus(message, level) {
   el.className = 'lg-export-status visible' + (level ? ' ' + level : '');
   clearTimeout(showExportStatus._timer);
   showExportStatus._timer = setTimeout(function () { el.className = 'lg-export-status'; }, 4000);
-}
-
-function setStatus(id, message, type) {
-  if (id === 'export-status') {
-    var lvl = type === 'success' ? 'ok' : type === 'danger' ? 'err' : type === 'warn' ? 'warn' : '';
-    showExportStatus(message, lvl);
-  }
 }
 
 // ─── PDF generation (verbatim + laser adaptation) ─────────────
