@@ -2951,6 +2951,41 @@ function applyParams(p) {
   if (s.records.length) { var el = document.getElementById('results'); if (el) el.style.display = 'block'; }
   if (typeof recomputeTargets === 'function') recomputeTargets();
   if (typeof renderAll === 'function') renderAll();
+  syncControlsFromState();
+}
+
+/**
+ * Mirror the restored state into the visible controls. renderAll() redraws
+ * the data views, but segmented active classes, checkboxes and text inputs
+ * only update in their click/change handlers — without this the UI and the
+ * state disagree after a restore (audit defect #9).
+ */
+function syncControlsFromState() {
+  var s = state;
+  function segByData(id, attr, val) {
+    var group = $(id); if (!group) return;
+    var hit = null;
+    group.querySelectorAll('button').forEach(function (b) {
+      var on = b.dataset[attr] === val;
+      b.classList.toggle('active', on);
+      if (on) hit = b;
+    });
+  }
+  segByData('plateMode', 'mode', s.plateMode);
+  segByData('ampScale', 'scale', s.ampScale);
+  segByData('ampLayout', 'layout', s.chartLayout);
+  segByData('assignField', 'field', s.assignField);
+  segByData('sumFilter', 'filter', s.sumFilter);
+  segByData('foldScale', 'scale', s.foldScale);
+
+  var ampGroupBy = $('ampGroupBy'); if (ampGroupBy) ampGroupBy.value = s.chartGroupBy;
+  var ddPaired = $('ddPaired'); if (ddPaired) ddPaired.checked = !!s.pairedDesign;
+  var ddEffCorr = $('ddEffCorr'); if (ddEffCorr) ddEffCorr.checked = !!s.ddEffCorr;
+  var lod = $('lodInput'); if (lod) lod.value = s.lodCutoff;
+  var qcThr = $('qcThrInput'); if (qcThr) qcThr.value = s.qcSdThr;
+  var method = $('methodInstrument'); if (method) method.value = s.interPlateCal || '';
+  var sumSearch = $('sumSearch'); if (sumSearch) sumSearch.value = s.sumSearch || '';
+  var plateDye = $('plateDye'); if (plateDye && s.plateDye) plateDye.value = s.plateDye;
 }
 
 /** Declared final outputs: the run summary, per-well Cq, and ΔΔCq expression. */
