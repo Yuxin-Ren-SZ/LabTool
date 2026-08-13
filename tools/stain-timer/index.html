@@ -1065,13 +1065,26 @@ function startTick() {
     const remaining = Math.max(0, stepEndTime - Date.now());
     renderCountdown(remaining);
     updateTabTitle(remaining);
-    if (remaining === 0) {
-      clearInterval(tickInterval);
-      stepResults[currentStep].actualMs = Date.now() - stepStartTs;
-      playAlarm();
-      advanceStep();
-    }
+    if (remaining === 0) completeStep();
   }, 100);
+}
+
+/**
+ * Complete the current step — the single shared transition used by both
+ * the 100 ms tick and the visibilitychange catch-up path, so both take
+ * the exact same action (record elapsed, alarm, advance).
+ *
+ * Idempotent: guarded on timerState so concurrent triggers (e.g. a tick
+ * callback already queued when a visibilitychange completion runs) can
+ * never double-advance — the first caller clears the interval and moves
+ * timerState off 'running', and any later caller no-ops.
+ */
+function completeStep() {
+  if (timerState !== 'running') return;
+  clearInterval(tickInterval);
+  stepResults[currentStep].actualMs = Date.now() - stepStartTs;
+  playAlarm();
+  advanceStep();
 }
 
 /**
@@ -1113,6 +1126,44 @@ function onAllDone() {
   updateControls();
   renderStepsList();
 }
+
+// ─────────────────────────────────────────────────────────────
+// Background-tab robustness
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Reconcile the countdown with the wall clock when the tab becomes
+ * visible again. Background tabs throttle setInterval, so the display
+ * may have fallen behind while hidden.
+ *
+ * - If the step already expired while hidden: complete it through the
+ *   exact same path as a tick expiry (completeStep), which is idempotent
+ *   — a tick still queued from before can never advance twice.
+ * - Otherwise: refresh the countdown/progress/tab-title from the true
+ *   remaining time without disturbing the running interval.
+ */
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState !== 'visible') return;
+  if (timerState !== 'running') return;
+  const remaining = Math.max(0, stepEndTime - Date.now());
+  if (remaining === 0) {
+    completeStep();
+  } else {
+    renderCountdown(remaining);
+    updateTabTitle(remaining);
+  }
+});
+
+/**
+ * Warn before closing/reloading the page while a step is running.
+ * Paused and idle states are not blocked. (Browsers show their own
+ * unified prompt; the returnValue string is set per the spec.)
+ */
+window.addEventListener('beforeunload', function (e) {
+  if (timerState !== 'running') return;
+  e.preventDefault();
+  e.returnValue = '计时正在运行';
+});
 
 // ─────────────────────────────────────────────────────────────
 // Render helpers (Panel 2)
