@@ -4,7 +4,7 @@
 
 LabTools is a zero-dependency static site. The root `index.html` is the tool hub. Shared styling lives in `assets/css/labtools.css`, shared calculation helpers live in `assets/js/labtools-calc.js`, shared browser utilities live in `assets/js/labtools-common.js`, the workbench data-contract registry lives in `assets/js/labtools-types.js`, and the workbench store/drawer lives in `assets/js/labtools-workbench.js` (storage delegates to `assets/js/labtools-store.js` when loaded). Stage-1 v2 shared-layer modules — `labtools-contracts.js` (v2 contracts), `labtools-store.js` (storage core), `labtools-workflow.js` (chains/sessions), `labtools-runtime.js` (load-order self-check + manifest validation) — are additive and live under the `window.labtools.*` namespace; see `docs/architecture-v2-plan.md` for the staged migration plan. Each shipped tool is self-contained under `tools/<tool-name>/` with its own `index.html` and `README.md`.
 
-Current tools are `cell-count`, `seeding-calc`, `microplate-layout-planner`, `stain-timer`, `thermal-to-laser`, and `drug-dosage`. Reference content belongs in `docs/`. Built-in browser-editable data lives in tool config files such as `tools/thermal-to-laser/preset-config.js` and `tools/drug-dosage/protocol-config.js`.
+Current tools are `cell-count`, `seeding-calc`, `microplate-layout-planner`, `stain-timer`, `rt-calc`, `bca-assay`, `qpcr-plate-planner`, `qpcr-analysis`, `drug-dosage`, `thermal-to-laser`, and `label-generator`. Reference content belongs in `docs/`. Built-in browser-editable data lives in tool config files such as `tools/thermal-to-laser/preset-config.js` and `tools/drug-dosage/protocol-config.js`.
 
 ## Build, Test, And Development Commands
 

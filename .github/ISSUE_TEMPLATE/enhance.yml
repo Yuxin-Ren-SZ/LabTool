@@ -20,9 +20,14 @@ body:
         - seeding-calc
         - microplate-layout-planner
         - stain-timer
-        - thermal-to-laser
+        - rt-calc
+        - bca-assay
+        - qpcr-plate-planner
+        - qpcr-analysis
         - drug-dosage
-        - other
+        - thermal-to-laser
+        - label-generator
+
     validations:
       required: true
 

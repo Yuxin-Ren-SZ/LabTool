@@ -20,7 +20,7 @@ Use lowercase type, colon, space, and a brief phrase. Do not add a scope suffix.
 | `docs` | Wrong, missing, or unclear documentation | `docs: counting-modes diagram missing 5-square description` |
 | `question` | Science, formula, or expected behavior question | `question: why does 4-corner mode divide rather than multiply` |
 
-When opening an issue on GitHub, select the matching template. The templates include the current shipped tools: `cell-count`, `seeding-calc`, `microplate-layout-planner`, `stain-timer`, `thermal-to-laser`, and `drug-dosage`.
+When opening an issue on GitHub, select the matching template. The templates include the current shipped tools: `cell-count`, `seeding-calc`, `microplate-layout-planner`, `stain-timer`, `rt-calc`, `bca-assay`, `qpcr-plate-planner`, `qpcr-analysis`, `drug-dosage`, `thermal-to-laser`, and `label-generator`.
 
 ## Pull Requests
 

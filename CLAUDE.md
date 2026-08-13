@@ -27,7 +27,7 @@ LabTools/
 │       ├── labtools-store.js          # Pluggable IndexedDB storage core (memory backend for tests)
 │       ├── labtools-workflow.js       # Chain graph + session records + handoff wiring
 │       ├── labtools-runtime.js        # Load-order self-check + manifest validation
-│       ├── labtools-workbench.js      # Workbench: store-backed drawer UI (inline fallback)
+│       ├── labtools-workbench.js      # Workbench: store-backed drawer UI (single storage path)
 │       ├── labtools-artifact.js       # Artifact model: params↔CSV/JSON codec + tool bridge
 │       └── labtools-artifact-ui.js    # Artifact control cluster + field-port wiring UI
 ├── tools/
@@ -98,14 +98,16 @@ Keep these generic and dependency-free.
 ## Tool Workflows (deep-link handoffs)
 
 Tools chain into **workflows** without importing each other's code: a producer
-calls `labtoolsHandoffTo(...)` (saves to the workbench, navigates with
-`?wbLoad=<id>`), and the consumer calls `labtoolsConsumeHandoff(applyFromWorkbench)`
-on load to auto-apply it. Both pages must load `labtools-common.js`. Current
-chains: `cell-count → seeding-calc` (sample-list); `qpcr-plate-planner →
-microplate-layout-planner → qpcr-analysis` and `rt-calc → qpcr-analysis`
-(plate-layout / sample-list). qpcr-analysis stashes a handoff until a results
-file is loaded. Its `applyFromWorkbench` resolves category-field values (e.g.
-gene) to names via `categoriesByField`.
+calls `labtoolsHandoffArtifact(tool, nextUrl, label)` (artifact envelope →
+workbench → navigate with `?wbLoad=<id>&wbSession=<sid>`), and the consumer
+calls `labtoolsConsumeArtifactHandoff(tool, applyInputs)` on load to wire the
+upstream outputs into its input ports (field-id matching; missing required
+ports get a manual-fill dialog). Sessions are recorded via
+`labtools.workflow.recordStep` and surface on the hub as "Recent Sessions /
+continue". Current chains: `cell-count → seeding-calc`, `rt-calc →
+qpcr-analysis`, `qpcr-plate-planner → microplate-layout-planner →
+qpcr-analysis`, `bca-assay → rt-calc / seeding-calc`. qpcr-analysis stashes a
+handoff until a results file is loaded (`pendingHandoffLayout`).
 
 ## Data Contract Registry
 
@@ -129,7 +131,7 @@ Load `labtools-types.js` BEFORE `labtools-workbench.js` in every page that
 uses the workbench. Unit tests (`tests/unit/types.test.mjs`) enforce that every
 declared type exists in the registry and that fixtures validate.
 
-## Shared Layer v2 (stage 1 — side-by-side, nothing wired to tools yet)
+## Shared Layer v2 (fully wired — stages 1–4 shipped)
 
 Five new zero-dependency modules under the `window.labtools.*` namespace, each
 registering itself in `window.__labtoolsLoadOrder` (the load-order self-check
@@ -150,14 +152,15 @@ reads it). All are additive; existing tool pages are unchanged.
 - `labtools-runtime.js` — `SCRIPT_ORDER` + `checkRuntime`/`checkLoadOrder`
   self-checks, `validateManifest`, and `boot()` (registers types/test hooks,
   injects a visible alert banner when required scripts are missing).
-- `labtools-workbench.js` — storage delegates to `labtools.store` when
-  `labtools-store.js` is loaded (load order `types → [store] → workbench`);
-  otherwise it falls back to the built-in inline IndexedDB path
-  (`legacyOpenDB`/`legacyDbExec`/`legacyCollectDescending`, kept until the
-  phase-5 cleanup). Public API and record shape are unchanged either way.
-  `window.__labtoolsWorkbenchBackend` is the unit-test injection point.
+- `labtools-workbench.js` — storage goes through the shared storage core
+  (`labtools.store`, REQUIRED — load order `types → store → workbench`).
+  `timestamps:false` keeps the legacy record shape
+  `{id,type,label,tool,timestamp,data,metadata}` byte-identical. The phase-5
+  inline IndexedDB fallback is gone; operations throw when `labtools-store.js`
+  is missing. `window.__labtoolsWorkbenchBackend` is the unit-test injection
+  point.
   **Phase 2:** the database is version 2 with a second object store
-  `records` (v2 envelopes, `upgradeV2` shared by both storage paths);
+  `records` (v2 envelopes, `upgradeV2` builds the schema for both stores);
   `window.__labtoolsV2Records.copyLegacyToRecords()` lazily copies legacy
   `items` into `records` as `kind:'legacy'` (idempotent). Drawer/picker/
   toast UI uses canonical `lt-` classes (`lt-workbench-*`/`lt-toast`/
@@ -198,19 +201,22 @@ bridge also registers at runtime — idempotent). **Intentionally NOT migrated:*
 `thermal-to-laser` and `label-generator` — PDF/label generators whose output is not
 wireable data and whose config has its own localStorage persistence.
 
-Load order per page: `labtools-types.js` → `labtools-workbench.js` →
-`labtools-common.js` → `labtools-artifact.js`.
+Load order per page (workbench pages): `labtools-types.js` → `labtools-store.js`
+→ `labtools-workbench.js` → `labtools-common.js` → `labtools-artifact.js` →
+`labtools-artifact-ui.js` → [`labtools-workflow.js` (chain tools)] →
+`labtools-runtime.js` → `manifest.js`.
 
-**Integration status (important):** the artifact model is a *tested library plus
-per-tool `readParams`/`applyParams`/`readOutputs`*. It is **not yet wired to the
-UI** — every tool's Save/Export/handoff buttons still use the legacy
-`serializeForWorkbench`/`downloadCsv`/`labtoolsHandoffTo` paths. `.save()`,
-`.exportCsv()`, `.fromCsv()`, and `matchWiring` are currently exercised only via
-`__labtoolsTestHooks` and tests. Not yet built: artifact Save/Export/Load buttons,
-handoff over the artifact envelope, and the **manual-fill UI** for unmatched input
-ports. Also: bca-assay's plate/raw mode `applyParams` is implemented but only
-manual-mode is e2e-verified; the CSV is information-complete `section,key,value`
-(not the human-tabular per-well form).
+**Integration status:** the artifact model is fully wired to the UI. Every
+migrated tool mounts `labtoolsMountArtifactControls` (Save/Export/Import/Load
+state buttons), producers hand off via `labtoolsHandoffArtifact` (artifact
+envelope + session), consumers wire via `labtoolsConsumeArtifactHandoff`
+(field-port matching + manual-fill dialog for unmatched required ports), and
+the hub renders from `assets/js/labtools-hub-config.js`. Legacy
+`serializeForWorkbench`/`applyFromWorkbench`/typed Save-Load remain as a
+frozen compatibility layer (see docs/architecture-v2-plan.md stage-5 note) —
+they still power the typed Save/Load buttons and the e2e contract tests.
+bca-assay's plate/raw mode `applyParams` is implemented but only manual-mode
+is e2e-verified.
 
 ## Shared Design System
 
@@ -226,9 +232,14 @@ Browser-saved presets, protocols, and logs use `localStorage`. Built-in config f
 
 ## Adding A New Tool
 
-1. Create `tools/<tool-name>/index.html`.
-2. Link `../../assets/css/labtools.css` and any shared JS needed.
-3. Add a card to root `index.html`.
+1. Create `tools/<tool-name>/` with `index.html` and `manifest.js`
+   (`window.labtoolsToolManifest` — id/name/icon/desc/category/produces/
+   consumes/outputFields/inputPorts/next).
+2. Link `../../assets/css/labtools.css` and the shared JS in canonical order
+   (types → store → workbench → common → artifact → artifact-ui →
+   [workflow] → runtime → manifest).
+3. Add an entry to `assets/js/labtools-hub-config.js` (`LABTOOLS_HUB_TOOLS`,
+   plus `LABTOOLS_HUB_CHAINS` edges if it joins a workflow).
 4. Add `tools/<tool-name>/README.md`.
 5. Update top-level docs and GitHub issue-template tool lists.
 6. Manually verify the page in a browser and check the console.

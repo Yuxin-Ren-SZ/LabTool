@@ -11,8 +11,13 @@ Open any tool directly in a browser or use the GitHub Pages site; there is no in
 | [Cell Seeding Calculator](tools/seeding-calc/) | Two-step cell count and C1V1 = C2V2 dilution workflow, with optional direct stock concentration entry and unit scaling. |
 | [Microplate Layout Planner](tools/microplate-layout-planner/) | Lay out one or more 6-, 12-, 24-, 48-, 96-, 384-, or 1536-well plates, tagging wells with a colored group plus custom fields (Sample ID, Gene, …). Exports a CSV that round-trips and feeds the qPCR tool. |
 | [Stain Timer](tools/stain-timer/) | Configurable multi-step staining protocol timer with countdown, slot tracking, CSV import/export, result logging, and audio alarms. |
+| [RT Calculator](tools/rt-calc/) | Reverse transcription setup from Nanodrop CSV (NEB LunaScript RT) with auto-scaling reaction volume and batch reagent totals. |
+| [qPCR Plate Planner](tools/qpcr-plate-planner/) | Multi-plate qPCR layout from sample combinations (any factors), skip exceptions, reference anchor and NTC controls. |
+| [qPCR Analysis](tools/qpcr-analysis/) | Agilent AriaMx / Stratagene Mx analysis: heatmap, Cq results, amplification curves, replicate summaries, and ΔΔCq fold change. |
+| [BCA Assay Calculator](tools/bca-assay/) | Linear standard curve from BSA standards, replicate support, CSV import, and SVG chart export. |
+| [Drug Dosage Calculator](tools/drug-dosage/) | Save named multi-drug dosing protocols and calculate min, exact, and max per-animal dose amounts from body weight, with a max-dose safety cap. |
 | [Thermal To Laser Label Converter](tools/thermal-to-laser/) | Convert one-label-per-page thermal-printer PDFs into laser-printer mailing-label sheet PDFs with preset management and sheet preview. |
-| [Drug Dosage Calculator](tools/drug-dosage/) | Save named multi-drug dosing protocols and calculate min, exact, and max per-animal dose amounts from body weight. |
+| [Label Generator](tools/label-generator/) | Generate PDF labels with DataMatrix barcodes from CSV data, for thermal-printer labels and laser-sheet grids. |
 
 ## Structure
 
