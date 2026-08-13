@@ -8,27 +8,21 @@
  * Drawer / picker / toast markup uses the canonical lt- prefixed classes
  * (lt-workbench-*, lt-picker-*, lt-toast) defined in assets/css/labtools.css.
  *
- * Storage layer (v2, phase 1): storage delegates FIRST to the shared
- * storage core assets/js/labtools-store.js when it is loaded (page load
- * order types → [store] → workbench). The store is created via
+ * Storage layer (v2): storage goes through the shared storage core
+ * assets/js/labtools-store.js — REQUIRED, page load order
+ * types → store → workbench. The store is created via
  * window.labtools.store.createStore({...}) with timestamps:false so the
  * legacy record shape {id,type,label,tool,timestamp,data,metadata} is
- * stored byte-identically (no createdAt/updatedAt injection). When
- * labtools-store.js is NOT loaded — every existing tool page — workbench
- * falls back to its built-in inline IndexedDB path (legacyOpenDB /
- * legacyDbExec / legacyCollectDescending, kept until phase 5). The public
- * API and record shape are unchanged either way.
+ * stored byte-identically (no createdAt/updatedAt injection).
  *
- * Storage layer (v2, phase 2): the database is version 2 and carries a
- * second object store `records` (V2_STORE_NAME) holding v2 record
- * envelopes {id, kind, tool, contract, label, schemaVersion, payload,
- * meta, createdAt, updatedAt}. Both storage paths build the same schema
- * through the shared upgradeV2() function (schema only — no data copy
- * inside the upgrade transaction, since store methods open their own
- * transactions). Legacy `items` are copied into `records` lazily at
- * runtime as kind:'legacy' records via
+ * The database is version 2 and carries a second object store `records`
+ * (V2_STORE_NAME) holding v2 record envelopes {id, kind, tool, contract,
+ * label, schemaVersion, payload, meta, createdAt, updatedAt}. Both stores
+ * build their schema through the shared upgradeV2() function (schema only —
+ * no data copy inside the upgrade transaction). Legacy `items` are copied
+ * into `records` lazily at runtime as kind:'legacy' records via
  * window.__labtoolsV2Records.copyLegacyToRecords() — idempotent, and the
- * official entry point for phase 3+ (also used by unit tests).
+ * official entry point for v2 consumers (also used by unit tests).
  *
  * Test injection point (unit tests only, never set by production pages):
  *   window.__labtoolsWorkbenchBackend — when set before the first store
@@ -38,7 +32,7 @@
  *   read the same injection point, so items and records share one backend.
  *
  * Loaded via <script src="../../assets/js/labtools-workbench.js">
- * (AFTER labtools-types.js). Exposes the global `workbench` API and
+ * (AFTER labtools-store.js). Exposes the global `workbench` API and
  * auto-injects the drawer into <body> on DOMContentLoaded.
  *
  * Public surface (8 tools depend on these — do not rename):
@@ -162,69 +156,52 @@ function upgradeV2(dbHandle) {
 let storeHandle = null;
 
 /**
- * Shared-storage bridge. When labtools-store.js is loaded
- * (window.labtools.store.createStore present) this lazily creates — once —
- * a store handle over the SAME legacy shape the inline path used:
- * identical dbName/version/storeName, indexes type/label/timestamp, and
- * timestamps:false so records are stored byte-for-byte with no
- * createdAt/updatedAt injection.
+ * Storage handle over the legacy `items` object store via the shared storage
+ * core (labtools-store.js — REQUIRED, load order types → store → workbench).
+ * Lazily created on first use with timestamps:false so legacy records
+ * {id,type,label,tool,timestamp,data,metadata} are stored byte-identically.
  *
  * Test injection point: window.__labtoolsWorkbenchBackend — when set before
  * the first store operation it is passed as opts.backend (unit tests inject
- * labtools.store.createMemoryBackend()). It is undefined in production, so
- * the store's default browser IndexedDB adapter is used.
- *
- * @returns {object|null} the shared store handle, or null when
- *   labtools-store.js is not loaded — callers then use the inline legacy
- *   fallback below.
+ * labtools.store.createMemoryBackend()). Undefined in production → the
+ * store's browser IndexedDB adapter.
  */
 function getStore() {
-  if (typeof window !== 'undefined' && window.labtools && window.labtools.store &&
-      typeof window.labtools.store.createStore === 'function') {
-    if (!storeHandle) {
-      const opts = { dbName: DB_NAME, version: DB_VERSION, storeName: STORE_NAME,
-        indexes: [{ name: 'type', keyPath: 'type' }, { name: 'label', keyPath: 'label' },
-                  { name: 'timestamp', keyPath: 'timestamp' }],
-        migrations: { 2: upgradeV2 },   // v2 schema: adds the `records` store
-        timestamps: false };   // legacy 记录 {id,type,label,tool,timestamp,data,metadata} 字节兼容
-      if (window.__labtoolsWorkbenchBackend) opts.backend = window.__labtoolsWorkbenchBackend;  // 测试注入点
-      storeHandle = window.labtools.store.createStore(opts);
-    }
-    return storeHandle;
+  if (!(typeof window !== 'undefined' && window.labtools && window.labtools.store &&
+      typeof window.labtools.store.createStore === 'function')) {
+    throw new Error('labtools-workbench: labtools-store.js required — load it before labtools-workbench.js');
   }
-  return null;   // 未加载 labtools-store.js → 回退内联路径
+  if (!storeHandle) {
+    const opts = { dbName: DB_NAME, version: DB_VERSION, storeName: STORE_NAME,
+      indexes: [{ name: 'type', keyPath: 'type' }, { name: 'label', keyPath: 'label' },
+                { name: 'timestamp', keyPath: 'timestamp' }],
+      migrations: { 2: upgradeV2 },   // v2 schema: adds the `records` store
+      timestamps: false };   // legacy 记录 {id,type,label,tool,timestamp,data,metadata} 字节兼容
+    if (window.__labtoolsWorkbenchBackend) opts.backend = window.__labtoolsWorkbenchBackend;  // 测试注入点
+    storeHandle = window.labtools.store.createStore(opts);
+  }
+  return storeHandle;
 }
 
 let recordsHandle = null;
 
 /**
- * v2 records store — second object store (`records`) of the same
- * database, holding v2 record envelopes with automatic
- * createdAt/updatedAt timestamps (timestamps:true). Same backend
- * injection point as getStore(), so items and records share one database
- * (and one test backend). Only available when labtools-store.js is
- * loaded; returns null otherwise — pages on the inline fallback never
- * need the v2 envelope until phase 3+.
- *
- * @returns {object|null} the shared records store handle, or null when
- *   labtools-store.js is not loaded.
+ * v2 records store — second object store (`records`) of the same database,
+ * holding v2 record envelopes with automatic createdAt/updatedAt timestamps
+ * (timestamps:true). Same backend injection point as getStore().
  */
 function getRecordsStore() {
-  if (typeof window !== 'undefined' && window.labtools && window.labtools.store &&
-      typeof window.labtools.store.createStore === 'function') {
-    if (!recordsHandle) {
-      const opts = { dbName: DB_NAME, version: DB_VERSION, storeName: V2_STORE_NAME,
-        indexes: [{ name: 'kind', keyPath: 'kind' }, { name: 'tool', keyPath: 'tool' },
-                  { name: 'contract', keyPath: 'contract' }, { name: 'label', keyPath: 'label' },
-                  { name: 'updatedAt', keyPath: 'updatedAt' }],
-        migrations: { 2: upgradeV2 },
-        timestamps: true };   // v2 记录默认时间戳语义
-      if (window.__labtoolsWorkbenchBackend) opts.backend = window.__labtoolsWorkbenchBackend;  // 测试注入点
-      recordsHandle = window.labtools.store.createStore(opts);
-    }
-    return recordsHandle;
+  if (!recordsHandle) {
+    const opts = { dbName: DB_NAME, version: DB_VERSION, storeName: V2_STORE_NAME,
+      indexes: [{ name: 'kind', keyPath: 'kind' }, { name: 'tool', keyPath: 'tool' },
+                { name: 'contract', keyPath: 'contract' }, { name: 'label', keyPath: 'label' },
+                { name: 'updatedAt', keyPath: 'updatedAt' }],
+      migrations: { 2: upgradeV2 },
+      timestamps: true };   // v2 记录默认时间戳语义
+    if (window.__labtoolsWorkbenchBackend) opts.backend = window.__labtoolsWorkbenchBackend;  // 测试注入点
+    recordsHandle = window.labtools.store.createStore(opts);
   }
-  return null;
+  return recordsHandle;
 }
 
 /**
@@ -260,66 +237,6 @@ function copyLegacyToRecords() {
       }, Promise.resolve()).then(function () {
         return { copied: todo.length, existing: existing.length };
       });
-    });
-  });
-}
-
-// ── Inline IndexedDB fallback — kept until phase 5 ────────────────────────────
-// Pages that do NOT load labtools-store.js depend on this path; the shared
-// store is only consulted when labtools-store.js is loaded first.
-
-function legacyOpenDB() {
-  return new Promise(function (resolve, reject) {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = function (e) {
-      const db = e.target.result;
-      // Raw upgrade handle mirroring the store adapter's
-      // createObjectStore (indexes unique:false by default) so upgradeV2()
-      // builds exactly the same schema as the shared-store path.
-      const handle = {
-        storeExists: function (name) { return db.objectStoreNames.contains(name); },
-        createObjectStore: function (cfg) {
-          const store = db.createObjectStore(cfg.name, { keyPath: cfg.keyPath || 'id' });
-          (cfg.indexes || []).forEach(function (idx) {
-            store.createIndex(idx.name, idx.keyPath, { unique: !!idx.unique });
-          });
-          return store;
-        },
-      };
-      upgradeV2(handle);
-    };
-    req.onsuccess = function (e) { resolve(e.target.result); };
-    req.onerror   = function (e) { reject(e.target.error); };
-  });
-}
-
-// Run `fn(store, tx)` inside a transaction. Resolves with fn's return value
-// once the transaction completes (so writes are durable before resolving).
-function legacyDbExec(mode, fn) {
-  return legacyOpenDB().then(function (db) {
-    return new Promise(function (resolve, reject) {
-      const tx = db.transaction(STORE_NAME, mode);
-      const store = tx.objectStore(STORE_NAME);
-      let result;
-      try { result = fn(store, tx); }
-      catch (err) { db.close(); reject(err); return; }
-      tx.oncomplete = function () { db.close(); resolve(result); };
-      tx.onerror    = function (e) { db.close(); reject(e.target.error); };
-      tx.onabort    = function (e) { db.close(); reject(e.target.error); };
-    });
-  });
-}
-
-// Collect all rows from a cursor over the given index, newest first.
-function legacyCollectDescending(indexName) {
-  return legacyDbExec('readonly', function (store) {
-    return new Promise(function (resolve) {
-      const items = [];
-      store.index(indexName).openCursor(null, 'prev').onsuccess = function (e) {
-        const cursor = e.target.result;
-        if (cursor) { items.push(cursor.value); cursor.continue(); }
-        else resolve(items);
-      };
     });
   });
 }
@@ -416,19 +333,12 @@ const workbench = {
       metadata: metadata || null,
     };
 
-    // Shared store when labtools-store.js is loaded; inline IndexedDB otherwise.
     const storeApi = getStore();
-    const write = storeApi
-      ? storeApi.put(item).then(function () {
-          // Local listeners see the same event shape as the cross-tab path.
-          notify('put', item);
-          return item.id;
-        })
-      : legacyDbExec('readwrite', function (store) {
-          store.put(item);
-          return item.id;
-        });
-    return write.then(function (id) {
+    return storeApi.put(item).then(function () {
+      // Local listeners see the same event shape as the cross-tab path.
+      notify('put', item);
+      return item.id;
+    }).then(function (id) {
       broadcast('put', id);
       renderDrawer();
       return id;
@@ -437,73 +347,35 @@ const workbench = {
 
   /** All items, newest first. @returns {Promise<Array>} */
   getAll: function () {
-    const storeApi = getStore();
-    if (storeApi) return storeApi.getAll({ index: 'timestamp', direction: 'prev' });
-    return legacyCollectDescending('timestamp');
+    return getStore().getAll({ index: 'timestamp', direction: 'prev' });
   },
 
   /** Items of one type, newest first. @returns {Promise<Array>} */
   getByType: function (type) {
-    const storeApi = getStore();
-    if (storeApi) {
-      // getByIndex is unordered — sort by timestamp descending (newest first).
-      return storeApi.getByIndex('type', type).then(function (items) {
-        return items.slice().sort(function (a, b) {
-          return (b.timestamp || 0) - (a.timestamp || 0);
-        });
-      });
-    }
-    return legacyDbExec('readonly', function (store) {
-      return new Promise(function (resolve) {
-        const items = [];
-        store.index('type').openCursor(IDBKeyRange.only(type), 'prev').onsuccess = function (e) {
-          const cursor = e.target.result;
-          if (cursor) { items.push(cursor.value); cursor.continue(); }
-          else resolve(items);
-        };
+    // getByIndex is unordered — sort by timestamp descending (newest first).
+    return getStore().getByIndex('type', type).then(function (items) {
+      return items.slice().sort(function (a, b) {
+        return (b.timestamp || 0) - (a.timestamp || 0);
       });
     });
   },
 
   /** Single item by id, or null. @returns {Promise<object|null>} */
   getItem: function (id) {
-    const storeApi = getStore();
-    if (storeApi) return storeApi.get(id);
-    return legacyDbExec('readonly', function (store) {
-      return new Promise(function (resolve) {
-        const req = store.get(id);
-        req.onsuccess = function () { resolve(req.result || null); };
-        req.onerror   = function () { resolve(null); };
-      });
-    });
+    return getStore().get(id);
   },
 
   /** First item with an exact label match, or null. @returns {Promise<object|null>} */
   findByName: function (label) {
-    const storeApi = getStore();
-    if (storeApi) {
-      return storeApi.getByIndex('label', label).then(function (matches) {
-        return matches && matches.length > 0 ? matches[0] : null;
-      });
-    }
-    return legacyDbExec('readonly', function (store) {
-      return new Promise(function (resolve) {
-        const req = store.index('label').get(label);
-        req.onsuccess = function () { resolve(req.result || null); };
-        req.onerror   = function () { resolve(null); };
-      });
+    return getStore().getByIndex('label', label).then(function (matches) {
+      return matches && matches.length > 0 ? matches[0] : null;
     });
   },
 
   /** Remove an item by id. @returns {Promise<void>} */
   remove: function (id) {
-    const storeApi = getStore();
-    const op = storeApi
-      ? storeApi.remove(id).then(function () { notify('remove', { id: id }); })
-      : legacyDbExec('readwrite', function (store) {
-          store.delete(id);
-        });
-    return op.then(function () {
+    return getStore().remove(id).then(function () {
+      notify('remove', { id: id });
       broadcast('remove', id);
       renderDrawer();
     });
@@ -511,13 +383,8 @@ const workbench = {
 
   /** Remove every item. @returns {Promise<void>} */
   clear: function () {
-    const storeApi = getStore();
-    const op = storeApi
-      ? storeApi.clear().then(function () { notify('clear', null); })
-      : legacyDbExec('readwrite', function (store) {
-          store.clear();
-        });
-    return op.then(function () {
+    return getStore().clear().then(function () {
+      notify('clear', null);
       broadcast('clear', null);
       renderDrawer();
     });
@@ -526,33 +393,14 @@ const workbench = {
   /** Rename an item. @returns {Promise<void>} */
   updateLabel: function (id, newLabel) {
     const storeApi = getStore();
-    if (storeApi) {
-      return storeApi.get(id).then(function (item) {
-        if (!item) throw new Error('Item not found');
-        item.label = newLabel;
-        item.timestamp = Date.now();
-        return storeApi.put(item);
-      }).then(function (item) {
-        // Local listeners see the same event shape as the cross-tab path.
-        notify('update', item);
-        broadcast('update', id);
-        renderDrawer();
-      });
-    }
-    return legacyDbExec('readwrite', function (store) {
-      return new Promise(function (resolve, reject) {
-        const req = store.get(id);
-        req.onsuccess = function () {
-          const item = req.result;
-          if (!item) { reject(new Error('Item not found')); return; }
-          item.label = newLabel;
-          item.timestamp = Date.now();
-          store.put(item);
-          resolve();
-        };
-        req.onerror = function () { reject(req.error); };
-      });
-    }).then(function () {
+    return storeApi.get(id).then(function (item) {
+      if (!item) throw new Error('Item not found');
+      item.label = newLabel;
+      item.timestamp = Date.now();
+      return storeApi.put(item);
+    }).then(function (item) {
+      // Local listeners see the same event shape as the cross-tab path.
+      notify('update', item);
       broadcast('update', id);
       renderDrawer();
     });
@@ -594,14 +442,9 @@ const workbench = {
       if (toImport.length === 0) return { imported: 0, skipped: skipped };
 
       const storeApi = getStore();
-      const write = storeApi
-        ? toImport.reduce(function (chain, item) {
-            return chain.then(function () { return storeApi.put(item); });
-          }, Promise.resolve())
-        : legacyDbExec('readwrite', function (store) {
-            toImport.forEach(function (item) { store.put(item); });
-          });
-      return write.then(function () {
+      return toImport.reduce(function (chain, item) {
+        return chain.then(function () { return storeApi.put(item); });
+      }, Promise.resolve()).then(function () {
         broadcast('put', null);
         renderDrawer();
         return { imported: toImport.length, skipped: skipped };

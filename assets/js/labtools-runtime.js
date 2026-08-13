@@ -38,13 +38,13 @@
   const SCRIPT_ORDER = [
     { file: 'labtools-calc.js',        symbol: 'MODES',                         required: false },
     { file: 'labtools-types.js',       symbol: 'DATA_TYPES',                    required: true },
+    { file: 'labtools-store.js',       symbol: 'labtools.store',                required: true },
     { file: 'labtools-workbench.js',   symbol: 'workbench',                     required: true },
     { file: 'labtools-common.js',      symbol: 'labtoolsDownloadText',          required: true },
     { file: 'labtools-artifact.js',    symbol: 'labtoolsDefineTool',            required: true },
     { file: 'labtools-artifact-ui.js', symbol: 'labtoolsMountArtifactControls', required: true },
-    { file: 'labtools-contracts.js',   symbol: 'labtools.contracts',            required: false },
-    { file: 'labtools-store.js',       symbol: 'labtools.store',                required: false },
     { file: 'labtools-workflow.js',    symbol: 'labtools.workflow',             required: false },
+    { file: 'labtools-contracts.js',   symbol: 'labtools.contracts',            required: false },
     { file: 'labtools-runtime.js',     symbol: 'labtools.runtime',              required: false },
   ];
 

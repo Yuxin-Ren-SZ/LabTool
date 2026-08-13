@@ -45,9 +45,10 @@ function inject(ctx, symbol, value) {
   node[parts[parts.length - 1]] = value;
 }
 
-/** The five hard dependencies a tool page must load. */
+/** The six hard dependencies a tool page must load. */
 const REQUIRED_STUBS = [
   ['DATA_TYPES', {}],
+  ['labtools.store', { createStore: () => ({}) }],
   ['workbench', {}],
   ['labtoolsDownloadText', () => {}],
   ['labtoolsDefineTool', () => {}],
@@ -69,13 +70,13 @@ test('SCRIPT_ORDER declares the canonical load manifest with correct structure',
   assert.deepEqual(plain(runtime.SCRIPT_ORDER.map((e) => e.file)), [
     'labtools-calc.js',
     'labtools-types.js',
+    'labtools-store.js',
     'labtools-workbench.js',
     'labtools-common.js',
     'labtools-artifact.js',
     'labtools-artifact-ui.js',
-    'labtools-contracts.js',
-    'labtools-store.js',
     'labtools-workflow.js',
+    'labtools-contracts.js',
     'labtools-runtime.js',
   ]);
   runtime.SCRIPT_ORDER.forEach((entry) => {
@@ -84,17 +85,18 @@ test('SCRIPT_ORDER declares the canonical load manifest with correct structure',
     assert.equal(typeof entry.required, 'boolean');
   });
 
-  // Exactly the five hard dependencies are required; the v2 modules and calc
+  // Exactly the six hard dependencies are required; the v2 modules and calc
   // (load-time optional) are not.
   assert.deepEqual(plain(runtime.SCRIPT_ORDER.filter((e) => e.required).map((e) => e.file)), [
     'labtools-types.js',
+    'labtools-store.js',
     'labtools-workbench.js',
     'labtools-common.js',
     'labtools-artifact.js',
     'labtools-artifact-ui.js',
   ]);
-  ['labtools-calc.js', 'labtools-contracts.js', 'labtools-store.js',
-    'labtools-workflow.js', 'labtools-runtime.js'].forEach((file) => {
+  ['labtools-calc.js', 'labtools-contracts.js', 'labtools-workflow.js',
+    'labtools-runtime.js'].forEach((file) => {
     assert.equal(runtime.SCRIPT_ORDER.find((e) => e.file === file).required, false);
   });
 
@@ -113,7 +115,7 @@ test('SCRIPT_ORDER declares the canonical load manifest with correct structure',
   assert.ok(ctx.window.__labtoolsLoadOrder.includes('labtools-runtime'));
 });
 
-test('checkRuntime reports the five missing required symbols and passes once injected', () => {
+test('checkRuntime reports the six missing required symbols and passes once injected', () => {
   const { ctx } = loadRuntime();
   const runtime = ctx.labtools.runtime;
 
@@ -124,6 +126,7 @@ test('checkRuntime reports the five missing required symbols and passes once inj
     'labtools-artifact-ui.js',
     'labtools-artifact.js',
     'labtools-common.js',
+    'labtools-store.js',
     'labtools-types.js',
     'labtools-workbench.js',
   ]);
@@ -132,7 +135,7 @@ test('checkRuntime reports the five missing required symbols and passes once inj
     assert.equal(typeof m.symbol, 'string');
   });
   assert.deepEqual(plain(empty.notes), []); // notes reserved, nothing emits one yet
-  // Inject the five required stubs → ok.
+  // Inject the six required stubs → ok.
   injectRequired(ctx);
   const full = runtime.checkRuntime();
   assert.equal(full.ok, true);
@@ -144,7 +147,6 @@ test('checkRuntime reports the five missing required symbols and passes once inj
   assert.equal(all.ok, false);
   const allMissing = all.missing.map((m) => m.file);
   assert.ok(allMissing.includes('labtools-contracts.js'));
-  assert.ok(allMissing.includes('labtools-store.js'));
   assert.ok(allMissing.includes('labtools-workflow.js'));
   assert.ok(allMissing.includes('labtools-calc.js'));
   // runtime itself is present, so it is never reported missing.
@@ -298,7 +300,7 @@ test('boot reports failures without a DOM, injects a banner with one, and regist
   delete ctx.window.document;
   const report = runtime.boot();
   assert.equal(report.runtime.ok, false);
-  assert.equal(report.runtime.missing.length, 5);
+  assert.equal(report.runtime.missing.length, 6);
   assert.equal(report.manifest, null);
   assert.equal(report.order.ok, true);
   assert.ok(recorded.some(([level]) => level === 'error'));
@@ -385,7 +387,7 @@ test('a full shared-layer page sequence passes checkRuntime + checkLoadOrder end
   // NOTE: artifacts of the real page are loaded AFTER runtime.js in practice;
   // here the markers are replayed so the order check has a realistic trail.
   trail.push(
-    'labtools-calc', 'labtools-types', 'labtools-workbench',
+    'labtools-calc', 'labtools-types', 'labtools-store', 'labtools-workbench',
     'labtools-common', 'labtools-artifact', 'labtools-artifact-ui',
     'labtools-runtime',
   );
