@@ -5,9 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Thermal To Laser Label Converter · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
-  <script src="../../assets/js/labtools-common.js"></script>
   <script src="../../assets/js/labtools-types.js"></script>
   <script src="../../assets/js/labtools-workbench.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
+  <script src="../../assets/js/labtools-runtime.js"></script>
+  <script src="manifest.js"></script>
   <script src="./preset-config.js"></script>
   <script src="./pdf-lib.min.js"></script>
   <style>
@@ -679,6 +681,11 @@ labtoolsRegisterTestHooks('thermal-to-laser', {
     return { notes: notes ? notes.value : '' };
   },
 });
+
+// ─── Shared-layer runtime boot (manifest + load self-check; idempotent) ──────
+if (typeof labtools !== 'undefined' && labtools.runtime && labtools.runtime.boot) {
+  labtools.runtime.boot({ manifest: window.labtoolsToolManifest || null });
+}
 </script>
 
 </body>
