@@ -75,6 +75,24 @@ export async function withTool(tool, fn) {
   }
 }
 
+/**
+ * Open a page at an arbitrary path (e.g. the hub) without waiting for tool
+ * test hooks. Returns { page, errors } — errors collects pageerror/console.error
+ * the same way withTool does.
+ */
+export async function openRaw(urlPath) {
+  const page = await _browser.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    if (/Failed to load resource/i.test(m.text())) return;
+    errors.push('console.error: ' + m.text());
+  });
+  await page.goto(`${_server.baseURL}${urlPath}`, { waitUntil: 'load' });
+  return { page, errors };
+}
+
 /** Call one of a tool's registered test hooks in-page; returns its result. */
 export function callHook(page, tool, name, ...args) {
   return page.evaluate((t, n, a) => {
