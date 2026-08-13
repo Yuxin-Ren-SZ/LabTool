@@ -1,0 +1,14 @@
+Well	Sample Name	Well Type
+A1	Ctrl_1	Unknown
+A2	Ctrl_1	Unknown
+A3	Ctrl_2	Unknown
+A4	Ctrl_2	Unknown
+A5	Ctrl_3	Unknown
+A6	Ctrl_3	Unknown
+A7	T1_1	Unknown
+A8	T1_1	Unknown
+A9	T1_2	Unknown
+A10	T1_2	Unknown
+A11	T1_3	Unknown
+A12	T1_3	Unknown
+B1	NTC	NTC

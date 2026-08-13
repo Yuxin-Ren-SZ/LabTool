@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>qPCR Plate Planner · LabTools</title>
+  <link rel="stylesheet" href="../../assets/css/labtools.css"/>
+  <!-- Shared pure functions (qpcrBuildSamples, qpcrPackPlates, qpcrToPlateLayout …) -->
+  <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-types.js"></script>
+  <script src="../../assets/js/labtools-store.js"></script>
+  <script src="../../assets/js/labtools-workbench.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
+  <script src="../../assets/js/labtools-artifact.js"></script>
+  <script src="../../assets/js/labtools-artifact-ui.js"></script>
+  <script src="../../assets/js/labtools-workflow.js"></script>
+  <script src="../../assets/js/labtools-runtime.js"></script>
+  <script src="manifest.js"></script>
+  <style>
+    .card { max-width: 760px; }
+    .planner-section { margin: 18px 0; }
+    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+    .row input[type="text"] { flex: 1 1 auto; min-width: 120px; }
+    .row .lt-input, .row select { padding: 6px 8px; }
+    .factor-values { flex: 2 1 260px; }
+    .mini-btn { padding: 4px 9px; font-size: 0.8rem; line-height: 1; }
+    .swatch { width: 16px; height: 16px; border-radius: 4px; flex: 0 0 auto; border: 1px solid var(--border, #33384a); }
+    .combos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .combo-chip { font-size: 0.78rem; padding: 3px 9px; border-radius: 999px; cursor: pointer;
+      border: 1px solid var(--border, #33384a); user-select: none; }
+    .combo-chip.included { background: var(--accent-dim, #1f2b45); color: var(--text, #e8ecf4); }
+    .combo-chip.excluded { text-decoration: line-through; opacity: 0.5; }
+    .combo-chip:focus { outline: 2px solid var(--blue, #5c8dff); outline-offset: 1px; }
+    .preview-stat { font-size: 0.85rem; color: var(--text-dim, #9aa3b2); }
+    .plate-summary { font-size: 0.82rem; margin: 4px 0; }
+    .plate-summary b { color: var(--text, #e8ecf4); }
+    .err { color: #e0567a; font-size: 0.85rem; margin-top: 6px; }
+    .action-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .hint { font-size: 0.78rem; color: var(--text-dim, #9aa3b2); margin: 2px 0 8px; }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="lt-nav">
+  <a class="lt-nav-brand" href="../../index.html">🔬 LabTools</a>
+  <span class="lt-nav-sep">/</span>
+  <span class="lt-nav-page">qPCR Plate Planner</span>
+</nav>
+
+<div class="lt-page-body">
+<div class="card">
+
+  <h1 class="lt-tool-title">🧬 qPCR Plate Planner</h1>
+  <p class="lt-tool-subtitle">Generate a multi-plate qPCR layout from sample combinations · reference-anchored · duplicate wells · NTC controls</p>
+
+  <!-- ── Sample factors ── -->
+  <div class="planner-section">
+    <div class="lt-section-label">Sample factors</div>
+    <p class="hint">Each factor is a named list. Samples are every combination across factors
+      (e.g. Treatment × Timepoint). Separate values with commas.</p>
+    <div id="factors"></div>
+    <button class="lt-btn lt-btn-ghost mini-btn" id="add-factor-btn">+ Add factor</button>
+    <button class="lt-btn lt-btn-ghost mini-btn" id="load-samples-btn" title="Seed a factor from a saved sample-list">Load samples from Workbench</button>
+  </div>
+
+  <!-- ── Genes ── -->
+  <div class="planner-section">
+    <div class="lt-section-label">Genes</div>
+    <p class="hint">Mark at least one <b>reference</b> gene — the first reference is the anchor placed on
+      every plate (required for inter-plate calibration).</p>
+    <div id="genes"></div>
+    <button class="lt-btn lt-btn-ghost mini-btn" id="add-gene-btn">+ Add gene</button>
+  </div>
+
+  <!-- ── Options ── -->
+  <div class="planner-section">
+    <div class="lt-section-label">Layout options</div>
+    <div class="row">
+      <label>Replicates <input class="lt-input" type="number" id="opt-replicates" min="1" max="4" value="2" style="width:64px"></label>
+      <label>Gene bands / plate <input class="lt-input" type="number" id="opt-bands" min="1" max="6" value="3" style="width:64px"></label>
+      <label>Plate <select id="opt-platetype"><option value="96" selected>96-well</option></select></label>
+      <label><input type="checkbox" id="opt-ntc" checked> NTC row</label>
+    </div>
+  </div>
+
+  <!-- ── Skip / exceptions ── -->
+  <div class="planner-section">
+    <div class="lt-section-label">Combinations <span class="preview-stat" id="combo-count"></span></div>
+    <p class="hint">Click a combination to exclude it (e.g. a treatment with no late timepoint).</p>
+    <div class="combos" id="combos"></div>
+  </div>
+
+  <!-- ── Preview ── -->
+  <div class="planner-section">
+    <div class="lt-section-label">Plate preview</div>
+    <div id="preview"></div>
+    <div class="err" id="preview-err" style="display:none"></div>
+  </div>
+
+  <!-- ── Actions ── -->
+  <div class="action-row">
+    <button class="lt-btn lt-btn-ghost" id="wb-save-btn">Save to Workbench</button>
+    <span id="lt-artifact-controls" style="display:inline-flex;gap:8px;flex-wrap:wrap"></span>
+    <button class="lt-btn lt-btn-primary" id="to-planner-btn">Open in Layout Planner →</button>
+    <button class="lt-btn lt-btn-ghost" id="to-qpcr-btn">Send to qPCR →</button>
+  </div>
+
+</div>
+</div>
+
+<script>
+'use strict';
+
+// ── State ────────────────────────────────────────────────────────────────────
+var state = {
+  factors: [{ name: 'Sample', valuesRaw: 'S1, S2, S3' }],
+  genes: [
+    { name: 'HPRT1', role: 'reference' },
+    { name: 'GAPDH', role: 'reference' },
+    { name: 'MAP2', role: 'target' },
+    { name: 'GFAP', role: 'target' },
+  ],
+  replicates: 2,
+  bandsPerPlate: 3,
+  ntc: true,
+  plateType: '96',
+  skip: {},              // sample id → true (excluded)
+};
+
+var REF_PALETTE = ['#1f5fbf', '#2f8f8f', '#4a4ab0', '#2c7fb8', '#3f51b5', '#00897b'];
+var TGT_PALETTE = ['#c0392b', '#e67e22', '#16a085', '#27ae60', '#8e44ad', '#9b59b6',
+  '#d35400', '#c0399b', '#41b6c4', '#7fcdbb', '#b8860b', '#a0522d'];
+
+var PLATE_DIMS = { '96': { rows: 8, cols: 12 } };
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function $(id) { return document.getElementById(id); }
+
+function parseValues(raw) {
+  return String(raw || '').split(/[,\n]/).map(function (v) { return v.trim(); }).filter(Boolean);
+}
+
+function activeFactors() {
+  return state.factors
+    .map(function (f) { return { name: f.name.trim() || 'Factor', values: parseValues(f.valuesRaw) }; })
+    .filter(function (f) { return f.values.length; });
+}
+
+function activeGenes() {
+  return state.genes.filter(function (g) { return g.name.trim(); })
+    .map(function (g) { return { name: g.name.trim(), role: g.role }; });
+}
+
+// Assign a stable colour per gene: references from cool palette, targets varied.
+function geneColorMap(genes) {
+  var map = {}; var ri = 0, ti = 0;
+  genes.forEach(function (g) {
+    if (g.role === 'reference') { map[g.name] = REF_PALETTE[ri % REF_PALETTE.length]; ri++; }
+    else { map[g.name] = TGT_PALETTE[ti % TGT_PALETTE.length]; ti++; }
+  });
+  return map;
+}
+
+// Auto-plan gene bands: anchor (first reference) on band 0 of every plate; the
+// remaining genes fill the other bands sequentially; trailing bands stay empty.
+//
+// Anchor semantics — single source of truth: this function only decides the
+// band LAYOUT (which reference sits on band 0 of every plate). The invariant
+// that every plate actually CARRIES the required reference is enforced by
+// qpcrPackPlates in assets/js/labtools-calc.js via cfg.referenceGenes (the
+// "reference-anchor invariant", throws when a plate omits one). Keep the two in
+// sync: compute() must pass the same anchor this function places on band 0 as
+// referenceGenes[0] — see qpcrPackPlates referenceGenes validation in calc.js.
+function planBands(genes, bandsPerPlate) {
+  var refs = genes.filter(function (g) { return g.role === 'reference'; });
+  if (!refs.length) throw new Error('Add at least one reference gene (the plate anchor).');
+  var anchor = refs[0];
+  var others = genes.filter(function (g) { return g !== anchor; });
+  var perPlate = Math.max(1, bandsPerPlate - 1);
+  var plates = [];
+  var nPlates = Math.max(1, Math.ceil(others.length / perPlate));
+  for (var i = 0; i < nPlates; i++) {
+    var bands = [anchor];
+    for (var j = 0; j < perPlate; j++) bands.push(others[i * perPlate + j] || null);
+    plates.push({ name: 'Plate ' + (i + 1), bands: bands });
+  }
+  return plates;
+}
+
+// Build the full pipeline; returns { allSamples, samples, packed, layout } or throws.
+function compute() {
+  var factors = activeFactors();
+  var allSamples = qpcrBuildSamples(factors);
+  var samples = allSamples.filter(function (s) { return !state.skip[s.id]; });
+  var genes = activeGenes();
+  if (!genes.length) throw new Error('Add at least one gene.');
+  var colors = geneColorMap(genes);
+  var dims = PLATE_DIMS[state.plateType];
+  var plates = planBands(genes, state.bandsPerPlate);
+  var refNames = genes.filter(function (g) { return g.role === 'reference'; }).map(function (g) { return g.name; });
+  var packed = qpcrPackPlates({
+    plates: plates,
+    samples: samples.map(function (s) { return { label: s.label }; }),
+    replicates: state.replicates,
+    plateType: state.plateType,
+    rows: dims.rows,
+    cols: dims.cols,
+    ntc: state.ntc,
+    referenceGenes: [refNames[0]],       // anchor invariant
+    colorForGene: function (name) { return colors[name]; },
+  });
+  var layout = qpcrToPlateLayout(packed);
+  return { allSamples: allSamples, samples: samples, genes: genes, packed: packed, layout: layout };
+}
+
+// ── Renderers ────────────────────────────────────────────────────────────────
+function renderFactors() {
+  var host = $('factors');
+  host.innerHTML = '';
+  state.factors.forEach(function (f, i) {
+    var row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML =
+      '<input class="lt-input" type="text" data-fi="' + i + '" data-k="name" placeholder="Factor name" value="' + labtoolsEscapeHtml(f.name) + '" style="flex:0 1 150px">' +
+      '<input class="lt-input factor-values" type="text" data-fi="' + i + '" data-k="valuesRaw" placeholder="value1, value2, …" value="' + labtoolsEscapeHtml(f.valuesRaw) + '">' +
+      '<button class="lt-btn lt-btn-ghost mini-btn" data-rmf="' + i + '">✕</button>';
+    host.appendChild(row);
+  });
+}
+
+function renderGenes() {
+  var host = $('genes');
+  host.innerHTML = '';
+  var colors = geneColorMap(activeGenes());
+  state.genes.forEach(function (g, i) {
+    var row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML =
+      '<span class="swatch" style="background:' + (colors[g.name.trim()] || '#666') + '"></span>' +
+      '<input class="lt-input" type="text" data-gi="' + i + '" data-k="name" placeholder="Gene" value="' + labtoolsEscapeHtml(g.name) + '" style="flex:0 1 160px">' +
+      '<select data-gi="' + i + '" data-k="role">' +
+        '<option value="target"' + (g.role === 'target' ? ' selected' : '') + '>target</option>' +
+        '<option value="reference"' + (g.role === 'reference' ? ' selected' : '') + '>reference</option>' +
+      '</select>' +
+      '<button class="lt-btn lt-btn-ghost mini-btn" data-rmg="' + i + '">✕</button>';
+    host.appendChild(row);
+  });
+}
+
+// Combination chips + plate preview, rendered from ONE compute() result (the
+// old separate renderCombos/renderPreview each recomputed the sample product —
+// every keystroke ran compute() twice; see scheduleRefresh below).
+function renderCombosAndPreview() {
+  var r;
+  try { r = compute(); }
+  catch (e) {
+    r = null;
+    $('preview').innerHTML = '';
+    $('preview-err').textContent = '⚠ ' + e.message;
+    $('preview-err').style.display = 'block';
+  }
+  // Chips depend only on the factors, so they render even when compute() throws
+  // (e.g. no genes yet) — same fallback as the old renderCombos.
+  var host = $('combos');
+  host.innerHTML = '';
+  var all = r ? r.allSamples : qpcrBuildSamples(activeFactors());
+  var included = all.filter(function (s) { return !state.skip[s.id]; }).length;
+  $('combo-count').textContent = included + ' of ' + all.length + ' included';
+  all.forEach(function (s) {
+    var excluded = !!state.skip[s.id];
+    var chip = document.createElement('span');
+    chip.className = 'combo-chip ' + (excluded ? 'excluded' : 'included');
+    chip.textContent = s.label;
+    chip.setAttribute('data-skip', s.id);
+    // Keyboard-accessible button: Enter/Space are handled by the delegated
+    // keydown listener in wire() via the same toggleSkip path as click.
+    chip.setAttribute('tabindex', '0');
+    chip.setAttribute('role', 'button');
+    chip.setAttribute('aria-pressed', excluded ? 'true' : 'false');
+    host.appendChild(chip);
+  });
+  if (!r) return;
+  var wells = r.packed.plates.reduce(function (n, p) { return n + Object.keys(p.assignments).length; }, 0);
+  var html = '<div class="preview-stat">' + r.samples.length + ' samples × ' + r.genes.length +
+    ' genes × ' + state.replicates + ' replicates → <b>' + r.packed.plates.length +
+    ' plate(s)</b>, ' + wells + ' wells used</div>';
+  r.packed.plates.forEach(function (p) {
+    var genesOnPlate = [];
+    var seen = {};
+    Object.keys(p.assignments).forEach(function (w) {
+      var gname = p.assignments[w].gene;
+      if (gname && gname !== 'NTC' && !seen[gname]) { seen[gname] = 1; genesOnPlate.push(gname); }
+    });
+    html += '<div class="plate-summary"><b>' + labtoolsEscapeHtml(p.name) + '</b> · ' +
+      Object.keys(p.assignments).length + ' wells · ' + labtoolsEscapeHtml(genesOnPlate.join(', ')) + '</div>';
+  });
+  $('preview').innerHTML = html;
+  $('preview-err').style.display = 'none';
+}
+
+function renderAll() {
+  cancelRefresh();          // a pending debounce would only re-render the same state
+  renderFactors();
+  renderGenes();
+  renderCombosAndPreview();
+}
+
+// ── Debounced refresh (single recompute per change) ──────────────────────────
+// Typing in a factor/gene field used to fire renderCombos()+renderPreview() on
+// every key — two renders, each recomputing the sample product. Keystrokes now
+// only schedule a ~50ms-debounced re-render that recomputes once and redraws
+// combos + preview together. The factor/gene input rows are intentionally NOT
+// rebuilt, so focus/caret survives typing.
+var refreshTimer = null;
+
+function cancelRefresh() {
+  if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+}
+
+function scheduleRefresh() {
+  cancelRefresh();
+  refreshTimer = setTimeout(function () {
+    refreshTimer = null;
+    pruneSkip();              // the edit may have orphaned combo ids
+    renderCombosAndPreview(); // one compute() → chips + preview
+  }, 50);
+}
+
+// Drop state.skip entries whose combo id no longer exists in the current factor
+// product (a factor renamed/removed/emptied). Called uniformly on every
+// factors/genes change path; ids the user skipped on purpose are kept as long
+// as their combo still exists. Uses the same id space as the chips
+// (qpcrBuildSamples' default '_' separator), so a restored artifact's skip map
+// — which may legitimately reference combos from an older design — is pruned
+// only once those combos actually disappear.
+function pruneSkip() {
+  var valid = {};
+  qpcrBuildSamples(activeFactors()).forEach(function (s) { valid[s.id] = true; });
+  Object.keys(state.skip).forEach(function (id) {
+    if (!valid[id]) delete state.skip[id];
+  });
+}
+
+// Shared skip toggle: the chip click handler and the chip Enter/Space keydown
+// handler both route here, so keyboard and pointer behave identically.
+function toggleSkip(id) {
+  if (state.skip[id]) delete state.skip[id]; else state.skip[id] = true;
+  renderCombosAndPreview();
+}
+
+// ── Events ───────────────────────────────────────────────────────────────────
+function wire() {
+  $('factors').addEventListener('input', function (e) {
+    var t = e.target, fi = t.getAttribute('data-fi');
+    if (fi == null) return;
+    state.factors[+fi][t.getAttribute('data-k')] = t.value;
+    scheduleRefresh();   // debounced single recompute (see renderCombosAndPreview)
+  });
+  $('factors').addEventListener('click', function (e) {
+    var rm = e.target.getAttribute('data-rmf');
+    if (rm == null) return;
+    state.factors.splice(+rm, 1);
+    if (!state.factors.length) state.factors.push({ name: 'Factor', valuesRaw: '' });
+    pruneSkip();         // removed factor may orphan combo ids
+    renderAll();
+  });
+  $('add-factor-btn').addEventListener('click', function () {
+    state.factors.push({ name: 'Factor ' + (state.factors.length + 1), valuesRaw: '' });
+    pruneSkip();
+    renderAll();
+  });
+
+  $('genes').addEventListener('input', function (e) {
+    var t = e.target, gi = t.getAttribute('data-gi');
+    if (gi == null) return;
+    state.genes[+gi][t.getAttribute('data-k')] = t.value;
+    scheduleRefresh();   // debounced single recompute; row is NOT rebuilt, so
+                         // focus/caret survives typing in the gene name field
+  });
+  $('genes').addEventListener('change', function (e) {
+    var t = e.target, gi = t.getAttribute('data-gi');
+    if (gi != null && t.getAttribute('data-k') === 'role') {
+      state.genes[+gi].role = t.value;
+      pruneSkip();
+      renderAll();       // full rebuild so swatch palettes re-apply
+    }
+  });
+  $('genes').addEventListener('click', function (e) {
+    var rm = e.target.getAttribute('data-rmg');
+    if (rm == null) return;
+    state.genes.splice(+rm, 1);
+    pruneSkip();
+    renderAll();
+  });
+  $('add-gene-btn').addEventListener('click', function () {
+    state.genes.push({ name: '', role: 'target' });
+    pruneSkip();
+    renderAll();
+  });
+
+  // Chips are spans with role="button": pointer and keyboard (Enter/Space) both
+  // route through the shared toggleSkip so the behaviour can never diverge.
+  $('combos').addEventListener('click', function (e) {
+    var id = e.target.getAttribute('data-skip');
+    if (id == null) return;
+    toggleSkip(id);
+  });
+  $('combos').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var id = e.target.getAttribute('data-skip');
+    if (id == null) return;
+    e.preventDefault();  // keep Space from scrolling the page
+    toggleSkip(id);
+  });
+
+  $('opt-replicates').addEventListener('input', function (e) { state.replicates = Math.max(1, +e.target.value || 1); renderCombosAndPreview(); });
+  $('opt-bands').addEventListener('input', function (e) { state.bandsPerPlate = Math.max(1, +e.target.value || 1); renderCombosAndPreview(); });
+  $('opt-ntc').addEventListener('change', function (e) { state.ntc = e.target.checked; renderCombosAndPreview(); });
+
+  $('wb-save-btn').addEventListener('click', onSave);
+  $('to-planner-btn').addEventListener('click', function () { handoff('../microplate-layout-planner/index.html'); });
+  $('to-qpcr-btn').addEventListener('click', function () { handoff('../qpcr-analysis/index.html'); });
+  $('load-samples-btn').addEventListener('click', onLoadSamples);
+}
+
+// ── Workbench ────────────────────────────────────────────────────────────────
+var TOOL = 'qpcr-plate-planner';
+var PRODUCES = 'plate-layout';
+
+function suggestLabel(r) {
+  return 'qPCR Plan (' + r.samples.length + 's × ' + r.genes.length + 'g, ' +
+    r.packed.plates.length + ' plates) ' + new Date().toISOString().slice(0, 10);
+}
+
+function metaFor(r) {
+  return {
+    plateCount: r.packed.plates.length,
+    plateFormat: state.plateType,
+    wellCount: r.packed.plates.reduce(function (n, p) { return n + Object.keys(p.assignments).length; }, 0),
+  };
+}
+
+function computeOrToast() {
+  try { return compute(); }
+  catch (e) { showToast('✗ ' + e.message); return null; }
+}
+
+function onSave() {
+  var r = computeOrToast(); if (!r) return;
+  var label = prompt('Name this layout:', suggestLabel(r));
+  if (!label || !label.trim()) return;
+  label = label.trim();
+  workbench.findByName(label).then(function (existing) {
+    if (existing) {
+      if (!confirm('"' + label + '" already exists. Overwrite?')) return Promise.reject('cancel');
+      return workbench.remove(existing.id);
+    }
+  }).then(function () {
+    return workbench.put(PRODUCES, label, r.layout, metaFor(r), TOOL);
+  }).then(function () { showToast('✓ Saved "' + label + '"'); })
+    .catch(function (e) { if (e !== 'cancel') { showToast('✗ ' + (e.message || e)); console.error('WB save:', e); } });
+}
+
+function handoff(nextUrl) {
+  var r = computeOrToast(); if (!r) return;
+  // Artifact envelope handoff: consumers wire the plate-layout field through
+  // their input ports (microplate-layout-planner / qpcr-analysis both consume
+  // it via labtoolsConsumeArtifactHandoff).
+  labtoolsHandoffArtifact(qppTool, nextUrl, suggestLabel(r))
+    .catch(function (e) { showToast('✗ ' + e.message); console.error('Handoff:', e); });
+}
+
+// Seed a factor from a saved sample-list (names → one "Sample" factor).
+function seedFromSampleList(data) {
+  var names = (data.samples || []).map(function (s) { return s.name; }).filter(Boolean);
+  if (!names.length) { showToast('That item has no sample names.'); return; }
+  state.factors = [{ name: 'Sample', valuesRaw: names.join(', ') }];
+  pruneSkip();   // the whole factor set was replaced — old combo ids are stale
+  renderAll();
+  showToast('✓ Loaded ' + names.length + ' sample name(s)');
+}
+
+function onLoadSamples() {
+  workbench.getByType('sample-list').then(function (items) {
+    if (!items.length) { showToast('No sample lists in Workbench'); return; }
+    showPicker(items, function (item) { seedFromSampleList(item.data); });
+  }).catch(function (e) { console.error('WB load:', e); });
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
+  renderAll();
+  wire();
+  // Workflow handoff: a sample-list passed via ?wbLoad seeds the sample factor.
+  if (typeof labtoolsConsumeHandoff === 'function') {
+    labtoolsConsumeHandoff(function (data, type) {
+      if (type === 'sample-list') seedFromSampleList(data);
+    });
+  }
+});
+
+// ─── Artifact model (full-state recovery + wireable outputs) ────────────────
+// Pure-function view: the entire `state` object (factors, genes, replicates,
+// bands, NTC, plate type, skip exceptions) is the param set; compute() derives
+// the plate-layout output. Restoring state + renderAll() reproduces the tool.
+
+/** Capture ALL control state (a deep copy of `state`). */
+function readParams() {
+  return {
+    factors: state.factors.map(function (f) { return { name: f.name, valuesRaw: f.valuesRaw }; }),
+    genes: state.genes.map(function (g) { return { name: g.name, role: g.role }; }),
+    replicates: state.replicates,
+    bandsPerPlate: state.bandsPerPlate,
+    ntc: state.ntc,
+    plateType: state.plateType,
+    skip: Object.assign({}, state.skip),
+  };
+}
+
+/** Restore control state, then re-render. */
+function applyParams(p) {
+  p = p || {};
+  if (p.factors) state.factors = p.factors.map(function (f) { return { name: f.name, valuesRaw: f.valuesRaw }; });
+  if (p.genes) state.genes = p.genes.map(function (g) { return { name: g.name, role: g.role }; });
+  if (p.replicates != null) state.replicates = p.replicates;
+  if (p.bandsPerPlate != null) state.bandsPerPlate = p.bandsPerPlate;
+  if (typeof p.ntc === 'boolean') state.ntc = p.ntc;
+  if (p.plateType) state.plateType = p.plateType;
+  state.skip = p.skip || {};
+  renderAll();
+}
+
+/** Declared final output: the packed multi-plate layout (or null if invalid). */
+function readOutputs() {
+  try { return { 'plate-layout': compute().layout }; }
+  catch (e) { return { 'plate-layout': null }; }
+}
+
+// Bridge: registers workbench types and provides artifact build/save/restore/CSV.
+var qppTool = labtoolsDefineTool({
+  id: 'qpcr-plate-planner',
+  produces: ['plate-layout'],
+  consumes: ['sample-list'],
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  outputFields: [{ id: 'plate-layout', label: 'qPCR plate layout' }],
+  inputPorts: [{ field: 'sample-list' }],
+});
+
+// Explicit legacy declaration (kept for the static registry test; the bridge
+// above registers the same types at runtime — idempotent).
+labtoolsRegisterToolTypes('qpcr-plate-planner', ['plate-layout'], ['sample-list']);
+
+if (typeof labtoolsMountArtifactControls === 'function') {
+  labtoolsMountArtifactControls(qppTool, { container: '#lt-artifact-controls', fileBase: 'qpcr-plate-planner' });
+}
+
+if (typeof labtoolsRegisterTestHooks === 'function') {
+  labtoolsRegisterTestHooks('qpcr-plate-planner', {
+    serialize: function () { return compute().layout; },
+    readParams: readParams,
+    applyParams: applyParams,
+    readOutputs: readOutputs,
+    buildArtifact: function () { return qppTool.build(); },
+    toCsv: function () { return qppTool.toCsv(); },
+    fromCsv: function (text) { return qppTool.fromCsv(text); },
+    state: function () {
+      var r = compute();
+      return { samples: r.samples.length, genes: r.genes.length, plates: r.packed.plates.length };
+    },
+  });
+}
+
+// ─── Shared-layer runtime boot (manifest + load self-check; idempotent) ──────
+// Merges the static manifest (tools/qpcr-plate-planner/manifest.js) with the
+// live per-tool readParams/applyParams/readOutputs, validates it, and registers
+// types/test hooks when the registries are present.
+if (typeof labtools !== 'undefined' && labtools.runtime && labtools.runtime.boot) {
+  labtools.runtime.boot({ manifest: Object.assign({}, window.labtoolsToolManifest, {
+    readParams: readParams, applyParams: applyParams, readOutputs: readOutputs,
+  })});
+}
+</script>
+</body>
+</html>

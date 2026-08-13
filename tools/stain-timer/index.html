@@ -5,7 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Stain Timer · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
-  <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-types.js"></script>
+  <script src="../../assets/js/labtools-store.js"></script>
+  <script src="../../assets/js/labtools-workbench.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
+  <script src="../../assets/js/labtools-artifact.js"></script>
+  <script src="../../assets/js/labtools-artifact-ui.js"></script>
+  <script src="../../assets/js/labtools-runtime.js"></script>
+  <script src="manifest.js"></script>
   <style>
     /* ── Card width (base styles live in labtools.css .card) ── */
     .card { max-width: 660px; }
@@ -374,6 +381,12 @@
   <h1 class="lt-tool-title">⏱ Stain Timer</h1>
   <p class="lt-tool-subtitle">Configurable step-by-step staining protocol timer</p>
 
+  <div style="display:flex;gap:8px;margin-bottom:6px">
+    <button class="lt-btn lt-btn-ghost" id="wb-save-btn">Save to Workbench</button>
+    <button class="lt-btn lt-btn-ghost" id="wb-load-btn">Load from Workbench</button>
+    <span id="lt-artifact-controls" style="display:inline-flex;gap:8px;flex-wrap:wrap"></span>
+  </div>
+
   <!-- Step bar -->
   <div class="step-bar">
     <div class="step-pip active" id="pip1"><div class="dot">1</div>Protocol</div>
@@ -626,31 +639,31 @@ function renderProtoTable() {
       <td class="col-drag"><span class="drag-handle" title="Drag to reorder">⠿</span></td>
       <td class="col-num">${i + 1}</td>
       <td class="col-sol">
-        <input type="text" placeholder="Solution name" value="${escHtml(step.solution)}"
-          oninput="updateStep(${i},'solution',this.value)" />
+        <input type="text" placeholder="Solution name" value="${labtoolsEscapeHtml(step.solution)}"
+          data-field="solution" />
       </td>
       <td class="col-dur">
         <div class="dur-wrap">
           <input type="number" min="0" step="1" placeholder="min"
             value="${step.durationMin !== '' ? step.durationMin : ''}"
-            oninput="updateStep(${i},'durationMin',this.value)" />
+            data-field="durationMin" />
           <span>min</span>
           <input type="number" min="0" max="59.999" step="0.1" placeholder="sec"
             value="${step.durationSec !== '' ? step.durationSec : ''}"
-            oninput="updateStep(${i},'durationSec',this.value)" />
+            data-field="durationSec" />
           <span>sec</span>
         </div>
       </td>
       <td class="col-slot">
         <input type="number" min="1" step="1" placeholder="—"
           value="${step.slot !== '' ? step.slot : ''}"
-          oninput="updateStep(${i},'slot',this.value)" />
+          data-field="slot" />
       </td>
       <td class="col-acts">
         <div class="acts-cell">
-          <button class="act-btn" title="Move up"   onclick="moveStep(${i},-1)" ${i === 0 ? 'disabled' : ''}>↑</button>
-          <button class="act-btn" title="Move down"  onclick="moveStep(${i},+1)" ${i === protocol.length-1 ? 'disabled' : ''}>↓</button>
-          <button class="act-btn del" title="Delete" onclick="deleteStep(${i})">🗑</button>
+          <button class="act-btn" title="Move up"   data-action="move-up" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button class="act-btn" title="Move down"  data-action="move-down" ${i === protocol.length-1 ? 'disabled' : ''}>↓</button>
+          <button class="act-btn del" title="Delete" data-action="delete">🗑</button>
         </div>
       </td>`;
     tbody.appendChild(tr);
@@ -659,6 +672,32 @@ function renderProtoTable() {
       tr.querySelector('.col-sol input').classList.add('warning');
     if (validationWarnings.slot.has(i))
       tr.querySelector('.col-slot input').classList.add('warning');
+  });
+}
+
+/**
+ * Delegate row actions and field edits on the persistent <tbody> — the rows
+ * themselves are rebuilt on every structural change, but the tbody listener
+ * survives. Row index comes from tr.dataset.index (set by renderProtoTable).
+ */
+const protoBodyEl = document.getElementById('proto-body');
+if (protoBodyEl) {
+  protoBodyEl.addEventListener('click', function (e) {
+    const btn = e.target.closest('.act-btn');
+    if (!btn || !btn.dataset.action) return;
+    const tr = btn.closest('tr');
+    if (!tr) return;
+    const i = parseInt(tr.dataset.index, 10);
+    if (btn.dataset.action === 'move-up') moveStep(i, -1);
+    else if (btn.dataset.action === 'move-down') moveStep(i, +1);
+    else if (btn.dataset.action === 'delete') deleteStep(i);
+  });
+  protoBodyEl.addEventListener('input', function (e) {
+    const inp = e.target;
+    if (!inp || !inp.dataset || !inp.dataset.field) return;
+    const tr = inp.closest('tr');
+    if (!tr) return;
+    updateStep(parseInt(tr.dataset.index, 10), inp.dataset.field, inp.value);
   });
 }
 
@@ -1053,13 +1092,26 @@ function startTick() {
     const remaining = Math.max(0, stepEndTime - Date.now());
     renderCountdown(remaining);
     updateTabTitle(remaining);
-    if (remaining === 0) {
-      clearInterval(tickInterval);
-      stepResults[currentStep].actualMs = Date.now() - stepStartTs;
-      playAlarm();
-      advanceStep();
-    }
+    if (remaining === 0) completeStep();
   }, 100);
+}
+
+/**
+ * Complete the current step — the single shared transition used by both
+ * the 100 ms tick and the visibilitychange catch-up path, so both take
+ * the exact same action (record elapsed, alarm, advance).
+ *
+ * Idempotent: guarded on timerState so concurrent triggers (e.g. a tick
+ * callback already queued when a visibilitychange completion runs) can
+ * never double-advance — the first caller clears the interval and moves
+ * timerState off 'running', and any later caller no-ops.
+ */
+function completeStep() {
+  if (timerState !== 'running') return;
+  clearInterval(tickInterval);
+  stepResults[currentStep].actualMs = Date.now() - stepStartTs;
+  playAlarm();
+  advanceStep();
 }
 
 /**
@@ -1101,6 +1153,44 @@ function onAllDone() {
   updateControls();
   renderStepsList();
 }
+
+// ─────────────────────────────────────────────────────────────
+// Background-tab robustness
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Reconcile the countdown with the wall clock when the tab becomes
+ * visible again. Background tabs throttle setInterval, so the display
+ * may have fallen behind while hidden.
+ *
+ * - If the step already expired while hidden: complete it through the
+ *   exact same path as a tick expiry (completeStep), which is idempotent
+ *   — a tick still queued from before can never advance twice.
+ * - Otherwise: refresh the countdown/progress/tab-title from the true
+ *   remaining time without disturbing the running interval.
+ */
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState !== 'visible') return;
+  if (timerState !== 'running') return;
+  const remaining = Math.max(0, stepEndTime - Date.now());
+  if (remaining === 0) {
+    completeStep();
+  } else {
+    renderCountdown(remaining);
+    updateTabTitle(remaining);
+  }
+});
+
+/**
+ * Warn before closing/reloading the page while a step is running.
+ * Paused and idle states are not blocked. (Browsers show their own
+ * unified prompt; the returnValue string is set per the spec.)
+ */
+window.addEventListener('beforeunload', function (e) {
+  if (timerState !== 'running') return;
+  e.preventDefault();
+  e.returnValue = '计时正在运行';
+});
 
 // ─────────────────────────────────────────────────────────────
 // Render helpers (Panel 2)
@@ -1161,7 +1251,7 @@ function renderNextStrip() {
   const next = protocol[currentStep + 1];
   const nextSlot = parseSlotNumber(next.slot);
   const slotPart = nextSlot !== null ? ` · Slot ${nextSlot}` : ' · No slot assigned';
-  strip.innerHTML = `<strong>Next:</strong> Step ${currentStep + 2}${slotPart} · ${escHtml(next.solution)} · ${formatStepDurationText(next)}`;
+  strip.innerHTML = `<strong>Next:</strong> Step ${currentStep + 2}${slotPart} · ${labtoolsEscapeHtml(next.solution)} · ${formatStepDurationText(next)}`;
 }
 
 /**
@@ -1188,7 +1278,7 @@ function renderStepsList() {
     div.innerHTML = `
       <span class="sl-icon">${icon}</span>
       <span class="sl-num">${i + 1}</span>
-      <span class="sl-sol">${escHtml(step.solution)}</span>
+      <span class="sl-sol">${labtoolsEscapeHtml(step.solution)}</span>
       <span class="sl-dur">${durStr}</span>
       <span class="sl-slot">${slotStr}</span>`;
     list.appendChild(div);
@@ -1331,11 +1421,9 @@ function playAlarm() {
 function exportProtocol() {
   syncProtocolFromDOM();
 
-  const header = 'Step,Solution,Duration Min,Duration Sec,Slot';
-  const lines = protocol.map((s, i) =>
-    [i + 1, csvCell(s.solution), s.durationMin, s.durationSec, s.slot].join(',')
-  );
-  downloadCsv([header, ...lines].join('\n'), 'stain-protocol.csv');
+  const header = ['Step', 'Solution', 'Duration Min', 'Duration Sec', 'Slot'];
+  const rows = protocol.map((s, i) => [i + 1, s.solution, s.durationMin, s.durationSec, s.slot]);
+  labtoolsDownloadText('stain-protocol.csv', labtoolsRowsToCsv([header, ...rows]), 'text/csv;charset=utf-8');
 }
 
 /**
@@ -1373,11 +1461,11 @@ function importProtocol(evt) {
  * @returns {{ steps: Object[] } | { error: string }}
  */
 function parseProtocolCsv(text) {
-  const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) return { error: 'CSV must have a header row and at least one step.' };
+  const rows = labtoolsCsvToRows(text.trim());
+  if (rows.length < 2) return { error: 'CSV must have a header row and at least one step.' };
   const steps = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = splitCsvLine(lines[i]);
+  for (let i = 1; i < rows.length; i++) {
+    const cols = rows[i];
     if (cols.length < 4) return { error: `Row ${i + 1}: expected at least 4 columns.` };
     const solution = cols[1] ? cols[1].trim() : '';
     const durationMin = parseFloat(cols[2]);
@@ -1401,73 +1489,17 @@ function parseProtocolCsv(text) {
  *          Started At, Actual Duration (min).
  */
 function exportResults() {
-  const header = 'Step,Solution,Duration Min,Duration Sec,Slot,Started At,Actual Duration (min)';
-  const lines = stepResults.map((r, i) => {
+  const header = ['Step', 'Solution', 'Duration Min', 'Duration Sec', 'Slot', 'Started At', 'Actual Duration (min)'];
+  const rows = stepResults.map((r, i) => {
     const actual = r.actualMs !== null ? (r.actualMs / 60000).toFixed(2) : '';
-    return [i + 1, csvCell(r.solution), r.durationMin, r.durationSec, r.slot, r.startedAt || '', actual].join(',');
+    return [i + 1, r.solution, r.durationMin, r.durationSec, r.slot, r.startedAt || '', actual];
   });
-  downloadCsv([header, ...lines].join('\n'), 'stain-results.csv');
+  labtoolsDownloadText('stain-results.csv', labtoolsRowsToCsv([header, ...rows]), 'text/csv;charset=utf-8');
 }
 
 // ─────────────────────────────────────────────────────────────
 // Utilities
 // ─────────────────────────────────────────────────────────────
-
-/** Escape a string for safe insertion into HTML (prevents XSS in innerHTML). */
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-/** Wrap a value in an RFC-4180 double-quoted CSV cell, escaping any internal double-quotes. */
-function csvCell(val) {
-  const s = String(val).replace(/"/g, '""');
-  return `"${s}"`;
-}
-
-/**
- * Parse one RFC-4180 CSV line into an array of field strings.
- * Handles quoted fields, escaped quotes (""), and unquoted fields.
- *
- * @param {string} line  A single CSV line (no trailing newline)
- * @returns {string[]}
- */
-function splitCsvLine(line) {
-  const result = [];
-  let cur = '', inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
-      else inQ = !inQ;
-    } else if (ch === ',' && !inQ) {
-      result.push(cur); cur = '';
-    } else {
-      cur += ch;
-    }
-  }
-  result.push(cur);
-  return result;
-}
-
-/**
- * Create a CSV Blob and trigger a browser file download.
- *
- * @param {string} content   CSV string content
- * @param {string} filename  Suggested download filename
- */
-function downloadCsv(content, filename) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
 
 /** Format a Unix timestamp (ms) as an HH:MM:SS wall-clock string. */
 function formatWallClock(ts) {
@@ -1537,6 +1569,160 @@ function getMaxAssignedSlot() {
 // Init
 // ─────────────────────────────────────────────────────────────
 renderProtoTable();
+
+// ─── Workbench integration ──────────────────────────────────────────────────
+const WB_TOOL = 'stain-timer';
+const WB_PRODUCES_TYPE = 'protocol';
+const WB_CONSUMES_TYPES = ['protocol'];
+
+function serializeForWorkbench() {
+  return {
+    steps: protocol.map(function (s) {
+      return {
+        solution: s.solution || '',
+        durationMin: s.durationMin == null || s.durationMin === '' ? 0 : Number(s.durationMin),
+        durationSec: s.durationSec == null || s.durationSec === '' ? 0 : Number(s.durationSec),
+        slot: s.slot || '',
+      };
+    }),
+  };
+}
+
+function applyFromWorkbench(data, type) {
+  if (type === 'protocol' && data.steps && data.steps.length) {
+    protocol = data.steps.map(function (s, i) {
+      return {
+        solution: s.solution || '',
+        durationMin: s.durationMin == null ? 0 : s.durationMin,
+        durationSec: s.durationSec == null ? 0 : s.durationSec,
+        slot: s.slot == null ? String(i + 1) : s.slot,
+      };
+    });
+    // importProtocol(evt) expects a file-input event; the protocol variable
+    // is already replaced above, so just re-render the editor table.
+    renderProtoTable();
+  }
+}
+
+function suggestWbLabel() {
+  return 'Staining Protocol ' + new Date().toISOString().slice(0, 10);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const saveBtn = document.getElementById('wb-save-btn');
+  const loadBtn = document.getElementById('wb-load-btn');
+
+  if (saveBtn) saveBtn.addEventListener('click', function () {
+    if (!protocol.length) { showToast('No steps to save.'); return; }
+    const label = prompt('Name this item:', suggestWbLabel());
+    if (!label || !label.trim()) return;
+    label = label.trim();
+
+    workbench.findByName(label).then(function (existing) {
+      if (existing) {
+        if (!confirm('"' + label + '" already exists. Overwrite?')) return;
+        return workbench.remove(existing.id);
+      }
+    }).then(function () {
+      return workbench.put(WB_PRODUCES_TYPE, label, serializeForWorkbench(),
+        { stepCount: protocol.length }, WB_TOOL);
+    }).then(function () {
+      showToast('✓ Saved "' + label + '"');
+    }).catch(function (e) { showToast('✗ ' + e.message); console.error('WB save:', e); });
+  });
+
+  if (loadBtn) loadBtn.addEventListener('click', function () {
+    const allItems = [];
+    Promise.all(WB_CONSUMES_TYPES.map(function (t) { return workbench.getByType(t); })).then(function (results) {
+      results.forEach(function (items) { items.forEach(function (item) { allItems.push(item); }); });
+      if (allItems.length === 0) { showToast('No matching data in Workbench'); return; }
+      showPicker(allItems, function (item) {
+        applyFromWorkbench(item.data, item.type);
+        showToast('✓ Applied "' + item.label + '"');
+      });
+    }).catch(function (e) { console.error('WB load:', e); });
+  });
+});
+
+// ─── Artifact model (full-state recovery + wireable output) ─────────────────
+// The protocol (ordered steps) is the design/param set and is genuinely wireable.
+// The live timer runtime (currentStep, timerState, stepEndTime, tickInterval, …)
+// is transient and deliberately NOT captured — restore is a design-time action.
+
+/** Capture the protocol design (steps). */
+function readParams() {
+  return {
+    protocol: protocol.map(function (s) {
+      return {
+        solution: s.solution || '',
+        durationMin: (s.durationMin == null || s.durationMin === '') ? 0 : Number(s.durationMin),
+        durationSec: (s.durationSec == null || s.durationSec === '') ? 0 : Number(s.durationSec),
+        slot: s.slot || '',
+      };
+    }),
+  };
+}
+
+/** Restore the protocol, then re-render the editor table. */
+function applyParams(p) {
+  p = p || {};
+  var steps = p.protocol || [];
+  protocol = steps.map(function (s, i) {
+    return {
+      solution: s.solution || '',
+      durationMin: (s.durationMin == null ? 0 : s.durationMin),
+      durationSec: (s.durationSec == null ? 0 : s.durationSec),
+      slot: (s.slot == null ? String(i + 1) : s.slot),
+    };
+  });
+  if (typeof renderProtoTable === 'function') renderProtoTable();
+}
+
+/** Declared final output: the staining protocol. */
+function readOutputs() {
+  return { 'protocol': serializeForWorkbench() };
+}
+
+// Bridge: registers workbench types and provides artifact build/save/restore/CSV.
+var stainTool = labtoolsDefineTool({
+  id: 'stain-timer',
+  produces: ['protocol'],
+  consumes: ['protocol'],
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  outputFields: [{ id: 'protocol', label: 'Staining protocol' }],
+  inputPorts: [{ field: 'protocol' }],
+});
+
+// Explicit legacy declaration (kept for the static registry test; the bridge
+// above registers the same types at runtime — idempotent).
+labtoolsRegisterToolTypes('stain-timer', ['protocol'], ['protocol']);
+
+if (typeof labtoolsMountArtifactControls === 'function') {
+  labtoolsMountArtifactControls(stainTool, { container: '#lt-artifact-controls', fileBase: 'stain-timer' });
+}
+
+labtoolsRegisterTestHooks('stain-timer', {
+  serialize: serializeForWorkbench,
+  apply: applyFromWorkbench,
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  buildArtifact: function () { return stainTool.build(); },
+  toCsv: function () { return stainTool.toCsv(); },
+  fromCsv: function (text) { return stainTool.fromCsv(text); },
+  state: function () {
+    return { stepCount: protocol.length, solutions: protocol.map(function (s) { return s.solution; }) };
+  },
+});
+
+// ─── Shared-layer runtime boot (manifest + hooks; idempotent) ────────────────
+if (typeof labtools !== 'undefined' && labtools.runtime && labtools.runtime.boot) {
+  labtools.runtime.boot({ manifest: Object.assign({}, window.labtoolsToolManifest, {
+    readParams: readParams, applyParams: applyParams, readOutputs: readOutputs,
+  })});
+}
 </script>
 </body>
 </html>

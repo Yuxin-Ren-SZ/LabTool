@@ -5,8 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>qPCR Analysis · LabTools</title>
   <link rel="stylesheet" href="../../assets/css/labtools.css"/>
-  <script src="../../assets/js/labtools-common.js"></script>
   <script src="../../assets/js/labtools-calc.js"></script>
+  <script src="../../assets/js/labtools-types.js"></script>
+  <script src="../../assets/js/labtools-store.js"></script>
+  <script src="../../assets/js/labtools-workbench.js"></script>
+  <script src="../../assets/js/labtools-common.js"></script>
+  <script src="../../assets/js/labtools-artifact.js"></script>
+  <script src="../../assets/js/labtools-artifact-ui.js"></script>
+  <script src="../../assets/js/labtools-workflow.js"></script>
+  <script src="../../assets/js/labtools-runtime.js"></script>
+  <script src="manifest.js"></script>
   <style>
     .card { max-width: 1180px; }
 
@@ -264,6 +272,9 @@
             <span class="section-title">Run summary</span>
             <div class="section-tools">
               <button class="lt-btn lt-btn-ghost" id="btnResetAll">Clear &amp; start over</button>
+              <button class="lt-btn lt-btn-ghost" id="wb-save-btn">Save to Workbench</button>
+              <button class="lt-btn lt-btn-ghost" id="wb-load-btn">Load from Workbench</button>
+              <span id="lt-artifact-controls" style="display:inline-flex;gap:8px;flex-wrap:wrap"></span>
             </div>
           </div>
           <div class="summary-grid" id="summaryGrid"></div>
@@ -859,15 +870,7 @@ function stripSuffix(name) {
   return name.replace(/\.[^.]+$/, '').replace(/\s*-\s*(tabular results|amplification plots|plate setup|thermal profile|experiment notes).*$/i, '').trim();
 }
 
-// ── File reading (UTF-16 BOM detection, mirrors rt-calc) ──────────────────
-function decodeBuffer(buf) {
-  const bytes = new Uint8Array(buf);
-  if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) return new TextDecoder('utf-16le').decode(bytes);
-  if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) return new TextDecoder('utf-16be').decode(bytes);
-  let text = new TextDecoder('utf-8').decode(bytes);
-  if (text.indexOf('\0') !== -1) text = new TextDecoder('utf-16le').decode(bytes);
-  return text;
-}
+// ── File reading (UTF-16 BOM detection — shared via labtools-common.js) ────
 
 async function handleFiles(fileList) {
   showError('');
@@ -878,7 +881,7 @@ async function handleFiles(fileList) {
   const seen = [];
   for (const f of files) {
     let text;
-    try { text = decodeBuffer(await labtoolsReadFileAsArrayBuffer(f)); }
+    try { text = labtoolsDecodeBuffer(await labtoolsReadFileAsArrayBuffer(f)); }
     catch (e) { seen.push({ name: f.name, type: 'unknown' }); continue; }
     const type = detectType(text);
     seen.push({ name: f.name, type });
@@ -991,6 +994,14 @@ async function handleFiles(fileList) {
 
   $('results').style.display = 'block';
   renderAll();
+
+  // A layout received via workflow handoff before this file was loaded now has
+  // wells to label — apply it.
+  if (pendingHandoffLayout) {
+    applyFromWorkbench(pendingHandoffLayout.data, pendingHandoffLayout.type);
+    showToast('✓ Applied handed-off layout');
+    pendingHandoffLayout = null;
+  }
 }
 
 function applySampleNames() {
@@ -1580,14 +1591,13 @@ function buildGroups() {
     const cqs = g.recs.filter(r => r.cq != null).map(r => r.cq);
     g.n = g.recs.length;
     g.nPos = g.recs.filter(r => r.call === '+').length;
-    g.meanCq = cqs.length ? mean(cqs) : null;
-    g.sdCq = cqs.length > 1 ? sd(cqs) : null;
+    g.meanCq = cqs.length ? statMean(cqs) : null;
+    g.sdCq = cqs.length > 1 ? statSD(cqs) : null;
   }
   return groups;
 }
-function mean(a) { return a.reduce((s, v) => s + v, 0) / a.length; }
-function sd(a) { const m = mean(a); return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / (a.length - 1)); }
 function median(a) { const s = a.slice().sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+// mean/sd come from labtools-calc.js (statMean/statSD — identical sample-SD semantics).
 // Replicate QC: in groups whose Cq SD exceeds the threshold, the well deviating most from the
 // group median is flagged. Needs ≥3 replicates so a single outlier is distinguishable. Keyed "WELL|DYE".
 function outlierKeys() {
@@ -1859,16 +1869,16 @@ function cqsFor(sample, target, plate) {
 }
 function meanCqFor(sample, target, plate) {
   const cqs = cqsFor(sample, target, plate);
-  return cqs.length ? mean(cqs) : null;
+  return cqs.length ? statMean(cqs) : null;
 }
 // Mean amplification efficiency E (=1+eff%/100) for one or more genes. Prefers a fitted
 // standard-curve E when available (Tier 3 / valid Pfaffl), else the per-well Agilent
 // efficiency, else falls back to 2.0 (100%).
 function effForGenes(genes) {
   const fitted = genes.map(g => (stdCurveByGene()[g] || {}).E).filter(v => v != null && isFinite(v));
-  if (fitted.length) return mean(fitted);
+  if (fitted.length) return statMean(fitted);
   const effs = state.records.filter(r => genes.includes(r.target) && r.eff != null).map(r => r.eff);
-  return effs.length ? 1 + mean(effs) / 100 : 2.0;
+  return effs.length ? 1 + statMean(effs) / 100 : 2.0;
 }
 // Combined reference Cq for a sample = mean Cq across the selected reference genes
 // (the arithmetic mean of Cq equals the geometric mean of quantities — geNorm-style).
@@ -1876,7 +1886,7 @@ function refCqFor(sample, refs, plate) {
   if (!refs.length) return null;
   const vals = refs.map(t => meanCqFor(sample, t, plate));
   if (vals.some(v => v == null)) return null;       // require every reference for the sample
-  return mean(vals);
+  return statMean(vals);
 }
 // Which plate a biological-replicate sample lives on (its first record's plate).
 function plateOfSample(sample) {
@@ -1972,7 +1982,7 @@ function interPlateOffsets(t, refs) {
   }
   const ps = Object.keys(per);
   if (ps.length < 2) return null;                  // need the calibrator on ≥2 plates
-  const gm = mean(ps.map(p => per[p]));
+  const gm = statMean(ps.map(p => per[p]));
   const off = {};
   for (const p of ps) off[p] = per[p] - gm;
   return off;
@@ -2010,9 +2020,9 @@ function ddCompute() {
     }
     const ctrl = repByGroup.get(control) || [];
     const ctrlDeltas = ctrl.map(r => r.dCq);
-    const ctrlMeanDCq = ctrlDeltas.length ? mean(ctrlDeltas) : null;
-    const calTgt = ctrl.length ? mean(ctrl.map(r => r.tgtCq)) : null;
-    const calRef = ctrl.length ? mean(ctrl.map(r => r.refCq)) : null;
+    const ctrlMeanDCq = ctrlDeltas.length ? statMean(ctrlDeltas) : null;
+    const calTgt = ctrl.length ? statMean(ctrl.map(r => r.tgtCq)) : null;
+    const calRef = ctrl.length ? statMean(ctrl.map(r => r.refCq)) : null;
     for (const g of groupNames) {
       const reps = repByGroup.get(g);
       if (!reps.length) continue;
@@ -2030,8 +2040,8 @@ function ddCompute() {
       });
       const dCqs = detail.map(r => r.dCq);
       const nB = dCqs.length;
-      const meanDCq = mean(dCqs);
-      const sdDCq = nB > 1 ? sd(dCqs) : null;
+      const meanDCq = statMean(dCqs);
+      const sdDCq = nB > 1 ? statSD(dCqs) : null;
       const ddCq = (paired && isCtrl) ? 0 : (ctrlMeanDCq != null ? meanDCq - ctrlMeanDCq : null);
       const meanFold = ddCq != null ? Math.pow(base, -ddCq) : null;
       // 95% CI in ΔCq space (t-based) mapped to fold; control keeps its own error (§5.6.3)
@@ -2425,6 +2435,10 @@ function niceTicks(lo, hi, n) {
 }
 
 // ── Export ──────────────────────────────────────────────────────────────────
+/** TSV cell sanitizer: tabs/newlines inside a value would break the column/row grid. */
+function tsvCell(v) {
+  return String(v == null ? '' : v).replace(/[\t\r\n]+/g, ' ');
+}
 function resultsTSV() {
   const multi = state.plates.length > 1;
   const cols = [...(multi ? ['Plate'] : []), 'Well', 'Sample', 'Target', 'Dye', 'Cq', 'Call', 'Threshold', 'Baseline Start', 'Baseline End', 'Efficiency (%)', 'Quantity'];
@@ -2435,7 +2449,7 @@ function resultsTSV() {
       r.threshold != null ? r.threshold.toFixed(3) : '',
       r.blStart ?? '', r.blEnd ?? '',
       r.eff != null ? r.eff.toFixed(2) : '',
-      r.quantity != null ? r.quantity : ''].join('\t'));
+      r.quantity != null ? r.quantity : ''].map(tsvCell).join('\t'));
   }
   return lines.join('\n');
 }
@@ -2686,6 +2700,365 @@ function init() {
 }
 function setActive(group, btn) { group.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn)); }
 function flash(btn, on, off) { btn.textContent = on; setTimeout(() => { btn.textContent = off; }, 1400); }
+
+// ─── Workbench integration ──────────────────────────────────────────────────
+const TOOL_NAME = 'qpcr-analysis';
+const WB_PRODUCES = 'qpcr-results';
+const WB_CONSUMES = ['plate-layout', 'sample-list'];
+
+function serializeForWorkbench() {
+  // Collect well-level labels (sample, gene, group)
+  var wells = {};
+  state.wellsPresent.forEach(function (w) {
+    var sample = state.sampleByWell[w] || '';
+    // targetByKey is keyed "WELL|DYE" (written at ingest/apply time) — the
+    // bare-well lookup previously here always missed, so gene labels were
+    // silently dropped from saves/handoffs (audit defect #3).
+    var gene = state.targetByKey[w + '|' + (state.plateDye || '')] || '';
+    var group = state.userGroup[w] || '';
+    if (sample || gene || group) {
+      wells[w] = { sample: sample, gene: gene, group: group };
+    }
+  });
+
+  return {
+    expName: state.expName,
+    plateCount: state.plates.length,
+    dyes: state.dyes.slice(),
+    targets: state.targets.slice(),
+    wellCount: state.records.length,
+    wells: wells,
+    notes: state.notes,
+  };
+}
+
+// A layout handed off via ?wbLoad can arrive before a results file is loaded (no
+// wells to label yet). Stash it here and apply once ingestion builds the wells.
+var pendingHandoffLayout = null;
+
+function applyFromWorkbench(data, type) {
+  if (type === 'plate-layout') {
+    // Convert plate-layout assignments to sample/gene/group maps
+    var samples = {};
+    var genes = {};
+    var groups = {};
+
+    // Category fields (e.g. gene or group) store a category id as the value; the
+    // human name lives in categoriesByField. Resolve ids → names so labels read
+    // "HPRT1"/"Control" rather than "g1"/"c2". Text fields pass through.
+    var cbf = data.categoriesByField || {};
+    var fieldById = {};
+    (data.fields || []).forEach(function (f) { if (f && f.id) fieldById[f.id] = f; });
+    var resolveVal = function (fieldId, value) {
+      var f = fieldById[fieldId];
+      if (f && f.kind === 'category') {
+        var cats = cbf[fieldId] || [];
+        for (var i = 0; i < cats.length; i++) if (cats[i].id === value) return cats[i].name;
+      }
+      return value;
+    };
+
+    (data.plates || []).forEach(function (plate) {
+      var assignments = plate.assignments || {};
+      Object.keys(assignments).forEach(function (wellId) {
+        var a = assignments[wellId];
+        if (a.sample) samples[wellId] = resolveVal('sample', a.sample);
+        if (a.gene) genes[wellId] = resolveVal('gene', a.gene);
+        if (a.group) groups[wellId] = resolveVal('group', a.group);
+      });
+    });
+
+    // Apply to state — resolve well IDs (plain labels like A1) to uid format (plate␟A1)
+    var singlePlate = state.plates.length === 1;
+    var applyEach = function (map, setter) {
+      Object.keys(map).forEach(function (well) {
+        var uid = singlePlate
+          ? (state.wellsPresent.has(state.plates[0] + PSEP + well) ? state.plates[0] + PSEP + well : null)
+          : state.plates.map(function (p) { return p + PSEP + well; }).filter(function (u) { return state.wellsPresent.has(u); });
+        if (!uid) return;
+        (Array.isArray(uid) ? uid : [uid]).forEach(function (u) { setter(u, map[well]); });
+      });
+    };
+
+    applyEach(samples, function (u, v) { state.sampleByWell[u] = v; state.userNamed.add(u); });
+    applyEach(groups, function (u, v) { state.userGroup[u] = v; });
+    // Apply gene labels per well×dye
+    applyEach(genes, function (u, v) {
+      state.records.forEach(function (r) {
+        if (r.well === u) state.targetByKey[u + '|' + (r.dye || state.plateDye)] = v;
+      });
+    });
+
+    state.labelsDirty = true;
+    state.userNamed = new Set(Object.keys(state.sampleByWell));
+    renderAll();
+  } else if (type === 'sample-list') {
+    // Apply sample list — populate sample names from the list
+    var samples = (data.samples || []);
+    if (samples.length === 0) return;
+    // For each named well in the current state, try to match by index
+    var wellIds = Array.from(state.wellsPresent);
+    samples.forEach(function (s, i) {
+      if (i < wellIds.length) {
+        state.sampleByWell[wellIds[i]] = s.name || '';
+        state.userNamed.add(wellIds[i]);
+      }
+    });
+    state.labelsDirty = true;
+    renderAll();
+  }
+}
+
+function suggestLabel() {
+  var exp = state.expName || 'qPCR Run';
+  var date = new Date().toISOString().slice(0, 10);
+  return exp + ' ' + date;
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  var saveBtn = document.getElementById('wb-save-btn');
+  var loadBtn = document.getElementById('wb-load-btn');
+
+  if (saveBtn) saveBtn.addEventListener('click', function () {
+    if (!state.records.length) { showToast('No data to save. Load a file first.'); return; }
+    var label = prompt('Name this item:', suggestLabel());
+    if (!label || !label.trim()) return;
+    label = label.trim();
+
+    workbench.findByName(label).then(function (existing) {
+      if (existing) {
+        if (!confirm('"' + label + '" already exists. Overwrite?')) return;
+        return workbench.remove(existing.id);
+      }
+    }).then(function () {
+      return workbench.put(WB_PRODUCES, label, serializeForWorkbench(),
+        { plateCount: state.plates.length, wellCount: state.records.length }, TOOL_NAME);
+    }).then(function () {
+      showToast('✓ Saved "' + label + '"');
+    }).catch(function (e) {
+      showToast('✗ ' + e.message);
+      console.error('Workbench save error:', e);
+    });
+  });
+
+  if (loadBtn) loadBtn.addEventListener('click', function () {
+    if (!state.records.length) { showToast('Load a file first to enable import.'); return; }
+    var allItems = [];
+    Promise.all(WB_CONSUMES.map(function (t) { return workbench.getByType(t); })).then(function (results) {
+      results.forEach(function (items, i) {
+        items.forEach(function (item) { allItems.push(item); });
+      });
+      if (allItems.length === 0) { showToast('No matching data in Workbench'); return; }
+      showPicker(allItems, function (item) {
+        applyFromWorkbench(item.data, item.type);
+        showToast('✓ Applied "' + item.label + '"');
+      });
+    }).catch(function (e) {
+      console.error('Workbench load error:', e);
+    });
+  });
+
+  // Workflow handoff: a plate-layout (or sample-list) passed via ?wbLoad. If a
+  // results file is already loaded, apply now; otherwise stash for after load
+  // (pendingHandoffLayout, consumed by ingestion). Dual channel: artifact
+  // envelopes wire through applyInputs (field ports), typed payloads keep the
+  // legacy path.
+  function stashOrApply(data, type) {
+    if (state.records && state.records.length) {
+      applyFromWorkbench(data, type);
+    } else {
+      pendingHandoffLayout = { data: data, type: type };
+      showToast('Layout received — load your qPCR results file to apply labels.');
+    }
+  }
+  function stashOrApplyWired(resolved) {
+    resolved = resolved || {};
+    const layout = resolved['plate-layout'];
+    const samples = resolved['sample-list'];
+    if (state.records && state.records.length) {
+      if (layout != null) applyFromWorkbench(layout, 'plate-layout');
+      if (samples != null) applyFromWorkbench(samples, 'sample-list');
+    } else if (layout != null || samples != null) {
+      pendingHandoffLayout = layout != null
+        ? { data: layout, type: 'plate-layout' }
+        : { data: samples, type: 'sample-list' };
+      showToast('Layout received — load your qPCR results file to apply labels.');
+    }
+  }
+  if (typeof labtoolsConsumeArtifactHandoff === 'function') {
+    labtoolsConsumeArtifactHandoff(qpcrTool, stashOrApplyWired);
+  }
+  if (typeof labtoolsConsumeHandoff === 'function') {
+    labtoolsConsumeHandoff(stashOrApply);
+  }
+});
+
+// ─── Artifact model (full-state recovery + wireable outputs) ────────────────
+// Pure-function view: the ingested records PLUS every label/analysis setting are
+// `params`. Derived structures (byKey Map, wellsPresent Set) rebuild from records;
+// transient selection (selWells, lastRowIdx) resets. Restoring params + rebuild +
+// renderAll() reproduces the tool without re-uploading the results file. Sets are
+// stored as arrays for JSON/CSV.
+
+/** Capture ALL reproducible state (records + labels + analysis settings). */
+function readParams() {
+  var s = state;
+  return {
+    expName: s.expName, notes: s.notes, thermal: s.thermal,
+    files: s.files, plates: s.plates, plateGeoms: s.plateGeoms,
+    records: s.records,
+    dyes: s.dyes, targets: s.targets, plateDye: s.plateDye, plateMode: s.plateMode,
+    fltDye: s.fltDye, fltCall: s.fltCall, ampScale: s.ampScale, foldScale: s.foldScale,
+    assignField: s.assignField, sort: { col: s.sort.col, dir: s.sort.dir },
+    chartGroupBy: s.chartGroupBy, chartLayout: s.chartLayout,
+    sumFilter: s.sumFilter, sumSearch: s.sumSearch, qcSdThr: s.qcSdThr, lodCutoff: s.lodCutoff,
+    sampleByWell: s.sampleByWell, targetByKey: s.targetByKey, userGroup: s.userGroup,
+    userNamed: [...s.userNamed], ddRefs: [...s.ddRefs],
+    thresholds: s.thresholds, customThr: s.customThr,
+    ddRefsInit: s.ddRefsInit, ddControlGroup: s.ddControlGroup, ddControlInit: s.ddControlInit,
+    ddEffCorr: s.ddEffCorr, pairedDesign: s.pairedDesign,
+    interPlateCal: s.interPlateCal, interPlateInit: s.interPlateInit,
+    labelsDirty: s.labelsDirty,
+  };
+}
+
+/** Restore state, rebuild derived structures, and re-render. */
+function applyParams(p) {
+  p = p || {};
+  var s = state;
+  s.expName = p.expName || ''; s.notes = p.notes || ''; s.thermal = p.thermal || null;
+  s.files = p.files || []; s.plates = p.plates || []; s.plateGeoms = p.plateGeoms || {};
+  s.records = p.records || [];
+  s.dyes = p.dyes || []; s.targets = p.targets || []; s.plateDye = p.plateDye || ''; s.plateMode = p.plateMode || 'call';
+  s.fltDye = p.fltDye || ''; s.fltCall = p.fltCall || ''; s.ampScale = p.ampScale || 'linear'; s.foldScale = p.foldScale || 'linear';
+  s.assignField = p.assignField || 'sample';
+  s.sort = p.sort ? { col: p.sort.col, dir: p.sort.dir } : { col: 'well', dir: 1 };
+  s.chartGroupBy = p.chartGroupBy || 'sample'; s.chartLayout = p.chartLayout || 'together';
+  s.sumFilter = p.sumFilter || 'withcq'; s.sumSearch = p.sumSearch || '';
+  s.qcSdThr = (p.qcSdThr != null) ? p.qcSdThr : 0.5; s.lodCutoff = (p.lodCutoff != null) ? p.lodCutoff : 38;
+  s.sampleByWell = p.sampleByWell || {}; s.targetByKey = p.targetByKey || {}; s.userGroup = p.userGroup || {};
+  s.userNamed = new Set(p.userNamed || []); s.ddRefs = new Set(p.ddRefs || []);
+  s.thresholds = p.thresholds || {}; s.customThr = p.customThr || {};
+  s.ddRefsInit = !!p.ddRefsInit; s.ddControlGroup = p.ddControlGroup || ''; s.ddControlInit = !!p.ddControlInit;
+  s.ddEffCorr = !!p.ddEffCorr; s.pairedDesign = !!p.pairedDesign;
+  s.interPlateCal = p.interPlateCal || ''; s.interPlateInit = !!p.interPlateInit;
+  s.labelsDirty = !!p.labelsDirty;
+
+  // Rebuild derived structures from records; reset transient selection.
+  s.byKey = new Map();
+  s.records.forEach(function (r) { s.byKey.set(r.well + '|' + r.dye, r); });
+  s.wellsPresent = new Set(s.records.map(function (r) { return r.well; }));
+  s.selWells = new Set(); s.lastRowIdx = null;
+
+  if (s.records.length) { var el = document.getElementById('results'); if (el) el.style.display = 'block'; }
+  if (typeof recomputeTargets === 'function') recomputeTargets();
+  if (typeof renderAll === 'function') renderAll();
+  syncControlsFromState();
+}
+
+/**
+ * Mirror the restored state into the visible controls. renderAll() redraws
+ * the data views, but segmented active classes, checkboxes and text inputs
+ * only update in their click/change handlers — without this the UI and the
+ * state disagree after a restore (audit defect #9).
+ */
+function syncControlsFromState() {
+  var s = state;
+  function segByData(id, attr, val) {
+    var group = $(id); if (!group) return;
+    var hit = null;
+    group.querySelectorAll('button').forEach(function (b) {
+      var on = b.dataset[attr] === val;
+      b.classList.toggle('active', on);
+      if (on) hit = b;
+    });
+  }
+  segByData('plateMode', 'mode', s.plateMode);
+  segByData('ampScale', 'scale', s.ampScale);
+  segByData('ampLayout', 'layout', s.chartLayout);
+  segByData('assignField', 'field', s.assignField);
+  segByData('sumFilter', 'filter', s.sumFilter);
+  segByData('foldScale', 'scale', s.foldScale);
+
+  var ampGroupBy = $('ampGroupBy'); if (ampGroupBy) ampGroupBy.value = s.chartGroupBy;
+  var ddPaired = $('ddPaired'); if (ddPaired) ddPaired.checked = !!s.pairedDesign;
+  var ddEffCorr = $('ddEffCorr'); if (ddEffCorr) ddEffCorr.checked = !!s.ddEffCorr;
+  var lod = $('lodInput'); if (lod) lod.value = s.lodCutoff;
+  var qcThr = $('qcThrInput'); if (qcThr) qcThr.value = s.qcSdThr;
+  var method = $('methodInstrument'); if (method) method.value = s.interPlateCal || '';
+  var sumSearch = $('sumSearch'); if (sumSearch) sumSearch.value = s.sumSearch || '';
+  var plateDye = $('plateDye'); if (plateDye && s.plateDye) plateDye.value = s.plateDye;
+}
+
+/** Declared final outputs: the run summary, per-well Cq, and ΔΔCq expression. */
+function readOutputs() {
+  // Per-well Cq keyed by "WELL|DYE" (only wells with a called Cq).
+  var cq = {};
+  state.records.forEach(function (r) { if (r.cq != null) cq[r.well + '|' + r.dye] = r.cq; });
+  // ΔΔCq relative expression (null if no valid control group / insufficient data).
+  var ddcq = null;
+  try {
+    if (typeof ddCompute === 'function') {
+      var d = ddCompute();
+      ddcq = { control: d.control, rows: d.rows };
+    }
+  } catch (e) { ddcq = null; }
+  return {
+    'qpcr-results': serializeForWorkbench(),
+    'cq': cq,
+    'ddcq': ddcq,
+  };
+}
+
+// Bridge: registers workbench types and provides artifact build/save/restore/CSV.
+const qpcrTool = labtoolsDefineTool({
+  id: 'qpcr-analysis',
+  produces: ['qpcr-results'],
+  consumes: ['plate-layout', 'sample-list'],
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  outputFields: [
+    { id: 'qpcr-results', label: 'Analyzed qPCR run' },
+    { id: 'cq', label: 'Per-well Cq' },
+    { id: 'ddcq', label: 'ΔΔCq relative expression' },
+  ],
+  inputPorts: [{ field: 'plate-layout' }, { field: 'sample-list' }],
+});
+
+// Explicit legacy declaration (kept for the static registry test; the bridge
+// above registers the same types at runtime — idempotent).
+labtoolsRegisterToolTypes('qpcr-analysis', ['qpcr-results'], ['plate-layout', 'sample-list']);
+
+if (typeof labtoolsMountArtifactControls === 'function') {
+  labtoolsMountArtifactControls(qpcrTool, { container: '#lt-artifact-controls', fileBase: 'qpcr-analysis' });
+}
+
+labtoolsRegisterTestHooks('qpcr-analysis', {
+  serialize: serializeForWorkbench,
+  apply: applyFromWorkbench,
+  readParams: readParams,
+  applyParams: applyParams,
+  readOutputs: readOutputs,
+  buildArtifact: function () { return qpcrTool.build(); },
+  toCsv: function () { return qpcrTool.toCsv(); },
+  fromCsv: function (text) { return qpcrTool.fromCsv(text); },
+  state: function () {
+    return {
+      expName: state.expName,
+      plates: state.plates.slice(),
+      wellCount: state.records.length,
+      namedWells: Object.keys(state.sampleByWell).length,
+    };
+  },
+});
+
+// ─── Shared-layer runtime boot (manifest + load self-check; idempotent) ──────
+if (typeof labtools !== 'undefined' && labtools.runtime && labtools.runtime.boot) {
+  labtools.runtime.boot({ manifest: Object.assign({}, window.labtoolsToolManifest, {
+    readParams: readParams, applyParams: applyParams, readOutputs: readOutputs,
+  })});
+}
 
 init();
 </script>

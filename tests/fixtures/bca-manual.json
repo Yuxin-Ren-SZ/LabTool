@@ -1,0 +1,106 @@
+{
+  "stdRows": [
+    {
+      "conc": 2000,
+      "od1": 1.668,
+      "od2": 1.657,
+      "od3": null
+    },
+    {
+      "conc": 1500,
+      "od1": 1.254,
+      "od2": 1.266,
+      "od3": null
+    },
+    {
+      "conc": 1000,
+      "od1": 0.857,
+      "od2": 0.853,
+      "od3": null
+    },
+    {
+      "conc": 750,
+      "od1": 0.656,
+      "od2": 0.663,
+      "od3": null
+    },
+    {
+      "conc": 500,
+      "od1": 0.459,
+      "od2": 0.465,
+      "od3": null
+    },
+    {
+      "conc": 250,
+      "od1": 0.26,
+      "od2": 0.265,
+      "od3": null
+    },
+    {
+      "conc": 125,
+      "od1": 0.151,
+      "od2": 0.166,
+      "od3": null
+    },
+    {
+      "conc": 25,
+      "od1": 0.081,
+      "od2": 0.076,
+      "od3": null
+    },
+    {
+      "conc": 0,
+      "od1": 0.055,
+      "od2": 0.068,
+      "od3": null
+    }
+  ],
+  "smpRows": [
+    {
+      "name": "Unknown 1",
+      "od1": 0.851,
+      "od2": 0.712,
+      "od3": null,
+      "df": 1
+    },
+    {
+      "name": "Unknown 2",
+      "od1": 1.078,
+      "od2": 0.939,
+      "od3": null,
+      "df": 1
+    },
+    {
+      "name": "Unknown 3",
+      "od1": 1.273,
+      "od2": 1.36,
+      "od3": null,
+      "df": 1
+    },
+    {
+      "name": "Unknown 4",
+      "od1": 0.753,
+      "od2": 1.372,
+      "od3": null,
+      "df": 1
+    },
+    {
+      "name": "Unknown 5",
+      "od1": 0.576,
+      "od2": 0.324,
+      "od3": null,
+      "df": 1
+    },
+    {
+      "name": "Unknown 6",
+      "od1": 0.43,
+      "od2": 1.08,
+      "od3": null,
+      "df": 1
+    }
+  ],
+  "currentPreset": "pierce",
+  "numReps": 2,
+  "fitModel": "linear",
+  "qcCvThr": 15
+}

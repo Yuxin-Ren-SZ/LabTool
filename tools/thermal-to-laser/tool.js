@@ -353,6 +353,9 @@ async function loadSourceFiles(files) {
 }
 
 async function parseSourceFiles(files) {
+  if (typeof PDFLib === 'undefined' || !PDFLib.PDFDocument) {
+    throw new Error('The PDF library failed to load (pdf-lib.min.js missing or blocked). Reload the page to retry.');
+  }
   const sourceDocuments = [];
   const pageEntries = [];
 
@@ -1540,6 +1543,9 @@ async function generateOutputPdf() {
   renderAll();
 
   try {
+    if (typeof PDFLib === 'undefined' || !PDFLib.PDFDocument) {
+      throw new Error('The PDF library failed to load (pdf-lib.min.js missing or blocked). Reload the page to retry.');
+    }
     const outputDoc = await PDFLib.PDFDocument.create();
     const embeddedPagesByDocument = [];
     for (const sourceDocument of state.sourceDocuments) {

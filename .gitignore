@@ -35,3 +35,6 @@ npm-debug.log*
 
 # Tool-specific sample assets
 tools/**/test_data/
+
+# Test run artifacts (human review evidence — keep local)
+tests/reports/
